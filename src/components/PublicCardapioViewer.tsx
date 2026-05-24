@@ -267,7 +267,7 @@ export function PublicCardapioViewer() {
                    <Sunrise className="w-5 h-5" />
                    <h3 className="font-black uppercase tracking-widest text-[10px]">Café da Manhã</h3>
                  </div>
-                 {renderSnackItems(menu.cafeManha || menu.ceia)}
+                 {renderSnackItems(menu.cafeManha)}
               </div>
               
               <div className="h-px bg-slate-100 w-full line"></div>

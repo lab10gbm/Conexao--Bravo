@@ -81,11 +81,10 @@ export function TagInput({ value, onChange, suggestions = [], placeholder, class
           onKeyDown={handleKeyDown}
           onFocus={() => setShowSuggestions(true)}
           onBlur={() => {
-            // When blurring, if there is valid text, we can try to add it.
-            // Using a slight timeout helps to avoid conflicts with suggestion clicks.
-            setTimeout(() => {
-              setShowSuggestions(false);
-            }, 250);
+            if (inputValue.trim()) {
+              handleAddTag(inputValue.trim());
+            }
+            setShowSuggestions(false);
           }}
           className="flex-1 min-w-[120px] bg-transparent outline-none text-sm font-bold uppercase text-slate-700 placeholder-slate-400"
           placeholder={tags.length === 0 ? placeholder : ''}

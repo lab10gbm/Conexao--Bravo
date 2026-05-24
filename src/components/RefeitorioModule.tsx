@@ -736,7 +736,7 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
                     <h3 className="font-black uppercase tracking-widest text-[10px]">Café da Manhã</h3>
                   </div>
                   <div className="flex-1">
-                    {renderSnackItems(menu.cafeManha || menu.ceia)}
+                    {renderSnackItems(menu.cafeManha)}
                   </div>
                 </div>
 
@@ -889,12 +889,18 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
                         <td className="py-4 px-6 text-[10px] font-bold text-slate-500 uppercase">
                           <div className="flex items-center gap-1.5 mb-1 truncate max-w-[200px]" title={m.cafeManha}>
                             <Sunrise className="w-3 h-3 text-emerald-500" />
-                            {m.cafeManha || m.ceia}
+                            {m.cafeManha}
                           </div>
-                          <div className="flex items-center gap-1.5 truncate max-w-[200px]" title={m.lancheTarde}>
+                          <div className="flex items-center gap-1.5 mb-1 truncate max-w-[200px]" title={m.lancheTarde}>
                             <Coffee className="w-3 h-3 text-amber-500" />
                             {m.lancheTarde}
                           </div>
+                          {m.jantar?.ceia && (
+                            <div className="flex items-center gap-1.5 truncate max-w-[200px]" title={m.jantar.ceia}>
+                              <Coffee className="w-3 h-3 text-indigo-500" />
+                              {m.jantar.ceia}
+                            </div>
+                          )}
                         </td>
                         <td className="py-4 px-6 text-right">
                           <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
