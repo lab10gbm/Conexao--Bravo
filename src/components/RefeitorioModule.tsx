@@ -331,70 +331,12 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
     if (!svg) return;
     let baseSvgData = new XMLSerializer().serializeToString(svg);
 
-    const now = new Date();
-    const weekdays = ['DOMINGO', 'SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'];
-    const weekdayStr = weekdays[now.getDay()];
-    const dateStr = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-
-    let finalSvgData = baseSvgData;
-
-    if (id === 'qrcode-public') {
-      finalSvgData = `
-<svg width="600" height="800" viewBox="0 0 600 800" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="roseGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#f43f5e" />
-      <stop offset="100%" stop-color="#be123c" />
-    </linearGradient>
-    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
-      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-opacity="0.1" />
-    </filter>
-  </defs>
-  <rect width="600" height="800" fill="#f8fafc" />
-  <rect width="600" height="180" fill="url(#roseGrad)" />
-  <text x="300" y="70" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="28" fill="#ffffff" letter-spacing="4">10º GBM - REFEITÓRIO</text>
-  <text x="300" y="110" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="42" fill="#ffffff">CARDÁPIO DO DIA</text>
-  
-  <rect x="180" y="140" width="240" height="50" rx="25" fill="#ffffff" filter="url(#shadow)" />
-  <text x="300" y="173" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="22" fill="#0f172a" letter-spacing="1">${weekdayStr} (${dateStr})</text>
-  
-  <rect x="120" y="240" width="360" height="360" rx="32" fill="#ffffff" filter="url(#shadow)" stroke="#e2e8f0" stroke-width="2" />
-  <g transform="translate(140, 260) scale(2)">
-    ${baseSvgData}
-  </g>
-  
-  <text x="300" y="660" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="24" fill="#0f172a">ESCANEIE O QR CODE</text>
-  <text x="300" y="690" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="600" font-size="18" fill="#64748b">para ver as opções de almoço e jantar hoje</text>
-</svg>`.trim();
-    } else if (id === 'qrcode-admin') {
-      finalSvgData = `
-<svg width="600" height="800" viewBox="0 0 600 800" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="indGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#4f46e5" />
-      <stop offset="100%" stop-color="#312e81" />
-    </linearGradient>
-    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
-      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-opacity="0.1" />
-    </filter>
-  </defs>
-  <rect width="600" height="800" fill="#f8fafc" />
-  <rect width="600" height="180" fill="url(#indGrad)" />
-  <text x="300" y="70" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="28" fill="#ffffff" letter-spacing="4">10º GBM - INTRANET</text>
-  <text x="300" y="110" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="40" fill="#ffffff">GESTAO REFEITÓRIO</text>
-  
-  <rect x="160" y="140" width="280" height="50" rx="25" fill="#ffffff" filter="url(#shadow)" />
-  <text x="300" y="173" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="22" fill="#0f172a" letter-spacing="1">ACESSO RESTRITO</text>
-  
-  <rect x="120" y="240" width="360" height="360" rx="32" fill="#ffffff" filter="url(#shadow)" stroke="#4f46e5" stroke-width="4" />
-  <g transform="translate(140, 260) scale(2)">
-    ${baseSvgData}
-  </g>
-  
-  <text x="300" y="660" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="24" fill="#0f172a">ÁREA ADMINISTRATIVA</text>
-  <text x="300" y="690" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="600" font-size="18" fill="#64748b">Apenas Oficiais e Permissões Especiais</text>
-</svg>`.trim();
+    // Ensure the SVG string has a valid xmlns attribute
+    if (!baseSvgData.includes('xmlns=')) {
+      baseSvgData = baseSvgData.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
     }
+
+    const finalSvgData = baseSvgData;
 
     if (format === 'svg') {
       const blob = new Blob([finalSvgData], { type: "image/svg+xml;charset=utf-8" });
@@ -415,16 +357,15 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
       const url = URL.createObjectURL(blob);
       
       img.onload = () => {
-        // Base SVG is 600x800 for the cards, or fallback to svg dimensions if it's not our cards
-        const isCard = id === 'qrcode-public' || id === 'qrcode-admin';
-        const baseWidth = isCard ? 600 : (svg.getBoundingClientRect().width || 160);
-        const baseHeight = isCard ? 800 : (svg.getBoundingClientRect().height || 160);
+        const baseWidth = svg.getBoundingClientRect().width || 160;
+        const baseHeight = svg.getBoundingClientRect().height || 160;
         
-        // Scale for high DPI
-        const scale = isCard ? 2 : 4; 
+        // Scale to 1024x1024 to make the downloaded QR Code high definition for print and custom artwork
+        const targetSize = 1024;
+        const scale = targetSize / baseWidth; 
         
-        canvas.width = baseWidth * scale;
-        canvas.height = baseHeight * scale;
+        canvas.width = targetSize;
+        canvas.height = targetSize;
         
         if (ctx) {
           if (format === 'jpeg') {

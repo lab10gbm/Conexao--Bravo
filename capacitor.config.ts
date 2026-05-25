@@ -1,0 +1,14 @@
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
+  appId: 'com.app.intranet',
+  appName: 'Intranet',
+  webDir: 'dist',
+  plugins: {
+    CapacitorUpdater: {
+      autoUpdate: true,
+    }
+  }
+};
+
+export default config;
