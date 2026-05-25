@@ -570,7 +570,7 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
                         </div>
                       </div>
 
-                      {menu?.almoco?.saladas && menu.almoco.saladas !== '-' && (
+                      {menu?.almoco?.saladas && menu?.almoco?.saladas !== '-' && (
                         <div className="flex flex-col gap-2">
                           <span className="font-black uppercase tracking-widest text-[10px] text-slate-400">Saladas</span>
                           <span className="inline-flex items-center gap-1.5 w-max bg-emerald-50 text-emerald-700 px-2.5 py-1.5 rounded-lg border border-emerald-100 text-xs font-bold uppercase">
@@ -642,7 +642,7 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
                         </div>
                       </div>
 
-                      {menu?.jantar?.saladas && menu.jantar.saladas !== '-' && (
+                      {menu?.jantar?.saladas && menu?.jantar?.saladas !== '-' && (
                         <div className="flex flex-col gap-2">
                           <span className="font-black uppercase tracking-widest text-[10px] text-slate-500">Saladas</span>
                           <span className="inline-flex items-center gap-1.5 w-max bg-emerald-900/40 text-emerald-300 px-2.5 py-1.5 rounded-lg border border-emerald-800/50 text-xs font-bold uppercase">

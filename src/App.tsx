@@ -246,11 +246,27 @@ export default function App() {
   const publicSectionId = isPublicCargaView ? location.pathname.split('/')[2] : null;
 
   if (isPublicCargaView && publicSectionId) {
+    if (!authReady) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 text-slate-400">
+          <Loader2 className="w-8 h-8 text-rose-500 animate-spin mb-4" />
+          <p className="text-[10px] font-black uppercase tracking-widest">Iniciando conexão segura...</p>
+        </div>
+      );
+    }
     return <PublicCargaViewer sectionId={publicSectionId} />;
   }
 
   const isPublicCardapio = location.pathname.startsWith('/cardapio');
   if (isPublicCardapio) {
+    if (!authReady) {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 text-slate-400">
+          <Loader2 className="w-8 h-8 text-rose-500 animate-spin mb-4" />
+          <p className="text-[10px] font-black uppercase tracking-widest">Iniciando conexão segura...</p>
+        </div>
+      );
+    }
     return (
       <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="w-8 h-8 text-rose-500 animate-spin" /></div>}>
         <PublicCardapioViewer />

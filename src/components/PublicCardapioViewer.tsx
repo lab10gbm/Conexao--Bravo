@@ -199,7 +199,7 @@ export function PublicCardapioViewer() {
                    </div>
                 </div>
 
-                {menu?.almoco?.saladas && menu.almoco.saladas !== '-' && (
+                {menu?.almoco?.saladas && menu?.almoco?.saladas !== '-' && (
                   <div>
                     <span className="font-black uppercase tracking-widest text-[10px] text-slate-400 block mb-2">Saladas</span>
                     <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg border border-emerald-100 text-[10px] font-bold uppercase">
@@ -249,7 +249,7 @@ export function PublicCardapioViewer() {
                    </div>
                 </div>
 
-                {menu?.jantar?.saladas && menu.jantar.saladas !== '-' && (
+                {menu?.jantar?.saladas && menu?.jantar?.saladas !== '-' && (
                   <div>
                     <span className="font-black uppercase tracking-widest text-[10px] text-slate-500 block mb-2">Saladas</span>
                     <span className="inline-flex items-center gap-1.5 bg-emerald-900/30 text-emerald-300 px-2.5 py-1 rounded-lg border border-emerald-800/50 text-[10px] font-bold uppercase">
