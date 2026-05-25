@@ -503,7 +503,7 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
                     className={`px-4 py-2.5 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all ${currentMenuId === item.originalIndex ? 'bg-white text-rose-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'}`}
                   >
                     <div className="flex flex-col items-center gap-0.5">
-                      <span>{item.weekday ? item.weekday.split('-')[0] : 'Novo'}</span>
+                      <span>{item.weekday ? item.weekday.split('-')[0] : ''}</span>
                       <span className="text-[9px] opacity-70">({item.date.split('/')[0]}/{item.date.split('/')[1]})</span>
                     </div>
                   </button>
@@ -540,7 +540,7 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
                         <span className="font-black uppercase tracking-widest text-[10px]">Prato Principal</span>
                       </div>
                       <p className="text-xl md:text-2xl font-black text-rose-950 uppercase tracking-tight leading-tight">
-                        {menu.almoco.principal || 'Não definido'}
+                        {menu?.almoco?.principal || 'Não definido'}
                       </p>
                     </div>
 
@@ -549,7 +549,7 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
                       <div className="flex flex-col gap-3">
                         <span className="font-black uppercase tracking-widest text-[10px] text-slate-400">Acompanhamentos</span>
                         <div className="flex flex-wrap text-sm font-bold text-slate-700 uppercase">
-                          {(menu.almoco.acompanhamentos || '').split(',').map((item, i) => {
+                          {(menu?.almoco?.acompanhamentos || '').split(',').map((item: string, i: number) => {
                             const trimmed = item.trim();
                             const lower = trimmed.toLowerCase();
                             let icon = '';
@@ -570,24 +570,24 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
                         </div>
                       </div>
 
-                      {menu.almoco.saladas && menu.almoco.saladas !== '-' && (
+                      {menu?.almoco?.saladas && menu.almoco.saladas !== '-' && (
                         <div className="flex flex-col gap-2">
                           <span className="font-black uppercase tracking-widest text-[10px] text-slate-400">Saladas</span>
                           <span className="inline-flex items-center gap-1.5 w-max bg-emerald-50 text-emerald-700 px-2.5 py-1.5 rounded-lg border border-emerald-100 text-xs font-bold uppercase">
                             <span className="text-sm">🥗</span>
-                            {menu.almoco.saladas}
+                            {menu?.almoco?.saladas}
                           </span>
                         </div>
                       )}
 
-                      {menu.almoco.sobremesa && (
+                      {menu?.almoco?.sobremesa && (
                         <div className="flex flex-col gap-2 mt-auto">
                           <div className="flex items-center gap-1.5 text-rose-600/80">
                             <Grape className="w-4 h-4 shrink-0" />
                             <span className="font-black uppercase tracking-widest text-[10px]">Sobremesa</span>
                           </div>
                           <p className="text-sm font-bold text-rose-900 uppercase">
-                            {menu.almoco.sobremesa}
+                            {menu?.almoco?.sobremesa}
                           </p>
                         </div>
                       )}
@@ -612,7 +612,7 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
                         <span className="font-black uppercase tracking-widest text-[10px]">Prato Principal</span>
                       </div>
                       <p className="text-xl md:text-2xl font-black text-white uppercase tracking-tight leading-tight">
-                        {menu.jantar.principal || 'Não definido'}
+                        {menu?.jantar?.principal || 'Não definido'}
                       </p>
                     </div>
 
@@ -621,7 +621,7 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
                       <div className="flex flex-col gap-3">
                         <span className="font-black uppercase tracking-widest text-[10px] text-slate-500">Acompanhamentos</span>
                         <div className="flex flex-wrap text-sm font-bold text-slate-200 uppercase">
-                          {(menu.jantar.acompanhamentos || '').split(',').map((item, i) => {
+                          {(menu?.jantar?.acompanhamentos || '').split(',').map((item: string, i: number) => {
                             const trimmed = item.trim();
                             const lower = trimmed.toLowerCase();
                             let icon = '';
@@ -642,24 +642,24 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
                         </div>
                       </div>
 
-                      {menu.jantar.saladas && menu.jantar.saladas !== '-' && (
+                      {menu?.jantar?.saladas && menu.jantar.saladas !== '-' && (
                         <div className="flex flex-col gap-2">
                           <span className="font-black uppercase tracking-widest text-[10px] text-slate-500">Saladas</span>
                           <span className="inline-flex items-center gap-1.5 w-max bg-emerald-900/40 text-emerald-300 px-2.5 py-1.5 rounded-lg border border-emerald-800/50 text-xs font-bold uppercase">
                             <span className="text-sm">🥗</span>
-                            {menu.jantar.saladas}
+                            {menu?.jantar?.saladas}
                           </span>
                         </div>
                       )}
 
-                      {menu.jantar.ceia && (
+                      {menu?.jantar?.ceia && (
                         <div className="flex flex-col gap-2 mt-auto">
                           <div className="flex items-center gap-1.5 text-indigo-400/80">
                             <Coffee className="w-4 h-4 shrink-0" />
                             <span className="font-black uppercase tracking-widest text-[10px]">Ceia</span>
                           </div>
                           <p className="text-sm font-bold text-indigo-200 uppercase">
-                            {menu.jantar.ceia}
+                            {menu?.jantar?.ceia}
                           </p>
                         </div>
                       )}

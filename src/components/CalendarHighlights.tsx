@@ -109,7 +109,11 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
                  onClick={() => {
                    const element = document.getElementById('requests-board');
                    if (element) {
-                     element.scrollIntoView({ behavior: 'smooth' });
+                    try {
+                      element.scrollIntoView({ behavior: 'smooth' });
+                    } catch (e) {
+                      element.scrollIntoView();
+                    }
                    }
                    onMonthSelect?.(mInfo);
                  }}
@@ -140,7 +144,11 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
               onClick={() => {
                 const element = document.getElementById('requests-board');
                 if (element) {
-                  element.scrollIntoView({ behavior: 'smooth' });
+                  try {
+                    element.scrollIntoView({ behavior: 'smooth' });
+                  } catch (e) {
+                    element.scrollIntoView();
+                  }
                 }
                 onMonthSelect?.(month.getMonth());
               }}

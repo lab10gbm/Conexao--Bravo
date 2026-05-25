@@ -16,15 +16,18 @@ export function PublicCardapioViewer() {
     if (scrollContainerRef.current) {
       const selectedEl = scrollContainerRef.current.querySelector('.selected-day-tab') as HTMLElement;
       if (selectedEl) {
-         // simple scrollIntoView
-         selectedEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+         try {
+           selectedEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+         } catch (e) {
+           selectedEl.scrollIntoView(true);
+         }
       }
     }
   }, [loading, selectedOriginalIndex]);
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-slate-400">
+      <div className="flex flex-col items-center justify-center p-12 text-slate-400 min-h-screen bg-slate-50">
         <Loader2 className="w-8 h-8 animate-spin mb-4" />
         <p className="text-sm font-bold uppercase tracking-widest">Carregando cardápio...</p>
       </div>
@@ -78,7 +81,8 @@ export function PublicCardapioViewer() {
     ? menus[currentMenuId] 
     : (visibleMenus[0] || null);
 
-  const renderSnackItems = (text: string) => {
+  const renderSnackItems = (text?: string) => {
+    if (!text) return null;
     const items = text
       .replace(/ E /gi, ', ')
       .replace(/ C\/ /gi, ', ')
@@ -143,7 +147,7 @@ export function PublicCardapioViewer() {
                 className={`snap-center shrink-0 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all ${isSelected ? 'bg-rose-500 text-white shadow-md shadow-rose-200 selected-day-tab' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
               >
                 <div className="flex flex-col items-center gap-1">
-                  <span>{item.weekday.split('-')[0]}</span>
+                  <span>{item.weekday ? item.weekday.split('-')[0] : ''}</span>
                   <span className={`text-[8px] opacity-70 ${isSelected ? 'text-white' : 'text-slate-400'}`}>{item.date}</span>
                 </div>
               </button>
@@ -151,9 +155,15 @@ export function PublicCardapioViewer() {
           })}
         </div>
 
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentMenuId}
+        {!menu ? (
+           <div className="flex flex-col items-center justify-center py-20 text-slate-400 opacity-60">
+             <UtensilsCrossed className="w-12 h-12 mb-4" />
+             <p className="text-xs font-bold uppercase tracking-widest text-center">Nenhum cardápio disponível<br/>neste período</p>
+           </div>
+        ) : (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentMenuId}
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
@@ -174,14 +184,14 @@ export function PublicCardapioViewer() {
                     <span className="font-black uppercase tracking-widest text-[10px]">Prato Principal</span>
                   </div>
                   <p className="text-lg font-black text-slate-800 uppercase leading-snug">
-                    {menu.almoco.principal}
+                    {menu?.almoco?.principal || 'Não definido'}
                   </p>
                 </div>
                 
                 <div>
                    <span className="font-black uppercase tracking-widest text-[10px] text-slate-400 block mb-2">Acompanhamentos</span>
                    <div className="flex flex-wrap text-xs font-bold text-slate-600 uppercase">
-                     {menu.almoco.acompanhamentos.split(',').map((item, i) => (
+                     {(menu?.almoco?.acompanhamentos || '').split(',').map((item: string, i: number) => (
                        <span key={i} className="inline-flex items-center bg-slate-50 px-2 py-1 rounded-lg border border-slate-100 shadow-sm mr-2 mb-2">
                          {item.trim()}
                        </span>
@@ -189,22 +199,22 @@ export function PublicCardapioViewer() {
                    </div>
                 </div>
 
-                {menu.almoco.saladas && menu.almoco.saladas !== '-' && (
+                {menu?.almoco?.saladas && menu.almoco.saladas !== '-' && (
                   <div>
                     <span className="font-black uppercase tracking-widest text-[10px] text-slate-400 block mb-2">Saladas</span>
                     <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg border border-emerald-100 text-[10px] font-bold uppercase">
-                      🥗 {menu.almoco.saladas}
+                      🥗 {menu?.almoco?.saladas}
                     </span>
                   </div>
                 )}
                 
-                {menu.almoco.sobremesa && (
+                {menu?.almoco?.sobremesa && (
                   <div className="pt-2">
                     <div className="flex items-center gap-1.5 text-rose-500 mb-1">
                       <Grape className="w-3.5 h-3.5" />
                       <span className="font-black uppercase tracking-widest text-[10px]">Sobremesa</span>
                     </div>
-                    <p className="text-xs font-bold text-rose-900 uppercase">{menu.almoco.sobremesa}</p>
+                    <p className="text-xs font-bold text-rose-900 uppercase">{menu?.almoco?.sobremesa}</p>
                   </div>
                  )}
               </div>
@@ -224,14 +234,14 @@ export function PublicCardapioViewer() {
                     <span className="font-black uppercase tracking-widest text-[10px]">Prato Principal</span>
                   </div>
                   <p className="text-lg font-black text-white uppercase leading-snug">
-                    {menu.jantar.principal}
+                    {menu?.jantar?.principal || 'Não definido'}
                   </p>
                 </div>
                 
                 <div>
                    <span className="font-black uppercase tracking-widest text-[10px] text-slate-500 block mb-2">Acompanhamentos</span>
                    <div className="flex flex-wrap text-xs font-bold text-slate-300 uppercase">
-                     {menu.jantar.acompanhamentos.split(',').map((item, i) => (
+                     {(menu?.jantar?.acompanhamentos || '').split(',').map((item: string, i: number) => (
                        <span key={i} className="inline-flex items-center bg-slate-800/50 px-2 py-1 rounded-lg border border-slate-700 mr-2 mb-2">
                          {item.trim()}
                        </span>
@@ -239,22 +249,22 @@ export function PublicCardapioViewer() {
                    </div>
                 </div>
 
-                {menu.jantar.saladas && menu.jantar.saladas !== '-' && (
+                {menu?.jantar?.saladas && menu.jantar.saladas !== '-' && (
                   <div>
                     <span className="font-black uppercase tracking-widest text-[10px] text-slate-500 block mb-2">Saladas</span>
                     <span className="inline-flex items-center gap-1.5 bg-emerald-900/30 text-emerald-300 px-2.5 py-1 rounded-lg border border-emerald-800/50 text-[10px] font-bold uppercase">
-                      🥗 {menu.jantar.saladas}
+                      🥗 {menu?.jantar?.saladas}
                     </span>
                   </div>
                 )}
                 
-                {menu.jantar.ceia && (
+                {menu?.jantar?.ceia && (
                   <div className="pt-2">
                     <div className="flex items-center gap-1.5 text-indigo-400/80 mb-1">
                       <Coffee className="w-3.5 h-3.5" />
                       <span className="font-black uppercase tracking-widest text-[10px]">Ceia</span>
                     </div>
-                    <p className="text-xs font-bold text-indigo-200 uppercase">{menu.jantar.ceia}</p>
+                    <p className="text-xs font-bold text-indigo-200 uppercase">{menu?.jantar?.ceia}</p>
                   </div>
                  )}
               </div>
@@ -290,6 +300,7 @@ export function PublicCardapioViewer() {
             <div className="h-4"></div>
           </motion.div>
         </AnimatePresence>
+        )}
       </div>
     </div>
   );

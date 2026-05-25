@@ -191,11 +191,11 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
           setTimeout(() => {
              const elm = document.getElementById('status-dashboard');
              if (elm) {
-               elm.scrollIntoView({ behavior: 'smooth', block: 'start' });
+               try { elm.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e) { elm.scrollIntoView(); }
              } else {
                const elm2 = document.getElementById('permuta-board');
                if (elm2) {
-                 elm2.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                 try { elm2.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch(e) { elm2.scrollIntoView(); }
                }
              }
           }, 300);
