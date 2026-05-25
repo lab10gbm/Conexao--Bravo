@@ -71,21 +71,12 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
 
   const sortedMenus = [...menusWithTime].sort((a, b) => a.time - b.time);
 
-  let startIdx = Math.max(0, sortedMenus.length - 7);
-  const targetIdx = sortedMenus.findIndex(m => m.time >= todayStart);
-  if (targetIdx !== -1) {
-    const potentialEnd = Math.min(targetIdx + 6, sortedMenus.length - 1);
-    startIdx = Math.max(0, potentialEnd - 6);
-  }
-  
-  const visibleMenus = sortedMenus.slice(startIdx, startIdx + 7);
-
   let currentMenuId = selectedOriginalIndex;
-  if (currentMenuId === null && visibleMenus.length > 0) {
+  if (currentMenuId === null && sortedMenus.length > 0) {
     // Attempt to select 'today', or the next closest future date, or the latest available
-    const todayItem = visibleMenus.find(m => m.time === todayStart) || 
-                      visibleMenus.find(m => m.time > todayStart) || 
-                      visibleMenus[visibleMenus.length - 1];
+    const todayItem = sortedMenus.find(m => m.time === todayStart) || 
+                      sortedMenus.find(m => m.time > todayStart) || 
+                      sortedMenus[sortedMenus.length - 1];
     if (todayItem) {
       currentMenuId = todayItem.originalIndex;
     }
@@ -93,7 +84,7 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
 
   const menu = (currentMenuId !== null && menus[currentMenuId]) 
     ? menus[currentMenuId] 
-    : (visibleMenus[0] || null);
+    : (sortedMenus[0] || null);
 
   const handleUpdateCatalog = (category: string, newValue: string) => {
     const list = newValue.split(',').map(item => item.trim().toUpperCase()).filter(Boolean);
@@ -496,7 +487,7 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
             >
               <div className="block overflow-x-auto bg-slate-50 p-1.5 rounded-2xl border border-slate-100 shadow-inner no-scrollbar w-full mb-2">
                 <div className="flex gap-1 min-w-max">
-                  {visibleMenus.map((item) => (
+                  {sortedMenus.map((item) => (
                   <button
                     key={item.originalIndex}
                     onClick={() => setSelectedOriginalIndex(item.originalIndex)}
@@ -803,7 +794,7 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
                     </tr>
                   </thead>
                   <tbody className="text-sm">
-                    {visibleMenus.map((m) => (
+                    {sortedMenus.map((m) => (
                       <tr key={m.originalIndex} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors group">
                         <td className="py-4 px-6">
                           <div className="font-black text-slate-700">{m.date}</div>

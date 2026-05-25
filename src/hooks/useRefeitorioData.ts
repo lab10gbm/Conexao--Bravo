@@ -39,7 +39,6 @@ export function useRefeitorioData() {
           ceia: CEIA
         });
       } else {
-        // Document doesn't exist, use initial data
         setMenus(INITIAL_MENU_DATA);
         setCatalog({
           proteinas: PROTEINAS,
@@ -48,18 +47,6 @@ export function useRefeitorioData() {
           saladas: SALADAS,
           ceia: CEIA
         });
-        
-        // Create initial document
-        setDoc(docRef, {
-          menus: INITIAL_MENU_DATA,
-          catalog: {
-            proteinas: PROTEINAS,
-            acompanhamentos: ACOMPANHAMENTOS,
-            sobremesas: SOBREMESAS,
-            saladas: SALADAS,
-            ceia: CEIA
-          }
-        }).catch(err => console.error("Error creating initial refeitorio doc:", err));
       }
       setLoading(false);
     }, (error) => {
