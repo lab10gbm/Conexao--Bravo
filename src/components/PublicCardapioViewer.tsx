@@ -58,11 +58,23 @@ export function PublicCardapioViewer() {
 
   const sortedMenus = [...menusWithTime].sort((a, b) => a.time - b.time);
 
+  let startIdx = 0;
+  const targetIdx = sortedMenus.findIndex(m => m.time >= todayStart);
+  if (targetIdx !== -1) {
+    startIdx = Math.max(0, targetIdx - 3);
+    if (startIdx + 7 > sortedMenus.length) {
+       startIdx = Math.max(0, sortedMenus.length - 7);
+    }
+  } else {
+    startIdx = Math.max(0, sortedMenus.length - 7);
+  }
+  const visibleMenus = sortedMenus.slice(startIdx, startIdx + 7);
+
   let currentMenuId = selectedOriginalIndex;
-  if (currentMenuId === null && sortedMenus.length > 0) {
-    const todayItem = sortedMenus.find(m => m.time === todayStart) || 
-                      sortedMenus.find(m => m.time > todayStart) || 
-                      sortedMenus[sortedMenus.length - 1];
+  if (currentMenuId === null && visibleMenus.length > 0) {
+    const todayItem = visibleMenus.find(m => m.time === todayStart) || 
+                      visibleMenus.find(m => m.time > todayStart) || 
+                      visibleMenus[visibleMenus.length - 1];
     if (todayItem) {
       currentMenuId = todayItem.originalIndex;
     }
@@ -70,7 +82,7 @@ export function PublicCardapioViewer() {
 
   const menu = (currentMenuId !== null && menus[currentMenuId]) 
     ? menus[currentMenuId] 
-    : (sortedMenus[0] || null);
+    : (visibleMenus[0] || null);
 
   const renderSnackItems = (text?: string) => {
     if (!text) return null;
@@ -129,7 +141,7 @@ export function PublicCardapioViewer() {
       <div className="px-4 mt-6">
         {/* Navigation */}
         <div ref={scrollContainerRef} className="flex bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm overflow-x-auto no-scrollbar mb-6 snap-x" style={{ scrollSnapType: 'x mandatory' }}>
-          {sortedMenus.map((item) => {
+          {visibleMenus.map((item) => {
             const isSelected = currentMenuId === item.originalIndex;
             return (
               <button
