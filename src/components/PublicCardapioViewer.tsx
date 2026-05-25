@@ -141,16 +141,16 @@ export function PublicCardapioViewer() {
       <div className="px-4 mt-6">
         {/* Navigation */}
         <div ref={scrollContainerRef} className="flex bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm overflow-x-auto no-scrollbar mb-6 snap-x" style={{ scrollSnapType: 'x mandatory' }}>
-          {visibleMenus.map((item) => {
+          {visibleMenus.map((item, index) => {
             const isSelected = currentMenuId === item.originalIndex;
             return (
               <button
-                key={item.originalIndex}
+                key={'public-btn-' + item.originalIndex + '-' + index}
                 onClick={() => setSelectedOriginalIndex(item.originalIndex)}
                 className={`snap-center shrink-0 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all ${isSelected ? 'bg-rose-500 text-white shadow-md shadow-rose-200 selected-day-tab' : 'text-slate-400 hover:bg-slate-50 hover:text-slate-600'}`}
               >
                 <div className="flex flex-col items-center gap-1">
-                  <span>{item.weekday ? item.weekday.split('-')[0] : ''}</span>
+                  <span translate="no">{item.weekday ? item.weekday.split('-')[0] : ''}</span>
                   <span className={`text-[8px] opacity-70 ${isSelected ? 'text-white' : 'text-slate-400'}`}>{item.date}</span>
                 </div>
               </button>

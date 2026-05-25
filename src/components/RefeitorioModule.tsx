@@ -258,7 +258,7 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
 
     const now = new Date();
     
-    const menusWithTime = menus.map((m: any) => {
+    const menusWithTime = menus.map((m: any, idx: number) => {
       let time = 0;
       if (m.date) {
         const parts = m.date.split('/');
@@ -273,7 +273,7 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
           }
         }
       }
-      return { ...m, time };
+      return { ...m, time, originalIndex: idx };
     });
 
     return menusWithTime
@@ -499,14 +499,14 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
             >
               <div className="block overflow-x-auto bg-slate-50 p-1.5 rounded-2xl border border-slate-100 shadow-inner no-scrollbar w-full mb-2">
                 <div className="flex gap-1 min-w-max">
-                  {visibleMenus.map((item) => (
+                  {visibleMenus.map((item, index) => (
                   <button
-                    key={item.originalIndex}
+                    key={'btn-' + item.originalIndex + '-' + index}
                     onClick={() => setSelectedOriginalIndex(item.originalIndex)}
                     className={`px-4 py-2.5 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all ${currentMenuId === item.originalIndex ? 'bg-white text-rose-600 shadow-sm border border-slate-200' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600'}`}
                   >
                     <div className="flex flex-col items-center gap-0.5">
-                      <span>{item.weekday ? item.weekday.split('-')[0] : ''}</span>
+                      <span translate="no">{item.weekday ? item.weekday.split('-')[0] : ''}</span>
                       <span className="text-[9px] opacity-70">({item.date.split('/')[0]}/{item.date.split('/')[1]})</span>
                     </div>
                   </button>
@@ -519,7 +519,7 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
                 {/* Cabeçalho do Dia Selecionado */}
                 <div className="bg-slate-900 rounded-2xl p-4 md:p-6 text-center shadow-lg w-full">
                   <h2 className="text-lg md:text-2xl font-black text-white uppercase tracking-widest text-center">
-                    {menu.weekday} <span className="text-rose-400 font-medium">({menu.date})</span>
+                    <span translate="no">{menu.weekday}</span> <span className="text-rose-400 font-medium">({menu.date})</span>
                   </h2>
                 </div>
                 
@@ -806,11 +806,11 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
                     </tr>
                   </thead>
                   <tbody className="text-sm">
-                    {visibleMenus.map((m) => (
-                      <tr key={m.originalIndex} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors group">
+                    {visibleMenus.map((m, i) => (
+                      <tr key={'row-' + m.originalIndex + '-' + i} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors group">
                         <td className="py-4 px-6">
                           <div className="font-black text-slate-700">{m.date}</div>
-                          <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">{m.weekday}</div>
+                          <div translate="no" className="text-xs font-bold text-slate-400 uppercase tracking-widest">{m.weekday}</div>
                         </td>
                         <td className="py-4 px-6">
                           <div className="text-rose-700 font-bold uppercase tracking-tight text-xs flex items-center gap-2">
@@ -1223,11 +1223,11 @@ export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
                           <td colSpan={4} className="py-8 text-center text-slate-400 font-bold">Nenhum cardápio encontrado para o período selecionado.</td>
                        </tr>
                     ) : (
-                       reportMenus.map((m: any) => (
-                          <tr key={m.originalIndex} className="border-b border-slate-100 print:border-slate-800">
+                       reportMenus.map((m: any, i: number) => (
+                          <tr key={'report-' + m.originalIndex + '-' + i} className="border-b border-slate-100 print:border-slate-800">
                              <td className="py-3 px-4 border-r border-slate-100 print:border-slate-800 align-top">
                                 <div className="font-black text-slate-800 whitespace-nowrap">{m.date}</div>
-                                <div className="text-[9px] font-bold text-slate-500 uppercase">{m.weekday}</div>
+                                <div translate="no" className="text-[9px] font-bold text-slate-500 uppercase">{m.weekday}</div>
                              </td>
                              <td className="py-3 px-4 border-r border-slate-100 print:border-slate-800 align-top">
                                 <strong className="text-rose-700 block mb-1">{m.almoco.principal}</strong>
