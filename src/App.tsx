@@ -577,7 +577,7 @@ export default function App() {
                       Voltar ao Portal Principal
                     </button>
                   </div>
-                  <GrdModule obmContext={obmContext} readonly={true} user={effectiveProfile} />
+                  <GrdModule obmContext={obmContext} readonly={!(effectiveProfile?.isAdmin || effectiveProfile?.isEscalante)} user={effectiveProfile} />
                 </div>
               </motion.div>
             } />

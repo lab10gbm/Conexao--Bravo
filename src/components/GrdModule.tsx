@@ -154,14 +154,35 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
 
   const selectedDayRgs = selectedDate ? grdData[format(selectedDate, 'yyyy-MM-dd')] || [] : [];
   
-  const getAvailableMilitarsByDay = (date: Date, excludeRgs: string[]) => {
+  const getAvailableMilitarsByDay = (date: Date, excludeRgs: string[], forcedSearch?: string) => {
     const dayAla = getAlaForDate(date);
     const oppAla = getOppositeAla(dayAla);
-    return militars.filter(m => 
-      m.obm === obmContext && 
-      parseInt(m.ala?.toString() || '0') === oppAla &&
-      !excludeRgs.includes(m.rg || '')
-    ).sort((a, b) => (a.rank || '').localeCompare(b.rank || '') || (a.name || '').localeCompare(b.name || ''));
+    return militars.filter(m => {
+      // Normalize OBM to avoid masculine ordinal vs degree symbol issues, spacing, etc.
+      const mAla = (m.ala?.toString() || '').toUpperCase().trim();
+      const numAla = parseInt(mAla.replace(/\D/g, '') || '0', 10);
+      
+      const isAllowedAla = numAla === oppAla ||
+             mAla === 'EXP' || 
+             mAla === 'EXPEDIENTE' ||
+             mAla === 'ESCALANTE' ||
+             mAla.includes('EXP');
+             
+      if (forcedSearch && forcedSearch.trim().length >= 2) {
+        // Bypass ALA and OBM restrictions if searching explicitly
+        if (excludeRgs.includes(m.rg || '')) return false;
+        return true;
+      }
+      
+      if (excludeRgs.includes(m.rg || '')) return false;
+      
+      const mObm = (m.obm || '').replace(/º/g, '°').trim().toUpperCase();
+      const ctxObm = (obmContext || '').replace(/º/g, '°').trim().toUpperCase();
+      
+      if (mObm && ctxObm && mObm !== ctxObm) return false;
+      
+      return isAllowedAla;
+    }).sort((a, b) => (a.rank || '').localeCompare(b.rank || '') || (a.name || '').localeCompare(b.name || ''));
   };
 
   const autoFillMayOfficers = async () => {
@@ -195,11 +216,15 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
 
   const availableMilitars = useMemo(() => {
     if (!selectedDate) return [];
-    return getAvailableMilitarsByDay(selectedDate, selectedDayRgs).filter(m => {
-      const searchLower = searchTerm.toLowerCase();
-      const nameMatch = m.name?.toLowerCase().includes(searchLower);
-      const rgMatch = m.rg?.includes(searchTerm);
-      return nameMatch || rgMatch;
+    return getAvailableMilitarsByDay(selectedDate, selectedDayRgs, searchTerm).filter(m => {
+      const searchLower = searchTerm.trim().toLowerCase();
+      const searchValue = searchTerm.trim();
+      if (!searchValue) return true;
+      const nameMatch = m.name?.toLowerCase().includes(searchLower) || false;
+      const warNameMatch = m.warName?.toLowerCase().includes(searchLower) || false;
+      const rankMatch = m.rank?.toLowerCase().includes(searchLower) || false;
+      const rgMatch = m.rg?.includes(searchValue) || false;
+      return nameMatch || warNameMatch || rankMatch || rgMatch;
     });
   }, [militars, obmContext, selectedDayRgs, searchTerm, selectedDate]);
 
@@ -210,10 +235,11 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
   const updateDayGrd = async (dateStr: string, rgs: string[]) => {
     setSaving(true);
     try {
+      const safeRgs = Array.from(rgs, val => val || "");
       await setDoc(doc(db, 'grd_configs', docId), {
         days: {
           ...grdData,
-          [dateStr]: rgs
+          [dateStr]: safeRgs
         }
       }, { merge: true });
     } catch (error) {
@@ -381,17 +407,19 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
       )}>
         <div className="p-4 sm:p-6 border-b bg-white flex flex-col sm:flex-row items-center justify-between shadow-sm gap-4">
           <div className="flex flex-col gap-4 w-full sm:w-auto">
-            <div className="flex items-center gap-4">
-              <Shield className="w-6 h-6 text-cyan-600 shrink-0" />
-              <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter shrink-0">Gestão de Escalas</h2>
-              <div className="flex items-center bg-slate-100 rounded-lg p-1 min-w-[200px] justify-between">
-                <button onClick={handlePrevMonth} className="p-1 hover:bg-white rounded-md transition-all shadow-sm">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Shield className="w-6 h-6 text-cyan-600 shrink-0" />
+                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter shrink-0">Gestão de Escalas</h2>
+              </div>
+              <div className="flex items-center bg-slate-100 rounded-lg p-1 justify-between flex-1 sm:flex-none w-full sm:w-[200px] z-10 relative">
+                <button onClick={handlePrevMonth} className="p-2 hover:bg-white rounded-md transition-all shadow-sm z-20">
                   <ChevronLeft className="w-4 h-4 text-slate-600" />
                 </button>
-                <span className="text-xs font-black uppercase tracking-widest text-slate-700 mx-2">
+                <span className="text-xs font-black uppercase tracking-widest text-slate-700 mx-2 text-center flex-1">
                   {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
                 </span>
-                <button onClick={handleNextMonth} className="p-1 hover:bg-white rounded-md transition-all shadow-sm">
+                <button onClick={handleNextMonth} className="p-2 hover:bg-white rounded-md transition-all shadow-sm z-20">
                   <ChevronRight className="w-4 h-4 text-slate-600" />
                 </button>
               </div>
@@ -721,7 +749,7 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
                                         <button 
                                           onClick={() => {
                                             const newRgs = [...teamRgs];
-                                            newRgs.splice(index, 1);
+                                            newRgs[index] = "";
                                             updateDayGrd(dateStr, newRgs);
                                           }}
                                           className="p-1 text-slate-300 hover:text-rose-500 rounded transition-all opacity-0 group-hover:opacity-100"
@@ -767,14 +795,28 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
                                             </button>
                                           </div>
                                           <div className="max-h-48 overflow-y-auto space-y-1 custom-scrollbar">
-                                            {getAvailableMilitarsByDay(day, teamRgs)
-                                              .filter(mil => {
-                                                const searchLower = searchTerm.toLowerCase();
-                                                const nameMatch = mil.name?.toLowerCase().includes(searchLower);
-                                                const rgMatch = mil.rg?.includes(searchTerm);
-                                                return nameMatch || rgMatch;
-                                              })
-                                              .slice(0, 10).map(mil => (
+                                            {(() => {
+                                              const filteredMilitars = getAvailableMilitarsByDay(day, teamRgs, searchTerm)
+                                                .filter(mil => {
+                                                  const searchLower = searchTerm.trim().toLowerCase();
+                                                  const searchValue = searchTerm.trim();
+                                                  if (!searchValue) return true;
+                                                  const nameMatch = (mil.name || '').toLowerCase().includes(searchLower);
+                                                  const warNameMatch = (mil.warName || '').toLowerCase().includes(searchLower);
+                                                  const rankMatch = (mil.rank || '').toLowerCase().includes(searchLower);
+                                                  const rgMatch = (mil.rg || '').includes(searchValue);
+                                                  return nameMatch || warNameMatch || rankMatch || rgMatch;
+                                                });
+                                                
+                                              if (filteredMilitars.length === 0) {
+                                                return (
+                                                  <div className="text-center py-4 text-slate-400 italic text-[10px]">
+                                                    Nenhuma possibilidade.
+                                                  </div>
+                                                );
+                                              }
+                                              
+                                              return filteredMilitars.slice(0, 30).map(mil => (
                                                 <button
                                                   key={mil.rg}
                                                   onClick={() => {
@@ -794,7 +836,8 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
                                                   </div>
                                                   <Plus className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100" />
                                                 </button>
-                                              ))}
+                                              ));
+                                            })()}
                                           </div>
                                         </div>
                                       )}
@@ -873,22 +916,36 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
                                         </button>
                                       </div>
                                       <div className="max-h-48 overflow-y-auto space-y-1 custom-scrollbar">
-                                        {militars
-                                          .filter(m => {
-                                            if (!m.name) return false;
-                                            const searchLower = searchTerm.toLowerCase();
-                                            const nameMatch = (m.name || '').toLowerCase().includes(searchLower);
-                                            const rgMatch = m.rg?.includes(searchTerm);
+                                        {(() => {
+                                          const filteredMilitars = militars
+                                            .filter(m => {
+                                              if (!m.name) return false;
+                                              const searchLower = searchTerm.trim().toLowerCase();
+                                              const searchValue = searchTerm.trim();
+                                              const nameMatch = (m.name || '').toLowerCase().includes(searchLower);
+                                              const warNameMatch = (m.warName || '').toLowerCase().includes(searchLower);
+                                              const rankMatch = (m.rank || '').toLowerCase().includes(searchLower);
+                                              const rgMatch = (m.rg || '').includes(searchValue);
+                                              
+                                              // Focus on officers for this view, or everything if searching
+                                              const isOfficer = ['MAJ', 'CAP', 'TEN', 'CEL'].some(r => (m.rank || '').includes(r));
+                                              const matchesSearch = nameMatch || warNameMatch || rankMatch || rgMatch;
+                                              
+                                              if (!searchValue) return isOfficer;
+                                              
+                                              return matchesSearch && (isOfficer || searchValue.length > 2);
+                                            })
+                                            .sort((a, b) => (a.rank || '').localeCompare(b.rank || '') || (a.name || '').localeCompare(b.name || ''));
                                             
-                                            // Focus on officers for this view, or everything if searching
-                                            const isOfficer = ['MAJ', 'CAP', 'TEN', 'CEL'].some(r => m.rank?.includes(r));
-                                            const matchesSearch = nameMatch || rgMatch;
+                                          if (filteredMilitars.length === 0) {
+                                            return (
+                                              <div className="text-center py-4 text-slate-400 italic text-[10px]">
+                                                Nenhuma possibilidade.
+                                              </div>
+                                            );
+                                          }
                                             
-                                            return matchesSearch && (isOfficer || searchTerm.length > 2);
-                                          })
-                                          .sort((a, b) => (a.rank || '').localeCompare(b.rank || '') || (a.name || '').localeCompare(b.name || ''))
-                                          .slice(0, 15)
-                                          .map(mil => (
+                                          return filteredMilitars.slice(0, 15).map(mil => (
                                             <button
                                               key={mil.rg}
                                               onClick={() => {
@@ -905,7 +962,8 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
                                               </div>
                                               <Plus className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100" />
                                             </button>
-                                          ))}
+                                          ));
+                                        })()}
                                       </div>
                                     </div>
                                   )}
