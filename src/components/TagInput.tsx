@@ -4,7 +4,7 @@ import { X, Plus } from 'lucide-react';
 interface TagInputProps {
   value: string;
   onChange: (value: string) => void;
-  suggestions?: string[];
+  suggestions?: any[];
   placeholder?: string;
   className?: string;
 }
@@ -48,7 +48,19 @@ export function TagInput({ value, onChange, suggestions = [], placeholder, class
     }
   };
 
-  const filteredSuggestions = suggestions
+  const normalizedSuggestions = React.useMemo(() => {
+    const arr: string[] = [];
+    for (const s of suggestions) {
+       if (typeof s === 'string') {
+          arr.push(s);
+       } else if (s && (s as any).isCategory && Array.isArray((s as any).items)) {
+          arr.push(...(s as any).items);
+       }
+    }
+    return Array.from(new Set(arr));
+  }, [suggestions]);
+
+  const filteredSuggestions = normalizedSuggestions
     .filter(s => s.toLowerCase().includes(inputValue.toLowerCase()) && !tags.some(t => t.toLowerCase() === s.toLowerCase()))
     .slice(0, 6);
 

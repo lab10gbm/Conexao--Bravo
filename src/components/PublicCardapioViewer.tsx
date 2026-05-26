@@ -7,6 +7,7 @@ export function PublicCardapioViewer() {
   const { menus, loading } = useRefeitorioData();
   const [selectedOriginalIndex, setSelectedOriginalIndex] = useState<number | null>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const [showAllFuture, setShowAllFuture] = useState(false);
 
   React.useEffect(() => {
     // Only proceed if loading is finished
@@ -58,17 +59,17 @@ export function PublicCardapioViewer() {
 
   const sortedMenus = [...menusWithTime].sort((a, b) => a.time - b.time);
 
-  let startIdx = 0;
-  const targetIdx = sortedMenus.findIndex(m => m.time >= todayStart);
-  if (targetIdx !== -1) {
-    startIdx = Math.max(0, targetIdx - 3);
-    if (startIdx + 7 > sortedMenus.length) {
-       startIdx = Math.max(0, sortedMenus.length - 7);
-    }
-  } else {
-    startIdx = Math.max(0, sortedMenus.length - 7);
+  const yesterdayStart = todayStart - 86400000;
+  let baseIdx = sortedMenus.findIndex(m => m.time >= yesterdayStart);
+  if (baseIdx === -1) {
+    baseIdx = sortedMenus.length;
   }
-  const visibleMenus = sortedMenus.slice(startIdx, startIdx + 7);
+  
+  const startIdx = Math.max(0, baseIdx);
+  const endIdx = showAllFuture ? sortedMenus.length : Math.min(sortedMenus.length, baseIdx + 9);
+
+  const visibleMenus = sortedMenus.slice(startIdx, endIdx);
+  const hasMoreFuture = !showAllFuture && endIdx < sortedMenus.length;
 
   let currentMenuId = selectedOriginalIndex;
   if (currentMenuId === null && visibleMenus.length > 0) {
@@ -156,6 +157,18 @@ export function PublicCardapioViewer() {
               </button>
             )
           })}
+
+          {hasMoreFuture && (
+            <button
+              onClick={() => setShowAllFuture(true)}
+              className="snap-center shrink-0 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all text-indigo-500 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-600 ml-1"
+            >
+              <div className="flex flex-col items-center gap-1">
+                <span>VER MAIS</span>
+                <span className="text-[8px] opacity-70">FUTUROS</span>
+              </div>
+            </button>
+          )}
         </div>
 
         {!menu ? (
