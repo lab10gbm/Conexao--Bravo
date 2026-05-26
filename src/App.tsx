@@ -424,10 +424,11 @@ export default function App() {
               {profile && profile.isEscalante && !profile.isAdmin && (
                 <button
                   onClick={() => setEscalanteModeActive(!escalanteModeActive)}
-                  className={`p-2 transition-colors rounded-lg flex items-center justify-center ${escalanteModeActive ? 'bg-blue-100 text-blue-700 shadow-inner' : 'text-white/50 hover:text-blue-400 hover:bg-white/5'}`}
+                  className={`p-2 transition-colors rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-3 ${escalanteModeActive ? 'bg-blue-500 text-white shadow-inner' : 'text-white/50 hover:text-blue-400 hover:bg-white/5 border border-white/10'}`}
                   title="Modo Escalante"
                 >
-                  <ShieldCheck className="w-5 h-5" />
+                  <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest hidden sm:block">Escalante</span>
                 </button>
               )}
               {profile && profile.isAdmin && (
