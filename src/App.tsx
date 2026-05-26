@@ -43,6 +43,7 @@ const OfficerConfigModule = React.lazy(() => import('./components/OfficerConfigM
 const PublicCargaViewer = React.lazy(() => import('./components/PublicCargaViewer').then(m => ({ default: m.PublicCargaViewer })));
 const RefeitorioModule = React.lazy(() => import('./components/RefeitorioModule').then(m => ({ default: m.RefeitorioModule })));
 const PublicCardapioViewer = React.lazy(() => import('./components/PublicCardapioViewer').then(m => ({ default: m.PublicCardapioViewer })));
+const TransladoModule = React.lazy(() => import('./components/TransladoModule').then(m => ({ default: m.TransladoModule })));
 const ComunicanteDashboard = React.lazy(() => import('./components/ComunicanteDashboard').then(m => ({ default: m.ComunicanteDashboard })));
 
 import { usePresence } from './hooks/usePresence';
@@ -752,6 +753,19 @@ export default function App() {
                 className="h-screen w-full fixed inset-0 z-50 bg-slate-50 overflow-y-auto"
               >
                 <OfficerConfigModule onClose={() => navigate('/')} />
+              </motion.div>
+            } />
+            <Route path="/translado" element={
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.05 }}
+                transition={{ duration: 0.3 }}
+              >
+                <TransladoModule 
+                  user={effectiveProfile!}
+                  onBack={() => navigate('/')} 
+                />
               </motion.div>
             } />
             <Route path="/comunicacao" element={

@@ -23,7 +23,8 @@ import {
   Settings2,
   AlertCircle,
   UtensilsCrossed,
-  Radio
+  Radio,
+  Bus
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { db } from '../lib/firebase';
@@ -294,6 +295,14 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       description: 'Acionar Viaturas',
       icon: Radio,
       color: 'bg-rose-600 shadow-rose-200',
+      defaultGroups: ['TODOS']
+    },
+    {
+      id: 'translado',
+      label: 'Translado OBM',
+      description: 'Viaturas Administrativas',
+      icon: Bus,
+      color: 'bg-blue-500 shadow-blue-200',
       defaultGroups: ['TODOS']
     },
     {
