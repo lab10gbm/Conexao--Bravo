@@ -112,15 +112,12 @@ export default function App() {
   usePresence(effectiveProfile);
   const { activeAlert, dismissAlert } = useViaturaAlerts(effectiveProfile);
 
-  // Update profile with escalante role dynamically
+  // Update profile with escalante role dynamically from legacy config
   useEffect(() => {
     if (profile?.rg) {
-      const shouldBeEscalante = escalanteRGs.includes(profile.rg) || profile.rg === '54444';
-      if (shouldBeEscalante && !profile.isEscalante) {
+      const isLegacyEscalante = escalanteRGs.includes(profile.rg) || profile.rg === '54444';
+      if (isLegacyEscalante && !profile.isEscalante) {
         setProfile(prev => prev ? { ...prev, isEscalante: true } : null);
-      } else if (!shouldBeEscalante && profile.isEscalante) {
-        setProfile(prev => prev ? { ...prev, isEscalante: false } : null);
-        setEscalanteModeActive(false);
       }
     }
   }, [profile?.rg, profile?.isEscalante, escalanteRGs]);
