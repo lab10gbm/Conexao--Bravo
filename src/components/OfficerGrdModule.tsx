@@ -234,7 +234,7 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
     
     setSaving(true);
     try {
-        const newOfficerData = { ...officerData };
+        const newOfficerData: Record<string, Record<string, string>> = {};
         
         distributionQuotas.forEach(officer => {
             const allDays = [...officer.daysRed, ...officer.daysPurple, ...officer.daysBlack];

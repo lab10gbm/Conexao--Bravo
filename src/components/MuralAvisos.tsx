@@ -37,7 +37,12 @@ export function MuralAvisos({ isAdminOrEscalante, userName }: MuralAvisosProps) 
   }, [deleteAviso]);
 
   return (
-    <div className="bg-blue-50 border-l-4 border-blue-600 rounded-r-xl p-4 shadow-sm flex flex-col gap-3">
+    <motion.div 
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+      className="bg-blue-50 border-l-4 border-blue-600 rounded-r-xl p-4 shadow-sm flex flex-col gap-3"
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">
           <div className="bg-blue-200 text-blue-700 p-2 rounded-lg shrink-0">
@@ -100,10 +105,18 @@ export function MuralAvisos({ isAdminOrEscalante, userName }: MuralAvisosProps) 
 
       <ul className="text-sm text-blue-900 space-y-2 mt-2">
         {avisos.length === 0 && !isAdding && (
-          <li className="text-xs text-blue-600 italic">Nenhum aviso no momento.</li>
+          <motion.li initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-blue-600 italic">Nenhum aviso no momento.</motion.li>
         )}
-        {avisos.map((aviso) => (
-          <li key={aviso.id} className="flex gap-2 p-3 bg-white/50 rounded-lg border border-blue-100 group relative">
+        <AnimatePresence>
+          {avisos.map((aviso, i) => (
+            <motion.li 
+              key={aviso.id} 
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ delay: i * 0.05 }}
+              className="flex gap-2 p-3 bg-white/50 rounded-lg border border-blue-100 group relative"
+            >
             <span className="shrink-0 mt-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"></span></span>
             <div className="flex-1 w-full overflow-hidden">
                {aviso.eventDate && (
@@ -125,9 +138,10 @@ export function MuralAvisos({ isAdminOrEscalante, userName }: MuralAvisosProps) 
                 <Trash2 className="w-4 h-4" />
               </button>
             )}
-          </li>
-        ))}
+            </motion.li>
+          ))}
+        </AnimatePresence>
       </ul>
-    </div>
+    </motion.div>
   );
 }

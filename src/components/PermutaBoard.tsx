@@ -34,18 +34,21 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
       setLoading(false);
     }, 5000);
 
+    // Scope: 3 days ago for standard users to avoid loading old history, admins get the same or maybe 60 days
+    const daysAgo = adminMode ? 60 : 3;
+    const startDate = format(subDays(new Date(), daysAgo), 'yyyy-MM-dd');
+
+    const q = query(
+      collection(db, 'permutas'),
+      where('date', '>=', startDate),
+      orderBy('date', 'asc')
+    );
+
     let isMounted = true;
+    let unsubSnapshot: (() => void) | undefined;
     
-    async function loadPermutas() {
-      try {
-        const sixtyDaysAgo = format(subDays(new Date(), 60), 'yyyy-MM-dd');
-        const q = query(
-          collection(db, 'permutas'),
-          where('date', '>=', sixtyDaysAgo),
-          orderBy('date', 'asc')
-        );
-        const snapshot = await getDocs(q);
-        
+    if (adminMode) {
+      unsubSnapshot = onSnapshot(q, (snapshot) => {
         clearTimeout(timer);
         if (!isMounted) return;
         
@@ -55,34 +58,95 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
         })) as PermutaRequest[];
         
         const filteredByObm = data.filter(p => !p.obm || p.obm === obmContext || p.obm === '10º GBM');
-
-        const filtered = adminMode ? filteredByObm : filteredByObm.filter(p => 
-          p.status === PermutaStatus.ACCEPTED || 
-          p.requesterId === (user?.uid || '') ||
-          p.acceptedById === (user?.uid || '') ||
-          p.requesterRg === (user?.rg || '') ||
-          p.substituteRg === (user?.rg || '')
-        );
-
-        setPermutas(filtered);
-        localStorage.setItem('cache_permutas', JSON.stringify(filtered));
+        setPermutas(filteredByObm);
+        localStorage.setItem('cache_permutas', JSON.stringify(filteredByObm));
         setLoading(false);
-      } catch (error) {
+      }, (error) => {
         clearTimeout(timer);
         if (isMounted) {
             setLoading(false);
             handleFirestoreError(error, OperationType.LIST, 'permutas', false);
         }
+      });
+    } else {
+      // Regular User - Single Read (No Snapshot listener)
+      async function loadPermutas() {
+        try {
+          const snapshot = await getDocs(q);
+          
+          clearTimeout(timer);
+          if (!isMounted) return;
+          
+          const data = snapshot.docs.map(doc => ({
+            ...doc.data(),
+            id: doc.id
+          })) as PermutaRequest[];
+          
+          const filteredByObm = data.filter(p => !p.obm || p.obm === obmContext || p.obm === '10º GBM');
+          
+          const filtered = filteredByObm.filter(p => 
+            p.status === PermutaStatus.ACCEPTED || 
+            p.requesterId === (user?.uid || '') ||
+            p.acceptedById === (user?.uid || '') ||
+            p.requesterRg === (user?.rg || '') ||
+            p.substituteRg === (user?.rg || '')
+          );
+
+          setPermutas(filtered);
+          localStorage.setItem('cache_permutas', JSON.stringify(filtered));
+          setLoading(false);
+        } catch (error) {
+          clearTimeout(timer);
+          if (isMounted) {
+              setLoading(false);
+              handleFirestoreError(error, OperationType.LIST, 'permutas', false);
+          }
+        }
       }
+      
+      loadPermutas();
     }
-    
-    loadPermutas();
 
     return () => { 
         isMounted = false;
         clearTimeout(timer);
+        if (unsubSnapshot) unsubSnapshot();
     };
   }, [user?.uid, user?.isAdmin, user?.rg]);
+
+  // Refresh manual function
+  const handleManualRefresh = async () => {
+    setLoading(true);
+    const daysAgo = adminMode ? 60 : 3;
+    const startDate = format(subDays(new Date(), daysAgo), 'yyyy-MM-dd');
+
+    const q = query(
+      collection(db, 'permutas'),
+      where('date', '>=', startDate),
+      orderBy('date', 'asc')
+    );
+    try {
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      })) as PermutaRequest[];
+      
+      const filteredByObm = data.filter(p => !p.obm || p.obm === obmContext || p.obm === '10º GBM');
+      const filtered = adminMode ? filteredByObm : filteredByObm.filter(p => 
+        p.status === PermutaStatus.ACCEPTED || 
+        p.requesterId === (user?.uid || '') ||
+        p.acceptedById === (user?.uid || '') ||
+        p.requesterRg === (user?.rg || '') ||
+        p.substituteRg === (user?.rg || '')
+      );
+      setPermutas(filtered);
+      localStorage.setItem('cache_permutas', JSON.stringify(filtered));
+    } catch(e) {
+      console.error(e);
+    }
+    setLoading(false);
+  };
 
   const confirmSign = async () => {
     if (!signPermuta?.id) return;
@@ -187,7 +251,13 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
 
   if (Object.keys(grouped).length === 0 && pendingMySignature.length === 0) {
     return (
-      <div id="permuta-board" className="flex flex-col gap-4">
+      <motion.div 
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        id="permuta-board" 
+        className="flex flex-col gap-4"
+      >
         <div className="flex justify-between items-center bg-white p-3 rounded-lg border-2 border-slate-200 shadow-sm mx-auto w-full max-w-sm">
            <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-500">Filtrar Quadro</span>
            <div className="flex gap-2">
@@ -208,7 +278,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
         <div className="text-center py-12 text-slate-400 font-bold uppercase tracking-widest text-sm">
           Nenhuma permuta encontrada neste mês.
         </div>
-      </div>
+      </motion.div>
     );
   }
 
@@ -223,10 +293,26 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
   });
 
   return (
-    <div id="permuta-board" className="space-y-6">
+    <motion.div 
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+      id="permuta-board" 
+      className="space-y-6"
+    >
       <div className="flex justify-between items-center bg-white p-3 rounded-lg border-2 border-slate-300 shadow-sm max-w-md">
          <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-600">Filtro de Exibição</span>
-         <div className="flex gap-2">
+         <div className="flex gap-2 items-center">
+            {!adminMode && (
+              <button
+                 onClick={handleManualRefresh}
+                 disabled={loading}
+                 className="px-2 py-1.5 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors disabled:opacity-50"
+                 title="Atualizar Quadro"
+              >
+                 <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
+              </button>
+            )}
             <button
                onClick={() => setFilterMode('all')}
                className={cn("px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-colors", filterMode === 'all' ? "bg-indigo-600 text-white shadow-sm" : "bg-slate-100 text-slate-500 hover:bg-slate-200")}
@@ -608,6 +694,6 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
           </div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }

@@ -180,72 +180,91 @@ export function useRefeitorioData() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const docRef = doc(db, 'refeitorio', 'data');
-    const unsubscribe = onSnapshot(docRef, async (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        let parsedMenus = data.menus || INITIAL_MENU_DATA;
+    let active = true;
+
+    const fetchRefeitorio = async () => {
+      try {
+        const res = await fetch('/api/refeitorio');
+        const data = await res.json();
         
-        // Migrate structure if needed
-        parsedMenus = parsedMenus.map((m: any) => ({
-          ...m,
-          jantar: {
-            ...m.jantar,
-            ceia: m.jantar?.ceia || m.jantar?.sobremesa || ""
-          },
-          cafeManha: m.cafeManha || m.ceia || ""
-        }));
-
-        setMenus(parsedMenus);
+        if (!active) return;
         
-        let loadedCatalog = data.catalog || {
-          proteinas: PROTEINAS,
-          acompanhamentos: ACOMPANHAMENTOS,
-          sobremesas: SOBREMESAS,
-          saladas: SALADAS,
-          ceia: CEIA
-        };
+        if (data && (data.menus || data.catalog)) {
+          let parsedMenus = data.menus || INITIAL_MENU_DATA;
+          
+          // Migrate structure if needed
+          parsedMenus = parsedMenus.map((m: any) => ({
+            ...m,
+            jantar: {
+              ...m.jantar,
+              ceia: m.jantar?.ceia || m.jantar?.sobremesa || ""
+            },
+            cafeManha: m.cafeManha || m.ceia || ""
+          }));
 
-        const DEFAULTS = {
-          proteinas: PROTEINAS,
-          acompanhamentos: ACOMPANHAMENTOS,
-          sobremesas: SOBREMESAS,
-          saladas: SALADAS,
-          ceia: CEIA
-        };
+          setMenus(parsedMenus);
+          
+          let loadedCatalog = data.catalog || {
+            proteinas: PROTEINAS,
+            acompanhamentos: ACOMPANHAMENTOS,
+            sobremesas: SOBREMESAS,
+            saladas: SALADAS,
+            ceia: CEIA
+          };
 
-        let dirty = false;
-        for (const [key, defaultsArray] of Object.entries(DEFAULTS)) {
-          if (!loadedCatalog[key]) {
-            loadedCatalog[key] = defaultsArray;
-            dirty = true;
+          const DEFAULTS = {
+            proteinas: PROTEINAS,
+            acompanhamentos: ACOMPANHAMENTOS,
+            sobremesas: SOBREMESAS,
+            saladas: SALADAS,
+            ceia: CEIA
+          };
+
+          let dirty = false;
+          for (const [key, defaultsArray] of Object.entries(DEFAULTS)) {
+            if (!loadedCatalog[key]) {
+              loadedCatalog[key] = defaultsArray;
+              dirty = true;
+            }
           }
-        }
 
-        if (dirty) {
-           try {
-              await setDoc(docRef, { catalog: loadedCatalog }, { merge: true });
-           } catch(e) {}
+          if (dirty) {
+             const docRef = doc(db, 'refeitorio', 'data');
+             try {
+                await setDoc(docRef, { catalog: loadedCatalog }, { merge: true });
+             } catch(e) {}
+          }
+          
+          setCatalog(loadedCatalog);
+        } else {
+          setMenus(INITIAL_MENU_DATA);
+          setCatalog({
+            proteinas: PROTEINAS,
+            acompanhamentos: ACOMPANHAMENTOS,
+            sobremesas: SOBREMESAS,
+            saladas: SALADAS,
+            ceia: CEIA
+          });
         }
-        
-        setCatalog(loadedCatalog);
-      } else {
-        setMenus(INITIAL_MENU_DATA);
-        setCatalog({
-          proteinas: PROTEINAS,
-          acompanhamentos: ACOMPANHAMENTOS,
-          sobremesas: SOBREMESAS,
-          saladas: SALADAS,
-          ceia: CEIA
-        });
+        setLoading(false);
+      } catch (error) {
+        if (active) {
+          console.error("Error fetching refeitorio data:", error);
+          setLoading(false);
+        }
       }
-      setLoading(false);
-    }, (error) => {
-      console.error("Error fetching refeitorio data:", error);
-      setLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
+    // Fetch immediately
+    fetchRefeitorio();
+    
+    // Poll every 1 minute
+    const intervalId = setInterval(fetchRefeitorio, 60000);
+
+    return () => {
+       active = false;
+       clearInterval(intervalId);
+    };
   }, []);
 
   const saveMenus = async (newMenus: any[]) => {

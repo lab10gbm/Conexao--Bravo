@@ -154,7 +154,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
         const docRef = doc(db, 'medidasAntropometricas', rg);
         const currentData = dbDataMap[rg] || {};
         const newData = { ...currentData, [bulkActionField]: value };
-        batch.push(setDoc(docRef, newData, { merge: true }));
+        batch.push(setDoc(docRef, { [bulkActionField]: value }, { merge: true }));
         newDbMap[rg] = newData;
       }
 
@@ -182,7 +182,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
       const currentData = dbDataMap[rgStr] || {};
       const newData = { ...currentData, [field]: value };
       
-      await setDoc(docRef, newData, { merge: true });
+      await setDoc(docRef, { [field]: value }, { merge: true });
       
       // Update local state
       setDbDataMap(prev => ({
@@ -403,7 +403,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
     const docRef = doc(db, 'medidasAntropometricas', rgStr);
     const currentData = dbDataMap[rgStr] || {};
     const newData = { ...currentData, [field]: newVal };
-    await setDoc(docRef, newData, { merge: true });
+    await setDoc(docRef, { [field]: newVal }, { merge: true }); // Only merge the specific field to preserve concurrent changes
     setDbDataMap(prev => ({ ...prev, [rgStr]: newData }));
   };
 

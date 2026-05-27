@@ -238,7 +238,6 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
       const safeRgs = Array.from(rgs, val => val || "");
       await setDoc(doc(db, 'grd_configs', docId), {
         days: {
-          ...grdData,
           [dateStr]: safeRgs
         }
       }, { merge: true });
@@ -273,9 +272,7 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
       const currentDayData = officerData[dateStr] || {};
       await setDoc(doc(db, 'officer_scales', docId), {
         days: {
-          ...officerData,
           [dateStr]: {
-            ...currentDayData,
             [field]: value
           }
         }

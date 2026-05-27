@@ -30,10 +30,6 @@ const MOCK_LEMBRETES = [
   { id: '1', date: new Date(2026, 0, 5), text: 'Instrução de Resgate' },
   { id: '2', date: new Date(2026, 0, 15), text: 'Levar Uniforme de Prontidão' }
 ];
-const MOCK_PERMUTAS = [
-  { date: new Date(2026, 0, 2), type: 'COBREU' }, // Trabalhou por alguém
-  { date: new Date(2026, 0, 8), type: 'PAGOU' }  // Alguém trabalhou por ele
-];
 
 export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, onBack, standalone }: AgendaPessoalProps) {
   const months = Array.from({ length: 12 }, (_, i) => new Date(new Date().getFullYear(), i, 1));
@@ -45,9 +41,39 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
   const [showOnlyMyServices, setShowOnlyMyServices] = useState(false);
   const [personalTodos, setPersonalTodos] = useState<{ date: Date, id: string }[]>([]);
   const [institutionalEvents, setInstitutionalEvents] = useState<{ date: Date, title: string }[]>([]);
+  const [userPermutas, setUserPermutas] = useState<{ date: Date, type: string, status: string }[]>([]);
 
   const { avisos } = useMuralAvisos();
   const { activeMonths: ctxActiveMonths } = useAppConfig();
+
+  useEffect(() => {
+    if (!user?.rg) return;
+    let isMounted = true;
+    
+    const fetchPermutas = async () => {
+      try {
+        const year = new Date().getFullYear();
+        const res = await fetch(`/api/agenda/${user.rg}/${year}`);
+        const result = await res.json();
+        if (isMounted && result.permutas) {
+           const parsed = result.permutas.map((p: any) => ({
+             date: new Date(p.date + 'T00:00:00'),
+             type: p.type,
+             status: p.status
+           }));
+           // Let's filter only accepted or requested to reflect the scale correctly
+           const activePermutas = parsed.filter((p: any) => p.status !== 'cancelled' && p.status !== 'rejected');
+           setUserPermutas(activePermutas);
+        }
+      } catch(e) {
+        if (isMounted) console.error("Erro fetch agenda:", e);
+      }
+    };
+    
+    fetchPermutas();
+    return () => { isMounted = false; };
+  }, [user?.rg]);
+
 
   useEffect(() => {
     if (ctxActiveMonths) {
@@ -94,7 +120,7 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
     days.forEach(day => {
       let isMyAla = user.ala && getAlaForDate(day).toString() === user.ala.toString();
       
-      MOCK_PERMUTAS.forEach(p => {
+      userPermutas.forEach(p => {
         if (isSameDay(p.date, day)) {
            if (p.type === 'COBREU') isMyAla = true;
            if (p.type === 'PAGOU') isMyAla = false;
@@ -111,8 +137,8 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
       }
     });
 
-    const saldo = MOCK_PERMUTAS.filter(p => p.type === 'COBREU').length - MOCK_PERMUTAS.filter(p => p.type === 'PAGOU').length;
-    const permutasEsteMesVal = MOCK_PERMUTAS.filter(p => isSameMonth(p.date, new Date())).length;
+    const saldo = userPermutas.filter(p => p.type === 'COBREU').length - userPermutas.filter(p => p.type === 'PAGOU').length;
+    const permutasEsteMesVal = userPermutas.filter(p => isSameMonth(p.date, new Date())).length;
 
     return {
       servicosRestantes: servicosTotais - servicosFeitos,
@@ -123,7 +149,7 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
       allYearServices,
       permutasEsteMes: permutasEsteMesVal
     };
-  }, [user.ala]);
+  }, [user.ala, userPermutas]);
 
   const handleSyncCalendar = () => {
     if (!user.ala) {
@@ -297,7 +323,7 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
                   }}
                   mockAfastamentos={MOCK_AFASTAMENTOS}
                   mockLembretes={personalTodos}
-                  mockPermutas={MOCK_PERMUTAS}
+                  mockPermutas={userPermutas}
                   institutionalEvents={institutionalEvents}
                   isOpenMonth={isOpen}
                   showOnlyMyServices={showOnlyMyServices}

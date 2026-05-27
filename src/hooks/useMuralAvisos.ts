@@ -15,13 +15,28 @@ export function useMuralAvisos() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(collection(db, 'mural_avisos'), orderBy('createdAt', 'desc'), limit(15));
-    const unsub = onSnapshot(q, (snap) => {
-      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Aviso));
-      setAvisos(data);
-      setLoading(false);
-    });
-    return () => unsub();
+    let active = true;
+    
+    const fetchAvisos = async () => {
+      try {
+        const res = await fetch('/api/mural');
+        const data = await res.json();
+        if (active) {
+          setAvisos(data);
+          setLoading(false);
+        }
+      } catch(e) {
+        if (active) setLoading(false);
+      }
+    };
+
+    fetchAvisos();
+    const intervalId = setInterval(fetchAvisos, 15000); // 15s polling
+
+    return () => {
+      active = false;
+      clearInterval(intervalId);
+    };
   }, []);
 
   const addAviso = async ({ novoAviso, eventoData, userName }: { novoAviso: string, eventoData?: string, userName: string }) => {

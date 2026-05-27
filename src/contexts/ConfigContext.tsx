@@ -8,6 +8,7 @@ interface ConfigContextType {
   escalanteRGs: string[];
   appVisibility: Record<string, string[]> | null;
   alaConfig: { referenceYear: number; startAla: number } | null;
+  vacationSettings: any;
   loading: boolean;
 }
 
@@ -20,6 +21,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   const [escalanteRGs, setEscalanteRGs] = useState<string[]>([]);
   const [appVisibility, setAppVisibility] = useState<Record<string, string[]> | null>(null);
   const [alaConfig, setAlaConfig] = useState<{ referenceYear: number; startAla: number } | null>(null);
+  const [vacationSettings, setVacationSettings] = useState<any>(null);
   
   const [loading, setLoading] = useState(true);
 
@@ -47,6 +49,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
                 if (data.roles) setEscalanteRGs(data.roles);
                 if (data.activeMonths) setActiveMonths(data.activeMonths);
                 if (data.appVisibility !== undefined) setAppVisibility(data.appVisibility);
+                if (data.vacationSettings) setVacationSettings(data.vacationSettings);
                 setLoading(false);
                 fetchedFromCache = true;
               }
@@ -56,49 +59,45 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
 
       // 2. Fetch from network
       try {
-        const fetchDoc = async (name: string, docId: string) => {
-          try {
-            return await getDoc(doc(db, 'config', docId));
-          } catch (e: any) {
-            console.error(`[ConfigContext] Failed to fetch ${name} (${docId}):`, e.message);
-            throw e;
-          }
-        };
-
-        const [alaSnap, rolesSnap, monthsSnap, visibilitySnap] = await Promise.all([
-          fetchDoc('Ala Config', 'ala_config'),
-          fetchDoc('Roles', 'roles'),
-          fetchDoc('Active Months', 'active_months'),
-          fetchDoc('App Visibility', 'app_visibility')
-        ]);
-
+        const res = await fetch('/api/startup');
+        const data = await res.json();
         if (!isMounted) return;
 
         const newData: any = {};
 
-        if (alaSnap.exists()) {
-          const data = alaSnap.data() as { referenceYear: number; startAla: number };
-          setAlaConfig(data);
-          setGlobalAlaConfig(data.referenceYear || 2026, data.startAla || 2);
-          newData.alaConfig = data;
+        if (data.ala_config) {
+          setAlaConfig(data.ala_config);
+          setGlobalAlaConfig(data.ala_config.referenceYear || 2026, data.ala_config.startAla || 2);
+          newData.alaConfig = data.ala_config;
         }
 
-        if (rolesSnap.exists()) {
-          newData.roles = rolesSnap.data()?.escalanteRGs || [];
+        if (data.roles && data.roles.escalanteRGs) {
+          newData.roles = data.roles.escalanteRGs;
           setEscalanteRGs(newData.roles);
+        } else if (data.roles) {
+          newData.roles = data.roles;
+          setEscalanteRGs(data.roles);
         }
 
-        if (monthsSnap.exists()) {
-          newData.activeMonths = monthsSnap.data()?.months || [];
+        if (data.active_months && data.active_months.months) {
+          newData.activeMonths = data.active_months.months;
           setActiveMonths(newData.activeMonths);
+        } else if (data.active_months) {
+          newData.activeMonths = data.active_months;
+          setActiveMonths(data.active_months);
         }
 
-        if (visibilitySnap.exists() && visibilitySnap.data()?.visibility) {
-           newData.appVisibility = visibilitySnap.data()?.visibility;
+        if (data.app_visibility && data.app_visibility.visibility) {
+           newData.appVisibility = data.app_visibility.visibility;
            setAppVisibility(newData.appVisibility);
         } else {
-           newData.appVisibility = null;
-           setAppVisibility(null);
+           newData.appVisibility = data.app_visibility || null;
+           setAppVisibility(newData.appVisibility);
+        }
+
+        if (data.vacation_settings) {
+           newData.vacationSettings = data.vacation_settings;
+           setVacationSettings(data.vacation_settings);
         }
 
         try {
@@ -121,7 +120,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <ConfigContext.Provider value={{ activeMonths, escalanteRGs, appVisibility, alaConfig, loading: loading }}>
+    <ConfigContext.Provider value={{ activeMonths, escalanteRGs, appVisibility, alaConfig, vacationSettings, loading: loading }}>
       {children}
     </ConfigContext.Provider>
   );

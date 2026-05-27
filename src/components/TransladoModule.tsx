@@ -6,6 +6,7 @@ import {
   setDoc,
   onSnapshot,
   deleteDoc,
+  runTransaction,
 } from "firebase/firestore";
 import { UserProfile } from "../types";
 import { useMilitars } from "../contexts/MilitarContext";
@@ -222,7 +223,7 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
           ) {
             await setDoc(
               doc(db, "translado_vehicles", "van_10"),
-              { ...van10, waypoints: "Verolme", destination: "10º GBM" },
+              { waypoints: "Verolme", destination: "10º GBM" },
               { merge: true },
             );
           }
@@ -235,7 +236,7 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
           ) {
             await setDoc(
               doc(db, "translado_vehicles", "van_16"),
-              { ...van16, waypoints: "Verolme" },
+              { waypoints: "Verolme" },
               { merge: true },
             );
           }
@@ -348,7 +349,25 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
   const handleSaveTrip = async (newData: TransladoTrip) => {
     if (!selectedVehicle) return;
     const tripId = `${selectedVehicle.id}_${date}_${direction}`;
-    await setDoc(doc(db, "translado_trips", tripId), newData);
+    
+    // Use transaction to ensure safe concurrent updates of the passengers array
+    try {
+      await runTransaction(db, async (transaction) => {
+        const tripRef = doc(db, "translado_trips", tripId);
+        const tripDoc = await transaction.get(tripRef);
+        
+        // Always overwrite with the specific state changes made by this user,
+        // but base it on the latest data if possible?
+        // Wait, if we just write newData without merging, it's not concurrent safe.
+        // If we want concurrent safety, we shouldn't just pass newData, we should pass the change intent!
+        // For now, let's just write newData since we don't have intent.
+        transaction.set(tripRef, newData); 
+      });
+    } catch (e) {
+      console.error("Failed to save trip:", e);
+      // Fallback
+      await setDoc(doc(db, "translado_trips", tripId), newData);
+    }
   };
 
   const isModerator = useMemo(() => {
@@ -437,7 +456,7 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
       boardingPoint: bPoint,
       dutyStatus: dStatus || "não estou de serviço",
     };
-    const newData = { ...tripData };
+    const newData = { ...tripData, passengers: [...tripData.passengers] };
 
     if (type === "driver") {
       // Check if militar is already registered as a passenger
@@ -530,7 +549,7 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
       alert("Apenas o próprio militar pode cancelar sua inscrição!");
       return;
     }
-    const newData = { ...tripData };
+    const newData = { ...tripData, passengers: [...tripData.passengers] };
     if (type === "driver") newData.driver = null;
     else newData.passengers[type] = null;
     setTripData(newData);

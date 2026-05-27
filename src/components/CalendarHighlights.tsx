@@ -9,6 +9,7 @@ import { ptBR } from 'date-fns/locale';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, startOfMonth, endOfMonth, isSameMonth, isSameDay, subDays } from 'date-fns';
 import { AlertTriangle } from 'lucide-react';
 import { getAlaForDate, getAlaColor, cn } from '../lib/utils';
+import { useAppConfig } from '../contexts/ConfigContext';
 
 interface CalendarHighlightsProps {
   user: UserProfile;
@@ -18,6 +19,8 @@ interface CalendarHighlightsProps {
 }
 
 export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelect }: CalendarHighlightsProps) {
+  const { activeMonths: contextActiveMonths } = useAppConfig();
+
   // Initialize with current and next month to avoid "April/May" staleness
   const [activeMonthIndices, setActiveMonthIndices] = useState<number[]>(() => {
     const now = new Date();
@@ -26,22 +29,14 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
     return [current, next];
   });
 
-  const [pendingMySignature, setPendingMySignature] = useState<PermutaRequest[]>([]);
-
   useEffect(() => {
-    let isMounted = true;
-    const fetchActiveMonths = async () => {
-      try {
-         const snap = await getDoc(doc(db, 'config', 'active_months'));
-         if (snap.exists() && snap.data().months?.length > 0 && isMounted) {
-            const sorted = [...snap.data().months].sort((a, b) => a - b);
-            setActiveMonthIndices(sorted);
-         }
-      } catch(e) {}
-    };
-    fetchActiveMonths();
-    return () => { isMounted = false; };
-  }, []);
+    if (contextActiveMonths && contextActiveMonths.length > 0) {
+      const sorted = [...contextActiveMonths].map(m => parseInt(m, 10)).sort((a, b) => a - b);
+      setActiveMonthIndices(sorted);
+    }
+  }, [contextActiveMonths]);
+
+  const [pendingMySignature, setPendingMySignature] = useState<PermutaRequest[]>([]);
 
   useEffect(() => {
     if (!user?.rg) return;
@@ -49,20 +44,13 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
     let isMounted = true;
     const fetchPermutas = async () => {
       try {
-        const sixtyDaysAgo = format(subDays(new Date(), 60), 'yyyy-MM-dd');
-        const q = query(
-          collection(db, 'permutas'),
-          where('date', '>=', sixtyDaysAgo),
-          orderBy('date', 'asc')
-        );
-        const snapshot = await getDocs(q);
-        if (!isMounted) return;
+        const year = new Date().getFullYear();
+        const res = await fetch(`/api/agenda/${user.rg}/${year}`);
+        const result = await res.json();
         
-        const data = snapshot.docs.map(doc => ({
-          ...doc.data(),
-          id: doc.id
-        })) as PermutaRequest[];
+        if (!isMounted || !result.permutas) return;
         
+        const data = result.permutas as PermutaRequest[];
         const filteredByObm = data.filter(p => !p.obm || p.obm === obmContext || p.obm === '10º GBM');
 
         const pending = filteredByObm.filter(p => 
@@ -73,7 +61,7 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
 
         setPendingMySignature(pending);
       } catch (error) {
-        if (isMounted) handleFirestoreError(error, OperationType.LIST, 'permutas', false);
+        if (isMounted) console.error("Error fetching permutas for highlights:", error);
       }
     };
     fetchPermutas();

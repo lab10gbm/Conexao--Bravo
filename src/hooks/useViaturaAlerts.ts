@@ -22,44 +22,56 @@ export function useViaturaAlerts(user: UserProfile | null) {
   useEffect(() => {
     if (!user) return;
     
-    // Listen to the most recent alert
-    const q = query(collection(db, 'viatura_alerts'), orderBy('timestamp', 'desc'), limit(1));
-    const unsub = onSnapshot(q, async (snap) => {
-      if (snap.empty) return;
-      
-      const data = snap.docs[0].data();
-      const time = data.timestamp?.toMillis?.() || data.timestamp || 0;
-      
-      // se o alerta for de menos de 15 segundos atrás
-      if (Date.now() - time < 15000) {
-        const viatura = data.viatura;
-        
-        // Fetch current assigned guarnicoes to check if user is assigned
-        let isAssigned = false;
-        try {
-           const guarnicoesRef = await getDoc(doc(db, 'guarnicoes', 'ativas'));
-           const guarnicoesData = guarnicoesRef.data();
-           if (guarnicoesData) {
-              const rgsInViatura = guarnicoesData[viatura] || [];
-              const safeRg = String(user.rg).replace(/^0+/, '').replace(/\D/g, '');
-              const formattedRgForSearch = safeRg.length < 5 ? safeRg.padStart(5, '0') : safeRg;
-              
-              if (rgsInViatura.includes(formattedRgForSearch) || rgsInViatura.includes(user.rg) || rgsInViatura.includes(safeRg)) {
-                 isAssigned = true;
-              }
-           }
-        } catch (e) {
-           console.error("Erro ao checar guarnições", e);
-        }
-        
-        if (isAssigned) {
-          setActiveAlert({ viatura, emittedBy: data.emittedBy, timestamp: time });
-          audioRef.current?.play().catch(e => console.warn('Audio auto-play prevented', e));
-        }
-      }
-    });
+    let active = true;
 
-    return () => unsub();
+    const fetchViaturaAlerts = async () => {
+      try {
+        const res = await fetch('/api/viaturas/alerts');
+        const data = await res.json();
+        
+        if (!active || !data) return;
+        
+        const time = data.timestamp || 0;
+        
+        // se o alerta for de menos de 15 segundos atrás
+        if (Date.now() - time < 15000) {
+          const viatura = data.viatura;
+          
+          let isAssigned = false;
+          try {
+             const gRes = await fetch('/api/guarnicoes');
+             const guarnicoesData = await gRes.json();
+             
+             if (guarnicoesData) {
+                const rgsInViatura = guarnicoesData[viatura] || [];
+                const safeRg = String(user.rg).replace(/^0+/, '').replace(/\D/g, '');
+                const formattedRgForSearch = safeRg.length < 5 ? safeRg.padStart(5, '0') : safeRg;
+                
+                if (rgsInViatura.includes(formattedRgForSearch) || rgsInViatura.includes(user.rg) || rgsInViatura.includes(safeRg)) {
+                   isAssigned = true;
+                }
+             }
+          } catch (e) {
+             console.error("Erro ao checar guarnições via API", e);
+          }
+          
+          if (isAssigned) {
+            setActiveAlert({ viatura, emittedBy: data.emittedBy, timestamp: time });
+            audioRef.current?.play().catch(e => console.warn('Audio auto-play prevented', e));
+          }
+        }
+      } catch (error) {
+        if (active) console.error("Error fetching viatura alerts:", error);
+      }
+    };
+
+    fetchViaturaAlerts();
+    const intervalId = setInterval(fetchViaturaAlerts, 5000); // 5s polling
+
+    return () => {
+      active = false;
+      clearInterval(intervalId);
+    };
   }, [user]);
 
   // Clear alert if older than 20 seconds

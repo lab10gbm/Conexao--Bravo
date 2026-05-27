@@ -142,37 +142,41 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
   useEffect(() => {
     if (!user?.rg || !db) return;
     
-    // Listen to global EPI request config
-    const unsub = onSnapshot(doc(db, 'config', 'epi_request'), async (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data.isActive && data.requestedAt) {
-          // Check user's missing info
-          const userRgStr = user.rg.toString().padStart(5, '0');
-          const userSopDoc = await getDoc(doc(db, 'medidasAntropometricas', userRgStr));
-          
-          let needsUpdate = true;
-          if (userSopDoc.exists()) {
-            const userData = userSopDoc.data();
-            if (userData.updatedAt) {
-              const reqDate = new Date(data.requestedAt).getTime();
-              const updateDate = new Date(userData.updatedAt).getTime();
-              if (updateDate >= reqDate) {
-                needsUpdate = false;
+    // Check global EPI request config once on mount
+    const checkEpiRequest = async () => {
+      try {
+        const snap = await getDoc(doc(db, 'config', 'epi_request'));
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.isActive && data.requestedAt) {
+            // Check user's missing info
+            const userRgStr = user.rg.toString().padStart(5, '0');
+            const userSopDoc = await getDoc(doc(db, 'medidasAntropometricas', userRgStr));
+            
+            let needsUpdate = true;
+            if (userSopDoc.exists()) {
+              const userData = userSopDoc.data();
+              if (userData.updatedAt) {
+                const reqDate = new Date(data.requestedAt).getTime();
+                const updateDate = new Date(userData.updatedAt).getTime();
+                if (updateDate >= reqDate) {
+                  needsUpdate = false;
+                }
               }
             }
+            
+            setEpiRequestActive(needsUpdate);
+          } else {
+            setEpiRequestActive(false);
           }
-          
-          setEpiRequestActive(needsUpdate);
         } else {
           setEpiRequestActive(false);
         }
-      } else {
-        setEpiRequestActive(false);
+      } catch (error) {
+        console.error("Error checking epi_request:", error);
       }
-    });
-
-    return () => unsub();
+    };
+    checkEpiRequest();
   }, [user?.rg]);
 
   const userRgStr = user.rg?.toString().trim().toUpperCase() || '';

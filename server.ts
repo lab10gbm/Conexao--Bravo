@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 import { initializeApp } from 'firebase/app';
-import { getFirestore as getClientFirestore, doc, setDoc, writeBatch, serverTimestamp, collection, getDocs, getDoc, query, limit } from 'firebase/firestore';
+import { getFirestore as getClientFirestore, doc, setDoc, writeBatch, serverTimestamp, collection, getDocs, getDoc, query, limit, orderBy, where } from 'firebase/firestore';
 import fs from 'fs';
 import compression from 'compression';
 import cors from 'cors';
@@ -1622,6 +1622,191 @@ async function startServer() {
     });
   });
 
+  let cachedAppVisibility: any = null;
+  let cachedRoles: any = null;
+  let cachedVacationSettings: any = null;
+  let cachedAlaConfig: any = null;
+  let cachedActiveMonths: any = null;
+  let lastStartupFetch = 0;
+
+  app.get('/api/startup', async (req, res) => {
+    if (Date.now() - lastStartupFetch > 60000 && clientDb) {
+      try {
+        const [vis, rol, vac, ala, mon, mur, ref] = await Promise.all([
+          getDoc(doc(clientDb, 'config', 'app_visibility')),
+          getDoc(doc(clientDb, 'config', 'roles')),
+          getDoc(doc(clientDb, 'config', 'vacation_settings')),
+          getDoc(doc(clientDb, 'config', 'ala_config')),
+          getDoc(doc(clientDb, 'config', 'active_months')),
+          getDocs(query(collection(clientDb, 'mural_avisos'), orderBy('createdAt', 'desc'), limit(15))),
+          getDoc(doc(clientDb, 'refeitorio', 'data'))
+        ]);
+        
+        if (vis.exists()) cachedAppVisibility = vis.data();
+        if (rol.exists()) cachedRoles = rol.data();
+        if (vac.exists()) cachedVacationSettings = vac.data();
+        if (ala.exists()) cachedAlaConfig = ala.data();
+        if (mon.exists()) cachedActiveMonths = mon.data();
+        
+        cachedMuralAvisos = mur.docs.map(doc => {
+           let data = doc.data();
+           if (data.createdAt && typeof data.createdAt.toMillis === 'function') data.createdAt = data.createdAt.toMillis();
+           return { id: doc.id, ...data };
+        });
+        
+        if (ref.exists()) cachedRefeitorioData = ref.data();
+        
+        lastStartupFetch = Date.now();
+        lastMuralFetch = Date.now();
+        lastRefeitorioFetch = Date.now();
+      } catch (e) {
+        console.error('[API] Startup fetch error:', e);
+      }
+    }
+
+    return res.json({
+      app_visibility: cachedAppVisibility,
+      roles: cachedRoles,
+      vacation_settings: cachedVacationSettings,
+      ala_config: cachedAlaConfig,
+      active_months: cachedActiveMonths,
+      mural: cachedMuralAvisos,
+      refeitorio: cachedRefeitorioData
+    });
+  });
+
+  // Caches for backend optimized data
+  let cachedMuralAvisos: any[] = [];
+  let lastMuralFetch = 0;
+  
+  let cachedRefeitorioData: any = null;
+  let lastRefeitorioFetch = 0;
+  
+  let cachedViaturaAlert: any = null;
+  let lastViaturaFetch = 0;
+  
+  let cachedGuarnicoes: any = null;
+  let lastGuarnicoesFetch = 0;
+
+  app.get('/api/mural', async (req, res) => {
+    if (Date.now() - lastMuralFetch > 15000 && clientDb) {
+      try {
+        const q = query(collection(clientDb, 'mural_avisos'), orderBy('createdAt', 'desc'), limit(15));
+        const snap = await getDocs(q);
+        cachedMuralAvisos = snap.docs.map(doc => {
+           let data = doc.data();
+           if (data.createdAt && typeof data.createdAt.toMillis === 'function') {
+              data.createdAt = data.createdAt.toMillis();
+           }
+           return { id: doc.id, ...data };
+        });
+        lastMuralFetch = Date.now();
+      } catch (e) {
+        console.error('[API] Mural fetch error:', e);
+      }
+    }
+    return res.json(cachedMuralAvisos);
+  });
+
+  app.get('/api/refeitorio', async (req, res) => {
+    if (Date.now() - lastRefeitorioFetch > 120000 && clientDb) {
+      try {
+        const snap = await getDoc(doc(clientDb, 'refeitorio', 'data'));
+        if (snap.exists()) {
+          cachedRefeitorioData = snap.data();
+        }
+        lastRefeitorioFetch = Date.now();
+      } catch (e) {
+         console.error('[API] Refeitorio fetch error:', e);
+      }
+    }
+    return res.json(cachedRefeitorioData || { menus: [], catalog: null });
+  });
+
+  app.get('/api/viaturas/alerts', async (req, res) => {
+    if (Date.now() - lastViaturaFetch > 5000 && clientDb) {
+      try {
+        const q = query(collection(clientDb, 'viatura_alerts'), orderBy('timestamp', 'desc'), limit(1));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          cachedViaturaAlert = snap.docs[0].data();
+          if (cachedViaturaAlert && cachedViaturaAlert.timestamp && typeof cachedViaturaAlert.timestamp.toMillis === 'function') {
+             cachedViaturaAlert.timestamp = cachedViaturaAlert.timestamp.toMillis();
+          }
+        }
+        lastViaturaFetch = Date.now();
+      } catch (e) {
+        console.warn('[API] Viatura fetch error:', e);
+      }
+    }
+    return res.json(cachedViaturaAlert);
+  });
+
+  app.get('/api/guarnicoes', async (req, res) => {
+    if (Date.now() - lastGuarnicoesFetch > 10000 && clientDb) {
+       try {
+         const snap = await getDoc(doc(clientDb, 'guarnicoes', 'ativas'));
+         if (snap.exists()) {
+            cachedGuarnicoes = snap.data();
+         }
+         lastGuarnicoesFetch = Date.now();
+       } catch (e) {
+          console.warn('[API] Guarnicoes fetch error:', e);
+       }
+    }
+    return res.json(cachedGuarnicoes || {});
+  });
+
+  let cachedPermutas: any[] = [];
+  let lastPermutasFetch = 0;
+
+  app.get('/api/agenda/:rg/:year', async (req, res) => {
+    const { rg, year } = req.params;
+    if (!rg || !year) return res.status(400).json({ error: 'Missing parameters' });
+
+    if (Date.now() - lastPermutasFetch > 3600000 && clientDb) { // Cache for 1 hour
+       try {
+           const startDate = `${year}-01-01`;
+           const endDate = `${year}-12-31`;
+           const q = query(collection(clientDb, 'permutas'), where('date', '>=', startDate), where('date', '<=', endDate));
+           const snap = await getDocs(q);
+           cachedPermutas = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+           lastPermutasFetch = Date.now();
+       } catch (e) {
+           console.error('[API] Permutas agenda fetch err:', e);
+       }
+    }
+
+    const safeRg = normalizeRg(rg);
+    
+    // Filter internally in Node server
+    const userPermutas = cachedPermutas.filter(p => {
+       const strReq = String(p.requesterRg).replace(/\D/g, '');
+       const strSub = String(p.substituteRg).replace(/\D/g, '');
+       return strReq === safeRg || strSub === safeRg;
+    });
+    
+    // Delivered pure datas for Calendar/Agenda
+    const permutasPuras = userPermutas.map(p => {
+       const type = (String(p.requesterRg).replace(/\D/g, '') === safeRg) ? 'PAGOU' : 'COBREU';
+       return { 
+         id: p.id, 
+         date: p.date, 
+         type, 
+         status: p.status, 
+         requesterRg: p.requesterRg, 
+         substituteRg: p.substituteRg, 
+         requesterSigned: p.requesterSigned, 
+         substituteSigned: p.substituteSigned 
+       };
+    });
+
+    return res.json({ 
+       year,
+       permutas: permutasPuras
+    });
+  });
+
   app.post('/api/militar/update', async (req, res) => {
     const { rg, data } = req.body;
     if (!rg || !data) return res.status(400).json({ success: false });
@@ -1639,7 +1824,13 @@ async function startServer() {
       }
 
       const existing = militaryCache.get(safeRg) || {};
-      militaryCache.set(safeRg, { ...existing, ...data });
+      
+      const mergedData = { ...existing, ...data };
+      if (data.viaturas && existing.viaturas) {
+        mergedData.viaturas = { ...existing.viaturas, ...data.viaturas };
+      }
+      
+      militaryCache.set(safeRg, mergedData);
       
       return res.json({ success: true });
     } catch (e) {

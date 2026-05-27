@@ -181,14 +181,16 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
 
     const newMonthData = {
       selections: {
-        ...data.selections,
         [rgSelection]: userSelections
       }
     };
 
     setData(prev => ({
       ...prev,
-      selections: newMonthData.selections
+      selections: {
+        ...prev.selections,
+        [rgSelection]: userSelections
+      }
     })); // optimistic
     await setDoc(monthDocRef, newMonthData, { merge: true });
   };
@@ -861,7 +863,6 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                     onClick={async () => {
                                                         const newMonthData = {
                                                             locked: {
-                                                                ...data.locked,
                                                                 [activeRg!]: true
                                                             }
                                                         };
@@ -1066,7 +1067,6 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                     const newMonthData = {
                                                         swapRequests: updatedRequests,
                                                         selections: {
-                                                            ...data.selections,
                                                             [req.rg]: newSels
                                                         }
                                                     };

@@ -122,11 +122,11 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
 
   const toggleViatura = (militar: UserProfile, viat: string) => {
     const currentViaturas = militar.viaturas || {};
+    const newState = !currentViaturas[viat as keyof typeof currentViaturas];
     updateData(militar, {
       viaturas: {
-        ...currentViaturas,
-        [viat]: !currentViaturas[viat as keyof typeof currentViaturas]
-      }
+        [viat]: newState
+      } // With { merge: true } this will only update the toggled key
     });
   };
 

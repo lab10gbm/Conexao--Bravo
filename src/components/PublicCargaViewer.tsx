@@ -40,26 +40,28 @@ export const PublicCargaViewer: React.FC<PublicCargaViewerProps> = ({ sectionId 
 
     const docRef = doc(db, "patrimonioData", sectionId);
     
-    // Subscribe to live updates
-    const unsubscribe = onSnapshot(docRef, (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data && Array.isArray(data.items)) {
-          setCustomItems(data.items);
+    // Fetch data once instead of live subscription for public view
+    const fetchCarga = async () => {
+      try {
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data && Array.isArray(data.items)) {
+            setCustomItems(data.items);
+          } else {
+            setCustomItems(null);
+          }
         } else {
           setCustomItems(null);
         }
-      } else {
-        setCustomItems(null);
+        setLoading(false);
+      } catch (err) {
+        console.error("Erro ao carregar dados:", err);
+        setLoading(false);
       }
-      setLoading(false);
-    }, (err) => {
-      console.error("Erro ao carregar dados:", err);
-      // Fallback
-      setLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
+    fetchCarga();
   }, [sectionId]);
 
   if (loading) {
