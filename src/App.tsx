@@ -738,6 +738,8 @@ export default function App() {
                 <EscalanteDashboard 
                   user={effectiveProfile!}
                   obmContext={obmContext}
+                  setObmContext={setObmContext}
+                  availableObms={availableObms}
                   onBack={() => navigate('/')} 
                 />
               </motion.div>

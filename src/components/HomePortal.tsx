@@ -128,8 +128,12 @@ interface HomePortalProps {
 export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }: HomePortalProps) {
   const { appVisibility: visibilityConfig } = useAppConfig();
   const [isEditMode, setIsEditMode] = useState(false);
-  const [moduleOrder, setModuleOrder] = useState<string[]>(() => {
-     const saved = localStorage.getItem('homeModuleOrder');
+  const [operacionalOrder, setOperacionalOrder] = useState<string[]>(() => {
+     const saved = localStorage.getItem('operacionalModuleOrder');
+     return saved ? JSON.parse(saved) : [];
+  });
+  const [informativoOrder, setInformativoOrder] = useState<string[]>(() => {
+     const saved = localStorage.getItem('informativoModuleOrder');
      return saved ? JSON.parse(saved) : [];
   });
   const [escalanteOrder, setEscalanteOrder] = useState<string[]>(() => {
@@ -217,7 +221,7 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
     return allowedGroups.some(g => userGroups.includes(g));
   };
 
-  const mainModules = [
+  const operacionalModulesDef = [
     {
       id: 'permutas',
       label: 'Permutas de Escala',
@@ -252,8 +256,27 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       defaultGroups: ['EXP', 'ADMIN', 'ESCALANTE', 'OFICIAIS']
     },
     {
+      id: 'translado',
+      label: 'Translado OBM',
+      description: 'Viaturas Administrativas',
+      icon: Bus,
+      color: 'bg-blue-500 shadow-blue-200',
+      defaultGroups: ['TODOS']
+    },
+    {
+      id: 'servicos-grd',
+      label: 'Serviços e GRD',
+      description: 'Escala de Oficiais',
+      icon: ShieldCheck,
+      color: 'bg-indigo-700 shadow-indigo-200',
+      defaultGroups: ['OFICIAIS', 'ADMIN', 'ESCALANTE']
+    }
+  ];
+
+  const informativoModulesDef = [
+    {
       id: 'ferias',
-      label: 'Controle de Férias Pessoal',
+      label: 'Controle de Férias',
       description: 'Seu Escalonamento Anual',
       icon: Library,
       color: 'bg-orange-600 shadow-orange-200',
@@ -286,27 +309,11 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
        defaultGroups: ['TODOS']
     },
     {
-      id: 'servicos-grd',
-      label: 'Serviços e GRD',
-      description: 'Escala Mensal de Oficiais Combatentes',
-      icon: ShieldCheck,
-      color: 'bg-indigo-700 shadow-indigo-200',
-      defaultGroups: ['OFICIAIS', 'ADMIN', 'ESCALANTE']
-    },
-    {
       id: 'comunicacao',
       label: 'Painel do Comunicante',
       description: 'Acionar Viaturas',
       icon: Radio,
       color: 'bg-rose-600 shadow-rose-200',
-      defaultGroups: ['TODOS']
-    },
-    {
-      id: 'translado',
-      label: 'Translado OBM',
-      description: 'Viaturas Administrativas',
-      icon: Bus,
-      color: 'bg-blue-500 shadow-blue-200',
       defaultGroups: ['TODOS']
     },
     {
@@ -381,7 +388,9 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
     }
   ];
 
-  const moveItem = (modules: any[], id: string, direction: -1 | 1, isEscalante: boolean) => {
+  type SectionType = 'operacional' | 'informativo' | 'escalante';
+  
+  const moveItem = (modules: any[], id: string, direction: -1 | 1, section: SectionType) => {
      const currentIds = modules.map(m => m.id);
      const idx = currentIds.indexOf(id);
      if (idx < 0) return;
@@ -393,35 +402,36 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
      newIds[idx] = newIds[idx + direction];
      newIds[idx + direction] = temp;
      
-     if (isEscalante) {
+     if (section === 'escalante') {
         setEscalanteOrder(newIds);
         localStorage.setItem('escalanteModuleOrder', JSON.stringify(newIds));
+     } else if (section === 'operacional') {
+        setOperacionalOrder(newIds);
+        localStorage.setItem('operacionalModuleOrder', JSON.stringify(newIds));
      } else {
-        setModuleOrder(newIds);
-        localStorage.setItem('homeModuleOrder', JSON.stringify(newIds));
+        setInformativoOrder(newIds);
+        localStorage.setItem('informativoModuleOrder', JSON.stringify(newIds));
      }
   };
 
-  const visibleMainModulesRaw = mainModules.filter(mod => isVisible(mod.id, mod.defaultGroups));
+  const visibleOperacionalModulesRaw = operacionalModulesDef.filter(mod => isVisible(mod.id, mod.defaultGroups));
+  const visibleInformativoModulesRaw = informativoModulesDef.filter(mod => isVisible(mod.id, mod.defaultGroups));
   const visibleEscalanteModulesRaw = escalanteModulesDef.filter(mod => isVisible(mod.id, mod.defaultGroups));
 
-  const visibleMainModules = [...visibleMainModulesRaw].sort((a, b) => {
-    const idxA = moduleOrder.indexOf(a.id);
-    const idxB = moduleOrder.indexOf(b.id);
-    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-    if (idxA !== -1) return -1;
-    if (idxB !== -1) return 1;
-    return 0;
-  });
+  const sortModules = (raw: any[], orderList: string[]) => {
+    return [...raw].sort((a, b) => {
+      const idxA = orderList.indexOf(a.id);
+      const idxB = orderList.indexOf(b.id);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return 0;
+    });
+  };
 
-  const visibleEscalanteModules = [...visibleEscalanteModulesRaw].sort((a, b) => {
-    const idxA = escalanteOrder.indexOf(a.id);
-    const idxB = escalanteOrder.indexOf(b.id);
-    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-    if (idxA !== -1) return -1;
-    if (idxB !== -1) return 1;
-    return 0;
-  });
+  const visibleOperacionalModules = sortModules(visibleOperacionalModulesRaw, operacionalOrder);
+  const visibleInformativoModules = sortModules(visibleInformativoModulesRaw, informativoOrder);
+  const visibleEscalanteModules = sortModules(visibleEscalanteModulesRaw, escalanteOrder);
 
   return (
     <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -465,36 +475,70 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
         )}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 mb-12">
-        {visibleMainModules.map((mod, index) => (
-          <ModuleIcon
-            key={mod.id}
-            id={mod.id}
-            label={mod.label}
-            description={mod.description}
-            icon={mod.icon}
-            color={mod.color}
-            disabled={(mod as any).disabled}
-            comingSoon={(mod as any).comingSoon}
-            inDevelopment={(mod as any).inDevelopment}
-            onClick={() => !isEditMode && onLaunchModule(mod.id)}
-            onMoveLeft={isEditMode && index > 0 ? (e) => { e.stopPropagation(); moveItem(visibleMainModules, mod.id, -1, false); } : undefined}
-            onMoveRight={isEditMode && index < visibleMainModules.length - 1 ? (e) => { e.stopPropagation(); moveItem(visibleMainModules, mod.id, 1, false); } : undefined}
-          />
-        ))}
+      {visibleOperacionalModules.length > 0 && (
+         <div className="mb-12">
+            <div className="flex items-center gap-3 mb-6">
+               <Shield className="w-5 h-5 text-indigo-600" />
+               <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Operacional</h2>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+              {visibleOperacionalModules.map((mod, index) => (
+                <ModuleIcon
+                  key={mod.id}
+                  id={mod.id}
+                  label={mod.label}
+                  description={mod.description}
+                  icon={mod.icon}
+                  color={mod.color}
+                  disabled={(mod as any).disabled}
+                  comingSoon={(mod as any).comingSoon}
+                  inDevelopment={(mod as any).inDevelopment}
+                  onClick={() => !isEditMode && onLaunchModule(mod.id)}
+                  onMoveLeft={isEditMode && index > 0 ? (e) => { e.stopPropagation(); moveItem(visibleOperacionalModules, mod.id, -1, 'operacional'); } : undefined}
+                  onMoveRight={isEditMode && index < visibleOperacionalModules.length - 1 ? (e) => { e.stopPropagation(); moveItem(visibleOperacionalModules, mod.id, 1, 'operacional'); } : undefined}
+                />
+              ))}
+              {/* Coming Soon placeholders */}
+              {!isEditMode && visibleOperacionalModules.length < 4 && (
+                <div className="col-span-1 border-2 border-dashed border-slate-200 rounded-3xl p-6 flex flex-col items-center justify-center gap-2 opacity-40 min-h-[140px]">
+                   <MessageSquare className="w-8 h-8 text-slate-300" />
+                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Em Breve</span>
+                </div>
+              )}
+            </div>
+         </div>
+      )}
 
-        {/* Coming Soon placeholders */}
-        {!isEditMode && (
-          <div className="border-2 border-dashed border-slate-200 rounded-3xl p-6 flex flex-col items-center justify-center gap-2 opacity-40 min-h-[140px]">
-             <MessageSquare className="w-8 h-8 text-slate-300" />
-             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Em Breve</span>
-          </div>
-        )}
-      </div>
+      {visibleInformativoModules.length > 0 && (
+         <div className="mb-12">
+            <div className="flex items-center gap-3 mb-6">
+               <BookOpen className="w-5 h-5 text-teal-600" />
+               <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Informativo</h2>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+              {visibleInformativoModules.map((mod, index) => (
+                <ModuleIcon
+                  key={mod.id}
+                  id={mod.id}
+                  label={mod.label}
+                  description={mod.description}
+                  icon={mod.icon}
+                  color={mod.color}
+                  disabled={(mod as any).disabled}
+                  comingSoon={(mod as any).comingSoon}
+                  inDevelopment={(mod as any).inDevelopment}
+                  onClick={() => !isEditMode && onLaunchModule(mod.id)}
+                  onMoveLeft={isEditMode && index > 0 ? (e) => { e.stopPropagation(); moveItem(visibleInformativoModules, mod.id, -1, 'informativo'); } : undefined}
+                  onMoveRight={isEditMode && index < visibleInformativoModules.length - 1 ? (e) => { e.stopPropagation(); moveItem(visibleInformativoModules, mod.id, 1, 'informativo'); } : undefined}
+                />
+              ))}
+            </div>
+         </div>
+      )}
 
       {visibleEscalanteModules.length > 0 && (
-         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 mt-12 mb-12">
-            <div className="flex items-center gap-3 mb-8">
+         <div className="mb-12">
+            <div className="flex items-center gap-3 mb-6">
                <ShieldCheck className="w-5 h-5 text-rose-600" />
                <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Espaço do Escalante / Admin</h2>
             </div>
@@ -511,8 +555,8 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
                   comingSoon={(mod as any).comingSoon}
                   inDevelopment={(mod as any).inDevelopment}
                   onClick={() => !isEditMode && onLaunchModule(mod.id)}
-                  onMoveLeft={isEditMode && index > 0 ? (e) => { e.stopPropagation(); moveItem(visibleEscalanteModules, mod.id, -1, true); } : undefined}
-                  onMoveRight={isEditMode && index < visibleEscalanteModules.length - 1 ? (e) => { e.stopPropagation(); moveItem(visibleEscalanteModules, mod.id, 1, true); } : undefined}
+                  onMoveLeft={isEditMode && index > 0 ? (e) => { e.stopPropagation(); moveItem(visibleEscalanteModules, mod.id, -1, 'escalante'); } : undefined}
+                  onMoveRight={isEditMode && index < visibleEscalanteModules.length - 1 ? (e) => { e.stopPropagation(); moveItem(visibleEscalanteModules, mod.id, 1, 'escalante'); } : undefined}
                 />
               ))}
             </div>

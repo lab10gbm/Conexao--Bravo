@@ -33,7 +33,39 @@ interface ExpedienteData {
   regimes?: Record<string, string>;
   locked?: Record<string, boolean>;
   swapRequests?: SwapRequest[];
+  preferencesDetails?: Record<string, Record<string, number>>;
 }
+
+export const FUNCOES_ESCALA = [
+  "Condutor de ABT",
+  "Condutor de ABSL",
+  "Condutor de ASE",
+  "Condutor de AR",
+  "Condutor de ARC",
+  "Chefe de Guarnição ABT",
+  "Chefe de Guarnição ABSL",
+  "Auxiliar de ABT",
+  "Auxiliar de ABSL",
+  "Auxiliar de ARC",
+  "Auxiliar de ASE",
+  "Mestre AL",
+  "Mestre BIA",
+  "Operador AMA",
+  "Guarda-Vidas AMA",
+  "Marinheiro",
+  "Enfermeiro",
+  "Comunicante",
+  "Adjunto",
+  "Sargento de Dia",
+  "Cmt da Guarda",
+  "Cabo da Guarda",
+  "Cabo de Dia",
+  "Sentinela",
+  "Faxina",
+  "Armeque",
+  "Toque de Fogo",
+  "Auxiliar de Rancho"
+];
 
 const WORK_REGIMES = [
   "3 Exped. e 2 serv. 24h",
@@ -52,7 +84,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   const [isExpanded, setIsExpanded] = useState(forceExpanded || false);
   const [adminConfigMode, setAdminConfigMode] = useState(false);
   const [adminTargetRg, setAdminTargetRg] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'calendar' | 'table'>('calendar');
+  const [viewMode, setViewMode] = useState<'calendar' | 'table' | 'necessidades'>('calendar');
   const [transposeTable, setTransposeTable] = useState(false);
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [confirmLock, setConfirmLock] = useState(false);
@@ -80,6 +112,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
         selections: monthData.selections || {},
         locked: monthData.locked || {},
         swapRequests: monthData.swapRequests || [],
+        preferencesDetails: monthData.preferencesDetails || {},
         userNames: globalData.userNames || {},
         sectors: globalData.sectors || {},
         regimes: globalData.regimes || {}
@@ -120,22 +153,33 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
         users.push({ ...u, uid, rg: u.rg || uid, name: u.name || '' });
       }
     });
-    
-    // Add virtual profile for Escalante preferences
-    users.push({
-      uid: 'ESCALANTE_PREF',
-      rg: 'ESCALANTE_PREF',
-      name: 'DATAS PREFERENCIAIS (ESCALANTE)',
-      ala: 'EXP',
-      rank: '🌟'
-    });
 
     setExpedienteUsers(users.sort((a, b) => {
-      if (a.rg === 'ESCALANTE_PREF') return -1;
-      if (b.rg === 'ESCALANTE_PREF') return 1;
       return (a.name || '').localeCompare(b.name || '');
     }));
   }, [obmContext, militars]);
+
+  const handleTogglePrefDate = async (dayStr: string) => {
+      let sels = data.selections['ESCALANTE_PREF'] || [];
+      if (sels.includes(dayStr)) sels = sels.filter(d => d !== dayStr);
+      else sels = [...sels, dayStr];
+      const newMonthData = { selections: { 'ESCALANTE_PREF': sels } };
+      setData(prev => ({...prev, selections: {...prev.selections, 'ESCALANTE_PREF': sels}}));
+      await setDoc(monthDocRef, newMonthData, { merge: true });
+  };
+
+  const handleUpdatePrefDetail = async (dayStr: string, func: string, qty: number) => {
+      if (!func) return;
+      const dayData = { ...(data.preferencesDetails?.[dayStr] || {}) };
+      if (qty <= 0) {
+          delete dayData[func];
+      } else {
+          dayData[func] = qty;
+      }
+      const newPrefs = { ...(data.preferencesDetails || {}), [dayStr]: dayData };
+      setData(prev => ({...prev, preferencesDetails: newPrefs}));
+      await setDoc(monthDocRef, { preferencesDetails: newPrefs }, { merge: true });
+  };
 
   const handleTargetedToggle = async (rgSelection: string, day: Date) => {
     if (!rgSelection) {
@@ -294,6 +338,17 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                               >
                                   <Table className="w-3 h-3" /> <span className="hidden sm:inline">Tabela</span>
                               </button>
+                              {(isAdmin || user.isEscalante) && (
+                                  <button
+                                      onClick={() => setViewMode('necessidades')}
+                                      className={cn(
+                                          "px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1",
+                                          viewMode === 'necessidades' ? "bg-white text-indigo-700 shadow-sm" : "text-transparent text-slate-500 hover:text-slate-700"
+                                      )}
+                                  >
+                                      <AlertCircle className="w-3 h-3" /> <span className="hidden sm:inline">Necessidades</span>
+                                  </button>
+                              )}
                           </div>
                           
                           {viewMode === 'table' && (
@@ -684,12 +739,150 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                     </table>
                     )}
                 </div>
+           ) : viewMode === 'necessidades' && (isAdmin || user.isEscalante) ? (
+                <div className="bg-slate-50 flex flex-col gap-6 w-full">
+                    <div className="bg-white rounded-xl border-2 border-slate-200 shadow-sm p-4 sm:p-6">
+                        <div className="flex flex-col mb-6">
+                            <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">Datas Preferenciais e Funções em Falta</h4>
+                            <p className="text-[11px] text-slate-500 font-bold mt-1">
+                                Identifique os dias em que há carência de efetivo. Para cada dia selecionado, especifique quais funções estão faltando e a quantidade de militares necessários.
+                            </p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                            {currentMonthDays.map(day => {
+                                const dayStr = format(day, 'yyyy-MM-dd');
+                                const isPreferred = (data.selections['ESCALANTE_PREF'] || []).includes(dayStr);
+                                const details = data.preferencesDetails?.[dayStr] || {};
+                                
+                                return (
+                                    <div key={dayStr} className={cn("border-2 rounded-xl p-4 transition-all", isPreferred ? "bg-red-50/30 border-red-200" : "bg-white border-slate-100 hover:border-slate-200")}>
+                                        <div className="flex justify-between items-center mb-3">
+                                            <div className="flex flex-col">
+                                                <span className={cn("text-[10px] font-black uppercase tracking-widest", isPreferred ? "text-red-500" : "text-slate-400")}>
+                                                    {format(day, 'eee', {locale: ptBR})}
+                                                </span>
+                                                <span className={cn("text-xs font-black", isPreferred ? "text-red-700" : "text-slate-700")}>
+                                                    {format(day, 'dd/MM/yyyy')}
+                                                </span>
+                                            </div>
+                                            <button 
+                                                onClick={() => handleTogglePrefDate(dayStr)}
+                                                className={cn(
+                                                    "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors",
+                                                    isPreferred ? "bg-red-100 text-red-700 hover:bg-red-200" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                                                )}
+                                            >
+                                                {isPreferred ? 'Desmarcar' : 'Selecionar'}
+                                            </button>
+                                        </div>
+                                        
+                                        {isPreferred && (
+                                            <div className="mt-4 pt-4 border-t-2 border-red-100/50 flex flex-col gap-3">
+                                                {Object.entries(details).length > 0 ? (
+                                                    Object.entries(details).map(([func, qt]) => (
+                                                        <div key={func} className="flex justify-between items-center bg-white border border-red-100 rounded-lg p-2 shadow-sm">
+                                                            <span className="text-[10px] font-black text-slate-700 tracking-tight">{func}</span>
+                                                            <div className="flex items-center gap-2 bg-slate-50 rounded-md border border-slate-100 p-0.5">
+                                                                <button 
+                                                                    onClick={() => handleUpdatePrefDetail(dayStr, func, qt - 1)}
+                                                                    className="w-6 h-6 flex items-center justify-center bg-white rounded shadow-sm text-slate-500 hover:text-red-500 font-bold"
+                                                                >
+                                                                    -
+                                                                </button>
+                                                                <span className="text-[11px] font-black text-indigo-700 w-4 text-center">{qt}</span>
+                                                                <button 
+                                                                    onClick={() => handleUpdatePrefDetail(dayStr, func, qt + 1)}
+                                                                    className="w-6 h-6 flex items-center justify-center bg-white rounded shadow-sm text-slate-500 hover:text-green-500 font-bold"
+                                                                >
+                                                                    +
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="text-[10px] font-bold text-red-400 text-center py-2 italic">
+                                                        Nenhuma função especificada.
+                                                    </div>
+                                                )}
+                                                
+                                                <select 
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        if (val) {
+                                                            handleUpdatePrefDetail(dayStr, val, 1);
+                                                            e.target.value = "";
+                                                        }
+                                                    }}
+                                                    className="w-full text-[10px] font-bold text-slate-600 bg-white border-2 border-slate-200 rounded-lg p-2 outline-none focus:border-indigo-400 mt-1 cursor-pointer"
+                                                >
+                                                    <option value="">+ Adicionar Função</option>
+                                                    {FUNCOES_ESCALA.filter(f => !details[f]).map(f => (
+                                                        <option key={f} value={f}>{f}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
            ) : (
                 <div className="flex flex-col lg:flex-row gap-6">
                  {/* Calendar Column */}
                  <div className="flex-1 bg-white rounded-xl border-2 border-slate-200 shadow-sm overflow-hidden flex flex-col">
-                    <div className="p-4 flex-1 flex flex-col">
-                      <div className="grid grid-cols-7 mb-2 px-1 text-center">
+                    <div className="p-2 sm:p-4 flex-1 flex flex-col overflow-y-auto sm:overflow-visible bg-slate-50 sm:bg-transparent">
+                     <div className="flex flex-col flex-1 pb-1">
+                      {(() => {
+                          const preferredDays = currentMonthDays.filter(day => {
+                              const dayStr = format(day, 'yyyy-MM-dd');
+                              const details = data.preferencesDetails?.[dayStr] || {};
+                              const totalVagas = Object.values(details).reduce((sum, qt) => sum + qt, 0);
+                              return totalVagas > 0;
+                          });
+                          
+                          if (preferredDays.length === 0) return null;
+                          
+                          return (
+                              <div className="mb-4">
+                                  <div className="flex items-center justify-between mb-2">
+                                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-1.5">
+                                          <AlertCircle className="w-3 h-3 text-red-500" /> Vagas Preferenciais
+                                      </span>
+                                      {(isAdmin || user.isEscalante) && (
+                                         <button 
+                                            onClick={() => setViewMode('necessidades')}
+                                            className="text-[9px] font-black uppercase text-indigo-600 hover:text-indigo-800 transition-colors"
+                                          >
+                                              Ver Detalhes
+                                          </button>
+                                      )}
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {preferredDays.map(day => {
+                                        const dayStr = format(day, 'yyyy-MM-dd');
+                                        const details = data.preferencesDetails?.[dayStr] || {};
+                                        const totalVagas = Object.values(details).reduce((sum, qt) => sum + qt, 0);
+                                        return (
+                                            <button 
+                                                key={dayStr}
+                                                onClick={() => handleToggleDay(day)}
+                                                className="relative flex flex-col items-center justify-center p-2 rounded-xl border-2 border-red-200 bg-red-50 hover:bg-red-100 transition-colors py-2 px-3 min-w-[54px] sm:min-w-[64px]"
+                                            >
+                                                <span className="text-sm font-black text-red-800 leading-none mb-0.5">{format(day, 'dd')}</span>
+                                                <span className="text-[9px] font-bold text-red-600 uppercase tracking-widest leading-none">{format(day, 'MMM', {locale: ptBR})}</span>
+                                                <div className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+                                                    {totalVagas}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                  </div>
+                              </div>
+                          );
+                      })()}
+                      <div className="hidden sm:grid grid-cols-7 mb-2 px-1 text-center">
                         {weekdays.map((wd) => (
                           <div key={wd} className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                             {wd}
@@ -697,7 +890,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                         ))}
                       </div>
                       
-                      <div className="grid grid-cols-7 gap-2 flex-1">
+                      <div className="grid grid-cols-1 sm:grid-cols-7 gap-3 sm:gap-2 flex-1">
                         {days.map((day) => {
                           const dayStr = format(day, 'yyyy-MM-dd');
                           const outsideMonth = !isSameMonth(day, currentMonth);
@@ -720,49 +913,74 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                               whileHover={!outsideMonth ? { scale: 1.02 } : {}}
                               onClick={() => !outsideMonth && handleToggleDay(day)}
                               className={cn(
-                                "relative flex flex-col p-1 sm:p-2 rounded-lg transition-all min-h-[60px] sm:min-h-[80px]",
+                                "relative flex flex-col p-3 sm:p-2 rounded-xl sm:rounded-lg transition-all sm:min-h-[110px]",
                                 outsideMonth 
-                                  ? "opacity-30 bg-slate-50 border-transparent cursor-default pointer-events-none text-slate-400" 
-                                  : isPreferredDate && !isTargetUserSelected ? "border-2 border-red-200 cursor-pointer bg-red-50 hover:border-red-300"
-                                  : "border-2 border-slate-100 hover:border-indigo-300 cursor-pointer bg-white",
+                                  ? "hidden sm:flex opacity-30 bg-slate-50 border-transparent cursor-default pointer-events-none text-slate-400" 
+                                  : isPreferredDate && !isTargetUserSelected ? "border-2 border-red-200 cursor-pointer bg-red-50 hover:border-red-300 shadow-sm sm:shadow-none"
+                                  : "border-2 border-slate-100 hover:border-indigo-300 cursor-pointer bg-white shadow-sm sm:shadow-none",
                                 isToday && !outsideMonth && "ring-2 ring-indigo-500 ring-offset-2",
-                                isTargetUserSelected && !outsideMonth && "bg-indigo-50 border-indigo-500 shadow-sm"
+                                isTargetUserSelected && !outsideMonth && "bg-indigo-50 border-indigo-500 shadow-md sm:shadow-sm"
                               )}
                             >
-                               <div className="flex justify-between items-start mb-0.5 sm:mb-1">
-                                   <span className={cn(
-                                      "text-[10px] sm:text-sm font-black text-slate-700",
-                                      isTargetUserSelected && "text-indigo-700",
-                                      isPreferredDate && !isTargetUserSelected && "text-red-700"
-                                   )}>
-                                      {format(day, 'd')}
-                                   </span>
-                                   {!outsideMonth && isPreferredDate && (
-                                       <span className="text-[12px] text-red-400 leading-none">★</span>
+                               <div className="flex justify-between items-center sm:items-start mb-2 sm:mb-1.5">
+                                   <div className="flex items-center gap-2">
+                                       <span className={cn(
+                                          "text-base sm:text-sm font-black text-slate-700",
+                                          isTargetUserSelected && "text-indigo-700",
+                                          isPreferredDate && !isTargetUserSelected && "text-red-700"
+                                       )}>
+                                          {format(day, 'd')}
+                                       </span>
+                                       <span className="text-[11px] font-black text-slate-400 sm:hidden uppercase tracking-widest">
+                                          {format(day, 'EEEE', {locale: ptBR}).split('-')[0]}
+                                       </span>
+                                   </div>
+                                   {!outsideMonth && (
+                                       <span className="text-[18px] sm:text-[14px] leading-none text-red-500">
+                                            {isPreferredDate && "★"}
+                                       </span>
                                    )}
                                </div>
                                
-                               {!outsideMonth && workersOnThisDay.length > 0 && (
-                                  <div className="flex flex-col gap-0.5 sm:gap-1 mt-auto">
-                                      {workersOnThisDay.slice(0, 3).map((name, i) => (
-                                         <span key={i} className="text-[7px] sm:text-[8px] font-black bg-slate-800 text-white px-1 sm:px-1.5 py-0.5 rounded uppercase truncate leading-none cursor-help" title={name}>
-                                            {formatMilitaryName(name)}
-                                         </span>
-                                      ))}
-                                      {workersOnThisDay.length > 3 && (
-                                         <span className="text-[7px] sm:text-[8px] font-black text-slate-500 px-1">+ {workersOnThisDay.length - 3}</span>
+                               {!outsideMonth && (
+                                  <div className="flex flex-col gap-2 sm:gap-1.5 mt-1 sm:mt-auto">
+                                      {Object.entries(data.preferencesDetails?.[dayStr] || {}).length > 0 && (
+                                          <div className="flex flex-row sm:flex-col flex-wrap gap-1.5 sm:gap-1">
+                                              {Object.entries(data.preferencesDetails?.[dayStr] || {}).map(([func, qt]) => (
+                                                 <span key={func} className="text-[10px] sm:text-[9px] font-bold bg-red-100 text-red-700 border border-red-200 px-2 py-1 sm:px-1.5 sm:py-1 rounded-[4px] uppercase truncate leading-none" title={`${qt}x ${func}`}>
+                                                    {qt}x {func}
+                                                 </span>
+                                              ))}
+                                          </div>
+                                      )}
+
+                                      {workersOnThisDay.length > 0 && (
+                                          <div className="flex flex-row sm:flex-col flex-wrap gap-1.5 sm:gap-1 sm:mt-1 border-t sm:border-t-0 border-slate-100 pt-2 sm:pt-0">
+                                              {workersOnThisDay.map((name, i) => (
+                                                 <span key={i} className={cn(
+                                                     "text-[10px] sm:text-[9px] font-black bg-slate-800 text-white px-2 py-1 sm:px-1.5 sm:py-1 rounded-[4px] uppercase truncate leading-none cursor-help",
+                                                     i >= 3 && "sm:hidden"
+                                                 )} title={name}>
+                                                    {formatMilitaryName(name)}
+                                                 </span>
+                                              ))}
+                                              {workersOnThisDay.length > 3 && (
+                                                 <span className="hidden sm:inline-flex text-[10px] sm:text-[9px] font-black text-slate-500 px-1 py-1">+ {workersOnThisDay.length - 3}</span>
+                                              )}
+                                          </div>
                                       )}
                                   </div>
                                )}
 
                                {!outsideMonth && isTargetUserSelected && (
-                                   <div className="absolute top-2 right-2 flex items-center justify-center p-0.5 bg-indigo-500 text-white rounded-full shadow-sm">
-                                       <CheckCircle2 className="w-3 h-3" />
+                                   <div className="absolute top-2 right-2 sm:top-2 sm:right-2 flex items-center justify-center p-1 sm:p-0.5 bg-indigo-500 text-white rounded-full shadow-sm">
+                                       <CheckCircle2 className="w-4 h-4 sm:w-4 sm:h-4" />
                                    </div>
                                )}
                             </motion.div>
                           );
                         })}
+                       </div>
                       </div>
                     </div>
                  </div>

@@ -6,6 +6,7 @@ import { Search, Loader2, Truck, ShieldAlert, BadgeInfo, Trash2 } from 'lucide-r
 import { cn } from '../lib/utils';
 import { UserProfile } from '../types';
 import { RankInsignia } from './RankInsignia';
+import { MultiSelectFilter } from './ui/MultiSelectFilter';
 
 interface ControleDeFuncoesProps {
   obmContext: string;
@@ -19,40 +20,84 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
   const [processing, setProcessing] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'condutores' | 'chefes' | 'maritimos' | 'enfermeiros' | 'comunicantes' | 'graduados' | 'cbs_sds' | 'auxiliares' | 'mostruario'>('condutores');
 
+  const [filterPostoGrad, setFilterPostoGrad] = useState<string[]>([]);
+  const [filterQuadro, setFilterQuadro] = useState<string[]>([]);
+  const [filterAla, setFilterAla] = useState<string[]>([]);
+  const [filterSituacao, setFilterSituacao] = useState<string[]>([]);
+  const [filterCursos, setFilterCursos] = useState<string[]>([]);
+  const [somenteAtivos, setSomenteAtivos] = useState(false);
+
+  const { uniqueRanks, uniqueQuadros, uniqueAlas, uniqueSituacoes, uniqueCursos } = useMemo(() => {
+    const cursosSet = new Set<string>();
+    militars.forEach(m => {
+      const isSameObm = !obmContext || obmContext === 'GLOBAL' || m.obm === obmContext;
+      if (isSameObm && m.cursos) {
+        m.cursos.split(',').forEach(c => {
+          const tc = c.trim();
+          if (tc) cursosSet.add(tc);
+        });
+      }
+    });
+
+    const contextMilitars = militars.filter(m => !obmContext || obmContext === 'GLOBAL' || m.obm === obmContext);
+
+    return {
+      uniqueRanks: Array.from(new Set(contextMilitars.map(m => m.rank).filter(Boolean))) as string[],
+      uniqueQuadros: Array.from(new Set(contextMilitars.map(m => m.quadro).filter(Boolean))) as string[],
+      uniqueAlas: Array.from(new Set(contextMilitars.map(m => m.ala?.toString()).filter(v => v && v.toUpperCase() !== 'ALA'))) as string[],
+      uniqueSituacoes: Array.from(new Set(contextMilitars.map(m => m.situacao).filter(Boolean))) as string[],
+      uniqueCursos: Array.from(cursosSet).sort()
+    };
+  }, [militars, obmContext]);
+
   // Filter only militars from this OBM by default, but allow search to override
   const filteredMilitars = useMemo(() => {
     return militars.filter(m => {
-      const isSameObm = m.obm === obmContext || !obmContext;
+      const isSameObm = !obmContext || obmContext === 'GLOBAL' || m.obm === obmContext;
       if (!isSameObm) return false;
 
-      // Se há busca, mostrar os resultados (para permitir cadastrar um novo)
-      if (search) {
+      const isActiveInCurrentTab = () => {
+         if (activeTab === 'condutores') return !!m.ativoCondutor;
+         if (activeTab === 'chefes') return !!m.ativoChefeGua;
+         if (activeTab === 'maritimos') return !!m.ativoMaritimo;
+         if (activeTab === 'enfermeiros') return !!m.ativoEnfermeiro;
+         if (activeTab === 'graduados') return !!m.ativoGraduado;
+         if (activeTab === 'cbs_sds') return !!m.ativoCbsSds;
+         if (activeTab === 'auxiliares') return !!m.ativoAuxiliar;
+         if (activeTab === 'mostruario') {
+            const r = (m.rank || '').toUpperCase().trim();
+            const isOfficer = ['CEL', 'CORONEL', 'TC', 'TENENTE CORONEL', 'TENENTE-CORONEL', 'MAJ', 'MAJOR', 'CAP', 'CAPITÃO', '1º TEN', '1º TENENTE', '2º TEN', '2º TENENTE', 'ASP', 'ASPIRANTE'].includes(r);
+            return !isOfficer;
+         }
+         return !!m.ativoComunicante;
+      };
+
+      const active = isActiveInCurrentTab();
+
+      // Basic filtering logic
+      let matches = true;
+      if (search.length >= 2) {
         const s = search.toLowerCase();
-        return (m.name || '').toLowerCase().includes(s) || m.rg?.includes(search);
+        matches = matches && ((m.name || '').toLowerCase().includes(s) || (m.rg || '').toString().includes(search));
       }
-      
-      // Se NÃO há busca, mostrar APENAS quem já tem alguma função cadastrada (exceto no mostruário que mostra todos)
-      if (activeTab === 'condutores') {
-        return m.ativoCondutor;
-      } else if (activeTab === 'chefes') {
-        return m.ativoChefeGua;
-      } else if (activeTab === 'maritimos') {
-        return m.ativoMaritimo;
-      } else if (activeTab === 'enfermeiros') {
-        return m.ativoEnfermeiro;
-      } else if (activeTab === 'graduados') {
-        return m.ativoGraduado;
-      } else if (activeTab === 'cbs_sds') {
-        return m.ativoCbsSds;
-      } else if (activeTab === 'auxiliares') {
-        return m.ativoAuxiliar;
-      } else if (activeTab === 'mostruario') {
-        const r = (m.rank || '').toUpperCase().trim();
-        const isOfficer = ['CEL', 'CORONEL', 'TC', 'TENENTE CORONEL', 'TENENTE-CORONEL', 'MAJ', 'MAJOR', 'CAP', 'CAPITÃO', '1º TEN', '1º TENENTE', '2º TEN', '2º TENENTE', 'ASP', 'ASPIRANTE'].includes(r);
-        return !isOfficer;
-      } else {
-        return m.ativoComunicante;
+      if (filterPostoGrad.length > 0) matches = matches && filterPostoGrad.includes(m.rank || '');
+      if (filterQuadro.length > 0) matches = matches && filterQuadro.includes(m.quadro || '');
+      if (filterAla.length > 0) matches = matches && filterAla.includes(m.ala?.toString() || '');
+      if (filterSituacao.length > 0) matches = matches && filterSituacao.includes(m.situacao || '');
+      if (filterCursos.length > 0) {
+        const userCursos = m.cursos ? m.cursos.toUpperCase().split(',').map(s => s.trim()) : [];
+        matches = matches && filterCursos.some(c => c && userCursos.includes(c.toUpperCase()));
       }
+
+      if (!matches) return false;
+
+      // They match the filters. Should we show them?
+      // By default we ONLY show active people.
+      // But if "Exibir Não Ativos" is checked, OR they are searching by name, we show everyone.
+      if (somenteAtivos) return true;
+      if (search.length >= 2) return true;
+
+      return active;
     }).sort((a, b) => {
        const rankWeights: Record<string, number> = {
          'CORONEL': 1, 'CEL': 1,
@@ -79,7 +124,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
        const rgB = parseInt(b.rg?.toString().replace(/\D/g, '') || '0', 10);
        return rgA - rgB;
     }).slice(0, 100);
-  }, [militars, search, obmContext, activeTab]);
+  }, [militars, search, obmContext, activeTab, filterPostoGrad, filterQuadro, filterAla, filterSituacao, filterCursos, somenteAtivos]);
 
   const displayMilitars = filteredMilitars;
 
@@ -135,6 +180,80 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
       [field]: !militar[field]
     });
   };
+
+  const toggleColumnAll = async (field: keyof UserProfile) => {
+    if (displayMilitars.length === 0) return;
+    const allChecked = displayMilitars.every(m => m[field]);
+    const newState = !allChecked;
+    
+    // 1. Optimistic UI update locally
+    displayMilitars.forEach(m => {
+      if (m.rg) {
+        const safeRg = String(m.rg).replace(/^0+/, '').replace(/\D/g, '');
+        updateMilitarLocal(safeRg, { [field]: newState });
+      }
+    });
+
+    // 2. Background sync with backend
+    await Promise.all(displayMilitars.map(m => {
+      if (!m.rg) return Promise.resolve();
+      const safeRg = String(m.rg).replace(/^0+/, '').replace(/\D/g, '');
+      return fetch('/api/militar/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rg: safeRg, data: { [field]: newState } })
+      }).catch(() => {});
+    }));
+  };
+
+  const toggleViaturaAll = async (viat: string) => {
+    if (displayMilitars.length === 0) return;
+    const allChecked = displayMilitars.every(m => !!m.viaturas?.[viat as keyof typeof m.viaturas]);
+    const newState = !allChecked;
+    
+    displayMilitars.forEach(m => {
+      if (m.rg) {
+        const safeRg = String(m.rg).replace(/^0+/, '').replace(/\D/g, '');
+        updateMilitarLocal(safeRg, { viaturas: { ...m.viaturas, [viat]: newState } });
+      }
+    });
+
+    await Promise.all(displayMilitars.map(m => {
+      if (!m.rg) return Promise.resolve();
+      const safeRg = String(m.rg).replace(/^0+/, '').replace(/\D/g, '');
+      return fetch('/api/militar/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rg: safeRg, data: { viaturas: { [viat]: newState } } })
+      }).catch(() => {});
+    }));
+  };
+
+  const ColumnHeaderToggle = ({ field, label }: { field: keyof UserProfile, label: React.ReactNode }) => (
+    <div className="flex flex-col items-center justify-center gap-1 group">
+      <span>{label}</span>
+      <button 
+        onClick={() => toggleColumnAll(field)}
+        title="Marcar/Desmarcar todos"
+        className="px-1.5 py-0.5 rounded text-[8px] tracking-wider uppercase font-bold bg-slate-200 text-slate-500 opacity-50 xl:group-hover:opacity-100 hover:bg-indigo-500 hover:text-white hover:opacity-100 transition-all shadow-sm"
+      >
+        LOTE
+      </button>
+    </div>
+  );
+
+  const ViaturaHeaderToggle = ({ viat }: { viat: string }) => (
+    <div className="flex flex-col items-center justify-center gap-1 group">
+      <span>{viat}</span>
+      <button 
+        onClick={() => toggleViaturaAll(viat)}
+        title="Marcar/Desmarcar todos"
+        className="px-1.5 py-0.5 rounded text-[8px] tracking-wider uppercase font-bold bg-slate-200 text-slate-500 opacity-50 xl:group-hover:opacity-100 hover:bg-indigo-500 hover:text-white hover:opacity-100 transition-all shadow-sm"
+      >
+        LOTE
+      </button>
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-full bg-slate-50">
@@ -246,6 +365,27 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
             </div>
           </div>
         </div>
+        
+        <div className="mt-4 flex flex-wrap items-start gap-4 p-4 bg-slate-50 border-2 border-slate-200 rounded-xl">
+           <div className="text-[10px] font-black uppercase text-slate-400 self-center w-full sm:w-auto">Filtros:</div>
+           <div className="flex-1 min-w-[150px]"><MultiSelectFilter label="Posto/Grad" options={uniqueRanks} selected={filterPostoGrad} onChange={setFilterPostoGrad} /></div>
+           <div className="flex-1 min-w-[150px]"><MultiSelectFilter label="Quadro" options={uniqueQuadros} selected={filterQuadro} onChange={setFilterQuadro} /></div>
+           <div className="flex-1 min-w-[150px]"><MultiSelectFilter label="Ala" options={uniqueAlas} selected={filterAla} onChange={setFilterAla} /></div>
+           <div className="flex-1 min-w-[150px]"><MultiSelectFilter label="Situação" options={uniqueSituacoes} selected={filterSituacao} onChange={setFilterSituacao} /></div>
+           <div className="flex-1 min-w-[200px]"><MultiSelectFilter label="Cursos" options={uniqueCursos} selected={filterCursos} onChange={setFilterCursos} /></div>
+           <div className="flex items-center gap-2 self-center shrink-0">
+             <input
+               type="checkbox"
+               id="somenteAtivos"
+               checked={somenteAtivos}
+               onChange={(e) => setSomenteAtivos(e.target.checked)}
+               className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+             />
+             <label htmlFor="somenteAtivos" className="text-xs font-semibold text-slate-700 select-none cursor-pointer">
+               Exibir Não Ativos
+             </label>
+           </div>
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
@@ -268,8 +408,8 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                   <tr className="bg-slate-50 border-t border-slate-200">
                     <th colSpan={2} className="px-3 py-1 bg-white"></th>
                     {VIATURAS.map(v => (
-                      <th key={v} className="px-2 py-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400 text-center border-l border-slate-200 first:border-l-0">
-                        {v}
+                      <th key={v} className="px-2 py-1 text-[9px] font-black uppercase tracking-widest text-slate-400 text-center border-l border-slate-200 first:border-l-0">
+                        <ViaturaHeaderToggle viat={v} />
                       </th>
                     ))}
                     <th colSpan={4} className="bg-white border-l border-slate-200"></th>
@@ -401,10 +541,10 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 w-16 text-center">Ativo</th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Militar</th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200 bg-slate-50">
-                      Chefe ABT
+                      <ColumnHeaderToggle field="chefeAbt" label="Chefe ABT" />
                     </th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-slate-50">
-                      Chefe ABSL
+                      <ColumnHeaderToggle field="chefeAbsl" label="Chefe ABSL" />
                     </th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200">Ala</th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200 w-16">Ações</th>
@@ -524,11 +664,11 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                   <tr>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 w-16 text-center">Ativo</th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Militar</th>
-                    <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200 bg-slate-50">Mestre AL</th>
-                    <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-slate-50">Mestre BIA</th>
-                    <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-slate-50">OP. AMA</th>
-                    <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-slate-50">GV. AMA</th>
-                    <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-slate-50">Marinheiros</th>
+                    <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200 bg-slate-50"><ColumnHeaderToggle field="mestreAl" label="Mestre AL" /></th>
+                    <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-slate-50"><ColumnHeaderToggle field="mestreBia" label="Mestre BIA" /></th>
+                    <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-slate-50"><ColumnHeaderToggle field="opAma" label="OP. AMA" /></th>
+                    <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-slate-50"><ColumnHeaderToggle field="gvAma" label="GV. AMA" /></th>
+                    <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-slate-50"><ColumnHeaderToggle field="marinheiros" label="Marinheiros" /></th>
                     <th className="px-3 py-3 text-[10px) font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200">Ala</th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200 w-16">Ações</th>
                   </tr>
@@ -823,19 +963,19 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 w-16 text-center">Ativo</th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Militar</th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200 bg-slate-50">
-                      Adjunto
+                      <ColumnHeaderToggle field="adjunto" label="Adjunto" />
                     </th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-slate-50">
-                      Sgt Dia
+                      <ColumnHeaderToggle field="sgtDia" label="Sgt Dia" />
                     </th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-slate-50">
-                      Cmt Guarda
+                      <ColumnHeaderToggle field="cmtGuarda" label="Cmt Guarda" />
                     </th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200 bg-slate-50">
-                      Disponível
+                      <ColumnHeaderToggle field="disponivel1" label="Disponível" />
                     </th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-slate-50">
-                      Disponível 2
+                      <ColumnHeaderToggle field="disponivel2" label="Disponível 2" />
                     </th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200">Ala</th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200 w-16">Ações</th>
@@ -990,28 +1130,28 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 w-16 text-center">Ativo</th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Militar</th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200 bg-slate-50">
-                      Faxina
+                      <ColumnHeaderToggle field="faxina" label="Faxina" />
                     </th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-slate-50">
-                      Sentinela
+                      <ColumnHeaderToggle field="sentinela" label="Sentinela" />
                     </th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-slate-50">
-                      Depósito
+                      <ColumnHeaderToggle field="deposito" label="Depósito" />
                     </th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-slate-50">
-                      Tq Fogo
+                      <ColumnHeaderToggle field="toqueDeFogo" label="Tq Fogo" />
                     </th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200 bg-slate-50">
-                      Aux Rancho
+                      <ColumnHeaderToggle field="auxRancho" label="Aux Rancho" />
                     </th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-slate-50">
-                      Cb Guarda
+                      <ColumnHeaderToggle field="cbGuarda" label="Cb Guarda" />
                     </th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-slate-50">
-                      Cb Dia
+                      <ColumnHeaderToggle field="cbDia" label="Cb Dia" />
                     </th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200 bg-slate-50">
-                      Disponível
+                      <ColumnHeaderToggle field="disponivelCbsSds" label="Disponível" />
                     </th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200">Ala</th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200 w-16">Ações</th>
@@ -1206,19 +1346,19 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 w-16 text-center">Ativo</th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">Militar</th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200 bg-slate-50">
-                      ABT
+                      <ColumnHeaderToggle field="auxAbt" label="ABT" />
                     </th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-slate-50">
-                      ABSL
+                      <ColumnHeaderToggle field="auxAbsl" label="ABSL" />
                     </th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-slate-50">
-                      ARC
+                      <ColumnHeaderToggle field="auxArc" label="ARC" />
                     </th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center bg-slate-50">
-                      ASE
+                      <ColumnHeaderToggle field="auxAse" label="ASE" />
                     </th>
                     <th className="px-3 py-3 text-[10px) font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200 bg-slate-50">
-                      Disponível
+                      <ColumnHeaderToggle field="disponivelAux" label="Disponível" />
                     </th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200">Ala</th>
                     <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200 w-16">Ações</th>

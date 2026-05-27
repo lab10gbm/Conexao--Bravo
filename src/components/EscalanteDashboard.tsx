@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useTransition } from 'react';
 import { UserProfile } from '../types';
 import { ArrowLeft, Users, Shield, UserCheck, LayoutGrid, CalendarRange, Truck } from 'lucide-react';
 import { EscalanteAlasConfig } from './EscalanteAlasConfig';
@@ -10,6 +10,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface EscalanteDashboardProps {
   user: UserProfile;
   obmContext: string;
+  setObmContext?: (obm: string) => void;
+  availableObms?: string[];
   onBack: () => void;
 }
 
@@ -22,8 +24,42 @@ const ESCALANTE_APPS = [
   { id: 'relatorios', label: 'Relatórios', description: 'Estatísticas', icon: LayoutGrid, color: 'bg-rose-600 shadow-rose-200', disabled: true },
 ];
 
-export function EscalanteDashboard({ user, obmContext, onBack }: EscalanteDashboardProps) {
+export function EscalanteDashboard({ user, obmContext, setObmContext, availableObms, onBack }: EscalanteDashboardProps) {
   const [activeApp, setActiveApp] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  const handleObmChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    if (setObmContext) {
+      startTransition(() => {
+        setObmContext(val);
+      });
+    }
+  };
+
+  const renderHeaderActions = (onClose?: () => void) => (
+    <div className="flex items-center gap-3 shrink-0">
+      {availableObms && availableObms.length > 1 && setObmContext && (
+        <select
+          value={obmContext}
+          onChange={handleObmChange}
+          disabled={isPending}
+          className="px-3 py-2 bg-white border-2 border-slate-200 rounded-xl text-xs font-black uppercase tracking-widest text-slate-700 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 transition-all cursor-pointer disabled:opacity-50"
+        >
+          {availableObms.map(o => (
+             <option key={o} value={o}>{o}</option>
+          ))}
+        </select>
+      )}
+      <button 
+        onClick={onClose || onBack}
+        className="flex items-center justify-center gap-2 px-4 py-2 bg-white border-2 border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-all group"
+      >
+        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+        {onClose ? "Voltar ao Painel" : "Voltar à Home"}
+      </button>
+    </div>
+  );
 
   if (activeApp === 'alas') {
     return (
@@ -38,13 +74,7 @@ export function EscalanteDashboard({ user, obmContext, onBack }: EscalanteDashbo
               <p className="text-sm font-medium text-slate-500 mt-1">Configuração e distribuição do efetivo nas alas operacionais.</p>
             </div>
           </div>
-          <button 
-            onClick={() => setActiveApp(null)}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-white border-2 border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-all group"
-          >
-            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            Voltar ao Painel
-          </button>
+          {renderHeaderActions(() => setActiveApp(null))}
         </div>
 
         <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative">
@@ -69,13 +99,7 @@ export function EscalanteDashboard({ user, obmContext, onBack }: EscalanteDashbo
               <p className="text-sm font-medium text-slate-500 mt-1">Gerencie as funções operacionais, como condutores e habilitações.</p>
             </div>
           </div>
-          <button 
-            onClick={() => setActiveApp(null)}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-white border-2 border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-all group"
-          >
-            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            Voltar ao Painel
-          </button>
+          {renderHeaderActions(() => setActiveApp(null))}
         </div>
 
         <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative">
@@ -100,13 +124,7 @@ export function EscalanteDashboard({ user, obmContext, onBack }: EscalanteDashbo
               <p className="text-sm font-medium text-slate-500 mt-1">Gestão da Guarnição de Resposta em Disponibilidade (Ala Oposta).</p>
             </div>
           </div>
-          <button 
-            onClick={() => setActiveApp(null)}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-white border-2 border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-all group"
-          >
-            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            Voltar ao Painel
-          </button>
+          {renderHeaderActions(() => setActiveApp(null))}
         </div>
 
         <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative">
@@ -127,13 +145,7 @@ export function EscalanteDashboard({ user, obmContext, onBack }: EscalanteDashbo
           </h2>
           <p className="text-sm font-medium text-slate-500 mt-1">Selecione uma aplicação do seu painel de gestão.</p>
         </div>
-        <button 
-          onClick={onBack}
-          className="flex items-center justify-center gap-2 px-4 py-2 bg-white border-2 border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-all group shrink-0"
-        >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          Voltar à Home
-        </button>
+        {renderHeaderActions()}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6 w-full">

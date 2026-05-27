@@ -1,8 +1,4 @@
 import fs from 'fs';
-
-const path = 'src/components/EfetivoPanel.tsx';
-let content = fs.readFileSync(path, 'utf8');
-
-content = content.replace('text-[var(--color-brand-red)]', 'text-red-500');
-fs.writeFileSync(path, content);
-console.log('Replaced text color successfully');
+let content = fs.readFileSync('src/components/EscalanteDashboard.tsx', 'utf8');
+content = content.replace(/<button[\s\S]*?onClick=\{\(\) => setActiveApp\(null\)\}[\s\S]*?<\/button>/g, '{renderHeaderActions(() => setActiveApp(null))}');
+fs.writeFileSync('src/components/EscalanteDashboard.tsx', content);
