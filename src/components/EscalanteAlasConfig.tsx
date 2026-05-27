@@ -33,10 +33,12 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
 
   // Filter by OBM
   const militarsInObm = militars.filter(m => {
-    const mObm = m.obm ? m.obm.toUpperCase() : '';
-    const ctx = obmContext.toUpperCase();
-    // Default to strict inclusion or exact match, some obms are formatted "10º GBM - x"
-    return mObm.includes(ctx) || ctx.includes(mObm) || mObm === "10º GBM"; // fallback or strict
+    const rawObm = m.obm ? m.obm.trim().toUpperCase() : '10º GBM';
+    const ctx = (obmContext || '').trim().toUpperCase();
+    
+    if (ctx === 'GLOBAL') return true;
+    
+    return rawObm === ctx;
   });
 
   const getMilitarsByAla = (alaId: string) => {

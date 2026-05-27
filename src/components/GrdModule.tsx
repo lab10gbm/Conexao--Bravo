@@ -176,10 +176,11 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
       
       if (excludeRgs.includes(m.rg || '')) return false;
       
-      const mObm = (m.obm || '').replace(/º/g, '°').trim().toUpperCase();
+      const rawMObm = m.obm ? m.obm : '10º GBM'; // Treat empty as 10º GBM
+      const mObm = rawMObm.replace(/º/g, '°').trim().toUpperCase();
       const ctxObm = (obmContext || '').replace(/º/g, '°').trim().toUpperCase();
       
-      if (mObm && ctxObm && mObm !== ctxObm) return false;
+      if (ctxObm && ctxObm !== 'GLOBAL' && mObm !== ctxObm) return false;
       
       return isAllowedAla;
     }).sort((a, b) => (a.rank || '').localeCompare(b.rank || '') || (a.name || '').localeCompare(b.name || ''));

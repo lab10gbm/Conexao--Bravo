@@ -2,7 +2,6 @@ import React from 'react';
 import { UserProfile } from '../types';
 import { SmartDataTable, ColumnDef } from './ui/SmartDataTable';
 import { RankInsignia } from './RankInsignia';
-import { INITIAL_COLUMNS } from '../constants';
 import { ArrowRightLeft, Shield } from 'lucide-react';
 
 interface EfetivoUnifiedModeProps {
@@ -10,12 +9,14 @@ interface EfetivoUnifiedModeProps {
   isAdmin: boolean;
   onLendRequested: (m: UserProfile) => void;
   onRowClick: (m: UserProfile) => void;
+  orderedColumns: { id: string; label: string }[];
+  visibleColumns: string[];
 }
 
-export function EfetivoUnifiedMode({ militars, isAdmin, onLendRequested, onRowClick }: EfetivoUnifiedModeProps) {
+export function EfetivoUnifiedMode({ militars, isAdmin, onLendRequested, onRowClick, orderedColumns, visibleColumns }: EfetivoUnifiedModeProps) {
   
   const columns: ColumnDef<UserProfile>[] = React.useMemo(() => {
-    return INITIAL_COLUMNS.map(col => {
+    return orderedColumns.filter(c => visibleColumns.includes(c.id)).map(col => {
       return {
         id: col.id,
         label: col.label,

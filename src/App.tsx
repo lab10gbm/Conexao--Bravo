@@ -42,6 +42,7 @@ const OfficerGrdModule = React.lazy(() => import('./components/OfficerGrdModule'
 const OfficerConfigModule = React.lazy(() => import('./components/OfficerConfigModule').then(m => ({ default: m.OfficerConfigModule })));
 const PublicCargaViewer = React.lazy(() => import('./components/PublicCargaViewer').then(m => ({ default: m.PublicCargaViewer })));
 const RefeitorioModule = React.lazy(() => import('./components/RefeitorioModule').then(m => ({ default: m.RefeitorioModule })));
+const AprovisionamentoModule = React.lazy(() => import('./components/AprovisionamentoModule').then(m => ({ default: m.AprovisionamentoModule })));
 const PublicCardapioViewer = React.lazy(() => import('./components/PublicCardapioViewer').then(m => ({ default: m.PublicCardapioViewer })));
 const TransladoModule = React.lazy(() => import('./components/TransladoModule').then(m => ({ default: m.TransladoModule })));
 const ComunicanteDashboard = React.lazy(() => import('./components/ComunicanteDashboard').then(m => ({ default: m.ComunicanteDashboard })));
@@ -105,6 +106,7 @@ export default function App() {
   const availableObms = (profile?.isAdmin) 
      ? ['GLOBAL', ...allObms]
      : Array.from(new Set([
+         profile?.obm ? profile.obm.trim() : '10º GBM',
          ...(profile?.adminObms || []), 
          ...(profile?.escalanteObms || [])
        ]));
@@ -210,15 +212,8 @@ export default function App() {
 
   useEffect(() => {
     if (profile && !obmContext) {
-      if (profile.isAdmin) {
-        setObmContext('GLOBAL');
-      } else if (profile.adminObms && profile.adminObms.length > 0) {
-        setObmContext(profile.adminObms[0]);
-      } else if (profile.escalanteObms && profile.escalanteObms.length > 0) {
-        setObmContext(profile.escalanteObms[0]);
-      } else {
-        setObmContext(profile.obm || '');
-      }
+      const rawUserObm = profile.obm ? profile.obm.trim() : '10º GBM';
+      setObmContext(rawUserObm);
     }
   }, [profile, obmContext]);
 
@@ -611,6 +606,27 @@ export default function App() {
                   user={effectiveProfile!}
                   onBack={() => navigate('/')} 
                 />
+              </motion.div>
+            } />
+            <Route path="/aprovisionamento" element={
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.05 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="flex flex-col gap-6">
+                  <div className="mb-4">
+                    <button 
+                      onClick={() => navigate('/')}
+                      className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors uppercase font-black text-[10px] tracking-[0.2em] group"
+                    >
+                      <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                      Voltar ao Portal Principal
+                    </button>
+                  </div>
+                  <AprovisionamentoModule userProfile={effectiveProfile!} />
+                </div>
               </motion.div>
             } />
             <Route path="/agenda" element={

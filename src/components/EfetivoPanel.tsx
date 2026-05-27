@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Users, Search, ArrowRightLeft, MapPin, Loader2, Building2, Maximize2, Minimize2, Columns, LayoutGrid, ListTree, List, FileSpreadsheet, Copy, Check, BookOpen, Ruler, Plus } from 'lucide-react';
+import { Users, Search, ArrowRightLeft, MapPin, Loader2, Building2, Maximize2, Minimize2, Columns, LayoutGrid, ListTree, List, FileSpreadsheet, Copy, Check, BookOpen, Ruler, Plus, FileText } from 'lucide-react';
 import { UserProfile } from '../types';
 import { db } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -17,7 +17,7 @@ import { SopMedidasModule } from './SopMedidasModule';
 import { LendMilitarModal } from './LendMilitarModal';
 import { ManualRgModal } from './ManualRgModal';
 import { useMilitars } from '../contexts/MilitarContext';
-import { exportToExcel, copyTableToClipboard } from '../lib/exportUtils';
+import { exportToExcel, copyTableToClipboard, copyTableToClipboardWord } from '../lib/exportUtils';
 
 import { MultiSelectFilter } from './ui/MultiSelectFilter';
 
@@ -119,13 +119,48 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
     exportToExcel(exportData, 'Efetivo', 'Planilha_Efetivo');
   };
 
+  const colKeyMap: Record<string, string> = {
+    rank: 'rank',
+    quadro: 'quadro',
+    warName: 'warName',
+    rg: 'rg',
+    idFuncional: 'idFuncional',
+    ala: 'ala',
+    obm: 'obm',
+    name: 'name',
+    cidade: 'cidade',
+    cel: 'cel',
+    tel: 'tel',
+    email: 'email',
+    situacao: 'situacao',
+    cursos: 'cursos'
+  };
+
+  const getExportColumns = () => {
+     const cols = orderedColumns.filter(c => visibleColumns.includes(c.id) && c.id !== 'insignia');
+     return {
+        headers: cols.map(c => c.label),
+        keys: cols.map(c => colKeyMap[c.id] || c.id)
+     };
+  };
+
+  const [copiedWord, setCopiedWord] = useState(false);
+
   const handleCopyClipboard = async () => {
-    const headers = ['Posto/Grad', 'Nome', 'Nome de Guerra', 'RG', 'Quadro', 'OBM', 'Ala', 'Situação', 'Cidade', 'Contato'];
-    const keys = ['rank', 'name', 'warName', 'rg', 'quadro', 'obm', 'ala', 'situacao', 'cidade', 'cel'];
+    const { headers, keys } = getExportColumns();
     const success = await copyTableToClipboard(filteredMilitars, headers, keys);
     if (success) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleCopyClipboardWord = async () => {
+    const { headers, keys } = getExportColumns();
+    const success = await copyTableToClipboardWord(filteredMilitars, headers, keys, "Relatório de Efetivo");
+    if (success) {
+      setCopiedWord(true);
+      setTimeout(() => setCopiedWord(false), 2000);
     }
   };
 
@@ -234,6 +269,15 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
               >
                 {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />} 
                 <span className="hidden sm:inline">{copied ? 'Copiado' : 'Copiar'}</span>
+              </button>
+
+              <button 
+                onClick={handleCopyClipboardWord}
+                title="Copiar para Word"
+                className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-lg text-[10px] uppercase font-black text-indigo-700 hover:bg-indigo-100 tracking-widest transition-colors h-[34px]"
+              >
+                {copiedWord ? <Check size={14} className="text-emerald-500" /> : <FileText size={14} />} 
+                <span className="hidden sm:inline">{copiedWord ? 'Copiado' : 'Word'}</span>
               </button>
 
               <button 
@@ -370,6 +414,8 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
            isAdmin={user.isAdmin || false} 
            onLendRequested={setLendingMilitar} 
            onRowClick={setSelectedMilitar} 
+           orderedColumns={orderedColumns}
+           visibleColumns={visibleColumns}
         />
       ) : viewMode === 'table_obm' ? (
         <EfetivoTableObmMode 

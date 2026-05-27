@@ -98,7 +98,7 @@ export function RankInsignia({ rankStr, className }: RankInsigniaProps) {
   if (r === 'SUBTEN') {
     return (
       <div className={containerClasses}>
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" className="text-amber-500">
+        <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" className="text-amber-500 max-w-full max-h-full">
           <path d="M12 4L22 20H2L12 4Z" fill="currentColor" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
           <path d="M12 9L18 19H6L12 9Z" fill="white" stroke="currentColor" strokeWidth="0.5" strokeLinejoin="round" />
         </svg>

@@ -24,7 +24,8 @@ import {
   AlertCircle,
   UtensilsCrossed,
   Radio,
-  Bus
+  Bus,
+  ShoppingCart
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { db } from '../lib/firebase';
@@ -327,6 +328,14 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
   ];
 
   const escalanteModulesDef = [
+    {
+      id: 'aprovisionamento',
+      label: 'Aprovisionamento',
+      description: 'Cardápio e Estoque',
+      icon: ShoppingCart,
+      color: 'bg-amber-600 shadow-amber-200',
+      defaultGroups: ['ADMIN', 'ESCALANTE', 'OFICIAIS']
+    },
     {
       id: 'efetivo',
       label: 'Gestão de Efetivo',

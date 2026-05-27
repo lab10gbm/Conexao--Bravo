@@ -18,12 +18,13 @@ import { useRefeitorioData } from '../hooks/useRefeitorioData';
 interface RefeitorioModuleProps {
   user: UserProfile;
   onBack: () => void;
+  initialTab?: 'cardapio' | 'catalogo' | 'gestao';
 }
 
 const IMPORT_MENUS_RAW: string = "";
 
-export function RefeitorioModule({ user, onBack }: RefeitorioModuleProps) {
-  const [activeTab, setActiveTab] = useState<'cardapio' | 'catalogo' | 'gestao'>('cardapio');
+export function RefeitorioModule({ user, onBack, initialTab = 'cardapio' }: RefeitorioModuleProps) {
+  const [activeTab, setActiveTab] = useState<'cardapio' | 'catalogo' | 'gestao'>(initialTab);
   const [showQrCode, setShowQrCode] = useState(false);
   const [selectedOriginalIndex, setSelectedOriginalIndex] = useState<number | null>(null);
   const [isEditing, setIsEditing] = useState(false);

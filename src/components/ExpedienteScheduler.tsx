@@ -78,6 +78,13 @@ const WORK_REGIMES = [
 export function ExpedienteScheduler({ user, obmContext, forceExpanded }: ExpedienteSchedulerProps) {
   const { militars } = useMilitars();
   const [currentMonth, setCurrentMonth] = useState(startOfMonth(new Date()));
+  const [selectedObm, setSelectedObm] = useState<string>(() => {
+     const rawUserObm = user.obm ? user.obm.trim() : '10º GBM';
+     if (user.isAdmin || user.isEscalante) {
+        if (obmContext && obmContext !== 'GLOBAL') return obmContext.trim();
+     }
+     return rawUserObm;
+  });
   const [data, setData] = useState<ExpedienteData>({ requirements: {}, selections: {}, userNames: {}, sectors: {} });
   const [loading, setLoading] = useState(true);
   const [expedienteUsers, setExpedienteUsers] = useState<UserProfile[]>([]);
@@ -90,13 +97,29 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   const [confirmLock, setConfirmLock] = useState(false);
   
   const isAdmin = user.isAdmin;
+  const isEscalante = user.isEscalante;
   const alaCheck = (user.ala?.toString() || '').toUpperCase();
   const isExp = alaCheck.includes('EXP') || alaCheck === 'E' || alaCheck === 'EXPEDIENTE';
   const canInteract = isAdmin || isExp || user.isEscalante;
   
   const activeRg = ((isAdmin || user.isEscalante) && adminTargetRg) ? adminTargetRg : user.rg;
 
-  const normalizedObm = obmContext.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+  const availableObms = useMemo(() => {
+     const obms = new Set<string>();
+     militars.forEach(m => {
+        if (m.obm) obms.add(m.obm.trim());
+     });
+     if (!obms.has('10º GBM')) obms.add('10º GBM');
+     return Array.from(obms).sort();
+  }, [militars]);
+
+  useEffect(() => {
+    if (obmContext && obmContext !== 'GLOBAL') {
+      setSelectedObm(obmContext.trim());
+    }
+  }, [obmContext]);
+
+  const normalizedObm = selectedObm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
   const monthKey = format(currentMonth, 'yyyy-MM');
   const monthDocRef = doc(db, `expediente_${normalizedObm}`, monthKey);
   const globalDocRef = doc(db, 'config', `expediente_global_${normalizedObm}`);
@@ -139,12 +162,13 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
     });
 
     return () => { unsubMonth(); unsubGlobal(); };
-  }, [monthKey, obmContext]);
+  }, [monthKey, selectedObm]);
 
   useEffect(() => {
     const users: UserProfile[] = [];
     militars.forEach(u => {
-      const obmMatch = !u.obm || u.obm === obmContext || u.obm === '10º GBM';
+      const rawObm = u.obm ? u.obm.trim() : '10º GBM'; // Treat empty as '10º GBM'
+      const obmMatch = rawObm === selectedObm;
       if (!obmMatch) return;
 
       const uid = u.rg;
@@ -157,7 +181,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
     setExpedienteUsers(users.sort((a, b) => {
       return (a.name || '').localeCompare(b.name || '');
     }));
-  }, [obmContext, militars]);
+  }, [selectedObm, militars]);
 
   const handleTogglePrefDate = async (dayStr: string) => {
       let sels = data.selections['ESCALANTE_PREF'] || [];
@@ -303,8 +327,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       >
         <div className="p-4 sm:p-6 bg-slate-50 flex flex-col gap-6">
            {/* Top controls */}
-           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 w-full">
-              <div className="flex items-center gap-2">
+           <div className="flex flex-col xl:flex-row items-center justify-between gap-4 w-full">
+              <div className="flex flex-wrap items-center gap-2">
                   {isAdmin && (
                       <button 
                         onClick={() => setAdminConfigMode(!adminConfigMode)}
@@ -367,18 +391,32 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                   )}
               </div>
 
-              {/* Month controls */}
-              <div className="flex bg-white rounded-lg border-2 border-slate-200 p-1 shadow-sm ml-auto">
-                <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 hover:bg-slate-100 rounded-md transition-colors text-slate-600">
-                   <ChevronLeft className="w-4 h-4" />
-                </button>
-                <div className="text-center flex flex-col justify-center px-4 min-w-[120px]">
-                   <span className="text-sm font-black text-slate-800 uppercase tracking-widest leading-none">{format(currentMonth, 'MMMM', { locale: ptBR })}</span>
-                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mt-0.5">{format(currentMonth, 'yyyy')}</span>
-                </div>
-                <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 hover:bg-slate-100 rounded-md transition-colors text-slate-600">
-                   <ChevronRight className="w-4 h-4" />
-                </button>
+              <div className="flex flex-wrap items-center gap-4 xl:ml-auto">
+                 {(isAdmin || isEscalante) && availableObms.length > 1 && (
+                     <select 
+                         value={selectedObm}
+                         onChange={(e) => setSelectedObm(e.target.value)}
+                         className="px-3 py-2 bg-white border-2 border-slate-200 text-slate-700 font-bold text-xs rounded-lg outline-none hover:border-indigo-300 focus:border-indigo-500 uppercase h-[42px]"
+                     >
+                        {availableObms.map(o => (
+                           <option key={o} value={o}>{o}</option>
+                        ))}
+                     </select>
+                 )}
+
+                 {/* Month controls */}
+                 <div className="flex bg-white rounded-lg border-2 border-slate-200 p-1 shadow-sm h-[42px]">
+                   <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 hover:bg-slate-100 rounded-md transition-colors text-slate-600 flex items-center justify-center">
+                      <ChevronLeft className="w-4 h-4" />
+                   </button>
+                   <div className="text-center flex flex-col justify-center px-4 min-w-[120px]">
+                      <span className="text-sm font-black text-slate-800 uppercase tracking-widest leading-none">{format(currentMonth, 'MMMM', { locale: ptBR })}</span>
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mt-0.5">{format(currentMonth, 'yyyy')}</span>
+                   </div>
+                   <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 hover:bg-slate-100 rounded-md transition-colors text-slate-600 flex items-center justify-center">
+                      <ChevronRight className="w-4 h-4" />
+                   </button>
+                 </div>
               </div>
            </div>
 
@@ -904,8 +942,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                if (found) {
                                   return found.rank ? `${found.rank} ${found.warName || found.name.split(' ')[0]}` : found.name;
                                }
-                               return data.userNames[rg] || rg;
-                          });
+                               return null;
+                          }).filter(Boolean) as string[];
                           
                           return (
                             <motion.div 
