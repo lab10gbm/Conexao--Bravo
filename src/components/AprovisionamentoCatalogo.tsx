@@ -174,31 +174,39 @@ export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCa
   };
 
   const renderCategory = (title: string, items: any[]) => {
-    if (!items || items.length === 0) return null;
+    const safeItems = items || [];
     return (
       <div className="bg-slate-50/50 border border-slate-200 rounded-3xl p-6 mb-8 shadow-sm">
         <h3 className="font-black text-slate-800 uppercase tracking-widest mb-6 text-sm flex items-center gap-2">
           {title}
-          <span className="bg-amber-100 text-amber-700 text-[10px] px-2 py-0.5 rounded-full">{items.length}</span>
+          <span className="bg-amber-100 text-amber-700 text-[10px] px-2 py-0.5 rounded-full">{safeItems.length}</span>
         </h3>
         <div className="space-y-4">
-          {items.map((item, idx) => {
-            if (typeof item === 'string') {
-              return <React.Fragment key={idx}>{renderItemGastos(item)}</React.Fragment>;
-            } else if (item.isCategory) {
-              return (
-                <div key={idx} className="mb-8 last:mb-0 bg-white/50 p-5 rounded-2xl border border-slate-100">
-                  <h4 className="font-black text-slate-600 uppercase tracking-widest mb-4 text-xs">{item.name}</h4>
-                  <div className="space-y-4">
-                    {item.items.map((subItem: string, subIdx: number) => (
-                      <React.Fragment key={subIdx}>{renderItemGastos(subItem)}</React.Fragment>
-                    ))}
+          {safeItems.length === 0 ? (
+            <div className="text-xs font-semibold text-slate-400 italic">Nenhum item cadastrado nesta seção.</div>
+          ) : (
+            safeItems.map((item, idx) => {
+              if (typeof item === 'string') {
+                return <React.Fragment key={idx}>{renderItemGastos(item)}</React.Fragment>;
+              } else if (item.isCategory) {
+                return (
+                  <div key={idx} className="mb-8 last:mb-0 bg-white/50 p-5 rounded-2xl border border-slate-100">
+                    <h4 className="font-black text-slate-600 uppercase tracking-widest mb-4 text-xs">{item.name}</h4>
+                    <div className="space-y-4">
+                      {item.items.length === 0 ? (
+                        <div className="text-xs font-semibold text-slate-400 italic">Nenhum item nesta categoria.</div>
+                      ) : (
+                        item.items.map((subItem: string, subIdx: number) => (
+                          <React.Fragment key={subIdx}>{renderItemGastos(subItem)}</React.Fragment>
+                        ))
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            }
-            return null;
-          })}
+                );
+              }
+              return null;
+            })
+          )}
         </div>
       </div>
     );

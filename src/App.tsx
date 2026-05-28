@@ -38,6 +38,7 @@ const MedidasModule = React.lazy(() => import('./components/MedidasModule').then
 const SopMedidasModule = React.lazy(() => import('./components/SopMedidasModule').then(m => ({ default: m.SopMedidasModule })));
 const SopConfigModule = React.lazy(() => import('./components/SopConfigModule').then(m => ({ default: m.SopConfigModule })));
 const GrdModule = React.lazy(() => import('./components/GrdModule').then(m => ({ default: m.GrdModule })));
+const TerceirizadosModule = React.lazy(() => import('./components/TerceirizadosModule').then(m => ({ default: m.TerceirizadosModule })));
 const OfficerGrdModule = React.lazy(() => import('./components/OfficerGrdModule').then(m => ({ default: m.OfficerGrdModule })));
 const OfficerConfigModule = React.lazy(() => import('./components/OfficerConfigModule').then(m => ({ default: m.OfficerConfigModule })));
 const PublicCargaViewer = React.lazy(() => import('./components/PublicCargaViewer').then(m => ({ default: m.PublicCargaViewer })));
@@ -769,6 +770,27 @@ export default function App() {
                 className="h-screen w-full fixed inset-0 z-50 bg-slate-50 overflow-y-auto"
               >
                 <OfficerConfigModule onClose={() => navigate('/')} />
+              </motion.div>
+            } />
+            <Route path="/terceirizados" element={
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.05 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="flex flex-col gap-6">
+                  <div className="mb-4">
+                    <button 
+                      onClick={() => navigate('/')}
+                      className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors uppercase font-black text-[10px] tracking-[0.2em] group"
+                    >
+                      <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                      Voltar ao Portal Principal
+                    </button>
+                  </div>
+                  <TerceirizadosModule user={effectiveProfile!} onBack={() => navigate('/')} />
+                </div>
               </motion.div>
             } />
             <Route path="/translado" element={

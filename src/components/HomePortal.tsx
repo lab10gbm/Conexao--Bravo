@@ -388,6 +388,14 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       inDevelopment: true
     },
     {
+      id: 'terceirizados',
+      label: 'Terceirizados',
+      description: 'Gestão de Civis',
+      icon: Users,
+      color: 'bg-fuchsia-600 shadow-fuchsia-200',
+      defaultGroups: ['ADMIN']
+    },
+    {
       id: 'oficiais-config',
       label: 'Configurar Oficiais',
       description: 'OBM e Promoções',
