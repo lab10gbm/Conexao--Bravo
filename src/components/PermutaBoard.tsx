@@ -31,7 +31,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
   const [loading, setLoading] = useState(true);
   const [signPermuta, setSignPermuta] = useState<PermutaRequest | null>(null);
   const [cancelPermuta, setCancelPermuta] = useState<PermutaRequest | null>(null);
-  const [filterMode, setFilterMode] = useState<'all' | 'mine'>('mine');
+  const [filterMode, setFilterMode] = useState<'all' | 'mine'>('all');
   const [viewMode, setViewMode] = useState<'geral' | 'ofertas'>('geral');
 
   useEffect(() => {
