@@ -32,6 +32,8 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
   const [requesterName, setRequesterName] = useState('');
   const [substituteRg, setSubstituteRg] = useState('');
   const [substituteName, setSubstituteName] = useState('');
+  const [isLookingForSubstitute, setIsLookingForSubstitute] = useState(false);
+  const [offerType, setOfferType] = useState<'troca' | 'pago' | 'especial'>('troca');
   const [searchingRequester, setSearchingRequester] = useState(false);
   const [searchingSubstitute, setSearchingSubstitute] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -136,6 +138,10 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
   const isMonthOpen = selectedDateObj ? openMonths.includes(selectedDateObj.getMonth()) : true;
   const isFutureAgendamento = !isMonthOpen && selectedDateObj && !isBefore(selectedDateObj, new Date());
 
+  const targetMissing = requesterRg ? 'substitute' : (substituteRg ? 'requester' : 'substitute');
+  const isSubstituteMissing = isLookingForSubstitute && targetMissing === 'substitute';
+  const isRequesterMissing = isLookingForSubstitute && targetMissing === 'requester';
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!date) return;
@@ -149,34 +155,41 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
       return;
     }
 
-    if (requesterRg === substituteRg) {
+    if (!isLookingForSubstitute && requesterRg === substituteRg) {
       setError("Os RGs do solicitante e do substituto não podem ser iguais.");
       setLoading(false);
       return;
     }
 
     // Validação de envolvimento: militar deve ser uma das partes
-    if (!user.isAdmin && requesterRg !== user.rg && substituteRg !== user.rg) {
-      setError(`Erro: Você (${user.rg}) deve ser o Solicitante ou o Substituto desta permuta.`);
-      setLoading(false);
-      return;
+    if (!user.isAdmin) {
+       const userRgClean = normalizeRg(user.rg || '');
+       if (!isRequesterMissing && normalizeRg(requesterRg) === userRgClean) {} // passes
+       else if (!isSubstituteMissing && normalizeRg(substituteRg) === userRgClean) {} // passes
+       else {
+         setError(`Erro: Você (${user.rg}) deve ser o Solicitante ou o Substituto desta permuta.`);
+         setLoading(false);
+         return;
+       }
     }
 
     try {
       const payload = {
         obm: String(obmContext || '10º GBM'),
-        requesterId: String(auth.currentUser?.uid || user.uid),
-        requesterName: String(requesterName),
-        requesterRg: String(requesterRg),
-        substituteRg: String(substituteRg),
-        substituteName: String(substituteName),
+        requesterId: isRequesterMissing ? '' : String(auth.currentUser?.uid || user.uid),
+        requesterName: isRequesterMissing ? '' : String(requesterName),
+        requesterRg: isRequesterMissing ? '' : String(requesterRg),
+        substituteRg: isSubstituteMissing ? '' : String(substituteRg),
+        substituteName: isSubstituteMissing ? '' : String(substituteName),
+        isLookingForSubstitute,
+        offerType: isLookingForSubstitute ? offerType : undefined,
         date: String(date),
         originalAla: user.ala,
         status: isFutureAgendamento ? PermutaStatus.SCHEDULED : PermutaStatus.PENDING,
-        acceptedById: `rg_${substituteRg}`,
-        acceptedByName: String(substituteName),
-        requesterSigned: normalizeRg(requesterRg) === normalizeRg(user.rg || ''),
-        substituteSigned: normalizeRg(substituteRg) === normalizeRg(user.rg || ''),
+        acceptedById: isSubstituteMissing ? '' : `rg_${substituteRg}`,
+        acceptedByName: isSubstituteMissing ? '' : String(substituteName),
+        requesterSigned: isRequesterMissing ? false : normalizeRg(requesterRg) === normalizeRg(user.rg || ''),
+        substituteSigned: isSubstituteMissing ? false : normalizeRg(substituteRg) === normalizeRg(user.rg || ''),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
@@ -274,54 +287,97 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
                 </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
+                  <div className={isRequesterMissing ? "opacity-50 pointer-events-none" : ""}>
                     <label className="block text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 sm:mb-2">
                        Militar que Sai (RG)
                     </label>
                     <div className="relative">
                       <input
                         type="text"
-                        required
-                        placeholder="Ex: 12345"
+                        required={!isRequesterMissing}
+                        disabled={isRequesterMissing}
+                        placeholder={isRequesterMissing ? "BUSCANDO..." : "Ex: 12345"}
                         value={requesterRg}
                         onChange={(e) => setRequesterRg(e.target.value)}
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded focus:border-[var(--color-brand-dark)] focus:ring-0 transition-all font-mono text-xs text-slate-700 uppercase"
                       />
-                      {searchingRequester && (
+                      {searchingRequester && !isRequesterMissing && (
                          <div className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 border-2 border-slate-300 border-t-slate-800 rounded-full animate-spin" />
                       )}
                     </div>
-                    {requesterName && requesterRg.length >= 3 && (
+                    {requesterName && requesterRg.length >= 3 && !isRequesterMissing && (
                       <p className={`mt-1 text-[8px] sm:text-[9px] font-black uppercase italic flex items-center gap-1 ${requesterName === 'Militar não encontrado' ? 'text-red-500' : 'text-emerald-600'}`}>
                         {requesterName !== 'Militar não encontrado' && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />}
                         {requesterName}
                       </p>
                     )}
                   </div>
-                  <div>
+                  <div className={isSubstituteMissing ? "opacity-50 pointer-events-none" : ""}>
                     <label className="block text-[8px] sm:text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 sm:mb-2">
                       Militar que Entra (RG)
                     </label>
                     <div className="relative">
                       <input
                         type="text"
-                        required
-                        placeholder="Ex: 54321"
+                        required={!isSubstituteMissing}
+                        disabled={isSubstituteMissing}
+                        placeholder={isSubstituteMissing ? "BUSCANDO..." : "Ex: 54321"}
                         value={substituteRg}
                         onChange={(e) => setSubstituteRg(e.target.value)}
                         className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded focus:border-[var(--color-brand-dark)] focus:ring-0 transition-all font-mono text-xs text-slate-700 uppercase"
                       />
-                      {searchingSubstitute && (
+                      {searchingSubstitute && !isLookingForSubstitute && (
                          <div className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 border-2 border-slate-300 border-t-slate-800 rounded-full animate-spin" />
                       )}
                     </div>
-                    {substituteName && substituteRg.length >= 3 && (
+                    {substituteName && substituteRg.length >= 3 && !isLookingForSubstitute && (
                       <p className={`mt-1 text-[8px] sm:text-[9px] font-black uppercase italic flex items-center gap-1 ${substituteName === 'Militar não encontrado' ? 'text-red-500' : 'text-emerald-600'}`}>
                         {substituteName !== 'Militar não encontrado' && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />}
                         {substituteName}
                       </p>
                     )}
                   </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer w-fit">
+                    <input 
+                      type="checkbox" 
+                      className="w-4 h-4 rounded border-slate-300 text-[var(--color-brand-dark)] focus:ring-[var(--color-brand-dark)]"
+                      checked={isLookingForSubstitute}
+                      onChange={(e) => setIsLookingForSubstitute(e.target.checked)}
+                    />
+                    <span className="text-[10px] sm:text-xs font-black uppercase text-slate-600 tracking-widest">
+                      ESTOU PROCURANDO UM PERMUTANTE
+                    </span>
+                  </label>
+
+                  {isLookingForSubstitute && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="flex gap-4 pt-1 px-1"
+                    >
+                      <button 
+                        type="button" 
+                        onClick={() => setOfferType('troca')}
+                        className={`w-6 h-6 rounded-full transition-all ${offerType === 'troca' ? 'ring-2 ring-offset-2 ring-[#1E293B]' : 'hover:scale-110 opacity-50'} bg-[#1E293B]`}
+                        title="Troca de Serviço"
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => setOfferType('pago')}
+                        className={`w-6 h-6 rounded-full transition-all ${offerType === 'pago' ? 'ring-2 ring-offset-2 ring-[#8B4513]' : 'hover:scale-110 opacity-50'} bg-[#8B4513]`}
+                        title="Serviço Pago (Valor Tabelado)"
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => setOfferType('especial')}
+                        className={`w-6 h-6 rounded-full transition-all ${offerType === 'especial' ? 'ring-2 ring-offset-2 ring-[#3B0764]' : 'hover:scale-110 opacity-50'} bg-[#3B0764]`}
+                        title="Serviço Pago (Valor Especial/Datas Festivas)"
+                      />
+                    </motion.div>
+                  )}
                 </div>
 
                 {selectedDateObj && (

@@ -6,7 +6,7 @@ import { doc, onSnapshot, setDoc, query, collection, getDocs, deleteField } from
 import { db } from '../lib/firebase';
 import { cn, formatMilitaryName } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, Settings, CheckCircle2, User, AlertCircle, Save, CalendarRange, Table, ArrowUpDown, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, CheckCircle2, User, AlertCircle, Save, CalendarRange, Table, ArrowUpDown, X, UserPlus, Trash2 } from 'lucide-react';
 import { useMilitars } from '../contexts/MilitarContext';
 
 interface ExpedienteSchedulerProps {
@@ -77,7 +77,13 @@ const WORK_REGIMES = [
 
 export function ExpedienteScheduler({ user, obmContext, forceExpanded }: ExpedienteSchedulerProps) {
   const { militars } = useMilitars();
-  const [currentMonth, setCurrentMonth] = useState(startOfMonth(new Date()));
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const now = new Date();
+    if (now.getDate() > 20) {
+      return startOfMonth(addMonths(now, 1));
+    }
+    return startOfMonth(now);
+  });
   const [selectedObm, setSelectedObm] = useState<string>(() => {
      const rawUserObm = user.obm ? user.obm.trim() : '10º GBM';
      if (user.isAdmin || user.isEscalante) {
@@ -91,6 +97,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   const [isExpanded, setIsExpanded] = useState(forceExpanded || false);
   const [adminConfigMode, setAdminConfigMode] = useState(false);
   const [adminTargetRg, setAdminTargetRg] = useState<string | null>(null);
+  const [addMemberRg, setAddMemberRg] = useState('');
   const [viewMode, setViewMode] = useState<'calendar' | 'table' | 'necessidades'>('calendar');
   const [transposeTable, setTransposeTable] = useState(false);
   const [showSwapModal, setShowSwapModal] = useState(false);
@@ -171,10 +178,10 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       const obmMatch = rawObm === selectedObm;
       if (!obmMatch) return;
 
-      const uid = u.rg;
+      const docId = u.uid || u.rg;
       const alaUpper = u.ala?.toString().toUpperCase() || '';
       if (alaUpper.includes('EXP') || alaUpper === 'E' || alaUpper === 'EXPEDIENTE') {
-        users.push({ ...u, uid, rg: u.rg || uid, name: u.name || '' });
+        users.push({ ...u, uid: docId || '', rg: u.rg || docId || '', name: u.name || '' });
       }
     });
 
@@ -183,13 +190,69 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
     }));
   }, [selectedObm, militars]);
 
+  const handleAddToExpediente = async () => {
+      if (!addMemberRg) return;
+      try {
+          await setDoc(doc(db, 'militaries', addMemberRg), {
+              ala: 'EXP'
+          }, { merge: true });
+          setAddMemberRg('');
+      } catch (e) {
+          console.error(e);
+          alert('Erro ao adicionar militar ao expediente.');
+      }
+  };
+
+  const handleRemoveFromExpediente = async (rg: string) => {
+      const newAla = window.prompt("Para qual Ala (1, 2, 3 ou 4) deseja mover este militar?\n(Deixe em branco ou digite '0' para deixar SEM ALA)");
+      if (newAla === null) return; // Cancelled
+      
+      let alaValue = '';
+      const normalizedAla = newAla.trim();
+      
+      if (['1', '2', '3', '4'].includes(normalizedAla)) {
+          alaValue = normalizedAla;
+      } else if (normalizedAla !== '0' && normalizedAla !== '') {
+          alert('Ala inválida. Digite 1, 2, 3, 4, ou deixe em branco.');
+          return;
+      }
+      
+      try {
+          await setDoc(doc(db, 'militaries', rg), {
+              ala: alaValue
+          }, { merge: true });
+      } catch (e) {
+          console.error(e);
+          alert('Erro ao remover militar.');
+      }
+  };
+
   const handleTogglePrefDate = async (dayStr: string) => {
       let sels = data.selections['ESCALANTE_PREF'] || [];
-      if (sels.includes(dayStr)) sels = sels.filter(d => d !== dayStr);
+      const isRemoving = sels.includes(dayStr);
+      if (isRemoving) sels = sels.filter(d => d !== dayStr);
       else sels = [...sels, dayStr];
-      const newMonthData = { selections: { 'ESCALANTE_PREF': sels } };
-      setData(prev => ({...prev, selections: {...prev.selections, 'ESCALANTE_PREF': sels}}));
-      await setDoc(monthDocRef, newMonthData, { merge: true });
+      
+      if (isRemoving) {
+          const newPrefs = { ...(data.preferencesDetails || {}) };
+          delete newPrefs[dayStr];
+          
+          setData(prev => ({
+              ...prev, 
+              selections: {...prev.selections, 'ESCALANTE_PREF': sels},
+              preferencesDetails: newPrefs
+          }));
+          
+          await setDoc(monthDocRef, { 
+              selections: { 'ESCALANTE_PREF': sels },
+              preferencesDetails: {
+                  [dayStr]: deleteField()
+              }
+          }, { merge: true });
+      } else {
+          setData(prev => ({...prev, selections: {...prev.selections, 'ESCALANTE_PREF': sels}}));
+          await setDoc(monthDocRef, { selections: { 'ESCALANTE_PREF': sels } }, { merge: true });
+      }
   };
 
   const handleUpdatePrefDetail = async (dayStr: string, func: string, qty: number) => {
@@ -329,7 +392,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
            {/* Top controls */}
            <div className="flex flex-col xl:flex-row items-center justify-between gap-4 w-full">
               <div className="flex flex-wrap items-center gap-2">
-                  {isAdmin && (
+                  {(isAdmin || user.isEscalante) && (
                       <button 
                         onClick={() => setAdminConfigMode(!adminConfigMode)}
                         className={cn(
@@ -420,9 +483,33 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
               </div>
            </div>
 
-           {adminConfigMode && isAdmin ? (
-               <div className="bg-white border-2 border-slate-200 rounded-xl shadow-sm overflow-x-auto no-scrollbar relative">
-                    <div className="sm:hidden mb-1 flex items-center gap-1.5 px-3 py-1 bg-slate-50 border-b border-slate-100 sticky left-0">
+           {adminConfigMode && (isAdmin || user.isEscalante) ? (
+               <div className="bg-white border-2 border-slate-200 rounded-xl shadow-sm overflow-x-auto no-scrollbar relative flex flex-col">
+                     <div className="p-4 border-b-2 border-slate-200 bg-slate-50 flex items-center justify-between gap-4 flex-wrap sticky left-0 w-full min-w-max">
+                         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full max-w-[800px]">
+                             <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest leading-none whitespace-nowrap">Novo Membro:</span>
+                             <select
+                                  value={addMemberRg}
+                                  onChange={(e) => setAddMemberRg(e.target.value)}
+                                  className="flex-1 w-full text-[10px] font-bold p-2 px-3 border-2 border-slate-200 rounded-lg bg-white text-slate-700 hover:border-indigo-300 focus:border-indigo-500 outline-none transition-colors"
+                             >
+                                  <option value="">Selecione um militar...</option>
+                                  {militars.filter(m => !expedienteUsers.find(eu => (eu.rg || eu.uid) === (m.uid||m.rg))).sort((a,b) => (a.name||'').localeCompare(b.name||'')).map((m, i) => (
+                                      <option key={(m.uid||m.rg||`m-${i}`)} value={m.uid||m.rg}>
+                                          {m.rank} {formatMilitaryName(m.warName || m.name?.split(' ')[0] || '')} {m.obm ? `- ${m.obm}` : ''}
+                                      </option>
+                                  ))}
+                             </select>
+                             <button
+                                  onClick={handleAddToExpediente}
+                                  disabled={!addMemberRg}
+                                  className="w-full sm:w-auto bg-indigo-600 text-white p-2 px-4 rounded-lg font-black uppercase text-[10px] tracking-widest hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
+                             >
+                                  <UserPlus className="w-3.5 h-3.5" /> Adicionar
+                             </button>
+                         </div>
+                     </div>
+                     <div className="sm:hidden mb-1 flex items-center gap-1.5 px-3 py-1 bg-slate-50 border-b border-slate-100 sticky left-0">
                       <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping" />
                       <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Deslize para configurar →</span>
                     </div>
@@ -433,6 +520,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                              <th className="py-3 px-4 w-64 border-l-2 border-slate-200">Regime de Trabalho</th>
                              <th className="py-3 px-4 w-24 border-l-2 border-slate-200 text-center">Dias/Mês</th>
                              <th className="py-3 px-4 w-48 border-l-2 border-slate-200">Setor / Seção</th>
+                             <th className="py-3 px-4 w-12 border-l-2 border-slate-200 text-center">Ações</th>
                           </tr>
                        </thead>
                        <tbody>
@@ -548,6 +636,15 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                              className="w-full text-sm p-2 border-2 border-slate-200 rounded-md bg-white font-bold text-slate-700 hover:border-slate-300 focus:border-slate-500 outline-none transition-colors uppercase"
                                          />
                                      </td>
+                                     <td className="py-3 px-4 border-l-2 border-slate-50 text-center">
+                                         <button 
+                                             onClick={() => handleRemoveFromExpediente(u.uid || rg)}
+                                             className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-colors mx-auto block"
+                                             title="Remover do Expediente"
+                                         >
+                                             <Trash2 className="w-4 h-4" />
+                                         </button>
+                                     </td>
                                  </tr>
                              );
                           })}
@@ -599,9 +696,9 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
 
                                      return (
                                          <tr key={dayStr} className={cn(
-                                             "border-b border-slate-100 hover:bg-slate-50 transition-colors",
-                                             isWeekend ? "bg-slate-50/80" : "",
-                                             isPreferredDate ? "bg-red-50/50" : ""
+                                             "border-b border-slate-100 transition-colors hover:bg-slate-200/50",
+                                             isWeekend ? "bg-slate-50/80 hover:bg-slate-200/50" : "",
+                                             isPreferredDate ? "bg-red-50/50 hover:bg-red-100/50" : ""
                                          )}>
                                              <td className={cn(
                                                  "py-2 px-3 sticky left-0 z-10 border-r-2 border-slate-200 text-[11px] sm:text-[12px] font-black shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]",
@@ -636,7 +733,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                          className={cn(
                                                              "py-1 px-1 border-r border-slate-100 text-center relative select-none",
                                                              isPreferredDate && !isSelected && !isEscalantePref ? "bg-red-50/70 border-r-red-100" : "",
-                                                             canEdit ? "cursor-pointer hover:bg-indigo-100/50" : "cursor-default"
+                                                             canEdit ? "cursor-pointer hover:bg-indigo-200 hover:shadow-inner" : "cursor-default hover:bg-slate-100"
                                                          )}
                                                      >
                                                          {isSelected && (
@@ -704,8 +801,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                  
                                  return (
                                      <tr key={rg} className={cn(
-                                         "border-b border-slate-100 hover:bg-slate-50 transition-colors",
-                                         isEscalantePref ? "bg-red-50/50" : ""
+                                         "border-b border-slate-100 transition-colors hover:bg-slate-200/50",
+                                         isEscalantePref ? "bg-red-50/50 hover:bg-red-100/50" : ""
                                      )}>
                                          <td className={cn(
                                              "py-2 px-3 sticky left-0 z-10 border-r-2 border-slate-200 text-[10px] sm:text-[11px] font-black truncate max-w-[200px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]",
@@ -748,7 +845,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                          isPreferredDate && !isSelected ? "bg-red-50/70 border-r-red-100" :
                                                          isWeekend && !isPreferredDate ? "bg-slate-50/50" : "",
                                                          isEven && !isPreferredDate && !isEscalantePref ? "bg-slate-50/30" : "",
-                                                         canEdit ? "cursor-pointer hover:bg-indigo-100/50" : ""
+                                                         canEdit ? "cursor-pointer hover:bg-indigo-200 hover:shadow-inner" : "hover:bg-slate-100"
                                                      )}
                                                  >
                                                      {isSelected && (
@@ -875,6 +972,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                       {(() => {
                           const preferredDays = currentMonthDays.filter(day => {
                               const dayStr = format(day, 'yyyy-MM-dd');
+                              const isPreferred = (data.selections['ESCALANTE_PREF'] || []).includes(dayStr);
+                              if (!isPreferred) return false;
                               const details = data.preferencesDetails?.[dayStr] || {};
                               const totalVagas = Object.values(details).reduce((sum, qt) => sum + qt, 0);
                               return totalVagas > 0;
@@ -982,7 +1081,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                
                                {!outsideMonth && (
                                   <div className="flex flex-col gap-2 sm:gap-1.5 mt-1 sm:mt-auto">
-                                      {Object.entries(data.preferencesDetails?.[dayStr] || {}).length > 0 && (
+                                      {((data.selections['ESCALANTE_PREF'] || []).includes(dayStr)) && Object.entries(data.preferencesDetails?.[dayStr] || {}).length > 0 && (
                                           <div className="flex flex-row sm:flex-col flex-wrap gap-1.5 sm:gap-1">
                                               {Object.entries(data.preferencesDetails?.[dayStr] || {}).map(([func, qt]) => (
                                                  <span key={func} className="text-[10px] sm:text-[9px] font-bold bg-red-100 text-red-700 border border-red-200 px-2 py-1 sm:px-1.5 sm:py-1 rounded-[4px] uppercase truncate leading-none" title={`${qt}x ${func}`}>
@@ -1052,9 +1151,10 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                         </optgroup>
                                         {isAdmin && (
                                           <optgroup label="Militares do Expediente" className="text-slate-800">
-                                              {expedienteUsers.filter(u => u.rg !== 'ESCALANTE_PREF').map(u => (
-                                                  <option key={u.rg} value={u.rg}>{formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name)}</option>
-                                              ))}
+                                              {expedienteUsers.filter(u => (u.rg || u.uid) !== 'ESCALANTE_PREF').map((u, i) => {
+                                                  const val = u.rg || u.uid || `usr-${i}`;
+                                                  return <option key={`opt-${val}`} value={val}>{formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name)}</option>
+                                              })}
                                           </optgroup>
                                         )}
                                     </select>
@@ -1225,7 +1325,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                      const isComplete = reqAmount > 0 && sels.length >= reqAmount;
                                      
                                      return (
-                                         <div key={u.uid} className="flex flex-col p-3 rounded-lg border border-slate-100 bg-slate-50 relative">
+                                         <div key={rg} className="flex flex-col p-3 rounded-lg border border-slate-100 bg-slate-50 relative">
                                              <div className="flex justify-between items-start mb-2">
                                                  <div className="flex flex-col leading-tight mr-2">
                                                     <span className="text-[12px] font-black text-slate-800">{formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name)}</span>

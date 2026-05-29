@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { LayoutGrid, Save, Lock } from 'lucide-react';
+import { useAppConfig } from '../contexts/ConfigContext';
 
 export interface ModuleVisibilityConfig {
   [moduleId: string]: string[];
@@ -51,6 +52,7 @@ const AVAILABLE_GROUPS = [
 ];
 
 export function AppVisibilityConfig() {
+  const { refreshConfigs } = useAppConfig();
   const [config, setConfig] = useState<ModuleVisibilityConfig>(DEFAULT_CONFIG);
   const [saving, setSaving] = useState(false);
 
@@ -124,6 +126,9 @@ export function AppVisibilityConfig() {
     } catch (e) {
       console.error('Error saving visibility', e);
     } finally {
+      if (refreshConfigs) {
+        await refreshConfigs();
+      }
       setSaving(false);
     }
   };

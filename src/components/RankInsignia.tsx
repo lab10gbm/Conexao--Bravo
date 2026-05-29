@@ -97,10 +97,9 @@ export function RankInsignia({ rankStr, className }: RankInsigniaProps) {
   // Subtenente -> Triangle
   if (r === 'SUBTEN') {
     return (
-      <div className={containerClasses}>
-        <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" className="text-amber-500 max-w-full max-h-full">
-          <path d="M12 4L22 20H2L12 4Z" fill="currentColor" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
-          <path d="M12 9L18 19H6L12 9Z" fill="white" stroke="currentColor" strokeWidth="0.5" strokeLinejoin="round" />
+      <div className={`flex items-center justify-center min-w-[24px] ${containerClasses}`}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-amber-500 shrink-0">
+          <path d="M12 5 L20.5 19.7 H3.5 Z" fill="white" stroke="currentColor" strokeWidth="3.5" strokeLinejoin="miter" />
         </svg>
       </div>
     );

@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { collection, getDocs, doc, setDoc, deleteDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
-import { Users, Plus, ShieldCheck, Trash2, ArrowLeft, Loader2, UtensilsCrossed, Briefcase } from 'lucide-react';
+import { Users, Plus, ShieldCheck, Trash2, ArrowLeft, Loader2, UtensilsCrossed, Briefcase, MapPin } from 'lucide-react';
 import { UserProfile } from '../types';
+import { OBM_HIERARCHY } from '../constants';
 
 export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBack: () => void }) {
   const [terceirizados, setTerceirizados] = useState<any[]>([]);
@@ -13,6 +14,7 @@ export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBac
   // Novo formulário
   const [name, setName] = useState('');
   const [login, setLogin] = useState('');
+  const [obm, setObm] = useState(Object.keys(OBM_HIERARCHY)[0] || '10º GBM');
   const [role, setRole] = useState<'rancho' | 'expediente'>('rancho');
   const [saving, setSaving] = useState(false);
 
@@ -48,6 +50,7 @@ export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBac
         rank: 'CIVIL',
         customPassword: '0000',
         isTerceirizado: true,
+        obm: obm,
         // Configurações de acordo com o papel
         isRefeitorioAdmin: role === 'rancho',
         isAdmin: role === 'expediente',
@@ -130,7 +133,7 @@ export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBac
                    </div>
                    <div>
                      <h3 className="font-black text-slate-800 uppercase tracking-tight text-sm leading-tight">{t.name}</h3>
-                     <p className="text-[10px] text-fuchsia-500 font-bold uppercase tracking-widest">Login: {t.rg}</p>
+                     <p className="text-[10px] text-fuchsia-500 font-bold uppercase tracking-widest">Login: {t.rg} {t.obm ? `• ${t.obm}` : ''}</p>
                    </div>
                  </div>
                  
@@ -194,6 +197,22 @@ export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBac
                     placeholder="Sem espaços"
                     className="w-full px-4 py-3 bg-fuchsia-50 border border-fuchsia-100 rounded-xl focus:border-fuchsia-400 focus:ring-0 transition-all text-sm font-bold text-fuchsia-800 uppercase"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Lotação (OBM)</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <select
+                      value={obm}
+                      onChange={(e) => setObm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-fuchsia-400 focus:ring-0 transition-all text-sm font-bold text-slate-700 uppercase appearance-none"
+                    >
+                      {Object.keys(OBM_HIERARCHY).map(o => (
+                        <option key={o} value={o}>{o}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div>

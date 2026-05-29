@@ -37,6 +37,30 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
   }, [contextActiveMonths]);
 
   const [pendingMySignature, setPendingMySignature] = useState<PermutaRequest[]>([]);
+  const [lookingForSubstitute, setLookingForSubstitute] = useState<PermutaRequest[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchOfertas = async () => {
+      try {
+        const startDate = format(subDays(new Date(), 3), 'yyyy-MM-dd');
+        const q = query(
+          collection(db, 'permutas'),
+          where('date', '>=', startDate),
+          where('isLookingForSubstitute', '==', true)
+        );
+        const snapshot = await getDocs(q);
+        if (!isMounted) return;
+        const ofertas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PermutaRequest));
+        const filteredByObm = ofertas.filter(p => !p.archived && (!p.obm || p.obm === obmContext || p.obm === '10º GBM'));
+        setLookingForSubstitute(filteredByObm);
+      } catch (e) {
+        console.error("Error fetching ofertas in highlights:", e);
+      }
+    };
+    fetchOfertas();
+    return () => { isMounted = false; };
+  }, [obmContext]);
 
   useEffect(() => {
     if (!user?.rg) return;
@@ -125,7 +149,11 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
       )}
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
-        {monthsToShow.map((month) => (
+        {monthsToShow.map((month) => {
+          const monthIndex = month.getMonth();
+          const ofertasInMonth = lookingForSubstitute.filter(p => new Date(p.date + 'T00:00:00').getMonth() === monthIndex);
+          
+          return (
           <div key={month.getMonth()} className="flex flex-col gap-4">
             {/* The clickable Month Banner */}
             <button 
@@ -147,6 +175,33 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
               <span className="text-[10px] opacity-40 group-hover:opacity-100 transition-opacity tracking-widest border border-white/20 px-3 py-1 rounded bg-white/5">Ver Permutas &rarr;</span>
             </button>
 
+            {ofertasInMonth.length > 0 && (
+               <div 
+                 onClick={() => {
+                   const element = document.getElementById('requests-board');
+                   if (element) {
+                     try {
+                       element.scrollIntoView({ behavior: 'smooth' });
+                     } catch (e) {
+                       element.scrollIntoView();
+                     }
+                   }
+                   onMonthSelect?.(month.getMonth());
+                   // A trigger to automatically open "Ofertas" tab in PermutaBoard?
+                   // Currently don't have a way to pass viewMode down directly from here, but user can click it.
+                 }}
+                 className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 flex items-center justify-between cursor-pointer hover:bg-indigo-100 transition-colors shadow-sm"
+               >
+                 <div className="flex items-center gap-3">
+                   <div className="bg-indigo-600 rounded-full w-2 h-2 animate-pulse" />
+                   <p className="text-[10px] md:text-xs font-black uppercase tracking-widest text-indigo-900">
+                     {ofertasInMonth.length} Militar{ofertasInMonth.length > 1 ? 'es' : ''} Procurando Permutante
+                   </p>
+                 </div>
+                 <span className="text-[9px] font-bold uppercase tracking-widest text-indigo-500 bg-white px-2 py-1 rounded-sm shadow-sm">Ofertas Abertas</span>
+               </div>
+            )}
+
             {/* The visual calendar */}
             <MonthDetail 
               month={month} 
@@ -154,7 +209,7 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
               onDateSelect={onDateClick} 
             />
           </div>
-        ))}
+        )})}
       </div>
     </div>
   );

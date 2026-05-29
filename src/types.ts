@@ -107,6 +107,8 @@ export interface PermutaRequest {
   requesterRg?: string;
   substituteId?: string;
   substituteName?: string;
+  isLookingForSubstitute?: boolean;
+  offerType?: 'troca' | 'pago' | 'especial';
   substituteRg?: string;
   requesterSigned?: boolean;
   substituteSigned?: boolean;

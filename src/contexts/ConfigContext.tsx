@@ -10,6 +10,7 @@ interface ConfigContextType {
   alaConfig: { referenceYear: number; startAla: number } | null;
   vacationSettings: any;
   loading: boolean;
+  refreshConfigs: () => Promise<void>;
 }
 
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
@@ -25,23 +26,20 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadConfigs() {
+  const loadConfigs = async (forceNetwork = false) => {
       // 1. Try to load from cache
       const cacheKey = 'global_configs_cache';
       const cacheTimeKey = 'global_configs_time';
       
       let fetchedFromCache = false;
-      try {
-        const cachedStr = localStorage.getItem(cacheKey);
-        const timeStr = localStorage.getItem(cacheTimeKey);
-        if (cachedStr && timeStr) {
-           const age = Date.now() - parseInt(timeStr, 10);
-           if (age < CACHE_TTL_MS) {
-              const data = JSON.parse(cachedStr);
-              if (isMounted) {
+      if (!forceNetwork) {
+        try {
+          const cachedStr = localStorage.getItem(cacheKey);
+          const timeStr = localStorage.getItem(cacheTimeKey);
+          if (cachedStr && timeStr) {
+             const age = Date.now() - parseInt(timeStr, 10);
+             if (age < CACHE_TTL_MS) {
+                const data = JSON.parse(cachedStr);
                 if (data.alaConfig) {
                   setAlaConfig(data.alaConfig);
                   setGlobalAlaConfig(data.alaConfig.referenceYear || 2026, data.alaConfig.startAla || 2);
@@ -52,16 +50,15 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
                 if (data.vacationSettings) setVacationSettings(data.vacationSettings);
                 setLoading(false);
                 fetchedFromCache = true;
-              }
-           }
-        }
-      } catch(e) {}
+             }
+          }
+        } catch(e) {}
+      }
 
       // 2. Fetch from network
       try {
         const res = await fetch('/api/startup');
         const data = await res.json();
-        if (!isMounted) return;
 
         const newData: any = {};
 
@@ -108,10 +105,14 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         console.warn('[ConfigContext] Error fetching configs:', error);
       } finally {
-        if (isMounted) setLoading(false);
+        setLoading(false);
       }
-    }
+    };
 
+  useEffect(() => {
+    let isMounted = true;
+    
+    // Initial load
     loadConfigs();
 
     return () => {
@@ -119,8 +120,13 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const refreshConfigs = async () => {
+    setLoading(true);
+    await loadConfigs(true);
+  };
+
   return (
-    <ConfigContext.Provider value={{ activeMonths, escalanteRGs, appVisibility, alaConfig, vacationSettings, loading: loading }}>
+    <ConfigContext.Provider value={{ activeMonths, escalanteRGs, appVisibility, alaConfig, vacationSettings, loading, refreshConfigs }}>
       {children}
     </ConfigContext.Provider>
   );

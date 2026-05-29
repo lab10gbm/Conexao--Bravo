@@ -26,7 +26,7 @@ interface AdminPanelProps {
 }
 
 export function AdminPanel({ adminModeActive, onToggleAdminMode }: AdminPanelProps) {
-  const { activeMonths: ctxActiveMonths, alaConfig: ctxAlaConfig, escalanteRGs: ctxEscalanteRGs } = useAppConfig();
+  const { activeMonths: ctxActiveMonths, alaConfig: ctxAlaConfig, escalanteRGs: ctxEscalanteRGs, refreshConfigs: ctxRefreshConfigs } = useAppConfig();
 
   const [openMonths, setOpenMonths] = useState<number[]>([]);
   const [saving, setSaving] = useState(false);
@@ -86,6 +86,9 @@ export function AdminPanel({ adminModeActive, onToggleAdminMode }: AdminPanelPro
     } catch (error) {
       console.error(error);
     } finally {
+      if (ctxRefreshConfigs) {
+        await ctxRefreshConfigs();
+      }
       setSaving(false);
     }
   };
@@ -98,11 +101,12 @@ export function AdminPanel({ adminModeActive, onToggleAdminMode }: AdminPanelPro
         startAla: alaConfig.startAla,
         updatedAt: new Date().toISOString()
       });
-      // Optionally reload the app to reflect changes cleanly across all dates
-      window.location.reload();
     } catch (error) {
       console.error(error);
     } finally {
+      if (ctxRefreshConfigs) {
+        await ctxRefreshConfigs();
+      }
       setSavingAla(false);
     }
   };
@@ -121,6 +125,9 @@ export function AdminPanel({ adminModeActive, onToggleAdminMode }: AdminPanelPro
         updatedAt: serverTimestamp()
       }, { merge: true });
       setNewEscalante('');
+      localStorage.removeItem('global_configs_cache');
+      localStorage.removeItem('global_configs_time');
+      window.location.reload();
     } catch (e) {
       console.error(e);
     } finally {
@@ -136,6 +143,9 @@ export function AdminPanel({ adminModeActive, onToggleAdminMode }: AdminPanelPro
         escalanteRGs: updated,
         updatedAt: serverTimestamp()
       }, { merge: true });
+      localStorage.removeItem('global_configs_cache');
+      localStorage.removeItem('global_configs_time');
+      window.location.reload();
     } catch (e) {
       console.error(e);
     } finally {
