@@ -53,65 +53,40 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
     let isMounted = true;
     let unsubSnapshot: (() => void) | undefined;
     
-    if (adminMode) {
-      unsubSnapshot = onSnapshot(q, (snapshot) => {
-        clearTimeout(timer);
-        if (!isMounted) return;
-        
-        const data = snapshot.docs.map(doc => ({
-          ...doc.data(),
-          id: doc.id
-        })) as PermutaRequest[];
-        
-        const filteredByObm = data.filter(p => !p.obm || p.obm === obmContext || p.obm === '10º GBM');
+    unsubSnapshot = onSnapshot(q, (snapshot) => {
+      clearTimeout(timer);
+      if (!isMounted) return;
+      
+      const data = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      })) as PermutaRequest[];
+      
+      const filteredByObm = data.filter(p => !p.obm || p.obm === obmContext || p.obm === '10º GBM');
+      
+      if (adminMode) {
         setPermutas(filteredByObm);
         localStorage.setItem('cache_permutas', JSON.stringify(filteredByObm));
-        setLoading(false);
-      }, (error) => {
-        clearTimeout(timer);
-        if (isMounted) {
-            setLoading(false);
-            handleFirestoreError(error, OperationType.LIST, 'permutas', false);
-        }
-      });
-    } else {
-      // Regular User - Single Read (No Snapshot listener)
-      async function loadPermutas() {
-        try {
-          const snapshot = await getDocs(q);
-          
-          clearTimeout(timer);
-          if (!isMounted) return;
-          
-          const data = snapshot.docs.map(doc => ({
-            ...doc.data(),
-            id: doc.id
-          })) as PermutaRequest[];
-          
-          const filteredByObm = data.filter(p => !p.obm || p.obm === obmContext || p.obm === '10º GBM');
-          
-          const filtered = filteredByObm.filter(p => 
-            p.status === PermutaStatus.ACCEPTED || 
-            p.requesterId === (user?.uid || '') ||
-            p.acceptedById === (user?.uid || '') ||
-            p.requesterRg === (user?.rg || '') ||
-            p.substituteRg === (user?.rg || '')
-          );
-
-          setPermutas(filtered);
-          localStorage.setItem('cache_permutas', JSON.stringify(filtered));
-          setLoading(false);
-        } catch (error) {
-          clearTimeout(timer);
-          if (isMounted) {
-              setLoading(false);
-              handleFirestoreError(error, OperationType.LIST, 'permutas', false);
-          }
-        }
+      } else {
+        const filtered = filteredByObm.filter(p => 
+          p.status === PermutaStatus.ACCEPTED || 
+          p.requesterId === (user?.uid || '') ||
+          p.acceptedById === (user?.uid || '') ||
+          p.requesterRg === (user?.rg || '') ||
+          p.substituteRg === (user?.rg || '') ||
+          p.isLookingForSubstitute
+        );
+        setPermutas(filtered);
+        localStorage.setItem('cache_permutas', JSON.stringify(filtered));
       }
-      
-      loadPermutas();
-    }
+      setLoading(false);
+    }, (error) => {
+      clearTimeout(timer);
+      if (isMounted) {
+          setLoading(false);
+          handleFirestoreError(error, OperationType.LIST, 'permutas', false);
+      }
+    });
 
     return () => { 
         isMounted = false;
@@ -187,13 +162,17 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
 
   const handleFillVacancy = async (permuta: PermutaRequest, role: 'requester' | 'substitute') => {
     if (!permuta.id || !user?.rg) return;
+    if (permuta.requesterRg === user.rg || permuta.substituteRg === user.rg) {
+       alert("Você não pode se inscrever na sua própria permuta.");
+       return;
+    }
     if (!window.confirm('Deseja se inscrever nesta vaga?')) return;
 
     try {
       const formattedName = user.rank ? `${user.rank} ${user.warName || user.name}` : user.name;
       
       const dateObj = new Date(permuta.date + 'T00:00:00');
-      const isMonthOpen = ctxActiveMonths ? ctxActiveMonths.includes(dateObj.getMonth()) : true;
+      const isMonthOpen = ctxActiveMonths ? ctxActiveMonths.includes(String(dateObj.getMonth())) : true;
 
       const updates: any = {
         isLookingForSubstitute: false,

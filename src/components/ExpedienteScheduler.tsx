@@ -1242,7 +1242,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                             onClick={() => setShowSwapModal(true)}
                                             className="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-white/20"
                                           >
-                                            <ArrowUpDown className="w-3.5 h-3.5" /> Solicitar Permuta do Dia de Serviço
+                                            <ArrowUpDown className="w-3.5 h-3.5" /> Solicitar Troca do Dia de Serviço (24h)
                                           </button>
                                       </div>
                                    )}
@@ -1474,7 +1474,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
               <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
                 <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm flex items-center gap-2">
                   <ArrowUpDown className="w-4 h-4 text-indigo-600" />
-                  Solicitar Permuta do Dia de Serviço
+                  Solicitar Troca do Dia de Serviço (24h)
                 </h3>
                 <button
                   onClick={() => setShowSwapModal(false)}

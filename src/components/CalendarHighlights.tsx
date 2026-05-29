@@ -41,25 +41,27 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
 
   useEffect(() => {
     let isMounted = true;
-    const fetchOfertas = async () => {
-      try {
-        const startDate = format(subDays(new Date(), 3), 'yyyy-MM-dd');
-        const q = query(
-          collection(db, 'permutas'),
-          where('date', '>=', startDate),
-          where('isLookingForSubstitute', '==', true)
-        );
-        const snapshot = await getDocs(q);
-        if (!isMounted) return;
-        const ofertas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PermutaRequest));
-        const filteredByObm = ofertas.filter(p => !p.archived && (!p.obm || p.obm === obmContext || p.obm === '10º GBM'));
-        setLookingForSubstitute(filteredByObm);
-      } catch (e) {
-        console.error("Error fetching ofertas in highlights:", e);
-      }
+    
+    const startDate = format(subDays(new Date(), 3), 'yyyy-MM-dd');
+    const q = query(
+      collection(db, 'permutas'),
+      where('date', '>=', startDate),
+      where('isLookingForSubstitute', '==', true)
+    );
+    
+    const unsub = onSnapshot(q, (snapshot) => {
+      if (!isMounted) return;
+      const ofertas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PermutaRequest));
+      const filteredByObm = ofertas.filter(p => !p.archived && (!p.obm || p.obm === obmContext || p.obm === '10º GBM'));
+      setLookingForSubstitute(filteredByObm);
+    }, (error) => {
+      console.error("Error fetching ofertas in highlights:", error);
+    });
+
+    return () => {
+      isMounted = false;
+      unsub();
     };
-    fetchOfertas();
-    return () => { isMounted = false; };
   }, [obmContext]);
 
   useEffect(() => {
