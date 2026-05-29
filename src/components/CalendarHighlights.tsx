@@ -7,7 +7,7 @@ import { motion } from 'motion/react';
 import { UserProfile, PermutaRequest, PermutaStatus } from '../types';
 import { ptBR } from 'date-fns/locale';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, startOfMonth, endOfMonth, isSameMonth, isSameDay, subDays } from 'date-fns';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Shield } from 'lucide-react';
 import { getAlaForDate, getAlaColor, cn } from '../lib/utils';
 import { useAppConfig } from '../contexts/ConfigContext';
 
@@ -207,7 +207,9 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
             {/* The visual calendar */}
             <MonthDetail 
               month={month} 
-              userAla={user.ala} 
+              userAla={user.ala}
+              obmContext={obmContext}
+              userRg={user.rg}
               onDateSelect={onDateClick} 
             />
           </div>
@@ -230,15 +232,52 @@ function getAlaBg(ala: number): string {
 interface MonthDetailProps {
   month: Date;
   userAla: string | number;
+  obmContext?: string;
+  userRg?: string;
   onDateSelect: (date: Date) => void;
   key?: any;
 }
 
-export function MonthDetail({ month, userAla, onDateSelect }: MonthDetailProps) {
+export function MonthDetail({ month, userAla, obmContext, userRg, onDateSelect }: MonthDetailProps) {
   const start = startOfWeek(startOfMonth(month), { weekStartsOn: 0 });
   const end = endOfWeek(endOfMonth(month), { weekStartsOn: 0 });
   const days = eachDayOfInterval({ start, end });
   const weekdays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+
+  const [grdDays, setGrdDays] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (!obmContext || !userRg) return;
+
+    const obmId = obmContext.replace(/\//g, '_').replace(/\s/g, '_');
+    const normalizeRg = (rg: string | number) => {
+        const str = (rg || '').toString().trim().toUpperCase();
+        const clean = str.replace(/[^A-Z0-9]/g, '');
+        return clean.replace(/^0+/, '') || clean;
+    };
+    const userRgEscaped = normalizeRg(userRg);
+
+    // We only need the month's key
+    const monthKey = format(month, 'yyyy-MM');
+    const docRef = doc(db, 'grd_configs', `${obmId}_${monthKey}`);
+
+    const unsub = onSnapshot(docRef, (snapshot) => {
+       if (snapshot.exists()) {
+           const daysData = snapshot.data().days || {};
+           setGrdDays(prev => {
+              const updated = { ...prev };
+              Object.keys(daysData).forEach(dateStr => {
+                   const rgs = daysData[dateStr] || [];
+                   const normalizedGrdRgs = rgs.map((r: string) => normalizeRg(r));
+                   updated[dateStr] = normalizedGrdRgs.includes(userRgEscaped);
+              });
+              return updated;
+           });
+       }
+    });
+
+    return () => unsub();
+  }, [obmContext, userRg, month]);
 
   return (
     <motion.div 
@@ -261,6 +300,8 @@ export function MonthDetail({ month, userAla, onDateSelect }: MonthDetailProps) 
             const outsideMonth = !isSameMonth(day, month);
             const isToday = isSameDay(day, new Date());
             const isMyAla = userAla && ala.toString() === userAla.toString();
+            const dateStr = format(day, 'yyyy-MM-dd');
+            const isGrd = grdDays[dateStr];
             
             return (
               <motion.div 
@@ -276,20 +317,34 @@ export function MonthDetail({ month, userAla, onDateSelect }: MonthDetailProps) 
                 {isMyAla && !outsideMonth && (
                    <div className="absolute inset-0 bg-white/20 rounded-lg animate-pulse" />
                 )}
+
+                {/* Shield background if user is in GRD */}
+                {isGrd && !outsideMonth && (
+                  <div className="absolute inset-0 flex items-center justify-center opacity-10">
+                     <Shield className="w-full h-full fill-indigo-500 text-indigo-500" />
+                  </div>
+                )}
                 
                 <span className={cn(
                   "z-10",
-                  !outsideMonth ? (isMyAla ? "text-slate-900 font-black" : "text-slate-600") : "text-slate-400"
+                  !outsideMonth ? (isMyAla ? "text-slate-900 font-black" : "text-slate-600") : "text-slate-400",
+                  isGrd && !outsideMonth ? "text-indigo-900" : ""
                 )}>
                   {format(day, 'd')}
                 </span>
                 
                 {!outsideMonth && (
-                  <div className={cn("mt-1.5 w-1.5 h-1.5 rounded-full z-10", getAlaColor(ala))} />
+                  <div className={cn("mt-1.5 w-1.5 h-1.5 rounded-full z-10", getAlaColor(ala), isGrd ? "bg-indigo-600" : "")} />
                 )}
                 
                 {isToday && (
                   <div className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full border-2 border-white shadow-sm z-20 scale-75 sm:scale-100" />
+                )}
+                
+                {isGrd && !outsideMonth && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-indigo-500 rounded-full flex items-center justify-center shadow-sm z-30">
+                     <Shield className="w-2 h-2 text-white" />
+                  </div>
                 )}
               </motion.div>
             );

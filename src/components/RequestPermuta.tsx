@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, addDoc, serverTimestamp, doc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import { UserProfile, PermutaStatus, PermutaRequest } from '../types';
 import { format, isBefore, addHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -159,6 +159,28 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
       setError("Os RGs do solicitante e do substituto não podem ser iguais.");
       setLoading(false);
       return;
+    }
+
+    // Validação de GRD: Se o substituto já está de GRD neste dia
+    if (substituteRg && !isSubstituteMissing) {
+      try {
+        const obmId = (obmContext || '10º GBM').replace(/\//g, '_').replace(/\s/g, '_');
+        const monthKey = date.substring(0, 7); // yyyy-MM
+        const docId = `${obmId}_${monthKey}`;
+        const grdDoc = await getDoc(doc(db, 'grd_configs', docId));
+        if (grdDoc.exists()) {
+          const grdData = grdDoc.data().days || {};
+          const dayRgs = grdData[date] || [];
+          const normalizedGrdRgs = dayRgs.map((r: string) => normalizeRg(r));
+          if (normalizedGrdRgs.includes(normalizeRg(substituteRg))) {
+            setError("ERRO: O militar que entra (substituto) está escalado de GRD neste dia. É proibida a permuta de GRD para serviço efetivo.");
+            setLoading(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao verificar GRD:", err);
+      }
     }
 
     // Validação de envolvimento: militar deve ser uma das partes

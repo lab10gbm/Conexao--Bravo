@@ -1,7 +1,7 @@
 import { getDocs } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, query, onSnapshot, writeBatch, where, updateDoc, doc, serverTimestamp, orderBy, addDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, writeBatch, where, updateDoc, doc, serverTimestamp, orderBy, addDoc, getDoc } from 'firebase/firestore';
 import { PermutaRequest, PermutaStatus, UserProfile } from '../types';
 import { format, differenceInDays, startOfYear, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -166,6 +166,32 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
        alert("Você não pode se inscrever na sua própria permuta.");
        return;
     }
+
+    if (role === 'substitute') {
+      try {
+        const obmId = (obmContext || '10º GBM').replace(/\//g, '_').replace(/\s/g, '_');
+        const monthKey = permuta.date.substring(0, 7); // yyyy-MM
+        const docId = `${obmId}_${monthKey}`;
+        const grdDoc = await getDoc(doc(db, 'grd_configs', docId));
+        if (grdDoc.exists()) {
+          const grdData = grdDoc.data().days || {};
+          const dayRgs = grdData[permuta.date] || [];
+          const normalizeRg = (rg: string | number) => {
+            const str = (rg || '').toString().trim().toUpperCase();
+            const clean = str.replace(/[^A-Z0-9]/g, '');
+            return clean.replace(/^0+/, '') || clean;
+          };
+          const normalizedGrdRgs = dayRgs.map((r: string) => normalizeRg(r));
+          if (normalizedGrdRgs.includes(normalizeRg(user.rg))) {
+            alert("Você está escalado de GRD neste dia. É proibido permutar para efetivo enquanto escalado no GRD.");
+            return;
+          }
+        }
+      } catch (err) {
+         console.error("Error checking GRD status:", err);
+      }
+    }
+
     if (!window.confirm('Deseja se inscrever nesta vaga?')) return;
 
     try {

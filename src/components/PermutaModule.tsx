@@ -55,7 +55,7 @@ export function PermutaModule({
 
       {!effectiveOfficerMode && (
         <>
-          <WeeklyMonitor user={user} onRequestPermuta={onDateClick} />
+          <WeeklyMonitor user={user} obmContext={obmContext} onRequestPermuta={onDateClick} />
           
           <div className="grid grid-cols-1 gap-6 sm:gap-12 mt-6 sm:mt-12">
             {user.isAdmin && (

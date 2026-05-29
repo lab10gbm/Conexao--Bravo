@@ -1145,6 +1145,25 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                        <CheckCircle2 className="w-4 h-4 sm:w-4 sm:h-4" />
                                    </div>
                                )}
+
+                               {!outsideMonth && isTargetUserSelected && activeRg && activeRg !== 'ESCALANTE_PREF' && !data.locked?.[activeRg] && (
+                                   <button 
+                                      onClick={async (e) => {
+                                          e.stopPropagation();
+                                          if (window.confirm("Confirmar e registrar definitivamente a sua escala?")) {
+                                              const newMonthData = {
+                                                  locked: {
+                                                      [activeRg]: true
+                                                  }
+                                              };
+                                              await setDoc(monthDocRef, newMonthData, { merge: true });
+                                          }
+                                      }}
+                                      className="sm:hidden mt-3 w-full bg-indigo-600 active:bg-indigo-700 hover:bg-indigo-500 text-white py-2.5 px-2 rounded-lg text-[9px] items-center justify-center font-black uppercase tracking-widest flex gap-1 shadow-sm transition-colors"
+                                   >
+                                      <Save className="w-3.5 h-3.5 shrink-0"/> Confirmar e Registrar esta data
+                                   </button>
+                               )}
                             </motion.div>
                           );
                         })}

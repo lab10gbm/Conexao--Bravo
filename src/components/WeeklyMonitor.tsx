@@ -1,19 +1,42 @@
-import React, { useState, useEffect } from 'react';
-import { format, addDays, startOfDay, differenceInHours, differenceInMinutes, subDays, getDay } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { cn, getAlaForDate, getAlaName, getAlaCardColor, getThemeColors, calculateDeadline } from '../lib/utils';
-import { UserProfile } from '../types';
-import { Clock, AlertTriangle } from 'lucide-react';
-import { motion } from 'motion/react';
+import React, { useState, useEffect } from "react";
+import {
+  format,
+  addDays,
+  startOfDay,
+  differenceInHours,
+  differenceInMinutes,
+  subDays,
+  getDay,
+} from "date-fns";
+import { ptBR } from "date-fns/locale";
+import {
+  cn,
+  getAlaForDate,
+  getAlaName,
+  getAlaCardColor,
+  getThemeColors,
+  calculateDeadline,
+} from "../lib/utils";
+import { UserProfile } from "../types";
+import { Clock, AlertTriangle, Shield } from "lucide-react";
+import { motion } from "motion/react";
+import { db } from "../lib/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
 
 interface WeeklyMonitorProps {
   user?: UserProfile;
+  obmContext?: string;
   onRequestPermuta?: (date: Date) => void;
 }
 
-export function WeeklyMonitor({ user, onRequestPermuta }: WeeklyMonitorProps) {
+export function WeeklyMonitor({
+  user,
+  obmContext,
+  onRequestPermuta,
+}: WeeklyMonitorProps) {
   const [now, setNow] = useState(new Date());
   const [isExpanded, setIsExpanded] = useState(true);
+  const [grdDays, setGrdDays] = useState<Record<string, boolean>>({});
 
   const theme = getThemeColors(user?.ala);
 
@@ -22,18 +45,62 @@ export function WeeklyMonitor({ user, onRequestPermuta }: WeeklyMonitorProps) {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    if (!obmContext || !user?.rg) return;
+
+    const obmId = obmContext.replace(/\//g, "_").replace(/\s/g, "_");
+    const normalizeRg = (rg: string | number) => {
+      const str = (rg || "").toString().trim().toUpperCase();
+      const clean = str.replace(/[^A-Z0-9]/g, "");
+      return clean.replace(/^0+/, "") || clean;
+    };
+    const userRgEscaped = normalizeRg(user.rg);
+
+    const today = startOfDay(new Date());
+    const weekDays = Array.from({ length: 7 }, (_, i) => addDays(today, i));
+    const monthKeys = Array.from(
+      new Set(weekDays.map((day) => format(day, "yyyy-MM"))),
+    );
+
+    const unsubscribes = monthKeys.map((monthKey) => {
+      const docRef = doc(db, "grd_configs", `${obmId}_${monthKey}`);
+      return onSnapshot(docRef, (snapshot) => {
+        if (snapshot.exists()) {
+          const days = snapshot.data().days || {};
+          setGrdDays((prev) => {
+            const updated = { ...prev };
+            Object.keys(days).forEach((dateStr) => {
+              const rgs = days[dateStr] || [];
+              const normalizedGrdRgs = rgs.map((r: string) => normalizeRg(r));
+              if (normalizedGrdRgs.includes(userRgEscaped)) {
+                updated[dateStr] = true;
+              } else {
+                updated[dateStr] = false;
+              }
+            });
+            return updated;
+          });
+        }
+      });
+    });
+
+    return () => {
+      unsubscribes.forEach((unsub) => unsub());
+    };
+  }, [obmContext, user?.rg]);
+
   const today = startOfDay(now);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(today, i));
 
   const getStatus = (deadline: Date) => {
     const isExpired = now > deadline;
     if (isExpired) {
-      return { 
-        expired: true, 
-        text: 'ENCERRADO', 
-        bgClass: 'bg-red-100',
-        textClass: 'text-red-900',
-        badgeClass: 'bg-red-200 text-red-800 border border-red-300'
+      return {
+        expired: true,
+        text: "ENCERRADO",
+        bgClass: "bg-red-100",
+        textClass: "text-red-900",
+        badgeClass: "bg-red-200 text-red-800 border border-red-300",
       };
     }
 
@@ -41,115 +108,198 @@ export function WeeklyMonitor({ user, onRequestPermuta }: WeeklyMonitorProps) {
     const days = Math.floor(diffHours / 24);
     const hours = diffHours % 24;
     const minutes = Math.max(0, differenceInMinutes(deadline, now) % 60);
-    
-    const formattedHours = hours.toString().padStart(2, '0');
-    const formattedMinutes = minutes.toString().padStart(2, '0');
+
+    const formattedHours = hours.toString().padStart(2, "0");
+    const formattedMinutes = minutes.toString().padStart(2, "0");
 
     return {
       expired: false,
       text: `${days}d e ${formattedHours}:${formattedMinutes}`,
-      bgClass: 'bg-amber-100',
-      textClass: 'text-amber-900',
-      badgeClass: 'bg-amber-200 text-amber-900 border border-amber-300'
+      bgClass: "bg-amber-100",
+      textClass: "text-amber-900",
+      badgeClass: "bg-amber-200 text-amber-900 border border-amber-300",
     };
   };
 
   return (
-    <div id="weekly-monitor" className={cn("mb-6 sm:mb-12 border rounded-xl overflow-hidden shadow-sm transition-colors duration-500", theme.panel)}>
-      <button 
+    <div
+      id="weekly-monitor"
+      className={cn(
+        "mb-6 sm:mb-12 border rounded-xl overflow-hidden shadow-sm transition-colors duration-500",
+        theme.panel,
+      )}
+    >
+      <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className={cn("w-full flex items-center justify-between p-4 sm:p-6 transition-colors border-b", isExpanded ? theme.borderInner : "border-transparent", theme.panel)}
+        className={cn(
+          "w-full flex items-center justify-between p-4 sm:p-6 transition-colors border-b",
+          isExpanded ? theme.borderInner : "border-transparent",
+          theme.panel,
+        )}
       >
         <div className="flex items-center gap-3 sm:gap-4">
           <div className={cn("p-2 sm:p-3 rounded-lg border", theme.iconBg)}>
             <Clock className={cn("w-5 h-5 sm:w-6 h-6", theme.iconText)} />
           </div>
           <div className="text-left">
-            <h3 className={cn("text-base sm:text-lg font-black uppercase tracking-tight", theme.title)}>Monitor Semanal</h3>
-            <p className={cn("text-[9px] sm:text-xs font-bold uppercase tracking-widest mt-0.5 sm:mt-1", theme.textLight)}>
+            <h3
+              className={cn(
+                "text-base sm:text-lg font-black uppercase tracking-tight",
+                theme.title,
+              )}
+            >
+              Monitor Semanal
+            </h3>
+            <p
+              className={cn(
+                "text-[9px] sm:text-xs font-bold uppercase tracking-widest mt-0.5 sm:mt-1",
+                theme.textLight,
+              )}
+            >
               Prazos para permuta (48h a 72h Úteis)
             </p>
           </div>
         </div>
-        <div className={cn("p-2 rounded-full transition-colors", isExpanded ? theme.card : "bg-transparent", theme.text)}>
-           <svg className={`w-5 h-5 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" /></svg>
+        <div
+          className={cn(
+            "p-2 rounded-full transition-colors",
+            isExpanded ? theme.card : "bg-transparent",
+            theme.text,
+          )}
+        >
+          <svg
+            className={`w-5 h-5 transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={3}
+              d="M19 9l-7 7-7-7"
+            />
+          </svg>
         </div>
       </button>
 
-      <motion.div 
+      <motion.div
         initial={false}
-        animate={{ height: isExpanded ? 'auto' : 0, opacity: isExpanded ? 1 : 0 }}
+        animate={{
+          height: isExpanded ? "auto" : 0,
+          opacity: isExpanded ? 1 : 0,
+        }}
         className="overflow-hidden"
       >
         <div className="p-3 sm:p-6 opacity-90">
           <div className="sm:hidden mb-2 flex items-center gap-1.5 px-2 py-1 bg-slate-50/50 rounded-lg border border-slate-200/50">
             <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping" />
-            <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Deslize para ver a semana →</span>
+            <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">
+              Deslize para ver a semana →
+            </span>
           </div>
-          <div className="w-full overflow-x-auto pb-2 no-scrollbar">
-            <div className={cn("min-w-[650px] sm:min-w-[800px] border-2 rounded-xl shadow-sm flex flex-col overflow-hidden", theme.borderInner, theme.card)}>
-              {/* LINHA DE DATAS (DESTINO) */}
-              <div className={cn("grid grid-cols-7 divide-x-2 border-b-2", theme.borderInner, theme.divide)}>
-                {weekDays.map((day, i) => {
-                  const ala = getAlaForDate(day);
-                  const isWeekend = getDay(day) === 0 || getDay(day) === 6;
-                  const isToday = i === 0;
+          <div className="w-full pb-2">
+            <div className="flex w-full overflow-x-auto sm:overflow-visible gap-1.5 sm:gap-2 pb-2 custom-scrollbar">
+              {weekDays.map((day, i) => {
+                const ala = getAlaForDate(day);
+                const isWeekend = getDay(day) === 0 || getDay(day) === 6;
+                const isToday = i === 0;
+                const dateStr = format(day, "yyyy-MM-dd");
+                const isGrd = grdDays[dateStr];
 
+                const deadline = calculateDeadline(day);
+                const status = getStatus(deadline);
+                const isExpired = status.expired;
+
+                if (isExpired) {
                   return (
-                    <div 
-                      key={`top-${i}`} 
+                    <div
+                      key={i}
+                      title="Prazo encerrado"
                       className={cn(
-                        "relative flex flex-col items-center justify-center p-2.5 sm:p-4 cursor-pointer hover:opacity-80 transition-opacity",
-                        getAlaCardColor(ala),
-                        isToday ? "ring-4 ring-blue-500 ring-inset" : ""
+                        "border rounded-xl shadow-sm flex flex-col items-center justify-center p-2 w-[52px] sm:w-[64px] shrink-0 relative cursor-not-allowed",
+                        theme.borderInner,
+                        theme.panel,
                       )}
-                      onClick={() => onRequestPermuta?.(day)}
-                      title="Clique para solicitar permuta"
                     >
-                      {isToday && (
-                        <span className="absolute top-0 left-0 bg-blue-500 text-white text-[8px] sm:text-[10px] font-black px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-br-lg uppercase tracking-widest z-10 pointer-events-none">
-                          Hoje
+                      <span className="text-base sm:text-lg font-black leading-none mt-1 opacity-50">
+                        {format(day, "dd")}
+                      </span>
+                      <span className="text-[9px] font-bold uppercase tracking-widest mt-1 opacity-40">
+                        {format(day, "MMM", { locale: ptBR })}
+                      </span>
+                      <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full shadow-sm ring-1 ring-slate-200 z-10 w-4 h-4 flex items-center justify-center opacity-80">
+                        <AlertTriangle className="w-2.5 h-2.5 text-red-500" />
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={i}
+                    onClick={() => onRequestPermuta?.(day)}
+                    title="Clique para solicitar permuta"
+                    className={cn(
+                      "border rounded-xl shadow-sm flex flex-col items-center p-1.5 sm:p-2 flex-1 min-w-[70px] sm:min-w-[80px] shrink-0 relative cursor-pointer hover:opacity-90 transition-opacity",
+                      getAlaCardColor(ala),
+                      isToday ? "ring-2 ring-blue-500 ring-offset-1" : "",
+                    )}
+                  >
+                    {isGrd && (
+                      <div className="absolute inset-0 overflow-hidden rounded-xl">
+                        <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
+                          <Shield className="w-full h-full fill-indigo-500 text-indigo-500" />
+                        </div>
+                      </div>
+                    )}
+
+                    <span
+                      className={cn(
+                        "text-lg sm:text-xl font-black leading-none mt-1 z-10",
+                        isGrd ? "text-indigo-900" : "text-slate-900",
+                      )}
+                    >
+                      {format(day, "dd")}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-[9px] sm:text-[10px] font-bold uppercase tracking-widest mt-1 z-10 opacity-70",
+                        isGrd ? "text-indigo-900" : "text-slate-900",
+                      )}
+                    >
+                      {format(day, "MMM", { locale: ptBR })}
+                    </span>
+
+                    <div
+                      className={cn(
+                        "mt-2 text-[9px] sm:text-[10px] font-black w-full text-center rounded p-1 leading-none shadow-sm flex flex-col items-center gap-0.5 z-10",
+                        status.bgClass,
+                        status.textClass,
+                      )}
+                    >
+                      <span className="opacity-70 text-[7px] sm:text-[8px]">
+                        {format(deadline, "EEE HH:mm", {
+                          locale: ptBR,
+                        }).toUpperCase()}
+                      </span>
+                      <div className="flex items-center gap-0.5">
+                        <Clock className="w-2.5 h-2.5 shrink-0" />
+                        <span className="whitespace-nowrap truncate">
+                          {status.text}
                         </span>
-                      )}
-                      <span className="text-sm sm:text-[17px] font-black mb-0.5 sm:mb-1 text-slate-900 drop-shadow-sm">{format(day, 'dd/MM/yyyy')}</span>
-                      <span className="text-[9px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-800">{format(day, 'EEE', { locale: ptBR })}</span>
-                      <span className="text-[8px] sm:text-[10px] font-bold opacity-60 italic normal-case text-slate-700 mt-0.5 sm:mt-1">{isWeekend ? '0h' : '24H'}</span>
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
 
-              {/* LINHA DE PRAZOS (DEADLINES) */}
-              <div className={cn("grid grid-cols-7 divide-x-2", theme.panel, theme.divide)}>
-                {weekDays.map((day, i) => {
-                  const deadline = calculateDeadline(day);
-                  const status = getStatus(deadline);
-                  
-                  return (
-                    <div 
-                      key={`bottom-${i}`} 
-                      className={cn(
-                        "flex flex-col items-center justify-center p-2 sm:p-3 text-center border-t border-transparent",
-                        status.bgClass, status.textClass
-                      )}
-                    >
-                       <span className="text-[9px] sm:text-[11px] font-black uppercase tracking-tighter opacity-80 mb-0.5 sm:mb-1">
-                         {format(deadline, 'EEE', { locale: ptBR })} {format(deadline, 'HH:mm')}
-                       </span>
-                       <span className={cn("text-[11px] sm:text-[13px] font-bold mb-1.5 sm:mb-2", status.expired ? "line-through opacity-60" : "opacity-90")}>
-                         {format(deadline, 'dd/MM/yyyy')}
-                       </span>
-                       <span className={cn(
-                         "text-[8px] sm:text-[10px] font-black px-1.5 sm:px-2 py-0.5 sm:py-1 rounded shadow-sm flex items-center gap-1",
-                         status.badgeClass
-                       )}>
-                         {status.expired ? <AlertTriangle className="w-3 h-3 sm:w-3.5 sm:h-3.5" /> : <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5" />}
-                         {status.text}
-                       </span>
-                    </div>
-                  );
-                })}
-              </div>
+                    {isGrd && (
+                      <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full shadow-sm ring-1 ring-slate-200 z-10 w-5 h-5 flex items-center justify-center">
+                        <Shield className="w-3 h-3 text-indigo-500" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
