@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useMilitars } from "../contexts/MilitarContext";
 import { PermutaRequest, PermutaStatus } from "../types";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { collection, query, where, onSnapshot, updateDoc, doc, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -24,6 +24,8 @@ import {
   Truck,
   ChevronDown,
   Check,
+  X,
+  Clock
 } from "lucide-react";
 
 import { motion } from "framer-motion";
@@ -242,8 +244,7 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
     setLoadingPermutas(true);
     const qDate = query(
       collection(db, "permutas"),
-      where("date", "==", selectedDate),
-      where("status", "==", PermutaStatus.ACCEPTED),
+      where("date", "==", selectedDate)
     );
 
     const unsub = onSnapshot(qDate, (snapshot) => {
@@ -252,7 +253,7 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
         ...doc.data(),
       })) as PermutaRequest[];
       const filtered = data.filter(
-        (p) => !p.obm || p.obm === obmContext || p.obm === "10º GBM",
+        (p) => (!p.obm || p.obm === obmContext || p.obm === "10º GBM") && p.status !== "cancelled"
       );
       setPermutas(filtered);
       setLoadingPermutas(false);
@@ -260,6 +261,18 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
 
     return () => unsub();
   }, [selectedDate, obmContext]);
+
+  const handleStatusChange = async (permuta: PermutaRequest, newStatus: PermutaStatus) => {
+    if (!permuta.id) return;
+    try {
+      await updateDoc(doc(db, "permutas", permuta.id), {
+        status: newStatus,
+        updatedAt: serverTimestamp()
+      });
+    } catch (error) {
+      console.error("Update Status Error:", error);
+    }
+  };
 
   const targetDateObj = parseISO(selectedDate);
   const identifiedAla = getAlaForDate(targetDateObj);
@@ -337,6 +350,71 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
     return funcs.join(", ") || "NÃO CONFIGURADO";
   };
 
+  const dynamicRequirements = useMemo(() => {
+    let reqs = [
+      { name: "ADJUNTO", req: 1 },
+      { name: "ENCARREGADO DE MOTORISTA", req: 1 },
+    ];
+
+    const getReq = (vtrId: string, type: 'condutor' | 'cg' | 'g1' | 'g2' | 'g3' | 'g4', defaultVal: number = 0) => {
+       const vtr = viaturasInfo.find(v => v.id === vtrId || v.vtr === vtrId);
+       if (!vtr || !vtr.ativa) return 0;
+       if (vtr[type] === true) return 1;
+       if (vtr[type] === false) return 0;
+       return defaultVal; 
+    };
+
+    const countCondutor = (prefix: string) => viaturasInfo.filter(v => v.ativa && v.vtr.startsWith(prefix) && v.condutor).length;
+    const countChefe = (prefix: string) => viaturasInfo.filter(v => v.ativa && v.vtr.startsWith(prefix) && v.cg).length;
+    const countAux = (prefix: string) => {
+        let count = 0;
+        viaturasInfo.filter(v => v.ativa && v.vtr.startsWith(prefix)).forEach(v => {
+            if (v.g1) count++;
+            if (v.g2) count++;
+            if (v.g3) count++;
+            if (v.g4) count++;
+        });
+        return count;
+    };
+
+    reqs.push({ name: "CONDUTOR AR", req: getReq("AR-583", "condutor") });
+    reqs.push({ name: "CONDUTOR ABSL", req: countCondutor("ABSL") });
+    reqs.push({ name: "CONDUTOR ABT", req: countCondutor("ABT") });
+    reqs.push({ name: "CONDUTOR ASE", req: countCondutor("ASE") });
+    reqs.push({ name: "CONDUTOR ARC", req: countCondutor("ARC") });
+    
+    reqs.push({ name: "CHEFE ABSL", req: countChefe("ABSL") });
+    reqs.push({ name: "CHEFE ABT", req: countChefe("ABT") });
+    
+    reqs.push({ name: "AUXILIAR / CHEFE ARC", req: countAux("ARC") });
+    
+    reqs.push({ name: "AUXILIAR ABT", req: countAux("ABT") });
+    reqs.push({ name: "AUXILIAR ABSL", req: countAux("ABSL") });
+    
+    reqs.push({ name: "ENFERMEIRO", req: countAux("ASE") });
+    
+    reqs.push({ name: "MESTRE AL", req: countCondutor("L-") });
+    reqs.push({ name: "MESTRE BIA", req: countCondutor("BIA-") });
+    
+    reqs.push({ name: "MARINHEIRO", req: countAux("L-") + countAux("BIA-") });
+    
+    reqs.push({ name: "AUXILIAR RANCHO", req: 1 });
+    reqs.push({ name: "TOQUE DE FOGO", req: 1 });
+    reqs.push({ name: "DIA AO DEPOSITO", req: 2 });
+    reqs.push({ name: "RESP FAXINA", req: 1 });
+    reqs.push({ name: "ABASTECEDOR", req: 1 });
+
+    reqs.push({ name: "SGT DIA", req: 1 });
+    reqs.push({ name: "CMT GUARDA", req: 1 });
+    reqs.push({ name: "CB GUARDA", req: 1 });
+    reqs.push({ name: "CB DIA", req: 1 });
+    reqs.push({ name: "COMUNICANTE", req: 2 });
+    reqs.push({ name: "ESCALANTE", req: 1 });
+    reqs.push({ name: "SENTINELA", req: 4 });
+
+    return reqs;
+  }, [viaturasInfo]);
+
   return (
     <div className="h-full flex flex-col bg-slate-50 relative overflow-hidden">
       {/* Top Control Bar */}
@@ -399,75 +477,195 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
               </span>
             )}
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
-              <thead className="bg-emerald-600 text-white">
-                <tr>
-                  <th className="p-3 px-4 border-r border-emerald-500 w-64">
-                    Substituído (Sai)
-                  </th>
-                  <th className="p-3 border-r border-emerald-500 w-8 text-center text-emerald-200">
-                    X
-                  </th>
-                  <th className="p-3 px-4 border-r border-emerald-500 w-64">
-                    Substituto (Entra)
-                  </th>
-                  <th className="p-3 px-4 text-center">Status</th>
+          <div className="overflow-x-auto pb-4 no-scrollbar relative min-h-[150px]">
+            <table className="w-full table-fixed border-collapse border-2 shadow-xl text-[10px] uppercase font-bold min-w-[500px] border-[#1e293b]">
+              <colgroup>
+                <col className="w-[30px]" />
+                <col className="w-auto" />
+                <col className="w-[30px]" />
+                <col className="w-auto" />
+                <col className="w-[30px]" />
+                <col className="w-[120px]" />
+                <col className="w-[40px]" />
+              </colgroup>
+              <thead className="bg-[#1e293b] text-white">
+                <tr className="bg-[#ced6e3] text-slate-900 border-b border-slate-900 text-[10px] font-black italic">
+                   <th className="border-r border-slate-900 py-1.5 text-center px-0">✓</th>
+                   <th className="border-r border-slate-900 py-1.5 text-center px-1">SAI</th>
+                   <th className="border-r border-slate-900 py-1.5 text-center uppercase text-[12px] font-black px-0">X</th>
+                   <th className="border-r border-slate-900 py-1.5 text-center px-1">ENTRA</th>
+                   <th className="border-r border-slate-900 py-1.5 text-center px-0">✓</th>
+                   <th className="border-r border-slate-900 py-1.5 tracking-tighter text-center px-1">STATUS</th>
+                   <th className="py-1.5 text-center px-1">RESP.</th>
                 </tr>
               </thead>
               <tbody>
-                {permutas.map((p) => (
-                  <tr
-                    key={p.id}
-                    className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
-                  >
-                    <td className="p-2 px-4 border-r border-slate-100">
-                      <div className="flex items-center gap-3 opacity-60 grayscale">
-                        <div className="flex flex-col text-left">
-                          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">
-                            EFETIVO
-                          </span>
-                          <span className="text-xs font-black text-slate-800 leading-none mb-1 line-through">
-                            {formatMilitaryName(p.requesterName || "")}
-                          </span>
-                          <span className="text-[9px] text-slate-400 font-mono tracking-widest leading-none">
-                            RG: {p.requesterRg}
-                          </span>
+                {permutas.filter(p => !p.isLookingForSubstitute || (p.requesterRg && p.substituteRg)).map((p) => {
+                  const requesterData = militars.find(m => m.rg === p.requesterRg);
+                  const substituteData = militars.find(m => m.rg === p.substituteRg);
+                  const reqRank = requesterData?.rank || '';
+                  const subRank = substituteData?.rank || '';
+                  
+                  const removeRankFromName = (name: string, rank: string) => {
+                    if (!name) return '';
+                    let resultName = name.toUpperCase().trim();
+                    const upRank = rank?.toUpperCase().trim();
+                    if (upRank && resultName.startsWith(upRank)) {
+                      resultName = resultName.substring(upRank.length).trim();
+                    }
+                    const prefixes = ['SOLDADO ', 'SD ', 'CABO ', 'CB ', '3º SGT ', '3SGT ', '3 SGT ', '2º SGT ', '2SGT ', '2 SGT ', '1º SGT ', '1SGT ', '1 SGT ', 'SUBTENENTE ', 'SUBTEN ', 'ST ', 'ASP OF ', 'ASPIRANTE ', 'ASP ', '2º TEN ', '2TEN ', '2 TEN ', '1º TEN ', '1TEN ', '1 TEN ', 'CAPITÃO ', 'CAPITAO ', 'CAP ', 'MAJOR ', 'MAJ ', 'TEN CEL ', 'TEN CORONEL ', 'TC ', 'CORONEL ', 'CEL '];
+                    for (const prefix of prefixes) {
+                       if (resultName.startsWith(prefix)) {
+                          resultName = resultName.substring(prefix.length).trim();
+                          break;
+                       }
+                    }
+                    return resultName;
+                  };
+                  
+                  const displayReqName = requesterData?.warName?.toUpperCase() || removeRankFromName(p.requesterName || "", reqRank);
+                  const displaySubName = substituteData?.warName?.toUpperCase() || removeRankFromName(p.substituteName || "", subRank);
+
+                  const getStatusText = () => {
+                    if (p.status === 'accepted') return 'DEFERIDO';
+                    if (p.status === 'rejected') return 'INDEFERIDO';
+                    if (p.status === 'cancelled') return 'CANCELADA';
+                    const fullySigned = p.requesterSigned && p.substituteSigned;
+                    if (p.status === 'scheduled') return 'AGUARDANDO';
+                    if (fullySigned) return 'CONTRATO FINALIZADO';
+                    return '1/2 PENDENTE';
+                  };
+
+                  const getRowBgColor = () => {
+                    if (p.status === 'cancelled') return 'opacity-40 grayscale bg-white';
+                    if (p.status === 'scheduled') return 'bg-amber-50';
+                    if (p.status === 'accepted') return 'bg-emerald-100';
+                    if (p.status === 'rejected') return 'bg-red-100';
+                    if (p.status === 'pending') {
+                      if (p.requesterSigned && p.substituteSigned) return 'bg-yellow-100';
+                      return 'bg-red-100';
+                    }
+                    return 'bg-white';
+                  };
+
+                  const getSelectBgColor = () => {
+                    if (p.status === 'accepted') return 'bg-emerald-100 text-emerald-900 border-emerald-300';
+                    if (p.status === 'rejected') return 'bg-red-100 text-red-900 border-red-300';
+                    if (p.status === 'scheduled') return 'bg-amber-100 text-amber-900 border-amber-300';
+                    if (p.status === 'pending') {
+                      if (p.requesterSigned && p.substituteSigned) return 'bg-yellow-100 text-yellow-900 border-yellow-300';
+                      return 'bg-red-100 text-red-900 border-red-300';
+                    }
+                    return 'bg-slate-50 text-slate-800 border-slate-200';
+                  };
+
+                  return (
+                    <tr
+                      key={p.id}
+                      className={cn(
+                        "border-b border-slate-300 hover:opacity-80 transition-colors h-12",
+                        getRowBgColor()
+                      )}
+                    >
+                      <td className="border-r border-slate-300 px-0.5 py-1 text-center">
+                        {p.requesterSigned ? (
+                          <div className="w-4 h-4 bg-slate-900 rounded flex items-center justify-center mx-auto shadow-sm">
+                             <Check className="w-3 h-3 text-white stroke-[3]" />
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center">
+                            <div className="w-4 h-4 border-[1.5px] border-slate-300 rounded mx-auto" />
+                          </div>
+                        )}
+                      </td>
+                      <td className="border-r border-slate-300 p-2 align-middle">
+                        <div className="flex text-left justify-center items-center gap-2 max-w-[200px] mx-auto opacity-75">
+                          {reqRank && (
+                            <div className="origin-left shrink-0">
+                              <RankInsignia rankStr={reqRank} />
+                            </div>
+                          )}
+                          <div className="flex flex-col text-left justify-center py-1 min-w-0">
+                            <span className="text-[11px] font-black uppercase text-indigo-500 tracking-widest leading-none mb-0.5 whitespace-nowrap">{reqRank || 'MIL'}</span>
+                            <span className="text-[15px] font-black uppercase tracking-tight text-slate-800 leading-none truncate block mt-0.5">{displayReqName}</span>
+                            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 font-mono leading-none mt-1 whitespace-nowrap">RG: {p.requesterRg}</span>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="p-2 border-r border-slate-100 text-center text-slate-300">
-                      X
-                    </td>
-                    <td className="p-2 px-4 border-r border-slate-100">
-                      <div className="flex items-center gap-3">
-                        <div className="flex flex-col text-left">
-                          <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest leading-none mb-1">
-                            PERMUTA APROVADA
-                          </span>
-                          <span className="text-xs font-black text-emerald-700 leading-none mb-1">
-                            {formatMilitaryName(p.substituteName || "")}
-                          </span>
-                          <span className="text-[9px] text-emerald-600/80 font-mono tracking-widest leading-none">
-                            RG: {p.substituteRg}
-                          </span>
+                      </td>
+                      <td className="border-r border-slate-300 p-1 text-center bg-transparent mix-blend-multiply align-middle">
+                        <div className="flex items-center justify-center w-full h-full min-h-[32px]">
+                          <X className="w-4 h-4 text-red-600 opacity-60 font-black stroke-[3]" />
                         </div>
-                      </div>
-                    </td>
-                    <td className="p-2 px-4 text-center">
-                      <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[8px] font-black">
-                        DEFERIDO
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-                {permutas.length === 0 && (
+                      </td>
+                      <td className="border-r border-slate-300 p-2 align-middle">
+                        <div className="flex text-left justify-center items-center gap-2 max-w-[200px] mx-auto">
+                          {subRank && (
+                            <div className="origin-left shrink-0">
+                              <RankInsignia rankStr={subRank} />
+                            </div>
+                          )}
+                          <div className="flex flex-col text-left justify-center py-1 min-w-0">
+                            <span className="text-[11px] font-black uppercase text-indigo-500 tracking-widest leading-none mb-0.5 whitespace-nowrap">{subRank || 'MIL'}</span>
+                            <span className="text-[15px] font-black uppercase tracking-tight text-slate-800 leading-none truncate block mt-0.5">{displaySubName}</span>
+                            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 font-mono leading-none mt-1 whitespace-nowrap">RG: {p.substituteRg}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="border-r border-slate-300 px-0.5 py-1 text-center relative group">
+                        {p.substituteSigned ? (
+                          <div className="w-4 h-4 bg-slate-900 rounded flex items-center justify-center mx-auto shadow-sm">
+                             <Check className="w-3 h-3 text-white stroke-[3]" />
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="w-4 h-4 border-[1.5px] border-slate-300 rounded mx-auto" />
+                          </div>
+                        )}
+                      </td>
+                      <td className="border-r border-slate-300 p-1 px-2 text-center align-middle">
+                             <select 
+                               className={cn(
+                                 "w-[120px] border-2 rounded px-1 py-1 text-[8px] font-black uppercase outline-none focus:border-slate-500 cursor-pointer mx-auto block mt-1",
+                                 getSelectBgColor()
+                               )}
+                               value={(p.status === 'pending' || p.status === 'scheduled') ? p.status : p.status}
+                               onChange={(e) => handleStatusChange(p, e.target.value as PermutaStatus)}
+                             >
+                               <option value="pending" className={
+                                 (p.requesterSigned && p.substituteSigned) 
+                                   ? 'bg-yellow-100 text-yellow-900' 
+                                   : 'bg-red-100 text-red-900'
+                               }>
+                                 {getStatusText() === 'DEFERIDO' || getStatusText() === 'INDEFERIDO' ? 'PENDENTE' : getStatusText()}
+                               </option>
+                               <option value="scheduled" className="bg-amber-100 text-amber-900">EM ANÁLISE</option>
+                               <option value="accepted" className="bg-emerald-100 text-emerald-900">DEFER.</option>
+                               <option value="rejected" className="bg-red-100 text-red-900">INDEF.</option>
+                             </select>
+                      </td>
+                      <td className="p-1 text-center">
+                         <div className={cn(
+                           "w-4 h-4 mx-auto border-2 rounded transition-all flex items-center justify-center shadow-inner",
+                           p.status === 'accepted' || p.status === 'rejected' ? "bg-emerald-500 border-emerald-600" : 
+                           p.status === 'scheduled' ? "bg-amber-400 border-amber-500" :
+                           p.status === 'cancelled' ? "bg-red-500 border-red-600" : 
+                           "bg-white border-slate-200"
+                         )}>
+                            {(p.status === 'accepted' || p.status === 'rejected') && <Check className="w-3 h-3 text-white stroke-[4]" />}
+                            {p.status === 'cancelled' && <X className="w-3 h-3 text-white stroke-[4]" />}
+                            {p.status === 'scheduled' && <Clock className="w-3 h-3 text-white stroke-[3]" />}
+                         </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+                {permutas.filter(p => !p.isLookingForSubstitute || (p.requesterRg && p.substituteRg)).length === 0 && (
                   <tr>
                     <td
-                      colSpan={4}
-                      className="p-4 text-center text-slate-400 font-black text-[10px]"
+                      colSpan={7}
+                      className="p-8 text-center text-slate-400 font-black text-xs uppercase tracking-widest bg-slate-50"
                     >
-                      NENHUMA PERMUTA DEFERIDA PARA ESTA DATA
+                      NENHUMA PERMUTA CADASTRADA PARA ESTA DATA
                     </td>
                   </tr>
                 )}
@@ -559,13 +757,13 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
                             </span>
                             <span
                               className={cn(
-                                "text-xs font-black leading-none mb-1",
+                                "text-[14px] font-black leading-none mb-1 uppercase tracking-tight",
                                 isSwapped
                                   ? "text-slate-600 line-through"
                                   : "text-slate-800",
                               )}
                             >
-                              {formatMilitaryName(militar.name || "")}
+                              {militar.warName?.toUpperCase() || formatMilitaryName(militar.name || "")}
                             </span>
                             <span className="text-[9px] text-slate-400 font-mono tracking-widest leading-none">
                               RG: {rg}
@@ -590,10 +788,11 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
                               <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest leading-none mb-1">
                                 SUBSTITUTO
                               </span>
-                              <span className="text-xs font-black text-indigo-700 leading-none mb-1">
-                                {formatMilitaryName(
-                                  permuta.substituteName || "",
-                                )}
+                              <span className="text-[14px] font-black text-indigo-700 leading-none mb-1 uppercase tracking-tight">
+                                {(()=>{
+                                  const subData = militars.find(m => m.rg === permuta.substituteRg);
+                                  return subData?.warName?.toUpperCase() || formatMilitaryName(permuta.substituteName || "");
+                                })()}
                               </span>
                               <span className="text-[9px] text-indigo-400/80 font-mono tracking-widest leading-none">
                                 RG: {permuta.substituteRg}
@@ -672,36 +871,7 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {[
-                    { name: "ADJUNTO", req: 1 },
-                    { name: "ENCARREGADO DE MOTORISTA", req: 1 },
-                    { name: "CONDUTOR AR", req: 1 },
-                    { name: "CONDUTOR ABSL", req: 1 },
-                    { name: "CONDUTOR ABT", req: 1 },
-                    { name: "CONDUTOR ASE", req: 1 },
-                    { name: "CONDUTOR ARC", req: 1 },
-                    { name: "CHEFE ABSL", req: 1 },
-                    { name: "CHEFE ABT", req: 1 },
-                    { name: "AUXILIAR / CHEFE ARC", req: 1 },
-                    { name: "AUXILIAR ABT", req: 3 },
-                    { name: "AUXILIAR ABSL", req: 3 },
-                    { name: "ENFERMEIRO", req: 1 },
-                    { name: "MESTRE AL", req: 1 },
-                    { name: "MESTRE BIA", req: 1 },
-                    { name: "MARINHEIRO", req: 4 },
-                    { name: "AUXILIAR RANCHO", req: 1 },
-                    { name: "TOQUE DE FOGO", req: 1 },
-                    { name: "DIA AO DEPOSITO", req: 2 },
-                    { name: "RESP FAXINA", req: 1 },
-                    { name: "ABASTECEDOR", req: 1 },
-                    { name: "SGT DIA", req: 1 },
-                    { name: "CMT GUARDA", req: 1 },
-                    { name: "CB GUARDA", req: 1 },
-                    { name: "CB DIA", req: 1 },
-                    { name: "COMUNICANTE", req: 2 },
-                    { name: "ESCALANTE", req: 1 },
-                    { name: "SENTINELA", req: 4 },
-                  ].map((funcao) => {
+                  {dynamicRequirements.filter(f => f.req > 0).map((funcao) => {
                     const currentCount = Object.values(selectedFunctions)
                       .flat()
                       .filter((v) => v === funcao.name).length;

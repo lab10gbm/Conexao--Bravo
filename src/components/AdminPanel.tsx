@@ -308,6 +308,48 @@ export function AdminPanel({ adminModeActive, onToggleAdminMode }: AdminPanelPro
     }
   };
 
+  const [confirmClear, setConfirmClear] = useState<number>(0);
+
+  const handleClearAllPermutas = async () => {
+    if (confirmClear < 2) {
+      setConfirmClear(prev => prev + 1);
+      return;
+    }
+    
+    setSyncing(true);
+    setSyncStatus('Apagando todas as permutas...');
+    try {
+      const pSnapshot = await getDocs(query(collection(db, 'permutas')));
+      let count = 0;
+      let currentBatch = writeBatch(db);
+      
+      for (const doc of pSnapshot.docs) {
+         currentBatch.delete(doc.ref);
+         count++;
+         if (count % 400 === 0) {
+           await currentBatch.commit();
+           currentBatch = writeBatch(db);
+         }
+      }
+      
+      if (count % 400 !== 0) {
+         await currentBatch.commit();
+      }
+      
+      setSyncStatus(`Sucesso! ${count} permutas apagadas.`);
+      setConfirmClear(0);
+      setTimeout(() => {
+         setSyncStatus('');
+         window.location.reload();
+      }, 2000);
+    } catch(e) {
+      console.error(e);
+      setSyncStatus('Erro ao apagar');
+    } finally {
+      setTimeout(() => setSyncing(false), 2000);
+    }
+  };
+
   // @ts-ignore
   const rawInfo = db?._databaseId;
   let dbInfoStr = '(default)';
@@ -533,6 +575,40 @@ export function AdminPanel({ adminModeActive, onToggleAdminMode }: AdminPanelPro
 
       {/* Seção 5: Configuração de Visibilidade */}
       <AppVisibilityConfig />
+
+      {/* Seção 6: ZONA DE PERIGO */}
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Trash2 className="w-5 h-5 text-red-600" />
+            <div>
+              <h3 className="text-sm font-black text-red-900 uppercase tracking-tight">Zona de Perigo: Apagar Registros</h3>
+              <p className="text-[10px] text-red-600 font-bold uppercase tracking-widest leading-normal">
+                Esta ação apaga <b>TODAS AS PERMUTAS JÁ REGISTRADAS NO SISTEMA</b>.
+                Útil para limpar a base de testes antes de entrar em produção.
+                Para prevenir acidentes, clique 3 vezes no botão.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <button 
+              onClick={handleClearAllPermutas}
+              disabled={syncing}
+              className={`px-6 py-3 rounded text-[10px] font-black uppercase tracking-widest flex items-center gap-2 disabled:opacity-50 transition-all border-b-4 active:border-b-0 active:translate-y-1 min-w-[200px] justify-center ${
+                confirmClear === 0 ? 'bg-slate-800 text-white border-slate-900 hover:bg-slate-700' :
+                confirmClear === 1 ? 'bg-amber-600 text-white border-amber-800 hover:bg-amber-700 animate-pulse' :
+                'bg-red-600 text-white border-red-800 hover:bg-red-700 animate-bounce'
+              }`}
+            >
+              {syncing ? syncStatus :
+               confirmClear === 0 ? 'Apagar Todas as Permutas' :
+               confirmClear === 1 ? 'Tem certeza? Clique novamente' :
+               'CONFIRMAR EXCLUSÃO! (Sem Volta)'}
+            </button>
+            {syncing && syncStatus.includes('Apagando') && <div className="text-[8px] text-red-600 font-black animate-pulse">LIMPANDO BASE...</div>}
+          </div>
+        </div>
+      </div>
 
         </div>
       </div>

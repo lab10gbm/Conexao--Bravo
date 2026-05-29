@@ -394,7 +394,7 @@ export function Header({ profile, obmContext, setObmContext, availableObms, isOf
                                                 </div>
                                                 <div className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">
                                                    {n.status === PermutaStatus.ACCEPTED || n.status === PermutaStatus.REJECTED 
-                                                      ? `Decisão por: Escalante (${n.acceptedById || '54444'})`
+                                                      ? `Decisão por: Escalante (${n.acceptedById || ''})`
                                                       : n.status === PermutaStatus.SCHEDULED
                                                       ? `Área de Permutas Futuras`
                                                       : `Cancelado por: Usuário`

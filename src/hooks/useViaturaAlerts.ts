@@ -60,8 +60,10 @@ export function useViaturaAlerts(user: UserProfile | null) {
             audioRef.current?.play().catch(e => console.warn('Audio auto-play prevented', e));
           }
         }
-      } catch (error) {
-        if (active) console.error("Error fetching viatura alerts:", error);
+      } catch (error: any) {
+        if (active && error.message !== 'Failed to fetch') {
+          console.error("Error fetching viatura alerts:", error);
+        }
       }
     };
 

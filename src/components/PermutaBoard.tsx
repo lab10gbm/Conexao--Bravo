@@ -515,7 +515,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
                                    {format(dateObj, 'dd/MM/yyyy')}
                                  </div>
                                </div>
-                               {(user?.rg === '54444' || adminMode) && (
+                               {adminMode && (
                                  <button
                                    onClick={() => handleArchiveDay(items)}
                                    className="bg-slate-800 text-slate-100 hover:bg-slate-700 px-1 sm:px-2 py-0.5 sm:py-1 rounded shadow flex items-center gap-1 text-[7px] sm:text-[9px] tracking-widest transition-colors whitespace-nowrap shrink-0"
@@ -545,7 +545,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
                   {items.map((permuta) => {
                     const isRequester = user?.rg && permuta.requesterRg === user.rg;
                     const isSubstitute = user?.rg && permuta.substituteRg === user.rg;
-                    const isEscalante = user?.rg === '54444' || adminMode;
+                    const isEscalante = adminMode;
                     const isMyTurnToSign = (isRequester && !permuta.requesterSigned) || (isSubstitute && !permuta.substituteSigned);
                     
                     const requesterData = militars.find(m => m.rg === permuta.requesterRg);

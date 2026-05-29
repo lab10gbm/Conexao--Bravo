@@ -76,7 +76,7 @@ const WORK_REGIMES = [
 ];
 
 export function ExpedienteScheduler({ user, obmContext, forceExpanded }: ExpedienteSchedulerProps) {
-  const { militars } = useMilitars();
+  const { militars, updateMilitarLocal } = useMilitars();
   const [currentMonth, setCurrentMonth] = useState(() => {
     const now = new Date();
     if (now.getDate() > 20) {
@@ -195,9 +195,12 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   const handleAddToExpediente = async () => {
       if (!addMemberRg) return;
       try {
-          await setDoc(doc(db, 'militaries', addMemberRg), {
-              ala: 'EXP'
-          }, { merge: true });
+          await fetch('/api/militar/update', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ rg: addMemberRg, data: { ala: 'EXP' } })
+          });
+          updateMilitarLocal(addMemberRg, { ala: 'EXP' });
           setAddMemberRg('');
       } catch (e) {
           console.error(e);
@@ -224,9 +227,13 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       }
       
       try {
-          await setDoc(doc(db, 'militaries', removeMemberRg), {
-              ala: alaValue
-          }, { merge: true });
+          const rgToUpdate = removeMemberRg;
+          await fetch('/api/militar/update', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ rg: rgToUpdate, data: { ala: alaValue } })
+          });
+          updateMilitarLocal(rgToUpdate, { ala: alaValue });
           setRemoveMemberRg(null);
       } catch (e) {
           console.error(e);
@@ -729,6 +736,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                  const isTargetUser = activeRg === rg;
                                                  const canEdit = isAdmin || isTargetUser || (isEscalantePref && (isAdmin || user.isEscalante));
                                                  
+                                                 const isSwapDay = !isEscalantePref && data.swapRequests?.some(r => r.rg === rg && r.status === 'pending' && (r.fromDay === dayStr || r.toDay === dayStr));
+                                                 
                                                  return (
                                                      <td 
                                                          key={`${dayStr}-${rg}`} 
@@ -740,6 +749,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                          className={cn(
                                                              "py-1 px-1 border-r border-slate-100 text-center relative select-none",
                                                              isPreferredDate && !isSelected && !isEscalantePref ? "bg-red-50/70 border-r-red-100" : "",
+                                                             isSwapDay ? "bg-orange-50 border-orange-200 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.3)] z-10" : "",
                                                              canEdit ? "cursor-pointer hover:bg-indigo-200 hover:shadow-inner" : "cursor-default hover:bg-slate-100"
                                                          )}
                                                      >
@@ -747,6 +757,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                              <div className={cn(
                                                                  "mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center shadow-sm",
                                                                  isEscalantePref ? "bg-red-500 text-white border border-red-600 shadow-red-200" :
+                                                                 isSwapDay ? "bg-orange-500 text-white shadow-orange-200 border border-orange-600 animate-pulse" :
                                                                  isTargetUser ? "bg-indigo-500 text-white" : "bg-slate-600 text-white"
                                                              )}>
                                                                  <span className={cn("text-[10px] font-black leading-none pt-[1px]", isEscalantePref && "text-white")}>
@@ -754,7 +765,12 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                                  </span>
                                                              </div>
                                                          )}
-                                                         {isPreferredDate && !isSelected && !isEscalantePref && (
+                                                         {!isSelected && isSwapDay && (
+                                                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-80">
+                                                                 <ArrowUpDown className="w-3.5 h-3.5 text-orange-500 animate-pulse" />
+                                                             </div>
+                                                         )}
+                                                         {isPreferredDate && !isSelected && !isEscalantePref && !isSwapDay && (
                                                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40">
                                                                  <span className="text-[14px] text-red-500">★</span>
                                                              </div>
@@ -838,6 +854,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                              const isSelected = userSels.includes(dayStr);
                                              const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                                              const isPreferredDate = !isEscalantePref && (data.selections['ESCALANTE_PREF'] || []).includes(dayStr);
+                                             const isSwapDay = !isEscalantePref && data.swapRequests?.some(r => r.rg === rg && r.status === 'pending' && (r.fromDay === dayStr || r.toDay === dayStr));
                                              
                                              return (
                                                  <td 
@@ -852,6 +869,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                          isPreferredDate && !isSelected ? "bg-red-50/70 border-r-red-100" :
                                                          isWeekend && !isPreferredDate ? "bg-slate-50/50" : "",
                                                          isEven && !isPreferredDate && !isEscalantePref ? "bg-slate-50/30" : "",
+                                                         isSwapDay ? "bg-orange-50 border-orange-200 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.3)] z-10" : "",
                                                          canEdit ? "cursor-pointer hover:bg-indigo-200 hover:shadow-inner" : "hover:bg-slate-100"
                                                      )}
                                                  >
@@ -859,6 +877,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                         <div className={cn(
                                                             "mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center shadow-sm",
                                                             isEscalantePref ? "bg-red-500 text-white border border-red-600 shadow-red-200" :
+                                                            isSwapDay ? "bg-orange-500 text-white shadow-orange-200 border border-orange-600 animate-pulse" :
                                                             isTargetUser ? "bg-indigo-500 text-white" : "bg-slate-600 text-white"
                                                         )}>
                                                             <span className={cn("text-[10px] font-black leading-none pt-[1px]", isEscalantePref && "text-white")}>
@@ -866,7 +885,12 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                             </span>
                                                         </div>
                                                      )}
-                                                     {isPreferredDate && !isSelected && (
+                                                     {!isSelected && isSwapDay && (
+                                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-80">
+                                                            <ArrowUpDown className="w-3.5 h-3.5 text-orange-500 animate-pulse" />
+                                                        </div>
+                                                     )}
+                                                     {isPreferredDate && !isSelected && !isSwapDay && (
                                                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40">
                                                             <span className="text-[12px] text-red-500">★</span>
                                                         </div>
@@ -1309,7 +1333,15 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                      return true;
                                  });
 
+                                 const hasPendingSwap = (u: any) => {
+                                     const rg = u.rg || u.uid;
+                                     return data.swapRequests?.some(r => r.rg === rg && r.status === 'pending');
+                                 };
+
+                                 const swappingMembers = activeMembers.filter(hasPendingSwap);
+
                                  const completedMembers = activeMembers.filter(u => {
+                                     if (hasPendingSwap(u)) return false;
                                      const rg = u.rg || u.uid;
                                      const reqAmount = data.requirements[rg] || 0;
                                      const sels = data.selections[rg] || [];
@@ -1319,6 +1351,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                  });
 
                                  const pendingMembers = activeMembers.filter(u => {
+                                     if (hasPendingSwap(u)) return false;
                                      const rg = u.rg || u.uid;
                                      const reqAmount = data.requirements[rg] || 0;
                                      const sels = data.selections[rg] || [];
@@ -1364,9 +1397,19 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
 
                                  return (
                                      <>
+                                         {swappingMembers.length > 0 && (
+                                             <div className="flex flex-col gap-3">
+                                                 <h4 className="text-[10px] font-black text-orange-600 uppercase tracking-widest border-b border-orange-100 pb-1 flex items-center gap-2">
+                                                     <ArrowUpDown className="w-3.5 h-3.5 text-orange-500 animate-pulse" />
+                                                     Solicitando Troca ({swappingMembers.length})
+                                                 </h4>
+                                                 {swappingMembers.map(renderMember)}
+                                             </div>
+                                         )}
+                                         
                                          {pendingMembers.length > 0 && (
                                              <div className="flex flex-col gap-3">
-                                                 <h4 className="text-[10px] font-black text-amber-600 uppercase tracking-widest border-b border-amber-100 pb-1 flex items-center gap-2">
+                                                 <h4 className="text-[10px] font-black text-amber-600 uppercase tracking-widest border-b border-amber-100 pb-1 flex items-center gap-2 mt-2">
                                                      <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
                                                      Com Pendências ({pendingMembers.length})
                                                  </h4>
