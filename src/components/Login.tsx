@@ -161,14 +161,14 @@ export function Login({
       >
         <div className="bg-[var(--color-brand-dark)] p-8 lg:p-12 text-white text-center flex flex-col items-center border-b-4 border-[var(--color-brand-red)]">
           <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center p-0 mb-6 overflow-hidden shadow-inner">
-            <PlatformLogo className="w-full h-full text-[var(--color-brand-dark)] scale-[1.10]" />
+            <PlatformLogo className="w-full h-full text-[var(--color-brand-dark)] scale-[1.25]" />
           </div>
-          <h2 className="text-2xl font-black tracking-tighter leading-none mb-3 uppercase">
+          <h2 className="text-3xl font-black tracking-tighter leading-none mb-3 uppercase">
             CONEXÃO BRAVO
           </h2>
           <div className="flex items-center gap-2">
             <div className="w-8 h-0.5 bg-white/20" />
-            <p className="text-white/40 font-mono text-[9px] uppercase tracking-[0.2em]">
+            <p className="text-white/40 font-mono text-xs uppercase tracking-[0.2em]">
               10º GBM - COSTA VERDE
             </p>
             <div className="w-8 h-0.5 bg-white/20" />

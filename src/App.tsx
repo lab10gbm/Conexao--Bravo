@@ -501,14 +501,14 @@ export default function App() {
               setSelectedMonthView(null);
             }}
           >
-            <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center p-0 shadow-inner overflow-hidden shrink-0">
-              <PlatformLogo className="w-full h-full text-[var(--color-brand-dark)] scale-[1.10]" />
+            <div className="w-[70px] h-[70px] bg-white rounded-full flex items-center justify-center p-0 shadow-inner overflow-hidden shrink-0">
+              <PlatformLogo className="w-[70px] h-[70px] text-[var(--color-brand-dark)] scale-[1.25]" />
             </div>
             <div className="flex flex-col">
-              <div className="text-[11px] sm:text-lg font-black tracking-tight leading-tight uppercase">
+              <div className="text-sm sm:text-2xl font-black tracking-tight leading-tight uppercase">
                 CONEXÃO BRAVO
               </div>
-              <div className="text-[7px] sm:text-[9px] font-black opacity-60 uppercase tracking-widest whitespace-nowrap">
+              <div className="text-[9px] sm:text-xs font-black opacity-60 uppercase tracking-widest whitespace-nowrap">
                 10º GBM - COSTA VERDE
               </div>
             </div>
