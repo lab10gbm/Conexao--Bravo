@@ -180,6 +180,17 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
     isPrivate: boolean;
   } | null>(null);
 
+  const [savedMyVehicle, setSavedMyVehicle] =
+    useState<Partial<TransladoVehicle> | null>(() => {
+      try {
+        const saved = localStorage.getItem("translado_my_vehicle_template");
+        return saved ? JSON.parse(saved) : null;
+      } catch {
+        return null;
+      }
+    });
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false);
+
   const { militars } = useMilitars();
 
   // Load Vehicles
@@ -316,6 +327,22 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
         "Preencha os campos obrigatórios (Veículo/Modelo, Origem, Destino)",
       );
     }
+
+    if (saveAsTemplate) {
+      const template = {
+        name: privateFormData.name,
+        origin: privateFormData.origin,
+        destination: privateFormData.destination,
+        waypoints: privateFormData.waypoints || "",
+        capacity: privateFormData.capacity || 4,
+      };
+      localStorage.setItem(
+        "translado_my_vehicle_template",
+        JSON.stringify(template),
+      );
+      setSavedMyVehicle(template);
+    }
+
     const id = privateFormData.id || `veh_priv_${Date.now()}`;
     const capVal = Number(privateFormData.capacity) || 4;
 
@@ -349,19 +376,19 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
   const handleSaveTrip = async (newData: TransladoTrip) => {
     if (!selectedVehicle) return;
     const tripId = `${selectedVehicle.id}_${date}_${direction}`;
-    
+
     // Use transaction to ensure safe concurrent updates of the passengers array
     try {
       await runTransaction(db, async (transaction) => {
         const tripRef = doc(db, "translado_trips", tripId);
         const tripDoc = await transaction.get(tripRef);
-        
+
         // Always overwrite with the specific state changes made by this user,
         // but base it on the latest data if possible?
         // Wait, if we just write newData without merging, it's not concurrent safe.
         // If we want concurrent safety, we shouldn't just pass newData, we should pass the change intent!
         // For now, let's just write newData since we don't have intent.
-        transaction.set(tripRef, newData); 
+        transaction.set(tripRef, newData);
       });
     } catch (e) {
       console.error("Failed to save trip:", e);
@@ -1024,24 +1051,27 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
                             : "text-slate-300 hover:text-white hover:bg-slate-700",
                         )}
                       >
-                        {selectedVehicle.origin} <ArrowRight className="w-4 h-4" />{" "}
+                        {selectedVehicle.origin}{" "}
+                        <ArrowRight className="w-4 h-4" />{" "}
                         {selectedVehicle.destination} (Ida)
                       </button>
                     )}
-                    {selectedVehicle.returnDate && selectedVehicle.returnDate === date && (
-                      <button
-                        onClick={() => setDirection("volta")}
-                        className={cn(
-                          "flex items-center justify-center gap-3 px-6 py-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap",
-                          direction === "volta"
-                            ? "bg-emerald-500 text-white shadow-lg"
-                            : "text-slate-300 hover:text-white hover:bg-slate-700",
-                        )}
-                      >
-                        {selectedVehicle.destination}{" "}
-                        <ArrowRight className="w-4 h-4" /> {selectedVehicle.origin} (Volta)
-                      </button>
-                    )}
+                    {selectedVehicle.returnDate &&
+                      selectedVehicle.returnDate === date && (
+                        <button
+                          onClick={() => setDirection("volta")}
+                          className={cn(
+                            "flex items-center justify-center gap-3 px-6 py-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap",
+                            direction === "volta"
+                              ? "bg-emerald-500 text-white shadow-lg"
+                              : "text-slate-300 hover:text-white hover:bg-slate-700",
+                          )}
+                        >
+                          {selectedVehicle.destination}{" "}
+                          <ArrowRight className="w-4 h-4" />{" "}
+                          {selectedVehicle.origin} (Volta)
+                        </button>
+                      )}
                   </div>
                 ) : (
                   <div className="flex flex-col sm:flex-row bg-slate-700/50 p-1 rounded-2xl inline-flex mb-2 max-w-full overflow-x-auto">
@@ -1054,7 +1084,8 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
                           : "text-slate-300 hover:text-white hover:bg-slate-700",
                       )}
                     >
-                      {selectedVehicle.origin} <ArrowRight className="w-4 h-4" />{" "}
+                      {selectedVehicle.origin}{" "}
+                      <ArrowRight className="w-4 h-4" />{" "}
                       {selectedVehicle.destination}
                     </button>
                     <button
@@ -1067,7 +1098,8 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
                       )}
                     >
                       {selectedVehicle.destination}{" "}
-                      <ArrowRight className="w-4 h-4" /> {selectedVehicle.origin}
+                      <ArrowRight className="w-4 h-4" />{" "}
+                      {selectedVehicle.origin}
                     </button>
                   </div>
                 )}
@@ -1885,6 +1917,21 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
             </div>
 
             <div className="space-y-4">
+              {savedMyVehicle && !privateFormData.id && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPrivateFormData((prev) => ({
+                      ...prev,
+                      ...savedMyVehicle,
+                    }))
+                  }
+                  className="w-full bg-emerald-50 text-emerald-700 py-3 rounded-xl border border-emerald-200 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 hover:bg-emerald-100 transition-colors mb-2 shadow-sm"
+                >
+                  <Car className="w-4 h-4" /> Utilizar meu veículo salvo
+                </button>
+              )}
+
               <div>
                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
                   Nome / Descrição do Veículo
@@ -2017,6 +2064,24 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
                 </p>
               </div>
 
+              {!privateFormData.id && (
+                <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-100">
+                  <input
+                    type="checkbox"
+                    id="saveTemplate"
+                    checked={saveAsTemplate}
+                    onChange={(e) => setSaveAsTemplate(e.target.checked)}
+                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                  />
+                  <label
+                    htmlFor="saveTemplate"
+                    className="text-xs font-bold uppercase text-slate-600 select-none cursor-pointer"
+                  >
+                    Salvar em "Meus Veículos" para facilitar os próximos usos
+                  </label>
+                </div>
+              )}
+
               <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 mt-6">
                 <button
                   onClick={() => setShowPrivateForm(false)}
@@ -2044,10 +2109,12 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
             className="bg-white rounded-3xl p-6 max-w-sm w-full border border-slate-100 shadow-2xl"
           >
             <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight mb-2">
-              Excluir {deleteVehicleId.isPrivate ? "Veículo Particular" : "Viatura"}?
+              Excluir{" "}
+              {deleteVehicleId.isPrivate ? "Veículo Particular" : "Viatura"}?
             </h3>
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-6 leading-relaxed">
-              Esta ação irá excluir permanentemente este veículo e toda a sua lotação futura para este dia e trajeto. Deseja continuar?
+              Esta ação irá excluir permanentemente este veículo e toda a sua
+              lotação futura para este dia e trajeto. Deseja continuar?
             </p>
             <div className="flex gap-3">
               <button
