@@ -102,6 +102,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   const [transposeTable, setTransposeTable] = useState(false);
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [confirmLock, setConfirmLock] = useState(false);
+  const [removeMemberRg, setRemoveMemberRg] = useState<string | null>(null);
+  const [removeMemberAla, setRemoveMemberAla] = useState('');
   
   const isAdmin = user.isAdmin;
   const isEscalante = user.isEscalante;
@@ -203,12 +205,16 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       }
   };
 
-  const handleRemoveFromExpediente = async (rg: string) => {
-      const newAla = window.prompt("Para qual Ala (1, 2, 3 ou 4) deseja mover este militar?\n(Deixe em branco ou digite '0' para deixar SEM ALA)");
-      if (newAla === null) return; // Cancelled
+  const handleRemoveFromExpediente = (rg: string) => {
+      setRemoveMemberRg(rg);
+      setRemoveMemberAla('');
+  };
+
+  const confirmRemoveFromExpediente = async () => {
+      if (!removeMemberRg) return;
       
       let alaValue = '';
-      const normalizedAla = newAla.trim();
+      const normalizedAla = removeMemberAla.trim();
       
       if (['1', '2', '3', '4'].includes(normalizedAla)) {
           alaValue = normalizedAla;
@@ -218,9 +224,10 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       }
       
       try {
-          await setDoc(doc(db, 'militaries', rg), {
+          await setDoc(doc(db, 'militaries', removeMemberRg), {
               ala: alaValue
           }, { merge: true });
+          setRemoveMemberRg(null);
       } catch (e) {
           console.error(e);
           alert('Erro ao remover militar.');
@@ -1306,14 +1313,18 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                      const rg = u.rg || u.uid;
                                      const reqAmount = data.requirements[rg] || 0;
                                      const sels = data.selections[rg] || [];
-                                     return reqAmount > 0 && sels.length >= reqAmount;
+                                     const regime = data.regimes?.[rg] || '';
+                                     const isExento = reqAmount === 0 && (regime.includes('Readaptado') || regime.includes('Redução'));
+                                     return isExento || (reqAmount > 0 && sels.length >= reqAmount);
                                  });
 
                                  const pendingMembers = activeMembers.filter(u => {
                                      const rg = u.rg || u.uid;
                                      const reqAmount = data.requirements[rg] || 0;
                                      const sels = data.selections[rg] || [];
-                                     return !(reqAmount > 0 && sels.length >= reqAmount);
+                                     const regime = data.regimes?.[rg] || '';
+                                     const isExento = reqAmount === 0 && (regime.includes('Readaptado') || regime.includes('Redução'));
+                                     return !isExento && !(reqAmount > 0 && sels.length >= reqAmount);
                                  });
 
                                  const renderMember = (u: UserProfile) => {
@@ -1322,7 +1333,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                      const sels = data.selections[rg] || [];
                                      const sector = data.sectors?.[rg] || '';
                                      const regime = data.regimes?.[rg] || '';
-                                     const isComplete = reqAmount > 0 && sels.length >= reqAmount;
+                                     const isExento = reqAmount === 0 && (regime.includes('Readaptado') || regime.includes('Redução'));
+                                     const isComplete = isExento || (reqAmount > 0 && sels.length >= reqAmount);
                                      
                                      return (
                                          <div key={rg} className="flex flex-col p-3 rounded-lg border border-slate-100 bg-slate-50 relative">
@@ -1336,12 +1348,12 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                     </div>
                                                  </div>
                                                  
-                                                 <div className={cn("text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm shrink-0", isComplete ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700")}>
-                                                     {sels.length} / {reqAmount > 0 ? reqAmount : '?'}
+                                                 <div className={cn("text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm shrink-0", isComplete ? (isExento ? "bg-slate-300 text-slate-700" : "bg-green-100 text-green-700") : "bg-amber-100 text-amber-700")}>
+                                                     {isExento ? "DTS" : `${sels.length} / ${reqAmount > 0 ? reqAmount : '?'}`}
                                                  </div>
                                              </div>
                                              
-                                             {reqAmount > 0 && (
+                                             {!isExento && reqAmount > 0 && (
                                                  <div className="w-full bg-slate-200 rounded-full h-1 mt-1">
                                                      <div className={cn("h-1 rounded-full", isComplete ? "bg-green-500" : "bg-amber-500")} style={{ width: `${Math.min(100, (sels.length / reqAmount) * 100)}%` }}></div>
                                                  </div>
@@ -1560,6 +1572,56 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                       </button>
                   </div>
               </form>
+            </motion.div>
+          </motion.div>
+        )}
+        
+        {removeMemberRg && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 min-h-screen bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 overflow-y-auto"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white max-w-md w-full rounded-2xl shadow-xl overflow-hidden pointer-events-auto my-auto"
+            >
+              <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-red-50">
+                <h3 className="font-black text-red-800 uppercase tracking-widest text-sm flex items-center gap-2">
+                  <Trash2 className="w-4 h-4 text-red-600" />
+                  Remover do Expediente
+                </h3>
+              </div>
+              <div className="p-6 flex flex-col gap-6">
+                 <p className="text-sm font-bold text-slate-700">Para qual Ala (1, 2, 3 ou 4) deseja mover este militar?</p>
+                 <p className="text-xs text-slate-500">Deixe em branco ou digite '0' para deixar SEM ALA</p>
+                 <input
+                     type="text"
+                     value={removeMemberAla}
+                     onChange={(e) => setRemoveMemberAla(e.target.value)}
+                     className="w-full text-sm p-3 bg-white border-2 border-slate-200 rounded-xl outline-none focus:border-red-500"
+                     placeholder="Ala"
+                 />
+                 <div className="flex justify-end gap-3 pt-4">
+                     <button
+                         type="button"
+                         onClick={() => setRemoveMemberRg(null)}
+                         className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                     >
+                         Cancelar
+                     </button>
+                     <button
+                         type="button"
+                         onClick={confirmRemoveFromExpediente}
+                         className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-black uppercase tracking-widest rounded-lg transition-colors shadow-md"
+                     >
+                         Confirmar Remoção
+                     </button>
+                 </div>
+              </div>
             </motion.div>
           </motion.div>
         )}
