@@ -505,11 +505,11 @@ export default function App() {
               <PlatformLogo className="w-[70px] h-[70px] text-[var(--color-brand-dark)] scale-[1.25]" />
             </div>
             <div className="flex flex-col">
-              <div className="text-sm sm:text-2xl font-black tracking-tight leading-tight uppercase">
+              <div className="text-lg sm:text-3xl font-black tracking-tight leading-tight uppercase">
                 CONEXÃO BRAVO
               </div>
-              <div className="text-[9px] sm:text-xs font-black opacity-60 uppercase tracking-widest whitespace-nowrap">
-                10º GBM - COSTA VERDE
+              <div className="text-xs sm:text-sm font-black opacity-80 uppercase tracking-widest whitespace-nowrap">
+                {effectiveProfile?.obm || 'CBA VII'} - COSTA VERDE
               </div>
             </div>
           </div>

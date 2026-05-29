@@ -153,29 +153,29 @@ export function Login({
   };
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg-main)] flex items-center justify-center p-6 lg:p-12">
+    <div className="min-h-screen bg-[var(--color-bg-main)] flex items-center justify-center sm:p-6 lg:p-12">
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-lg bg-white rounded shadow-2xl border border-slate-200 overflow-hidden relative z-10"
+        className="w-full flex flex-col min-h-screen sm:min-h-0 sm:flex-none sm:max-w-lg bg-white sm:rounded-2xl shadow-2xl border-0 sm:border border-slate-200 overflow-hidden relative z-10"
       >
-        <div className="bg-[var(--color-brand-dark)] p-8 lg:p-12 text-white text-center flex flex-col items-center border-b-4 border-[var(--color-brand-red)]">
-          <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center p-0 mb-6 overflow-hidden shadow-inner">
-            <PlatformLogo className="w-full h-full text-[var(--color-brand-dark)] scale-[1.25]" />
+        <div className="bg-[var(--color-brand-dark)] p-8 lg:p-12 text-white text-center flex flex-col items-center border-b-4 border-[var(--color-brand-red)] shrink-0 pt-16 sm:pt-12">
+          <div className="w-[100px] h-[100px] bg-white rounded-full flex items-center justify-center p-0 mb-6 overflow-hidden shadow-inner shrink-0">
+            <PlatformLogo className="w-[100px] h-[100px] text-[var(--color-brand-dark)] scale-[1.25]" />
           </div>
-          <h2 className="text-3xl font-black tracking-tighter leading-none mb-3 uppercase">
+          <h2 className="text-4xl sm:text-5xl font-black tracking-tighter leading-none mb-4 uppercase">
             CONEXÃO BRAVO
           </h2>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-0.5 bg-white/20" />
-            <p className="text-white/40 font-mono text-xs uppercase tracking-[0.2em]">
-              10º GBM - COSTA VERDE
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-0.5 bg-white/20" />
+            <p className="text-white/60 font-mono text-sm sm:text-base uppercase tracking-[0.2em]">
+              CBA VII - COSTA VERDE
             </p>
-            <div className="w-8 h-0.5 bg-white/20" />
+            <div className="w-10 h-0.5 bg-white/20" />
           </div>
         </div>
 
-        <div className="p-8 lg:p-12">
+        <div className="p-8 lg:p-12 flex flex-col flex-1 justify-center sm:block">
           {isRecovering ? (
             <form onSubmit={handleRecover} className="space-y-6">
               <div className="text-center mb-8">
