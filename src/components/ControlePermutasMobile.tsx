@@ -425,11 +425,12 @@ export function ControlePermutasMobile({ user, obmContext }: ControlePermutasMob
       </div>
 
       {/* Main Tinder Area */}
-      <div className="flex-1 relative overflow-hidden flex flex-col items-center justify-center p-4">
-        <AnimatePresence mode="popLayout">
-          {currentCard ? (
-            <motion.div
-              key={currentCard.id}
+      <div className="flex-1 relative overflow-y-auto overflow-x-hidden w-full flex flex-col bg-slate-100">
+        <div className="w-full h-fit min-h-full flex flex-col items-center justify-start p-4 pb-12">
+          <AnimatePresence mode="popLayout">
+            {currentCard ? (
+              <motion.div
+                key={currentCard.id}
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
               animate={{ 
                 scale: 1, 
@@ -443,7 +444,7 @@ export function ControlePermutasMobile({ user, obmContext }: ControlePermutasMob
                 scale: 0.9,
                 transition: { duration: 0.2 }
               }}
-              className="w-full bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-200 flex flex-col overflow-hidden max-h-full"
+              className="w-full max-w-[400px] mx-auto bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-200 flex flex-col overflow-hidden shrink-0"
             >
               {/* Card Header */}
               <div className="bg-slate-800 text-white p-4 flex justify-between items-center relative overflow-hidden shrink-0">
@@ -509,7 +510,7 @@ export function ControlePermutasMobile({ user, obmContext }: ControlePermutasMob
               </div>
 
               {/* Card Body - Swap Details */}
-              <div className="p-4 flex flex-col gap-4 flex-1 overflow-y-auto">
+              <div className="p-4 flex flex-col gap-4 flex-1">
                 <div className="flex flex-col gap-3">
                   
                   {/* SAI */}
@@ -790,12 +791,12 @@ export function ControlePermutasMobile({ user, obmContext }: ControlePermutasMob
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
 
-      {/* Action Buttons */}
-      <div className="bg-white p-6 border-t border-slate-200 shrink-0 flex justify-center items-center gap-4 sm:gap-6 z-10 shadow-[0_-10px_20px_rgba(0,0,0,0.02)]">
-        <button 
-          disabled={!currentCard}
+        {/* Action Buttons */}
+        {currentCard && (
+          <div className="w-full pt-8 pb-4 shrink-0 flex justify-center items-center gap-4 sm:gap-6 z-10">
+            <button 
+              disabled={!currentCard}
           onClick={() => currentCard && handleAction('indeferir', currentCard)}
           className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white border-2 border-red-100 border-b-[4px] text-red-500 flex items-center justify-center hover:bg-red-50 hover:border-red-200 hover:-translate-y-1 active:translate-y-0 active:border-b-2 disabled:opacity-50 disabled:grayscale transition-all shadow-sm"
           title="Indeferir"
@@ -820,6 +821,9 @@ export function ControlePermutasMobile({ user, obmContext }: ControlePermutasMob
         >
           <Check className="w-6 h-6 sm:w-8 sm:h-8" strokeWidth={3} />
         </button>
+          </div>
+        )}
+        </div>
       </div>
       
     </div>

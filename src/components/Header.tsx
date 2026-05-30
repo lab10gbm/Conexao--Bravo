@@ -84,45 +84,29 @@ export function Header({
     if (!profile.rg) return;
 
     let isMounted = true;
-    const cacheKey = "header_permutas_cache";
-    const cacheTimeKey = "header_permutas_time";
-    const CACHE_TTL_MS = 15 * 60 * 1000; // 15 mins
+    let unsubSnapshot: (() => void) | void = undefined;
 
-    async function loadPermutas() {
+    function loadPermutas() {
       try {
-        const cachedStr = localStorage.getItem(cacheKey);
-        const timeStr = localStorage.getItem(cacheTimeKey);
-        if (cachedStr && timeStr) {
-          const age = Date.now() - parseInt(timeStr, 10);
-          if (age < CACHE_TTL_MS) {
-            const data = JSON.parse(cachedStr);
-            if (isMounted) processPermutasData(data);
-            return; // Skip DB read
-          }
-        }
-      } catch (e) {}
-
-      try {
-        // Fallback to getDocs, but ideally restrict size. We fetch everything but it's just once per 15 min.
         const sixtyDaysAgo = format(subDays(new Date(), 60), "yyyy-MM-dd");
         const q = query(
           collection(db, "permutas"),
           where("date", ">=", sixtyDaysAgo),
-          orderBy("date", "asc"),
+          orderBy("date", "asc")
         );
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs.map((doc) => ({
-          ...doc.data(),
-          id: doc.id,
-        })) as PermutaRequest[];
-
-        if (isMounted) {
+        
+        unsubSnapshot = onSnapshot(q, (snapshot) => {
+          if (!isMounted) return;
+          const data = snapshot.docs.map((doc) => ({
+            ...doc.data(),
+            id: doc.id,
+          })) as PermutaRequest[];
           processPermutasData(data);
-          try {
-            localStorage.setItem(cacheKey, JSON.stringify(data));
-            localStorage.setItem(cacheTimeKey, Date.now().toString());
-          } catch (e) {}
-        }
+        }, (error) => {
+          if (isMounted) {
+            handleFirestoreError(error, OperationType.LIST, "permutas", false);
+          }
+        });
       } catch (error) {
         handleFirestoreError(error, OperationType.LIST, "permutas", false);
       }
@@ -154,6 +138,7 @@ export function Header({
 
     return () => {
       isMounted = false;
+      if (unsubSnapshot) unsubSnapshot();
     };
   }, [profile.rg, dismissedNotifs, activeMonthIndices]);
 

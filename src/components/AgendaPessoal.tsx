@@ -50,28 +50,46 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
     if (!user?.rg) return;
     let isMounted = true;
     
-    const fetchPermutas = async () => {
-      try {
-        const year = new Date().getFullYear();
-        const res = await fetch(`/api/agenda/${user.rg}/${year}`);
-        const result = await res.json();
-        if (isMounted && result.permutas) {
-           const parsed = result.permutas.map((p: any) => ({
-             date: new Date(p.date + 'T00:00:00'),
-             type: p.type,
-             status: p.status
-           }));
-           // Let's filter only accepted or requested to reflect the scale correctly
-           const activePermutas = parsed.filter((p: any) => p.status !== 'cancelled' && p.status !== 'rejected');
-           setUserPermutas(activePermutas);
-        }
-      } catch(e) {
-        if (isMounted) console.error("Erro fetch agenda:", e);
-      }
-    };
+    // Instead of polling /api/agenda with a 1-hour cache, we use onSnapshot for real-time updates!
+    const year = new Date().getFullYear();
+    const startDate = `${year}-01-01`;
+    const endDate = `${year}-12-31`;
     
-    fetchPermutas();
-    return () => { isMounted = false; };
+    const q = query(
+      collection(db, 'permutas'),
+      where('date', '>=', startDate),
+      where('date', '<=', endDate)
+    );
+
+    const unsub = onSnapshot(q, (snapshot) => {
+      if (!isMounted) return;
+      
+      const safeRg = String(user.rg).replace(/\D/g, '');
+      const allPermutas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      
+      const userPerms = allPermutas.filter(p => {
+        const strReq = String(p.requesterRg).replace(/\D/g, '');
+        const strSub = String(p.substituteRg).replace(/\D/g, '');
+        return strReq === safeRg || strSub === safeRg;
+      });
+      
+      const parsed = userPerms.map(p => {
+        const type = (String(p.requesterRg).replace(/\D/g, '') === safeRg) ? 'PAGOU' : 'COBREU';
+        return {
+          date: new Date(p.date + 'T00:00:00'),
+          type,
+          status: p.status
+        };
+      });
+
+      const activePermutas = parsed.filter(p => p.status !== 'cancelled' && p.status !== 'rejected');
+      setUserPermutas(activePermutas);
+    });
+    
+    return () => { 
+      isMounted = false; 
+      unsub();
+    };
   }, [user?.rg]);
 
 

@@ -68,30 +68,46 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
     if (!user?.rg) return;
 
     let isMounted = true;
-    const fetchPermutas = async () => {
-      try {
-        const year = new Date().getFullYear();
-        const res = await fetch(`/api/agenda/${user.rg}/${year}`);
-        const result = await res.json();
-        
-        if (!isMounted || !result.permutas) return;
-        
-        const data = result.permutas as PermutaRequest[];
-        const filteredByObm = data.filter(p => !p.obm || p.obm === obmContext || p.obm === '10º GBM');
 
-        const pending = filteredByObm.filter(p => 
-          p.status === PermutaStatus.PENDING &&
-          ((p.requesterRg === user.rg && !p.requesterSigned) || 
-           (p.substituteRg === user.rg && !p.substituteSigned))
-        );
+    const year = new Date().getFullYear();
+    const startDate = `${year}-01-01`;
+    const endDate = `${year}-12-31`;
 
-        setPendingMySignature(pending);
-      } catch (error) {
-        if (isMounted) console.error("Error fetching permutas for highlights:", error);
-      }
+    const qPerm = query(
+      collection(db, 'permutas'),
+      where('date', '>=', startDate),
+      where('date', '<=', endDate)
+    );
+    
+    const unsubPerms = onSnapshot(qPerm, (snapshot) => {
+      if (!isMounted) return;
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PermutaRequest));
+      
+      const filteredByObm = data.filter(p => !p.obm || p.obm === obmContext || p.obm === '10º GBM');
+      const safeRg = String(user.rg).replace(/\D/g, '');
+      
+      const pending = filteredByObm.filter(p => {
+         const strReq = String(p.requesterRg).replace(/\D/g, '');
+         const strSub = String(p.substituteRg).replace(/\D/g, '');
+         if (p.status !== PermutaStatus.PENDING) return false;
+         
+         const userIsReq = strReq === safeRg;
+         const userIsSub = strSub === safeRg;
+         
+         if (userIsReq && !p.requesterSigned) return true;
+         if (userIsSub && !p.substituteSigned) return true;
+         return false;
+      });
+
+      setPendingMySignature(pending);
+    }, (error) => {
+      if (isMounted) console.error("Error fetching permutas for highlights:", error);
+    });
+
+    return () => { 
+      isMounted = false; 
+      unsubPerms();
     };
-    fetchPermutas();
-    return () => { isMounted = false; };
   }, [user?.rg, obmContext]);
 
   const monthsToShow = activeMonthIndices.map(m => new Date(2026, m, 1));
