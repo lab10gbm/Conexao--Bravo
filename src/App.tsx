@@ -36,6 +36,11 @@ import {
   ArrowLeft,
   Loader2,
   BellRing,
+  Home,
+  Calendar,
+  ArrowLeftRight,
+  Utensils,
+  ChevronDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -45,6 +50,7 @@ import {
 } from "./lib/utils";
 import { HomePortal } from "./components/HomePortal";
 import { PlatformLogo } from "./components/PlatformLogo";
+import { RankInsignia } from "./components/RankInsignia";
 
 import { OBM_HIERARCHY } from "./constants";
 
@@ -174,6 +180,7 @@ export default function App() {
 
   const [authReady, setAuthReady] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isPermutaButtonExpanded, setIsPermutaButtonExpanded] = useState(true);
 
   // Controlled modal state
   const [isPermutaModalOpen, setIsPermutaModalOpen] = useState(false);
@@ -182,6 +189,16 @@ export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const currentPath = location.pathname;
+
+  useEffect(() => {
+    if (currentPath.includes("permutas")) {
+      setIsPermutaButtonExpanded(true);
+      const timer = setTimeout(() => {
+        setIsPermutaButtonExpanded(false);
+      }, 750);
+      return () => clearTimeout(timer);
+    }
+  }, [currentPath]);
   // State for view transition
   const [selectedMonthView, setSelectedMonthView] = useState<number | null>(
     null,
@@ -190,6 +207,27 @@ export default function App() {
   const [escalanteModeActive, setEscalanteModeActive] = useState(false);
   const [simulatedVersion, setSimulatedVersion] = useState<string>("");
   const [moderatorMode, setModeratorMode] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
+  const [lastScrollY, setLastScrollY] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      // Only hide on scroll down, show on scroll up. Keep visible at top.
+      if (currentScrollY < 50) {
+        setIsHeaderVisible(true);
+      } else if (currentScrollY > lastScrollY) {
+        setIsHeaderVisible(false);
+      } else {
+        setIsHeaderVisible(true);
+      }
+      setLastScrollY(currentScrollY);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [lastScrollY]);
 
   const { escalanteRGs, alaConfig, loading: configLoading } = useAppConfig();
   const { refreshMilitars } = useMilitars();
@@ -492,29 +530,31 @@ export default function App() {
             </div>
           </div>
         )}
-      <nav className="bg-[var(--color-brand-dark)] text-white p-4 sticky top-0 z-[100] border-b-4 border-[var(--color-brand-red)] shadow-lg">
+      <nav
+        className={`bg-[var(--color-brand-dark)] text-white p-4 sticky top-0 z-[100] border-b-4 border-[var(--color-brand-red)] shadow-lg transition-transform duration-300 ${isHeaderVisible ? "translate-y-0" : "-translate-y-full"}`}
+      >
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div
-            className="flex items-center gap-4 cursor-pointer hover:opacity-80 transition-opacity"
+            className="flex items-center gap-2 sm:gap-4 cursor-pointer hover:opacity-80 transition-opacity flex-1 min-w-0"
             onClick={() => {
               navigate("/");
               setSelectedMonthView(null);
             }}
           >
-            <div className="w-[70px] h-[70px] bg-white rounded-full flex items-center justify-center p-0 shadow-inner overflow-hidden shrink-0">
-              <PlatformLogo className="w-[70px] h-[70px] text-[var(--color-brand-dark)] scale-[1.25]" />
+            <div className="w-10 h-10 sm:w-[70px] sm:h-[70px] bg-white rounded-full flex items-center justify-center p-0 shadow-inner overflow-hidden shrink-0">
+              <PlatformLogo className="w-10 h-10 sm:w-[70px] sm:h-[70px] text-[var(--color-brand-dark)] scale-[1.25]" />
             </div>
-            <div className="flex flex-col">
-              <div className="text-lg sm:text-3xl font-black tracking-tight leading-tight uppercase">
+            <div className="flex flex-col truncate">
+              <div className="text-xs min-[400px]:text-sm min-[800px]:text-xl xl:text-3xl font-black tracking-tight leading-tight uppercase truncate">
                 CONEXÃO BRAVO
               </div>
-              <div className="text-xs sm:text-sm font-black opacity-80 uppercase tracking-widest whitespace-nowrap">
-                {effectiveProfile?.obm || 'CBA VII'} - COSTA VERDE
+              <div className="text-[9px] min-[400px]:text-[10px] xl:text-sm font-black opacity-80 uppercase tracking-widest truncate">
+                {effectiveProfile?.obm || "CBA VII"} - COSTA VERDE
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-6">
+          <div className="flex items-center gap-1.5 sm:gap-6 shrink-0">
             <div className="hidden lg:flex items-center gap-4 border-l border-white/10 pl-6 h-10">
               <div className="text-right">
                 <span className="block text-2xl font-black leading-none text-[var(--color-brand-red)] italic">
@@ -524,91 +564,13 @@ export default function App() {
                   Ano de Referência
                 </span>
               </div>
-
-              <div
-                className={`flex items-center gap-3 px-3 py-2 ml-2 rounded-lg border shadow-sm ${
-                  profile.ala.toString().toUpperCase() === "EXP"
-                    ? "bg-slate-500 border-slate-400 text-white"
-                    : profile.ala.toString().toUpperCase() === "ESCALANTE"
-                      ? "bg-indigo-500 border-indigo-400 text-white"
-                      : profile.ala.toString() === "1"
-                        ? "bg-[#4ade80] border-[#22c55e] text-slate-900"
-                        : profile.ala.toString() === "2"
-                          ? "bg-[#fb7185] border-[#f43f5e] text-white"
-                          : profile.ala.toString() === "3"
-                            ? "bg-[#60a5fa] border-[#3b82f6] text-white"
-                            : profile.ala.toString() === "4"
-                              ? "bg-[#fbbf24] border-[#f59e0b] text-slate-900"
-                              : "bg-white/5 border-white/10 text-white"
-                }`}
-              >
-                <div className="relative flex flex-col items-center justify-center">
-                  <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-[var(--color-brand-dark)] font-black text-[12px] z-10 shadow-sm border-2 border-white/80">
-                    {profile.name.charAt(0).toUpperCase()}
-                  </div>
-                  {(() => {
-                    const r = profile.rank ? profile.rank.toUpperCase() : "";
-                    let chevrons = 0;
-                    if (r.includes("1º SGT") || r === "1SGT") chevrons = 5;
-                    else if (r.includes("2º SGT") || r === "2SGT") chevrons = 4;
-                    else if (r.includes("3º SGT") || r === "3SGT") chevrons = 3;
-                    else if (r.includes("CB") || r === "CABO") chevrons = 2;
-                    else if (r.includes("SD") || r === "SOLDADO") chevrons = 1;
-
-                    if (chevrons === 0) return null;
-                    return (
-                      <div className="absolute top-[85%] flex flex-col items-center -space-y-[6px] z-20 text-[#fbbf24] drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]">
-                        {Array.from({ length: chevrons }).map((_, i) => {
-                          // O espaçamento ocorre LOGO ABAIXO da primeira gaivota nas graduações de 1SGT e 2SGT.
-                          const hasGap = chevrons >= 4 && i === 1;
-                          const gapClass = hasGap ? "mt-[3px]" : "";
-                          return (
-                            <svg
-                              key={i}
-                              className={gapClass}
-                              width="20"
-                              height="9"
-                              viewBox="0 0 16 7"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="3"
-                              strokeLinecap="round"
-                              strokeLinejoin="miter"
-                            >
-                              <path d="M2.5 1.5L8 5L13.5 1.5" />
-                            </svg>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-black leading-tight">
-                    {profile.rank
-                      ? `${profile.rank} ${profile.warName || profile.name}`
-                      : profile.name}
-                  </span>
-                  <span
-                    className={`text-[8px] font-black tracking-widest uppercase opacity-90`}
-                  >
-                    {typeof profile.ala === "string" &&
-                    profile.ala.toUpperCase() === "EXP"
-                      ? "EXPEDIENTE"
-                      : typeof profile.ala === "string" &&
-                          profile.ala.toUpperCase() === "ESCALANTE"
-                        ? "ESCALANTE"
-                        : `ALA ${profile.ala}`}
-                  </span>
-                </div>
-              </div>
             </div>
 
-            <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-1 sm:gap-2 ml-1 sm:ml-2">
               {profile && profile.isEscalante && !profile.isAdmin && (
                 <button
                   onClick={() => setEscalanteModeActive(!escalanteModeActive)}
-                  className={`p-2 transition-colors rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-3 ${escalanteModeActive ? "bg-blue-500 text-white shadow-inner" : "text-white/50 hover:text-blue-400 hover:bg-white/5 border border-white/10"}`}
+                  className={`p-1.5 sm:p-2 transition-colors rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-3 ${escalanteModeActive ? "bg-blue-500 text-white shadow-inner" : "text-white/50 hover:text-blue-400 hover:bg-white/5 border border-white/10"}`}
                   title="Modo Escalante"
                 >
                   <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -624,7 +586,7 @@ export default function App() {
                     setModeratorMode(nextMode);
                     setAdminModeActive(nextMode);
                   }}
-                  className={`p-2 transition-colors rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-3 ${moderatorMode ? "bg-indigo-500 text-white shadow-inner" : "text-white/50 hover:text-indigo-400 hover:bg-white/5 border border-white/10"}`}
+                  className={`p-1.5 sm:p-2 transition-colors rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-3 ${moderatorMode ? "bg-indigo-500 text-white shadow-inner" : "text-white/50 hover:text-indigo-400 hover:bg-white/5 border border-white/10"}`}
                   title="Modo Moderador"
                 >
                   <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -633,19 +595,83 @@ export default function App() {
                   </span>
                 </button>
               )}
+            </div>
+
+            <div className="relative">
               <button
-                onClick={handleSignOut}
-                className="p-2 text-white/50 hover:text-white transition-colors rounded-lg hover:bg-white/5"
-                title="Sair"
+                onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                className="flex items-center gap-2 sm:gap-3 px-1 sm:px-2 py-1 ml-1 sm:ml-2 transition-opacity hover:opacity-80 text-white text-left"
               >
-                <LogOut className="w-5 h-5" />
+                <div className="flex flex-col items-center justify-center shrink-0">
+                  <div className="scale-[0.8] sm:scale-100 origin-center drop-shadow-sm">
+                    <RankInsignia rankStr={profile.rank || ""} />
+                  </div>
+                </div>
+
+                <div className="flex flex-col text-left justify-center pb-0.5 pt-1">
+                  <span className="text-[9px] sm:text-[10px] font-black uppercase text-current opacity-80 tracking-widest leading-none mb-0.5 whitespace-nowrap">
+                    <span className="hidden sm:inline">
+                      {profile.rank ? profile.rank.replace("º", "") : "MIL"}
+                    </span>
+                    <span className="sm:hidden">
+                      {profile.rank
+                        ? profile.rank
+                            .replace("º", "")
+                            .replace(/.*SGT/, "SGT")
+                            .replace("SOLDADO", "SD")
+                            .replace("CABO", "CB")
+                            .replace("SUBTENENTE", "ST")
+                            .replace("ASPIRANTE", "ASP")
+                        : "MIL"}
+                    </span>
+                  </span>
+                  <span className="text-[11px] sm:text-[13px] font-black uppercase tracking-tight text-current leading-none truncate block mt-[1px]">
+                    {profile.warName || profile.name.split(" ")[0]}
+                  </span>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-current opacity-70 font-mono leading-none whitespace-nowrap">
+                      RG: {profile.rg || "----"}
+                    </span>
+                    <span className="text-[9px] sm:text-[10px] font-black tracking-widest uppercase opacity-90 leading-none">
+                      {typeof profile.ala === "string" &&
+                      profile.ala.toUpperCase() === "EXP"
+                        ? "EXP"
+                        : typeof profile.ala === "string" &&
+                            profile.ala.toUpperCase() === "ESCALANTE"
+                          ? "ESC"
+                          : `ALA ${profile.ala}`}
+                    </span>
+                  </div>
+                </div>
               </button>
+
+              <AnimatePresence>
+                {userDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 top-full mt-2 w-48 bg-white text-slate-800 rounded-xl shadow-xl border border-slate-200 overflow-hidden z-[200]"
+                  >
+                    <div className="p-1.5 pt-2">
+                      <button
+                        onClick={handleSignOut}
+                        className="w-full flex items-center justify-between px-3 py-2 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors font-bold group"
+                      >
+                        Sair da Conta
+                        <LogOut className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity" />
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </div>
       </nav>
 
-      <main className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-10 flex-1 overflow-x-hidden">
+      <main className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-10 flex-1 overflow-x-hidden pb-24 sm:pb-10">
         <React.Suspense
           fallback={
             <div className="h-40 flex items-center justify-center">
@@ -899,13 +925,9 @@ export default function App() {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 1.05 }}
                     transition={{ duration: 0.3 }}
+                    className="flex items-center justify-center h-64 text-slate-400 font-bold uppercase tracking-widest text-sm"
                   >
-                    <AgendaPessoal
-                      user={effectiveProfile!}
-                      onDateSelect={openPermutaRequest}
-                      onBack={() => navigate("/")}
-                      standalone={true}
-                    />
+                    Em breve
                   </motion.div>
                 }
               />
@@ -967,6 +989,35 @@ export default function App() {
                         forceExpanded={true}
                       />
                     </div>
+                  </motion.div>
+                }
+              />
+              <Route
+                path="/perfil"
+                element={
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.05 }}
+                    transition={{ duration: 0.3 }}
+                    className="flex flex-col items-center justify-center min-h-[50vh] text-center px-4"
+                  >
+                    <div className="w-24 h-24 rounded-full bg-slate-200 flex items-center justify-center text-slate-400 mb-6 border-4 border-white shadow-xl">
+                      <User className="w-12 h-12" />
+                    </div>
+                    <h2 className="text-2xl font-black text-slate-800 uppercase tracking-widest mb-1 mt-4">
+                      {effectiveProfile?.name}
+                    </h2>
+                    <p className="text-slate-500 font-bold text-sm tracking-widest uppercase opacity-80 mb-8">
+                      {effectiveProfile?.rank} • {effectiveProfile?.obm}
+                    </p>
+                    <button
+                      onClick={handleSignOut}
+                      className="mt-8 flex items-center gap-2 bg-red-50 text-red-600 px-6 py-3 rounded-xl font-bold uppercase tracking-wider hover:bg-red-100 transition-colors"
+                    >
+                      <LogOut className="w-5 h-5" />
+                      Sair do Aplicativo
+                    </button>
                   </motion.div>
                 }
               />
@@ -1135,10 +1186,14 @@ export default function App() {
       {currentPath.includes("permutas") && !isPermutaModalOpen && (
         <button
           onClick={() => openPermutaRequest()}
-          className="fixed bottom-8 right-8 bg-[var(--color-brand-red)] text-white p-4 rounded-full shadow-2xl hover:bg-black transition-all flex items-center gap-2 font-bold z-50 group scale-100 hover:scale-110 active:scale-95"
+          className={`fixed bottom-24 md:bottom-8 right-4 md:right-8 bg-[var(--color-brand-red)] text-white p-4 rounded-full shadow-2xl hover:bg-black transition-all duration-1000 ease-in-out flex items-center font-bold z-50 group hover:scale-110 active:scale-95 overflow-hidden ${
+            isPermutaButtonExpanded ? "gap-2 max-w-[300px]" : "gap-0 max-w-[60px]"
+          }`}
         >
-          <Send className="w-6 h-6 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
-          <span className="pr-2 uppercase tracking-widest text-[10px] font-black">
+          <Send className="w-6 h-6 shrink-0 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+          <span className={`uppercase tracking-widest text-[10px] font-black whitespace-nowrap transition-all duration-1000 ease-in-out origin-left ${
+            isPermutaButtonExpanded ? "opacity-100 pr-2 scale-100 max-w-[200px]" : "opacity-0 scale-0 w-0 pr-0 max-w-0"
+          }`}>
             Solicitar Permuta
           </span>
         </button>
@@ -1245,6 +1300,42 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* Mobile Bottom Navigation */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex items-center justify-around z-[100] pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+        {[
+          { icon: Home, label: "Início", path: "/" },
+          { icon: Calendar, label: "Escala", path: "/agenda" },
+          { icon: Utensils, label: "Rancho", path: "/refeitorio" },
+          { icon: ArrowLeftRight, label: "Permutas", path: "/permutas" },
+          { icon: User, label: "Perfil", path: "/perfil" },
+        ].map((item, idx) => {
+          const isActive =
+            location.pathname === item.path ||
+            (item.path !== "/" && location.pathname.startsWith(item.path));
+          return (
+            <button
+              key={idx}
+              onClick={() => navigate(item.path)}
+              className={`flex flex-col items-center justify-center w-full py-3 gap-1 transition-colors ${
+                isActive
+                  ? "text-[var(--color-brand-red)]"
+                  : "text-slate-400 hover:text-slate-900"
+              }`}
+            >
+              <item.icon
+                className={`w-5 h-5 ${isActive && item.icon !== Home && item.icon !== ArrowLeftRight && item.icon !== Utensils && item.icon !== Calendar ? "fill-current" : ""}`}
+                strokeWidth={isActive ? 2.5 : 2}
+              />
+              <span
+                className={`text-[9px] font-black uppercase tracking-wider ${isActive ? "opacity-100" : "opacity-70"}`}
+              >
+                {item.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
