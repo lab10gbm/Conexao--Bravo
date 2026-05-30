@@ -196,11 +196,15 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
     }
 
     try {
+      const reqMilitar = militars.find(m => String(m.rg || '').replace(/\D/g, '') === normalizeRg(requesterRg));
+      const subMilitar = militars.find(m => String(m.rg || '').replace(/\D/g, '') === normalizeRg(substituteRg));
+
       const payload = {
         obm: String(obmContext || '10º GBM'),
-        requesterId: isRequesterMissing ? '' : String(auth.currentUser?.uid || user.uid),
+        requesterId: isRequesterMissing ? '' : (reqMilitar?.uid || String(auth.currentUser?.uid || user.uid)),
         requesterName: isRequesterMissing ? '' : String(requesterName),
         requesterRg: isRequesterMissing ? '' : String(requesterRg),
+        substituteId: isSubstituteMissing ? '' : (subMilitar?.uid || ''),
         substituteRg: isSubstituteMissing ? '' : String(substituteRg),
         substituteName: isSubstituteMissing ? '' : String(substituteName),
         isLookingForSubstitute,

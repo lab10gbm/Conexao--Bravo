@@ -1,11 +1,12 @@
 import React, { useState, useTransition } from 'react';
 import { UserProfile } from '../types';
-import { ArrowLeft, Users, Shield, UserCheck, LayoutGrid, CalendarRange, Truck } from 'lucide-react';
+import { ArrowLeft, Users, Shield, UserCheck, LayoutGrid, CalendarRange, Truck, Smartphone } from 'lucide-react';
 import { EscalanteAlasConfig } from './EscalanteAlasConfig';
 import { ControleDeFuncoes } from './ControleDeFuncoes';
 import { GrdModule } from './GrdModule';
 import { EscalaEspelhoModule } from './EscalaEspelhoModule';
 import { ExpedienteScheduler } from './ExpedienteScheduler';
+import { ControlePermutasMobile } from './ControlePermutasMobile';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -23,6 +24,7 @@ const ESCALANTE_APPS = [
   { id: 'escala', label: 'Escala 24h', description: 'Geração e Ajustes', icon: CalendarRange, color: 'bg-indigo-600 shadow-indigo-200' },
   { id: 'expediente', label: 'Escala do Expediente', description: 'Gestão de Serviços EXP', icon: CalendarRange, color: 'bg-indigo-400 shadow-indigo-100' },
   { id: 'grd', label: 'GRD', description: 'Atendimento de Reforço', icon: Shield, color: 'bg-cyan-600 shadow-cyan-200' },
+  { id: 'permutas_mobile', label: 'Permutas Mobile', description: 'Triagem Rápida', icon: Smartphone, color: 'bg-pink-600 shadow-pink-200' },
   { id: 'efetivo', label: 'Efetivo Geral', description: 'Relacionamento', icon: UserCheck, color: 'bg-violet-600 shadow-violet-200', disabled: true },
   { id: 'relatorios', label: 'Relatórios', description: 'Estatísticas', icon: LayoutGrid, color: 'bg-rose-600 shadow-rose-200', disabled: true },
 ];
@@ -183,6 +185,31 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
         <div className="flex-1 overflow-hidden flex flex-col relative">
            <div className="absolute inset-0 overflow-y-auto custom-scrollbar pr-2">
              <ExpedienteScheduler user={user} obmContext={obmContext} forceExpanded={true} />
+           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeApp === 'permutas_mobile') {
+    return (
+      <div className="flex flex-col h-[calc(100vh-140px)] animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <Smartphone className="w-8 h-8 text-pink-600 p-1.5 bg-pink-100 rounded-lg" />
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                Permutas Mobile <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded uppercase tracking-widest ml-2">{obmContext}</span>
+              </h2>
+              <p className="text-sm font-medium text-slate-500 mt-1">Triagem rápida e ágil de solicitações de permuta.</p>
+            </div>
+          </div>
+          {renderHeaderActions(() => setActiveApp(null))}
+        </div>
+
+        <div className="flex-1 bg-slate-50 rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative justify-center items-center">
+           <div className="absolute inset-0 overflow-y-auto w-full h-full flex justify-center bg-slate-900 sm:rounded-3xl">
+             <ControlePermutasMobile obmContext={obmContext} user={user} />
            </div>
         </div>
       </div>
