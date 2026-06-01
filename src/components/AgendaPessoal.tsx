@@ -1,6 +1,6 @@
 import React, { memo, useState, useMemo, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { doc, onSnapshot, collection } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, isBefore } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { getAlaForDate, getAlaColor, getAlaLightColor, cn } from '../lib/utils';

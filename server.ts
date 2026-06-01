@@ -2056,7 +2056,11 @@ async function startServer() {
       }
       console.log('[ARCHIVE] Success! Archived and removed permutas from active collection.');
     } catch (e: any) {
-      console.error('[ARCHIVE] Error archiving permutas:', e);
+      if (e.code === 7 || (e.message && e.message.includes('PERMISSION_DENIED'))) {
+        console.log('[ARCHIVE] Skipping archive routine (IAM restricted).');
+      } else {
+        console.error('[ARCHIVE] Error archiving permutas:', e);
+      }
     }
   }, 12 * 60 * 60 * 1000); // 12 hours
 
@@ -2092,7 +2096,11 @@ async function startServer() {
       if (count > 0) await batch.commit();
       console.log('[ARCHIVE] Success!');
     } catch (e: any) {
-      console.error('[ARCHIVE] Error:', e);
+      if (e.code === 7 || (e.message && e.message.includes('PERMISSION_DENIED'))) {
+        console.log('[ARCHIVE] Skipping archive routine (IAM restricted).');
+      } else {
+        console.error('[ARCHIVE] Error:', e);
+      }
     }
   }, 5000);
 

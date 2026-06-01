@@ -226,6 +226,21 @@ export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCa
 
       {catalog && (
         <div className="max-w-4xl mt-8">
+          
+          {/* Gastos Diários / Simulação */}
+          <div className="bg-slate-50/50 border-2 border-amber-200/50 rounded-3xl p-6 mb-8 shadow-sm">
+            <h3 className="font-black text-amber-800 uppercase tracking-widest mb-6 text-sm flex items-center gap-2">
+              Gastos Diários / Simulação
+            </h3>
+            <p className="text-xs font-semibold text-slate-500 mb-6 leading-relaxed">
+              Adicione nesta seção os itens de consumo fixo diário que não dependem necessariamente do cardápio variável.
+            </p>
+            <div className="space-y-4">
+              {renderItemGastos("Itens Alimentação")}
+              {renderItemGastos("Itens Não Alimentares")}
+            </div>
+          </div>
+
           {renderCategory("Proteínas", catalog.proteinas)}
           {renderCategory("Acompanhamentos", catalog.acompanhamentos)}
           {renderCategory("Saladas", catalog.saladas)}

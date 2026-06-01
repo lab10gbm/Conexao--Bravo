@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ShoppingCart, 
   Package, 
@@ -21,7 +21,10 @@ import { UserProfile } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { RefeitorioModule } from './RefeitorioModule';
-import { AprovisionamentoCatalogo } from './AprovisionamentoCatalogo';
+import { AprovisionamentoCatalogo, GastoIngrediente } from './AprovisionamentoCatalogo';
+import { db } from '../lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { useRefeitorioData } from '../hooks/useRefeitorioData';
 
 
 type CategoriaMaterial = 'MERCADO' | 'PROTEINA' | 'SACOLAO' | 'LIMPEZA';
@@ -356,10 +359,54 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   const [cardapio, setCardapio] = useState<CardapioDia[]>(MOCK_CARDAPIO);
   const [cadastroFiltroMsg, setCadastroFiltroMsg] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState<CategoriaMaterial>('MERCADO');
+  const [gastosCatalogo, setGastosCatalogo] = useState<Record<string, GastoIngrediente[]>>({});
+
+  const { menus } = useRefeitorioData();
+
+  const filteredMenus = useMemo(() => {
+    const hoje = new Date();
+    hoje.setHours(0,0,0,0);
+    const ontemTime = hoje.getTime() - (86400000 * 1); // yesterday
+    
+    const validMenusAndTimes = menus.map((menu: any) => {
+       if (!menu.date) return null;
+       const parts = menu.date.split('/');
+       if (parts.length < 2) return null;
+       const d = parseInt(parts[0]);
+       const mo = parseInt(parts[1]);
+       if (isNaN(d) || isNaN(mo)) return null;
+       let year = hoje.getFullYear();
+       if (hoje.getMonth() === 0 && mo === 12) year--;
+       else if (hoje.getMonth() === 11 && mo === 1) year++;
+       const cDate = new Date(year, mo - 1, d);
+       cDate.setHours(0,0,0,0);
+       return { menu, time: cDate.getTime() };
+    }).filter(Boolean) as { menu: any, time: number }[];
+
+    return validMenusAndTimes
+      .filter(item => item.time >= ontemTime)
+      .sort((a, b) => a.time - b.time)
+      .map(item => item.menu);
+  }, [menus]);
 
   const [datasEstoque, setDatasEstoque] = useState<string[]>(['27/05']);
   const [showNovaDataPopup, setShowNovaDataPopup] = useState(false);
   const [novaDataValue, setNovaDataValue] = useState('');
+
+  useEffect(() => {
+    const fetchGastos = async () => {
+      try {
+        const docRef = doc(db, 'aprovisionamento', 'gastos_catalogo');
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          setGastosCatalogo(snap.data().gastos || {});
+        }
+      } catch (e) {
+        console.error("Error fetching gastos_catalogo:", e);
+      }
+    };
+    fetchGastos();
+  }, []);
 
   const handleAddDataEstoque = () => {
     if (novaDataValue && !datasEstoque.includes(novaDataValue)) {
@@ -399,28 +446,140 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
       needsByMaterialId[m.id] = { in3Days: 0, in5Days: 0, in10Days: 0, total: 0 };
     });
 
-    cardapio.forEach(c => {
-      const cDate = new Date(c.data);
+    filteredMenus.forEach(menu => {
+      if (!menu.date) return;
+      const parts = menu.date.split('/');
+      if (parts.length < 2) return;
+      const d = parseInt(parts[0]);
+      const mo = parseInt(parts[1]);
+      if (isNaN(d) || isNaN(mo)) return;
+      
+      let year = hoje.getFullYear();
+      if (hoje.getMonth() === 0 && mo === 12) year--;
+      else if (hoje.getMonth() === 11 && mo === 1) year++;
+      
+      const cDate = new Date(year, mo - 1, d);
       cDate.setHours(0,0,0,0);
-      const diffTime = Math.abs(cDate.getTime() - hoje.getTime());
+      
+      const isPast = cDate.getTime() < hoje.getTime();
+      const diffTime = cDate.getTime() - hoje.getTime(); // Not using absolute, so negative for past
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       
-      const receita = receitas.find(r => r.id === c.receitaId);
-      if (receita) {
-        receita.itens.forEach(item => {
-          if (!needsByMaterialId[item.materialId]) return;
-          const qtdNecessaria = item.porcao * c.qtdMilitares;
-          
-          needsByMaterialId[item.materialId].total += qtdNecessaria;
-          if (diffDays <= 3) needsByMaterialId[item.materialId].in3Days += qtdNecessaria;
-          if (diffDays <= 5) needsByMaterialId[item.materialId].in5Days += qtdNecessaria;
-          if (diffDays <= 10) needsByMaterialId[item.materialId].in10Days += qtdNecessaria;
+      // Default to 60 for now if pax is not specified in menu
+      const paxForDay = menu.qtdMilitares || 60;
+
+      // Extract all dishes names configured for this day
+      const itemsOfDay: string[] = [];
+      const addDishes = (dishes: string) => {
+        if (!dishes || dishes === '-') return;
+        dishes.split(',').forEach(dStr => {
+           const trimmed = dStr.trim();
+           if (trimmed) itemsOfDay.push(trimmed);
         });
+      };
+      
+      // Almoço
+      if (menu.almoco) {
+        if (menu.almoco.principal) itemsOfDay.push(menu.almoco.principal.trim());
+        addDishes(menu.almoco.acompanhamentos);
+        addDishes(menu.almoco.saladas);
+        if (menu.almoco.sobremesa && menu.almoco.sobremesa !== '-') itemsOfDay.push(menu.almoco.sobremesa.trim());
       }
+      
+      // Jantar
+      if (menu.jantar) {
+        if (menu.jantar.principal) itemsOfDay.push(menu.jantar.principal.trim());
+        addDishes(menu.jantar.acompanhamentos);
+        addDishes(menu.jantar.saladas);
+        if (menu.jantar.ceia && menu.jantar.ceia !== '-') itemsOfDay.push(menu.jantar.ceia.trim());
+      }
+      
+      // Para cada prato, checamos se existe configuracao em gastos_catalogo
+      itemsOfDay.forEach(itemName => {
+         const regrasGasto = gastosCatalogo[itemName];
+         if (!regrasGasto) return;
+         
+         const dayOfWeek = cDate.getDay();
+         const isFds = dayOfWeek === 0 || dayOfWeek === 6;
+
+         regrasGasto.forEach(gasto => {
+            const mat = materiais.find(m => m.nome === gasto.nome);
+            if (!mat || !needsByMaterialId[mat.id]) return;
+
+            let qtdCost = 0;
+            const multiplier = isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana;
+            if (gasto.metodologia === 'por_dia') {
+              qtdCost = multiplier; // Fixed daily total for this dish
+            } else if (gasto.metodologia === 'por_prato') {
+              qtdCost = multiplier * paxForDay; // Multiplied by pax
+            }
+
+            if (qtdCost > 0 && !isPast) {
+              needsByMaterialId[mat.id].total += qtdCost;
+              if (diffDays >= 0 && diffDays < 3) needsByMaterialId[mat.id].in3Days += qtdCost;
+              if (diffDays >= 0 && diffDays < 5) needsByMaterialId[mat.id].in5Days += qtdCost;
+              if (diffDays >= 0 && diffDays < 10) needsByMaterialId[mat.id].in10Days += qtdCost;
+            }
+         });
+      });
+    });
+
+    // Gastos Diários globais (Itens Alimentação e Não Alimentares)
+    const currentGastosGlobais = [
+      ...(gastosCatalogo['Itens Alimentação'] || []),
+      ...(gastosCatalogo['Itens Não Alimentares'] || [])
+    ];
+
+    const uniqueDates = Array.from(new Set(filteredMenus.map((m: any) => m.date).filter(Boolean)));
+
+    uniqueDates.forEach(dateStr => {
+      const parts = dateStr.split('/');
+      if (parts.length < 2) return;
+      const d = parseInt(parts[0]);
+      const mo = parseInt(parts[1]);
+      if (isNaN(d) || isNaN(mo)) return;
+      
+      let year = hoje.getFullYear();
+      if (hoje.getMonth() === 0 && mo === 12) year--;
+      else if (hoje.getMonth() === 11 && mo === 1) year++;
+      
+      const cDate = new Date(year, mo - 1, d);
+      cDate.setHours(0,0,0,0);
+      
+      const dayOfWeek = cDate.getDay();
+      const isFds = dayOfWeek === 0 || dayOfWeek === 6;
+      
+      const isPast = cDate.getTime() < hoje.getTime();
+      const diffTime = cDate.getTime() - hoje.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      // Consider global pax
+      const findMenu = filteredMenus.find((m: any) => m.date === dateStr);
+      const paxForDay = findMenu?.qtdMilitares || 60;
+
+      currentGastosGlobais.forEach(gasto => {
+        const mat = materiais.find(m => m.nome === gasto.nome);
+        if (!mat || !needsByMaterialId[mat.id]) return;
+
+        let qtdCost = 0;
+        const multiplier = isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana;
+        if (gasto.metodologia === 'por_dia') {
+          qtdCost = multiplier;
+        } else if (gasto.metodologia === 'por_prato') {
+          qtdCost = multiplier * paxForDay;
+        }
+
+        if (qtdCost > 0 && !isPast) {
+          needsByMaterialId[mat.id].total += qtdCost;
+          if (diffDays >= 0 && diffDays < 3) needsByMaterialId[mat.id].in3Days += qtdCost;
+          if (diffDays >= 0 && diffDays < 5) needsByMaterialId[mat.id].in5Days += qtdCost;
+          if (diffDays >= 0 && diffDays < 10) needsByMaterialId[mat.id].in10Days += qtdCost;
+        }
+      });
     });
 
     return needsByMaterialId;
-  }, [cardapio, receitas, materiais]);
+  }, [filteredMenus, materiais, gastosCatalogo]);
 
   const updateMaterial = (id: string, updates: Partial<Material>) => {
     setMateriais(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
@@ -428,7 +587,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
 
   const tabs = [
     { id: 'CADASTRO', label: 'Cadastro & Estoque', icon: Package },
-    { id: 'RECEITAS', label: 'Cadastro Refeição', icon: ChefHat },
+    { id: 'RECEITAS', label: 'Planejamento Semanal', icon: ChefHat },
     { id: 'CATALOGO', label: 'Catálogo', icon: BookOpen },
     { id: 'CARDAPIO', label: 'Cardápio / Simulação', icon: CalendarDays },
     { id: 'PREVISAO', label: 'Listas e Previsão', icon: ClipboardList },
@@ -716,51 +875,108 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
               <div>
                 <h2 className="text-lg font-black text-slate-800 tracking-tight uppercase">Simulador de Consumo</h2>
                 <p className="text-xs font-semibold text-slate-500">
-                  Planejamento do Cardápio. A necessidade é calculada baseando-se em: <span className="text-amber-600 font-bold bg-amber-50 px-1 rounded">(Porção) × (Qtd. Militares)</span>.
+                  Planejamento do Cardápio importado do <span className="text-rose-600 font-bold bg-rose-50 px-1 rounded">Planejamento Semanal</span>. A conversão usa os parâmetros do <span className="text-amber-600 font-bold bg-amber-50 px-1 rounded">Catálogo</span>.
                 </p>
               </div>
-              <button className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] tracking-wider uppercase px-4 py-2.5 rounded-xl transition-all shadow-md shadow-amber-600/20">
-                <Plus className="w-4 h-4" /> Adicionar Dia
-              </button>
             </div>
 
             <div className="space-y-4">
-              {cardapio.map(dia => {
-                const receita = receitas.find(r => r.id === dia.receitaId);
+              {filteredMenus.map((menu: any, index: number) => {
+                if (!menu.date) return null;
+                const paxForDay = menu.qtdMilitares || 60; // defaulting to 60 if not specified
+                const isFds = menu.weekday?.toLowerCase().includes('sáb') || menu.weekday?.toLowerCase().includes('dom');
+
+                // Extract all dishes
+                const itemsOfDay: string[] = [];
+                const addDishes = (dishes: string) => {
+                  if (!dishes || dishes === '-') return;
+                  dishes.split(',').forEach(dStr => {
+                    const trimmed = dStr.trim();
+                    if (trimmed) itemsOfDay.push(trimmed);
+                  });
+                };
+                if (menu.almoco) {
+                  if (menu.almoco.principal) itemsOfDay.push(menu.almoco.principal.trim());
+                  addDishes(menu.almoco.acompanhamentos);
+                  addDishes(menu.almoco.saladas);
+                  if (menu.almoco.sobremesa && menu.almoco.sobremesa !== '-') itemsOfDay.push(menu.almoco.sobremesa.trim());
+                }
+                if (menu.jantar) {
+                  if (menu.jantar.principal) itemsOfDay.push(menu.jantar.principal.trim());
+                  addDishes(menu.jantar.acompanhamentos);
+                  addDishes(menu.jantar.saladas);
+                  if (menu.jantar.ceia && menu.jantar.ceia !== '-') itemsOfDay.push(menu.jantar.ceia.trim());
+                }
+                
+                // Calculate simulation needed for these dishes
+                const simulacaoData: { nomeIngrediente: string; needed: number; und: string }[] = [];
+                itemsOfDay.forEach(itemName => {
+                   const regrasGasto = gastosCatalogo[itemName];
+                   if (regrasGasto) {
+                      regrasGasto.forEach(gasto => {
+                         const mat = materiais.find(m => m.nome === gasto.nome);
+                         if (mat) {
+                            const multiplier = isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana;
+                            let qtd = 0;
+                            if (gasto.metodologia === 'por_dia') qtd = multiplier;
+                            else if (gasto.metodologia === 'por_prato') qtd = multiplier * paxForDay;
+                            
+                            if (qtd > 0) {
+                               const existing = simulacaoData.find(s => s.nomeIngrediente === mat.nome);
+                               if (existing) {
+                                  existing.needed += qtd;
+                               } else {
+                                  simulacaoData.push({ nomeIngrediente: mat.nome, needed: qtd, und: mat.undMedida });
+                               }
+                            }
+                         }
+                      });
+                   }
+                });
+
+                // Calculate global daily fix costs as well for this day
+                const currentGastos = [
+                  ...(gastosCatalogo['Itens Alimentação'] || []),
+                  ...(gastosCatalogo['Itens Não Alimentares'] || [])
+                ];
+                currentGastos.forEach(gasto => {
+                   const mat = materiais.find(m => m.nome === gasto.nome);
+                   if (mat) {
+                      const multiplier = isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana;
+                      let qtd = 0;
+                      if (gasto.metodologia === 'por_dia') qtd = multiplier;
+                      else if (gasto.metodologia === 'por_prato') qtd = multiplier * paxForDay;
+                      if (qtd > 0) {
+                         const existing = simulacaoData.find(s => s.nomeIngrediente === mat.nome);
+                         if (existing) {
+                            existing.needed += qtd;
+                         } else {
+                            simulacaoData.push({ nomeIngrediente: mat.nome, needed: qtd, und: mat.undMedida });
+                         }
+                      }
+                   }
+                });
+
+                if (itemsOfDay.length === 0 && currentGastos.length === 0) return null;
+
                 return (
-                  <div key={dia.id} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm group">
+                  <div key={index} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm group">
                     <div className="bg-slate-50 px-5 py-3 border-b border-slate-100 flex flex-wrap gap-4 justify-between items-center">
                       <div className="flex gap-4 items-center">
                         <div className="flex flex-col">
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Data</span>
-                          <input type="date" value={dia.data} readOnly className="bg-transparent border-none p-0 focus:ring-0 text-sm font-black text-slate-800" />
-                        </div>
-                        <div className="w-px h-8 bg-slate-200"></div>
-                        <div className="flex flex-col">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Refeição</span>
-                          <span className="text-sm font-black text-amber-600">{dia.refeicao}</span>
+                          <span className="text-sm font-black text-slate-800">{menu.weekday} ({menu.date})</span>
                         </div>
                       </div>
                       
                       <div className="flex items-center gap-6">
-                         <div className="flex flex-col items-end">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Receita</span>
-                          <span className="text-sm font-black text-slate-800">{receita?.nome || 'Nenhuma'}</span>
+                        <div className="flex flex-col items-end">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pratos do Dia</span>
+                          <span className="text-sm font-black text-rose-600 line-clamp-1 max-w-sm">{itemsOfDay.join(', ')}</span>
                         </div>
                         <div className="flex flex-col items-end">
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Qtd Militares</span>
-                          <div className="flex items-center gap-2">
-                            <input 
-                              type="number" 
-                              value={dia.qtdMilitares} 
-                              onChange={e => {
-                                const val = parseInt(e.target.value) || 0;
-                                setCardapio(prev => prev.map(c => c.id === dia.id ? { ...c, qtdMilitares: val } : c));
-                              }}
-                              className="w-20 px-2 py-1 bg-white border border-slate-300 rounded font-black text-right focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-                            />
-                            <span className="text-xs font-bold text-slate-400">pax</span>
-                          </div>
+                          <span className="text-sm font-black text-slate-700">{paxForDay} pax</span>
                         </div>
                       </div>
                     </div>
@@ -769,16 +985,83 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                         <Calculator className="w-5 h-5 text-slate-400" />
                       </div>
                       <div className="flex-1">
-                        <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Simulação de Consumo para este prato</h4>
+                        <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Simulação Consolidada do Dia</h4>
                         <div className="flex flex-wrap gap-2 text-xs">
-                          {receita?.itens.map(item => {
-                            const mat = materiais.find(m => m.id === item.materialId);
+                          {simulacaoData.length === 0 ? (
+                            <span className="text-slate-400 italic font-semibold">Nenhum ingrediente mapeado para os pratos de hoje no Catálogo.</span>
+                          ) : (
+                            simulacaoData.map(item => (
+                              <div key={item.nomeIngrediente} className="flex items-center gap-1.5 bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-1">
+                                <span className="font-semibold text-slate-600">{item.nomeIngrediente}:</span>
+                                <span className="font-black font-mono text-slate-800">{item.needed.toFixed(2)} {item.und}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {(() => {
+                const uniqueDates = Array.from(new Set(filteredMenus.map((c: any) => c.date).filter(Boolean)));
+                const currentGastos = [
+                  ...(gastosCatalogo['Itens Alimentação'] || []),
+                  ...(gastosCatalogo['Itens Não Alimentares'] || [])
+                ];
+                if (currentGastos.length === 0 || uniqueDates.length === 0) return null;
+                
+                return (
+                  <div className="bg-amber-50 border border-amber-200 rounded-2xl overflow-hidden shadow-sm mt-6 p-5">
+                    <div className="flex gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                        <TrendingDown className="w-5 h-5 text-amber-600" />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-xs font-black uppercase tracking-widest text-amber-800 mb-2">Simulação de Gastos Diários (Fixos Globais)</h4>
+                        <p className="text-[10px] text-amber-600 font-bold mb-4 uppercase tracking-widest">
+                          {uniqueDates.length} dias identificados. Os valores abaixo refletem o total acumulado nesses dias com base na configuração do Catálogo para categorias de Gastos Diários.
+                        </p>
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          {currentGastos.map((gasto, idx) => {
+                            const mat = materiais.find(m => m.nome === gasto.nome);
                             if (!mat) return null;
-                            const needed = item.porcao * dia.qtdMilitares;
+                            
+                            let totalQtdCost = 0;
+
+                            uniqueDates.forEach(dateStr => {
+                              const parts = (dateStr as string).split('/');
+                              if (parts.length < 2) return;
+                              const d = parseInt(parts[0]);
+                              const mo = parseInt(parts[1]);
+                              const hoje = new Date();
+                              let year = hoje.getFullYear();
+                              if (hoje.getMonth() === 0 && mo === 12) year--;
+                              else if (hoje.getMonth() === 11 && mo === 1) year++;
+                              const cDate = new Date(year, mo - 1, d);
+                              cDate.setHours(0,0,0,0);
+                              
+                              const dayOfWeek = cDate.getDay();
+                              const isFds = dayOfWeek === 0 || dayOfWeek === 6;
+                              
+                              const findMenu = filteredMenus.find((m: any) => m.date === dateStr);
+                              const paxForDay = findMenu?.qtdMilitares || 60;
+                              const multiplier = isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana;
+                              
+                              if (gasto.metodologia === 'por_dia') {
+                                totalQtdCost += multiplier;
+                              } else if (gasto.metodologia === 'por_prato') {
+                                totalQtdCost += multiplier * paxForDay;
+                              }
+                            });
+
+                            if (totalQtdCost <= 0) return null;
+
                             return (
-                              <div key={item.materialId} className="flex items-center gap-1.5 bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-1">
-                                <span className="font-semibold text-slate-600">{mat.nome}:</span>
-                                <span className="font-black font-mono text-slate-800">{needed.toFixed(2)} {mat.undMedida}</span>
+                              <div key={idx} className="flex items-center gap-1.5 bg-white border border-amber-200/50 rounded-lg px-2.5 py-1">
+                                <span className="font-semibold text-amber-900">{mat.nome}:</span>
+                                <span className="font-black font-mono text-amber-600">{totalQtdCost.toFixed(2)} {mat.undMedida}</span>
                               </div>
                             )
                           })}
@@ -786,8 +1069,14 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                       </div>
                     </div>
                   </div>
-                )
-              })}
+                );
+              })()}
+
+              {filteredMenus.length === 0 && (
+                 <div className="p-8 text-center bg-slate-50 border border-slate-200 rounded-2xl">
+                    <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Nenhum cardápio importado do planejamento</p>
+                 </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -801,77 +1090,90 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                 </p>
               </div>
 
-              <div className="overflow-x-auto rounded-2xl border border-slate-200 mt-6 shadow-sm">
-              <table className="w-full text-left border-collapse min-w-[900px]">
-                <thead>
-                  <tr className="bg-slate-800 uppercase text-[10px] tracking-wider text-white">
-                    <th className="py-3 px-4 font-black">Material</th>
-                    <th className="py-3 px-4 font-black text-center">Unidade</th>
-                    <th className="py-3 px-4 font-black text-right">Estoque Atual</th>
-                    <th className="py-3 px-4 font-black text-right border-l border-slate-700 bg-slate-700/50">Prev. 3 Dias</th>
-                    <th className="py-3 px-4 font-black text-right border-l border-slate-700 bg-slate-700/30">Prev. 5 Dias</th>
-                    <th className="py-3 px-4 font-black text-right border-l border-slate-700 bg-slate-700/10">Total Planejado</th>
-                    <th className="py-3 px-4 font-black text-right bg-amber-600/20 text-amber-200">Saldo/Déficit</th>
-                  </tr>
-                </thead>
-                <tbody className="text-sm font-semibold text-slate-700 divide-y divide-slate-100">
-                  {[...materiais]
-                    .filter(m => calculoPrevisao[m.id]?.total > 0 || m.estoque < 5)
-                    .sort((a, b) => {
-                      if (a.favorito && !b.favorito) return -1;
-                      if (!a.favorito && b.favorito) return 1;
-                      return a.nome.localeCompare(b.nome);
-                    })
-                    .map(m => {
-                    const needs = calculoPrevisao[m.id];
-                    if (!needs) return null;
-                    const saldo = m.estoque - needs.total;
-                    const isDeficit = saldo < 0;
+              {['MERCADO', 'PROTEINA', 'SACOLAO', 'LIMPEZA'].map(cat => {
+              const catItems = [...materiais]
+                .filter(m => m.categoria === cat)
+                .filter(m => calculoPrevisao[m.id]?.total > 0 || m.estoque < 5 || m.favorito)
+                .sort((a, b) => {
+                  if (a.favorito && !b.favorito) return -1;
+                  if (!a.favorito && b.favorito) return 1;
+                  return a.nome.localeCompare(b.nome);
+                });
 
-                    return (
-                      <tr key={m.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="py-2.5 px-4 font-bold text-slate-800">
-                          <div className="flex items-center gap-2">
-                            {isDeficit && <AlertTriangle className="w-3.5 h-3.5 text-red-500" />}
-                            {m.nome}
-                            <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">({m.categoria})</span>
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-4 text-center">
-                          <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-500 text-xs font-bold">{m.undMedida}</span>
-                        </td>
-                        <td className="py-2.5 px-4 text-right font-mono font-black text-slate-600">
-                          {m.estoque.toFixed(2)}
-                        </td>
-                        <td className="py-2.5 px-4 text-right bg-slate-50 font-mono font-semibold text-slate-500 border-l border-slate-100">
-                          {needs.in3Days > 0 ? needs.in3Days.toFixed(2) : '-'}
-                        </td>
-                        <td className="py-2.5 px-4 text-right bg-slate-50 font-mono font-semibold text-slate-500 border-l border-slate-100">
-                          {needs.in5Days > 0 ? needs.in5Days.toFixed(2) : '-'}
-                        </td>
-                        <td className="py-2.5 px-4 text-right bg-slate-50 font-mono font-bold text-slate-800 border-l border-slate-100">
-                          {needs.total > 0 ? needs.total.toFixed(2) : '-'}
-                        </td>
-                        <td className="py-2.5 px-4 text-right font-mono font-black border-l border-slate-100">
-                           <span className={cn(
-                             "px-2.5 py-1 rounded-lg flex items-center justify-end gap-1.5 ml-auto w-max",
-                             isDeficit ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600"
-                           )}>
-                             {isDeficit ? <TrendingDown className="w-3.5 h-3.5" /> : null}
-                             {Math.abs(saldo).toFixed(2)} {m.undMedida} {isDeficit && 'em falta'}
-                           </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {materiais.filter(m => calculoPrevisao[m.id]?.total > 0 || m.estoque < 5).length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-400 font-bold uppercase text-xs">Nenhum consumo previsto.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+              if (catItems.length === 0) return null;
+
+              return (
+                <div key={cat} className="mb-6">
+                  <h3 className="font-black text-slate-700 uppercase tracking-widest text-xs mb-3 flex items-center gap-2">
+                    {cat}
+                    <span className="bg-slate-200 text-slate-500 text-[10px] px-2 py-0.5 rounded-full">{catItems.length}</span>
+                  </h3>
+                  <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
+                    <table className="w-full text-left border-collapse min-w-[900px]">
+                      <thead>
+                        <tr className="bg-slate-800 uppercase text-[10px] tracking-wider text-white">
+                          <th className="py-3 px-4 font-black">Material</th>
+                          <th className="py-3 px-4 font-black text-center">Unidade</th>
+                          <th className="py-3 px-4 font-black text-right">Estoque Atual</th>
+                          <th className="py-3 px-4 font-black text-right border-l border-slate-700 bg-slate-700/50">Prev. 3 Dias</th>
+                          <th className="py-3 px-4 font-black text-right border-l border-slate-700 bg-slate-700/30">Prev. 5 Dias</th>
+                          <th className="py-3 px-4 font-black text-right border-l border-slate-700 bg-slate-700/10">Total Planejado</th>
+                          <th className="py-3 px-4 font-black text-right bg-amber-600/20 text-amber-200">Saldo/Déficit</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-sm font-semibold text-slate-700 divide-y divide-slate-100">
+                        {catItems.map(m => {
+                          const needs = calculoPrevisao[m.id] || { in3Days: 0, in5Days: 0, in10Days: 0, total: 0 };
+                          const saldo = m.estoque - needs.total;
+                          const isDeficit = saldo < 0;
+
+                          return (
+                            <tr key={m.id} className="hover:bg-slate-50 transition-colors">
+                              <td className="py-2.5 px-4 font-bold text-slate-800">
+                                <div className="flex items-center gap-2">
+                                  {isDeficit && <AlertTriangle className="w-3.5 h-3.5 text-red-500" />}
+                                  {m.nome}
+                                  {m.favorito && <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 rounded uppercase font-bold tracking-widest">Fav</span>}
+                                </div>
+                              </td>
+                              <td className="py-2.5 px-4 text-center">
+                                <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-500 text-xs font-bold">{m.undMedida}</span>
+                              </td>
+                              <td className="py-2.5 px-4 text-right font-mono font-black text-slate-600">
+                                {m.estoque.toFixed(2)}
+                              </td>
+                              <td className="py-2.5 px-4 text-right bg-slate-50 font-mono font-semibold text-slate-500 border-l border-slate-100">
+                                {needs.in3Days > 0 ? needs.in3Days.toFixed(2) : '-'}
+                              </td>
+                              <td className="py-2.5 px-4 text-right bg-slate-50 font-mono font-semibold text-slate-500 border-l border-slate-100">
+                                {needs.in5Days > 0 ? needs.in5Days.toFixed(2) : '-'}
+                              </td>
+                              <td className="py-2.5 px-4 text-right bg-slate-50 font-mono font-bold text-slate-800 border-l border-slate-100">
+                                {needs.total > 0 ? needs.total.toFixed(2) : '-'}
+                              </td>
+                              <td className="py-2.5 px-4 text-right font-mono font-black border-l border-slate-100">
+                                 <span className={cn(
+                                   "px-2.5 py-1 rounded-lg flex items-center justify-end gap-1.5 ml-auto w-max",
+                                   isDeficit ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600"
+                                 )}>
+                                   {isDeficit ? <TrendingDown className="w-3.5 h-3.5" /> : null}
+                                   {Math.abs(saldo).toFixed(2)} {m.undMedida} {isDeficit && 'em falta'}
+                                 </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
+            {materiais.filter(m => calculoPrevisao[m.id]?.total > 0 || m.estoque < 5 || m.favorito).length === 0 && (
+              <div className="py-8 text-center bg-slate-50 rounded-2xl border border-slate-200 text-slate-400 font-bold uppercase text-xs">
+                Nenhum consumo previsto ou item em falta detectado.
+              </div>
+            )}
 
           </motion.div>
         )}
