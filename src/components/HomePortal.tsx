@@ -195,6 +195,7 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
   if (isEscalanteRaw) userGroups.push('ESCALANTE');
   if (isOfficerUser) userGroups.push('OFICIAIS');
   if (isExp) userGroups.push('EXP');
+  if (user.isRefeitorioAdmin) userGroups.push('REFEITORIO_ADMIN');
   
   if (['1', '2', '3', '4'].includes(alaCheck)) {
     userGroups.push('PRONTIDAO');
@@ -334,7 +335,7 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       description: 'Cardápio e Estoque',
       icon: ShoppingCart,
       color: 'bg-amber-600 shadow-amber-200',
-      defaultGroups: ['ADMIN', 'ESCALANTE', 'OFICIAIS']
+      defaultGroups: ['ADMIN', 'ESCALANTE', 'OFICIAIS', 'REFEITORIO_ADMIN']
     },
     {
       id: 'efetivo',
