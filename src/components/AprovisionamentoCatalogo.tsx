@@ -97,11 +97,11 @@ export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCa
     const itemGastos = gastos[itemName] || [];
     return (
       <div className="flex flex-col gap-4 p-5 bg-white rounded-2xl border border-slate-200 shadow-sm transition-all focus-within:border-amber-300">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="font-black text-slate-800 text-sm flex-1 uppercase tracking-tight">{itemName}</div>
           <button 
             onClick={() => handleAddIngrediente(itemName)}
-            className="text-[10px] font-black uppercase tracking-widest bg-amber-50 hover:bg-amber-100 text-amber-600 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors"
+            className="text-[10px] w-full sm:w-auto justify-center font-black uppercase tracking-widest bg-amber-50 hover:bg-amber-100 text-amber-600 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors shrink-0"
           >
             <Plus className="w-3.5 h-3.5" />
             Vincular Ingrediente
@@ -111,54 +111,55 @@ export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCa
         {itemGastos.length > 0 ? (
           <div className="space-y-3 mt-2">
             {itemGastos.map(gasto => (
-              <div key={gasto.id} className="flex flex-col sm:flex-row sm:items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+              <div key={gasto.id} className="flex flex-col lg:flex-row lg:items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
                 <select 
                   value={gasto.nome}
                   onChange={e => handleUpdateIngrediente(itemName, gasto.id, 'nome', e.target.value)}
-                  className="flex-1 bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-lg px-3 py-2.5 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
+                  className="flex-1 w-full bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-lg px-3 py-2.5 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
                 >
                   <option value="" disabled>Selecione um ingrediente...</option>
                   {materiais.map(mat => (
                     <option key={mat.id} value={mat.nome}>{mat.nome}</option>
                   ))}
                 </select>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 lg:shrink-0">
                   <select 
                     value={gasto.metodologia}
                     onChange={e => handleUpdateIngrediente(itemName, gasto.id, 'metodologia', e.target.value)}
-                    className="bg-white border border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider rounded-lg px-2 py-2.5 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
+                    className="w-full sm:w-auto bg-white border border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider rounded-lg px-3 py-2.5 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
                   >
                     <option value="por_dia">Kg / Dia</option>
                     <option value="por_prato">Kg / Prato</option>
                   </select>
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] font-black text-slate-400 w-14 text-right tracking-widest uppercase">Semana</span>
+                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
+                    <div className="flex items-center gap-2 flex-1 sm:flex-initial bg-white sm:bg-transparent rounded-lg border sm:border-0 border-slate-200 pr-1 pl-3 sm:p-0">
+                      <span className="text-[9px] font-black text-slate-400 flex-1 sm:w-14 sm:text-right tracking-widest uppercase">Semana</span>
                       <input 
                         type="number" 
                         value={gasto.quantidadeSemana || ''}
                         onChange={e => handleUpdateIngrediente(itemName, gasto.id, 'quantidadeSemana', parseFloat(e.target.value) || 0)}
                         placeholder="0.0"
-                        className="w-20 bg-white border border-slate-200 text-slate-800 font-black text-right text-sm rounded-lg px-2 py-1 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
+                        className="w-full sm:w-20 bg-white border-0 sm:border sm:border-slate-200 text-slate-800 font-black text-right text-sm rounded-lg px-2 py-1.5 outline-none focus:border-amber-400 sm:focus:ring-1 focus:ring-amber-400"
                       />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] font-black text-slate-400 w-14 text-right tracking-widest uppercase">FDS/Fer</span>
+                    <div className="flex items-center gap-2 flex-1 sm:flex-initial bg-white sm:bg-transparent rounded-lg border sm:border-0 border-slate-200 pr-1 pl-3 sm:p-0">
+                      <span className="text-[9px] font-black text-slate-400 flex-1 sm:w-14 sm:text-right tracking-widest uppercase">FDS/Fer</span>
                       <input 
                         type="number" 
                         value={gasto.quantidadeFDS || ''}
                         onChange={e => handleUpdateIngrediente(itemName, gasto.id, 'quantidadeFDS', parseFloat(e.target.value) || 0)}
                         placeholder="0.0"
-                        className="w-20 bg-white border border-slate-200 text-slate-800 font-black text-right text-sm rounded-lg px-2 py-1 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
+                        className="w-full sm:w-20 bg-white border-0 sm:border sm:border-slate-200 text-slate-800 font-black text-right text-sm rounded-lg px-2 py-1.5 outline-none focus:border-amber-400 sm:focus:ring-1 focus:ring-amber-400"
                       />
                     </div>
                   </div>
                   <button 
                     onClick={() => handleRemoveIngrediente(itemName, gasto.id)}
-                    className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
+                    className="w-full sm:w-auto py-2.5 px-3 sm:p-2.5 text-slate-400 hover:text-red-500 bg-white sm:bg-transparent hover:bg-red-50 rounded-lg transition-colors border border-slate-200 sm:border-transparent hover:border-red-100 flex items-center justify-center shrink-0 mt-2 sm:mt-0"
                     title="Remover Ingrediente"
                   >
                     <Trash2 className="w-4 h-4" />
+                    <span className="sm:hidden ml-2 text-xs font-bold uppercase tracking-widest text-red-500">Remover Ingrediente</span>
                   </button>
                 </div>
               </div>
