@@ -122,40 +122,40 @@ export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCa
                     <option key={mat.id} value={mat.nome}>{mat.nome}</option>
                   ))}
                 </select>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 lg:shrink-0">
+                <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-2 lg:shrink-0 w-full xl:w-auto">
                   <select 
                     value={gasto.metodologia}
                     onChange={e => handleUpdateIngrediente(itemName, gasto.id, 'metodologia', e.target.value)}
-                    className="w-full sm:w-auto bg-white border border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider rounded-lg px-3 py-2.5 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
+                    className="w-full sm:w-auto flex-1 bg-white border border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider rounded-lg px-3 py-2.5 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
                   >
                     <option value="por_dia">Kg / Dia</option>
                     <option value="por_prato">Kg / Prato</option>
                   </select>
-                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
-                    <div className="flex items-center gap-2 flex-1 sm:flex-initial bg-white sm:bg-transparent rounded-lg border sm:border-0 border-slate-200 pr-1 pl-3 sm:p-0">
-                      <span className="text-[9px] font-black text-slate-400 flex-1 sm:w-14 sm:text-right tracking-widest uppercase">Semana</span>
+                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto flex-1">
+                    <div className="flex items-center gap-2 flex-1 bg-white sm:bg-transparent rounded-lg border sm:border-0 border-slate-200 pr-1 pl-3 sm:p-0">
+                      <span className="text-[9px] font-black text-slate-400 whitespace-nowrap sm:w-14 sm:text-right tracking-widest uppercase">Semana</span>
                       <input 
                         type="number" 
                         value={gasto.quantidadeSemana || ''}
                         onChange={e => handleUpdateIngrediente(itemName, gasto.id, 'quantidadeSemana', parseFloat(e.target.value) || 0)}
                         placeholder="0.0"
-                        className="w-full sm:w-20 bg-white border-0 sm:border sm:border-slate-200 text-slate-800 font-black text-right text-sm rounded-lg px-2 py-1.5 outline-none focus:border-amber-400 sm:focus:ring-1 focus:ring-amber-400"
+                        className="w-full min-w-0 sm:w-20 bg-white border-0 sm:border sm:border-slate-200 text-slate-800 font-black text-right text-sm px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent rounded"
                       />
                     </div>
-                    <div className="flex items-center gap-2 flex-1 sm:flex-initial bg-white sm:bg-transparent rounded-lg border sm:border-0 border-slate-200 pr-1 pl-3 sm:p-0">
-                      <span className="text-[9px] font-black text-slate-400 flex-1 sm:w-14 sm:text-right tracking-widest uppercase">FDS/Fer</span>
+                    <div className="flex items-center gap-2 flex-1 bg-white sm:bg-transparent rounded-lg border sm:border-0 border-slate-200 pr-1 pl-3 sm:p-0">
+                      <span className="text-[9px] font-black text-slate-400 whitespace-nowrap sm:w-14 sm:text-right tracking-widest uppercase">FDS/Fer</span>
                       <input 
                         type="number" 
                         value={gasto.quantidadeFDS || ''}
                         onChange={e => handleUpdateIngrediente(itemName, gasto.id, 'quantidadeFDS', parseFloat(e.target.value) || 0)}
                         placeholder="0.0"
-                        className="w-full sm:w-20 bg-white border-0 sm:border sm:border-slate-200 text-slate-800 font-black text-right text-sm rounded-lg px-2 py-1.5 outline-none focus:border-amber-400 sm:focus:ring-1 focus:ring-amber-400"
+                        className="w-full min-w-0 sm:w-20 bg-white border-0 sm:border sm:border-slate-200 text-slate-800 font-black text-right text-sm px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent rounded"
                       />
                     </div>
                   </div>
                   <button 
                     onClick={() => handleRemoveIngrediente(itemName, gasto.id)}
-                    className="w-full sm:w-auto py-2.5 px-3 sm:p-2.5 text-slate-400 hover:text-red-500 bg-white sm:bg-transparent hover:bg-red-50 rounded-lg transition-colors border border-slate-200 sm:border-transparent hover:border-red-100 flex items-center justify-center shrink-0 mt-2 sm:mt-0"
+                    className="w-full sm:w-auto py-2.5 px-3 sm:p-2.5 text-slate-400 hover:text-red-500 bg-white sm:bg-transparent hover:bg-red-50 rounded-lg transition-colors border border-slate-200 sm:border-transparent hover:border-red-100 flex items-center justify-center shrink-0 mt-2 xl:mt-0"
                     title="Remover Ingrediente"
                   >
                     <Trash2 className="w-4 h-4" />

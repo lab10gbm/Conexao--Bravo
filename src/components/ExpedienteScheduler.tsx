@@ -4,9 +4,9 @@ import { ptBR } from 'date-fns/locale';
 import { UserProfile } from '../types';
 import { doc, onSnapshot, setDoc, query, collection, getDocs, deleteField } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { cn, formatMilitaryName } from '../lib/utils';
+import { cn, formatMilitaryName, getAlaForDate, getAlaLightColor, getAlaColor } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, Settings, CheckCircle2, User, AlertCircle, Save, CalendarRange, Table, ArrowUpDown, X, UserPlus, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, CheckCircle2, User, AlertCircle, Save, CalendarRange, Table, ArrowUpDown, X, UserPlus, Trash2, List, Columns } from 'lucide-react';
 import { useMilitars } from '../contexts/MilitarContext';
 
 interface ExpedienteSchedulerProps {
@@ -93,12 +93,48 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   });
   const [data, setData] = useState<ExpedienteData>({ requirements: {}, selections: {}, userNames: {}, sectors: {} });
   const [loading, setLoading] = useState(true);
-  const [expedienteUsers, setExpedienteUsers] = useState<UserProfile[]>([]);
-  const [isExpanded, setIsExpanded] = useState(forceExpanded || false);
-  const [adminConfigMode, setAdminConfigMode] = useState(false);
+  const expedienteUsers = useMemo(() => {
+    const usersList: UserProfile[] = [];
+    const addedRgs = new Set<string>();
+
+    militars.forEach(u => {
+      const rawObm = u.obm ? u.obm.trim() : '10º GBM'; // Treat empty as '10º GBM'
+      const obmMatch = rawObm === selectedObm;
+      if (!obmMatch) return;
+
+      const docId = u.uid || u.rg;
+      if (!docId) return;
+      const alaUpper = u.ala?.toString().toUpperCase() || '';
+      
+      const inData = data.requirements[docId] !== undefined || !!data.selections[docId] || data.userNames[docId] !== undefined;
+
+      if (alaUpper.includes('EXP') || alaUpper === 'E' || alaUpper === 'EXPEDIENTE' || inData) {
+        usersList.push({ ...u, uid: docId, rg: u.rg || docId, name: u.name || '' });
+        addedRgs.add(docId);
+      }
+    });
+
+    Object.keys(data.userNames || {}).forEach(rg => {
+       if (rg !== 'ESCALANTE_PREF' && !addedRgs.has(rg)) {
+           usersList.push({ uid: rg, rg, name: data.userNames[rg], rank: '', ala: 'EXP' });
+           addedRgs.add(rg);
+       }
+    });
+
+    return usersList.sort((a, b) => {
+      const numA = parseInt(String(a.rg || '0').replace(/\D/g, ''), 10);
+      const numB = parseInt(String(b.rg || '0').replace(/\D/g, ''), 10);
+      if (!isNaN(numA) && !isNaN(numB) && numA !== 0 && numB !== 0) {
+          return numA - numB;
+      }
+      return (a.name || '').localeCompare(b.name || '');
+    });
+  }, [militars, selectedObm, data]);
   const [adminTargetRg, setAdminTargetRg] = useState<string | null>(null);
   const [addMemberRg, setAddMemberRg] = useState('');
-  const [viewMode, setViewMode] = useState<'calendar' | 'table' | 'necessidades'>('calendar');
+  const [isExpanded, setIsExpanded] = useState(forceExpanded || false);
+  const [adminConfigMode, setAdminConfigMode] = useState(false);
+  const [viewMode, setViewMode] = useState<'calendar' | 'table' | 'lista' | 'escala_sv' | 'necessidades'>('calendar');
   const [transposeTable, setTransposeTable] = useState(false);
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [confirmLock, setConfirmLock] = useState(false);
@@ -172,25 +208,6 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
 
     return () => { unsubMonth(); unsubGlobal(); };
   }, [monthKey, selectedObm]);
-
-  useEffect(() => {
-    const users: UserProfile[] = [];
-    militars.forEach(u => {
-      const rawObm = u.obm ? u.obm.trim() : '10º GBM'; // Treat empty as '10º GBM'
-      const obmMatch = rawObm === selectedObm;
-      if (!obmMatch) return;
-
-      const docId = u.uid || u.rg;
-      const alaUpper = u.ala?.toString().toUpperCase() || '';
-      if (alaUpper.includes('EXP') || alaUpper === 'E' || alaUpper === 'EXPEDIENTE') {
-        users.push({ ...u, uid: docId || '', rg: u.rg || docId || '', name: u.name || '' });
-      }
-    });
-
-    setExpedienteUsers(users.sort((a, b) => {
-      return (a.name || '').localeCompare(b.name || '');
-    }));
-  }, [selectedObm, militars]);
 
   const handleAddToExpediente = async () => {
       if (!addMemberRg) return;
@@ -438,6 +455,24 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                   )}
                               >
                                   <Table className="w-3 h-3" /> <span className="hidden sm:inline">Tabela</span>
+                              </button>
+                              <button
+                                  onClick={() => setViewMode('lista')}
+                                  className={cn(
+                                      "px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1",
+                                      viewMode === 'lista' ? "bg-white text-indigo-700 shadow-sm" : "text-transparent text-slate-500 hover:text-slate-700"
+                                  )}
+                              >
+                                  <List className="w-3 h-3" /> <span className="hidden sm:inline">Lista</span>
+                              </button>
+                              <button
+                                  onClick={() => setViewMode('escala_sv')}
+                                  className={cn(
+                                      "px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1",
+                                      viewMode === 'escala_sv' ? "bg-white text-indigo-700 shadow-sm" : "text-transparent text-slate-500 hover:text-slate-700"
+                                  )}
+                              >
+                                  <Columns className="w-3 h-3" /> <span className="hidden sm:inline">Escala SV</span>
                               </button>
                               {(isAdmin || user.isEscalante) && (
                                   <button
@@ -905,6 +940,93 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                     </table>
                     )}
                 </div>
+           ) : viewMode === 'lista' ? (
+                <div className="bg-white rounded-xl border-2 border-slate-200 shadow-sm p-6 overflow-y-auto font-mono text-sm text-slate-800">
+                    <div className="flex flex-col mb-8">
+                        {currentMonthDays.map(day => {
+                            const dayStr = format(day, 'yyyy-MM-dd');
+                            const dayNum = format(day, 'dd');
+                            const selectedUsers = expedienteUsers
+                                .filter(u => u.rg !== 'ESCALANTE_PREF' && data.selections[u.rg || u.uid]?.includes(dayStr))
+                                .map(u => formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name))
+                                .join(' / ');
+                                
+                            return (
+                                <div key={dayStr} className="flex min-h-[1.5rem]">
+                                    <span className="w-8 shrink-0">{dayNum}-</span>
+                                    <span>{selectedUsers}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    
+                    <div className="flex flex-col pt-6 border-t font-semibold border-slate-200 border-dashed">
+                        {expedienteUsers.filter(u => u.rg !== 'ESCALANTE_PREF').map(u => {
+                            const rg = u.rg || u.uid;
+                            const count = data.selections[rg]?.length || 0;
+                            const req = data.requirements[rg] || 0;
+                            const isDTS = req === 0 && count === 0;
+                            const name = formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name);
+                            const suffix = isDTS ? "DTS" : `${count} serv.`;
+                            return (
+                                <div key={rg} className="flex">
+                                    <span>{name} - {suffix}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+           ) : viewMode === 'escala_sv' ? (
+                <div className="flex flex-col gap-8 w-full">
+                    {Array.from({ length: Math.ceil(expedienteUsers.filter(u => u.rg !== 'ESCALANTE_PREF').length / 7) }).map((_, tableIndex) => {
+                        let tableUsers = expedienteUsers.filter(u => u.rg !== 'ESCALANTE_PREF').slice(tableIndex * 7, (tableIndex + 7));
+                        const paddedUsers = [...tableUsers];
+                        while(paddedUsers.length < 7) {
+                            paddedUsers.push(null as any);
+                        }
+                        return (
+                           <div key={tableIndex} className="bg-white rounded-xl border-2 border-slate-200 shadow-sm overflow-x-auto custom-scrollbar">
+                             <table className="w-full text-left border-collapse min-w-[max-content] table-fixed">
+                               <thead>
+                                  <tr className="bg-slate-100 border-b-2 border-slate-300">
+                                      <th className="py-2 px-3 border-r-2 border-slate-200 text-[10px] font-black uppercase text-center text-slate-500 w-48 bg-slate-200/50">
+                                          DATA
+                                      </th>
+                                      {paddedUsers.map((u, i) => (
+                                          <th key={u ? (u.rg || u.uid) : `empty-${i}`} className="py-2 px-3 border-r-2 border-slate-200 text-[10px] font-black uppercase text-center text-slate-700 bg-slate-100 min-w-[120px] w-full">
+                                              {u ? formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name) : ''}
+                                          </th>
+                                      ))}
+                                  </tr>
+                               </thead>
+                               <tbody>
+                                  {currentMonthDays.map((day, idx) => {
+                                      const dayStr = format(day, 'yyyy-MM-dd');
+                                      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                                      return (
+                                          <tr key={dayStr} className={cn("border-b border-slate-200", isWeekend ? "bg-amber-100/40" : "bg-white")}>
+                                              <td className={cn("py-1.5 px-3 border-r-2 border-slate-200 text-[11px] font-bold whitespace-nowrap text-center", isWeekend ? "text-amber-900 border-amber-300/50" : "text-slate-700")}>
+                                                  {format(day, "EEEE, d 'de' MMMM", { locale: ptBR })}
+                                              </td>
+                                              {paddedUsers.map((u, i) => {
+                                                  const isSelected = u && data.selections[u.rg || u.uid]?.includes(dayStr);
+                                                  return (
+                                                      <td key={u ? (u.rg || u.uid) : `empty-${i}`} className={cn("py-1.5 px-3 border-r-2 border-slate-200 text-center text-[11px] font-black", isWeekend && "border-amber-300/50")}>
+                                                          {isSelected ? (
+                                                              <span className="text-slate-900">SV.</span>
+                                                          ) : null}
+                                                      </td>
+                                                  );
+                                              })}
+                                          </tr>
+                                      );
+                                  })}
+                               </tbody>
+                             </table>
+                           </div>
+                        );
+                    })}
+                </div>
            ) : viewMode === 'necessidades' && (isAdmin || user.isEscalante) ? (
                 <div className="bg-slate-50 flex flex-col gap-6 w-full">
                     <div className="bg-white rounded-xl border-2 border-slate-200 shadow-sm p-4 sm:p-6">
@@ -1075,23 +1197,27 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                return null;
                           }).filter(Boolean) as string[];
                           
+                          const alaOfDay = getAlaForDate(day);
+                          const alaLightColorClass = getAlaLightColor(alaOfDay);
+                          const alaPointColorClass = getAlaColor(alaOfDay);
+                          
                           return (
                             <motion.div 
                               key={day.toISOString()}
                               whileHover={!outsideMonth ? { scale: 1.02 } : {}}
                               onClick={() => !outsideMonth && handleToggleDay(day)}
                               className={cn(
-                                "relative flex flex-col p-3 sm:p-2 rounded-xl sm:rounded-lg transition-all sm:min-h-[110px]",
+                                "relative flex flex-col p-3 sm:p-2 border-2 rounded-xl sm:rounded-lg transition-all sm:min-h-[110px]",
                                 outsideMonth 
                                   ? "hidden sm:flex opacity-30 bg-slate-50 border-transparent cursor-default pointer-events-none text-slate-400" 
-                                  : isPreferredDate && !isTargetUserSelected ? "border-2 border-red-200 cursor-pointer bg-red-50 hover:border-red-300 shadow-sm sm:shadow-none"
-                                  : "border-2 border-slate-100 hover:border-indigo-300 cursor-pointer bg-white shadow-sm sm:shadow-none",
-                                isToday && !outsideMonth && "ring-2 ring-indigo-500 ring-offset-2",
-                                isTargetUserSelected && !outsideMonth && "bg-indigo-50 border-indigo-500 shadow-md sm:shadow-sm"
+                                  : isPreferredDate && !isTargetUserSelected ? "border-red-200 cursor-pointer bg-red-50 hover:border-red-300 shadow-sm sm:shadow-none"
+                                  : isTargetUserSelected ? "bg-indigo-50 border-indigo-500 shadow-md sm:shadow-sm" 
+                                  : cn(alaLightColorClass, "cursor-pointer hover:border-indigo-300 shadow-sm sm:shadow-none"),
+                                isToday && !outsideMonth && "ring-2 ring-indigo-500 ring-offset-2"
                               )}
                             >
                                <div className="flex justify-between items-center sm:items-start mb-2 sm:mb-1.5">
-                                   <div className="flex items-center gap-2">
+                                   <div className="flex items-center gap-2 border-b-0 pb-0">
                                        <span className={cn(
                                           "text-base sm:text-sm font-black text-slate-700",
                                           isTargetUserSelected && "text-indigo-700",
@@ -1099,6 +1225,9 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                        )}>
                                           {format(day, 'd')}
                                        </span>
+                                       {!outsideMonth && (
+                                           <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", alaPointColorClass)} title={`Ala ${alaOfDay}`} />
+                                       )}
                                        <span className="text-[11px] font-black text-slate-400 sm:hidden uppercase tracking-widest">
                                           {format(day, 'EEEE', {locale: ptBR}).split('-')[0]}
                                        </span>
