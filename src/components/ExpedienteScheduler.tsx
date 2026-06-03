@@ -34,6 +34,8 @@ interface ExpedienteData {
   locked?: Record<string, boolean>;
   swapRequests?: SwapRequest[];
   preferencesDetails?: Record<string, Record<string, number>>;
+  expedienteDays?: Record<string, string[]>;
+  expQuotas?: Record<string, number>;
 }
 
 export const FUNCOES_ESCALA = [
@@ -93,7 +95,9 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   });
   const [data, setData] = useState<ExpedienteData>({ requirements: {}, selections: {}, userNames: {}, sectors: {} });
   const [loading, setLoading] = useState(true);
-  const expedienteUsers = useMemo(() => {
+  const [expedienteUsers, setExpedienteUsers] = useState<UserProfile[]>([]);
+  
+  useEffect(() => {
     const usersList: UserProfile[] = [];
     const addedRgs = new Set<string>();
 
@@ -102,15 +106,14 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       const obmMatch = rawObm === selectedObm;
       if (!obmMatch) return;
 
-      const docId = u.uid || u.rg;
-      if (!docId) return;
+      const docId = u.uid || u.rg || '';
       const alaUpper = u.ala?.toString().toUpperCase() || '';
       
-      const inData = data.requirements[docId] !== undefined || !!data.selections[docId] || data.userNames[docId] !== undefined;
+      const inData = docId ? (data.requirements[docId] !== undefined || !!data.selections[docId] || data.userNames[docId] !== undefined) : false;
 
       if (alaUpper.includes('EXP') || alaUpper === 'E' || alaUpper === 'EXPEDIENTE' || inData) {
         usersList.push({ ...u, uid: docId, rg: u.rg || docId, name: u.name || '' });
-        addedRgs.add(docId);
+        if (docId) addedRgs.add(docId);
       }
     });
 
@@ -121,15 +124,23 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
        }
     });
 
-    return usersList.sort((a, b) => {
+    setExpedienteUsers(usersList.sort((a, b) => {
       const numA = parseInt(String(a.rg || '0').replace(/\D/g, ''), 10);
       const numB = parseInt(String(b.rg || '0').replace(/\D/g, ''), 10);
-      if (!isNaN(numA) && !isNaN(numB) && numA !== 0 && numB !== 0) {
+      const validA = !isNaN(numA) && numA !== 0;
+      const validB = !isNaN(numB) && numB !== 0;
+
+      if (validA && validB) {
           return numA - numB;
+      } else if (validA && !validB) {
+          return -1;
+      } else if (!validA && validB) {
+          return 1;
       }
       return (a.name || '').localeCompare(b.name || '');
-    });
+    }));
   }, [militars, selectedObm, data]);
+
   const [adminTargetRg, setAdminTargetRg] = useState<string | null>(null);
   const [addMemberRg, setAddMemberRg] = useState('');
   const [isExpanded, setIsExpanded] = useState(forceExpanded || false);
@@ -171,8 +182,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
 
   useEffect(() => {
     setLoading(true);
-    let monthData: any = { selections: {} };
-    let globalData: any = { requirements: {}, userNames: {}, sectors: {} };
+    let monthData: any = { selections: {}, expedienteDays: {} };
+    let globalData: any = { requirements: {}, userNames: {}, sectors: {}, expQuotas: {} };
 
     const mergeData = () => {
       setData({
@@ -181,6 +192,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
         locked: monthData.locked || {},
         swapRequests: monthData.swapRequests || [],
         preferencesDetails: monthData.preferencesDetails || {},
+        expedienteDays: monthData.expedienteDays || {},
+        expQuotas: globalData.expQuotas || {},
         userNames: globalData.userNames || {},
         sectors: globalData.sectors || {},
         regimes: globalData.regimes || {}
@@ -251,10 +264,25 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
               body: JSON.stringify({ rg: rgToUpdate, data: { ala: alaValue } })
           });
           updateMilitarLocal(rgToUpdate, { ala: alaValue });
+
+          const globalUpdates: any = {
+              requirements: { [rgToUpdate]: deleteField() },
+              userNames: { [rgToUpdate]: deleteField() },
+              sectors: { [rgToUpdate]: deleteField() },
+              regimes: { [rgToUpdate]: deleteField() }
+          };
+          await setDoc(globalDocRef, globalUpdates, { merge: true });
+          
+          const monthUpdates: any = {
+              selections: { [rgToUpdate]: deleteField() },
+              locked: { [rgToUpdate]: deleteField() }
+          };
+          await setDoc(monthDocRef, monthUpdates, { merge: true });
+
           setRemoveMemberRg(null);
       } catch (e) {
           console.error(e);
-          alert('Erro ao remover militar.');
+          alert('Erro ao remover militar e limpar dados do expediente.');
       }
   };
 
@@ -286,6 +314,115 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       }
   };
 
+  const updateExpQuota = async (rg: string, quota: number) => {
+      const newQuotas = { ...data.expQuotas, [rg]: quota };
+      setData(prev => ({ ...prev, expQuotas: newQuotas }));
+      await setDoc(globalDocRef, { expQuotas: newQuotas }, { merge: true });
+  };
+
+  const getExpQuota = (rg: string) => {
+      if (data.expQuotas && data.expQuotas[rg] !== undefined) {
+          return data.expQuotas[rg];
+      }
+      const regime = data.regimes?.[rg] || '';
+      const match = regime.match(/(\d+)\s*Exped/i);
+      return match ? parseInt(match[1], 10) : 0;
+  };
+
+  const handleCycleCellStatus = async (rg: string, dayStr: string) => {
+      const userSels = data.selections[rg] || [];
+      const userExp = data.expedienteDays?.[rg] || [];
+      const isSel = userSels.includes(dayStr);
+      const isExp = userExp.includes(dayStr);
+
+      let newSels = [...userSels];
+      let newExp = [...userExp];
+
+      if (!isSel && !isExp) {
+          // Empty -> SV
+          newSels.push(dayStr);
+      } else if (isSel) {
+          // SV -> EXP
+          newSels = newSels.filter(d => d !== dayStr);
+          newExp.push(dayStr);
+      } else if (isExp) {
+          // EXP -> Empty
+          newExp = newExp.filter(d => d !== dayStr);
+      }
+
+      setData(prev => ({
+          ...prev,
+          selections: { ...prev.selections, [rg]: newSels },
+          expedienteDays: { ...(prev.expedienteDays || {}), [rg]: newExp }
+      }));
+
+      await setDoc(monthDocRef, {
+          selections: { [rg]: newSels },
+          expedienteDays: { [rg]: newExp }
+      }, { merge: true });
+  };
+
+  const handleAutoFillExp = async () => {
+      // confirm e alert removidos porque o iframe bloqueia modals nativos.
+      
+      const newExpDays: Record<string, string[]> = {};
+      const svSelections = data.selections || {};
+      
+      let totalAssigned = 0;
+      let logs = [];
+
+      expedienteUsers.forEach(u => {
+          const rg = u.rg || u.uid;
+          if (!rg || rg === 'ESCALANTE_PREF') return;
+          
+          const quota = getExpQuota(rg);
+          logs.push(`RG ${rg}: Cota ${quota}`);
+          if (quota <= 0) return;
+
+          const userExpDays: string[] = [];
+          
+          const firstDay = startOfMonth(currentMonth);
+          const lastDay = endOfMonth(currentMonth);
+          const days = eachDayOfInterval({ start: firstDay, end: lastDay });
+          
+          const weeks = new Map<string, Date[]>();
+          days.forEach(d => {
+             const weekNum = format(startOfWeek(d, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+             if (!weeks.has(weekNum)) weeks.set(weekNum, []);
+             
+             if (d.getDay() !== 0 && d.getDay() !== 6) {
+                 weeks.get(weekNum)!.push(d);
+             }
+          });
+
+          weeks.forEach((weekdays) => {
+              let assignedThisWeek = 0;
+              const sortedWeekdays = [...weekdays].sort(() => Math.random() - 0.5);
+              
+              for (const d of sortedWeekdays) {
+                  if (assignedThisWeek >= quota) break;
+                  
+                  const dayStr = format(d, 'yyyy-MM-dd');
+                  if (!svSelections[rg]?.includes(dayStr)) {
+                      userExpDays.push(dayStr);
+                      assignedThisWeek++;
+                  }
+              }
+          });
+          
+          if (userExpDays.length > 0) {
+              newExpDays[rg] = userExpDays;
+              totalAssigned += userExpDays.length;
+          }
+      });
+
+      console.log(logs.join('\n'));
+      console.log("newExpDays", newExpDays);
+
+      setData(prev => ({ ...prev, expedienteDays: newExpDays }));
+      await setDoc(monthDocRef, { expedienteDays: newExpDays }, { merge: true });
+  };
+
   const handleUpdatePrefDetail = async (dayStr: string, func: string, qty: number) => {
       if (!func) return;
       const dayData = { ...(data.preferencesDetails?.[dayStr] || {}) };
@@ -312,6 +449,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
 
     const dayStr = format(day, 'yyyy-MM-dd');
     let userSelections = data.selections[rgSelection] || [];
+    let userExpDays = data.expedienteDays?.[rgSelection] || [];
+    let isRemovingExp = false;
     
     if (rgSelection === 'ESCALANTE_PREF') {
         if (!isAdmin && !user.isEscalante) {
@@ -338,21 +477,38 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
               return;
            }
            userSelections = [...userSelections, dayStr];
+           
+           if (userExpDays.includes(dayStr)) {
+               userExpDays = userExpDays.filter(d => d !== dayStr);
+               isRemovingExp = true;
+           }
         }
     }
 
-    const newMonthData = {
+    const newMonthData: any = {
       selections: {
         [rgSelection]: userSelections
       }
     };
+    
+    if (isRemovingExp) {
+        newMonthData.expedienteDays = {
+            [rgSelection]: userExpDays
+        };
+    }
 
     setData(prev => ({
       ...prev,
       selections: {
         ...prev.selections,
         [rgSelection]: userSelections
-      }
+      },
+      ...isRemovingExp ? {
+          expedienteDays: {
+              ...(prev.expedienteDays || {}),
+              [rgSelection]: userExpDays
+          }
+      } : {}
     })); // optimistic
     await setDoc(monthDocRef, newMonthData, { merge: true });
   };
@@ -497,6 +653,15 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                   title="Inverter Tabela"
                               >
                                   <ArrowUpDown className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Inverter</span>
+                              </button>
+                          )}
+                          {(viewMode === 'escala_sv' || viewMode === 'table') && (isAdmin || user.isEscalante) && (
+                              <button
+                                  onClick={handleAutoFillExp}
+                                  className="ml-2 px-3 py-1.5 rounded-lg border-2 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5 bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
+                                  title="Preencher Dias de Expediente Automaticamente"
+                              >
+                                  <CalendarRange className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Auto EXP</span>
                               </button>
                           )}
                       </div>
@@ -768,6 +933,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                  const isEscalantePref = rg === 'ESCALANTE_PREF';
                                                  const userSels = data.selections[rg] || [];
                                                  const isSelected = userSels.includes(dayStr);
+                                                 const isExp = data.expedienteDays?.[rg]?.includes(dayStr);
                                                  const isTargetUser = activeRg === rg;
                                                  const canEdit = isAdmin || isTargetUser || (isEscalantePref && (isAdmin || user.isEscalante));
                                                  
@@ -778,7 +944,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                          key={`${dayStr}-${rg}`} 
                                                          onClick={() => {
                                                              if (canEdit) {
-                                                                 handleTargetedToggle(rg, day);
+                                                                 handleCycleCellStatus(rg, dayStr);
                                                              }
                                                          }}
                                                          className={cn(
@@ -799,6 +965,14 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                                      {isEscalantePref ? '★' : 'X'}
                                                                  </span>
                                                              </div>
+                                                         )}
+                                                         {!isSelected && isExp && (
+                                                            <div className={cn(
+                                                                "mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center shadow-sm",
+                                                                "bg-indigo-100 text-indigo-700 border border-indigo-200"
+                                                            )}>
+                                                                <span className="text-[7px] font-black leading-none pt-[1px]">EXP</span>
+                                                            </div>
                                                          )}
                                                          {!isSelected && isSwapDay && (
                                                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-80">
@@ -887,6 +1061,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                          {currentMonthDays.map(day => {
                                              const dayStr = format(day, 'yyyy-MM-dd');
                                              const isSelected = userSels.includes(dayStr);
+                                             const isExp = data.expedienteDays?.[rg]?.includes(dayStr);
                                              const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                                              const isPreferredDate = !isEscalantePref && (data.selections['ESCALANTE_PREF'] || []).includes(dayStr);
                                              const isSwapDay = !isEscalantePref && data.swapRequests?.some(r => r.rg === rg && r.status === 'pending' && (r.fromDay === dayStr || r.toDay === dayStr));
@@ -896,7 +1071,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                      key={dayStr} 
                                                      onClick={() => {
                                                          if (canEdit) {
-                                                             handleTargetedToggle(rg, day);
+                                                             handleCycleCellStatus(rg, dayStr);
                                                          }
                                                      }}
                                                      className={cn(
@@ -918,6 +1093,14 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                             <span className={cn("text-[10px] font-black leading-none pt-[1px]", isEscalantePref && "text-white")}>
                                                                 {isEscalantePref ? '★' : 'X'}
                                                             </span>
+                                                        </div>
+                                                     )}
+                                                     {!isSelected && data.expedienteDays?.[rg]?.includes(dayStr) && (
+                                                        <div className={cn(
+                                                            "mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center shadow-sm",
+                                                            "bg-indigo-100 text-indigo-700 border border-indigo-200"
+                                                        )}>
+                                                            <span className="text-[7px] font-black leading-none pt-[1px]">EXP</span>
                                                         </div>
                                                      )}
                                                      {!isSelected && isSwapDay && (
@@ -979,25 +1162,44 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
            ) : viewMode === 'escala_sv' ? (
                 <div className="flex flex-col gap-8 w-full">
                     {Array.from({ length: Math.ceil(expedienteUsers.filter(u => u.rg !== 'ESCALANTE_PREF').length / 7) }).map((_, tableIndex) => {
-                        let tableUsers = expedienteUsers.filter(u => u.rg !== 'ESCALANTE_PREF').slice(tableIndex * 7, (tableIndex + 7));
+                        let tableUsers = expedienteUsers.filter(u => u.rg !== 'ESCALANTE_PREF').slice(tableIndex * 7, tableIndex * 7 + 7);
                         const paddedUsers = [...tableUsers];
                         while(paddedUsers.length < 7) {
                             paddedUsers.push(null as any);
                         }
                         return (
-                           <div key={tableIndex} className="bg-white rounded-xl border-2 border-slate-200 shadow-sm overflow-x-auto custom-scrollbar">
-                             <table className="w-full text-left border-collapse min-w-[max-content] table-fixed">
-                               <thead>
-                                  <tr className="bg-slate-100 border-b-2 border-slate-300">
-                                      <th className="py-2 px-3 border-r-2 border-slate-200 text-[10px] font-black uppercase text-center text-slate-500 w-48 bg-slate-200/50">
-                                          DATA
-                                      </th>
-                                      {paddedUsers.map((u, i) => (
-                                          <th key={u ? (u.rg || u.uid) : `empty-${i}`} className="py-2 px-3 border-r-2 border-slate-200 text-[10px] font-black uppercase text-center text-slate-700 bg-slate-100 min-w-[120px] w-full">
-                                              {u ? formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name) : ''}
-                                          </th>
-                                      ))}
-                                  </tr>
+                            <div key={tableIndex} className="bg-white rounded-xl border-2 border-slate-200 shadow-sm overflow-x-auto custom-scrollbar">
+                              <table className="w-full text-left border-collapse table-fixed min-w-[700px]">
+                                <thead>
+                                   <tr className="bg-slate-100 border-b-2 border-slate-300">
+                                       <th className="py-2 px-3 border-r-2 border-slate-200 text-[10px] font-black uppercase text-center text-slate-500 w-[16%] bg-slate-200/50">
+                                           DATA
+                                       </th>
+                                       {paddedUsers.map((u, i) => (
+                                           <th key={u ? (u.rg || u.uid) : `empty-${i}`} className="py-2 px-2 border-r-2 border-slate-200 text-[9px] sm:text-[10px] font-black uppercase text-center text-slate-700 bg-slate-100 w-[12%]">
+                                               {u ? (
+                                                  <div className="flex flex-col items-center gap-1">
+                                                      <span>{formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name)}</span>
+                                                      {(isAdmin || user.isEscalante) && (
+                                                          <div className="flex items-center gap-1 justify-center mt-0.5" onClick={e => e.stopPropagation()}>
+                                                              <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">EXP/Sem:</span>
+                                                              <input 
+                                                                type="number" 
+                                                                min="0" 
+                                                                max="7"
+                                                                value={data.expQuotas?.[u.rg || u.uid] !== undefined ? data.expQuotas[u.rg || u.uid] : getExpQuota(u.rg || u.uid)}
+                                                                onChange={(e) => updateExpQuota(u.rg || u.uid, parseInt(e.target.value) || 0)}
+                                                                placeholder="0"
+                                                                className={cn("w-8 h-4 text-[9px] font-black text-center border-b-2 bg-transparent outline-none focus:border-indigo-500", data.expQuotas?.[u.rg || u.uid] !== undefined ? "border-indigo-400 text-indigo-700" : "border-slate-300 text-slate-500")}
+                                                                title={data.expQuotas?.[u.rg || u.uid] !== undefined ? "Cota manual (modificada)" : "Cota do Regime (automática)"}
+                                                              />
+                                                          </div>
+                                                      )}
+                                                  </div>
+                                               ) : ''}
+                                           </th>
+                                       ))}
+                                   </tr>
                                </thead>
                                <tbody>
                                   {currentMonthDays.map((day, idx) => {
@@ -1010,11 +1212,20 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                               </td>
                                               {paddedUsers.map((u, i) => {
                                                   const isSelected = u && data.selections[u.rg || u.uid]?.includes(dayStr);
+                                                  const isExp = u && data.expedienteDays?.[u.rg || u.uid]?.includes(dayStr);
+                                                  const canClick = u && (isAdmin || user.isEscalante);
                                                   return (
-                                                      <td key={u ? (u.rg || u.uid) : `empty-${i}`} className={cn("py-1.5 px-3 border-r-2 border-slate-200 text-center text-[11px] font-black", isWeekend && "border-amber-300/50")}>
-                                                          {isSelected ? (
-                                                              <span className="text-slate-900">SV.</span>
-                                                          ) : null}
+                                                      <td 
+                                                          key={u ? (u.rg || u.uid) : `empty-${i}`} 
+                                                          onClick={() => {
+                                                              if (canClick && u) {
+                                                                  handleCycleCellStatus(u.rg || u.uid, dayStr);
+                                                              }
+                                                          }}
+                                                          className={cn("py-1.5 px-3 border-r-2 border-slate-200 text-center text-[11px] font-black transition-colors", isWeekend && "border-amber-300/50", canClick && "cursor-pointer hover:bg-slate-100")}
+                                                      >
+                                                          {isSelected && <span className="text-slate-900 mx-0.5">SV.</span>}
+                                                          {isExp && <span className="text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded mx-0.5 border border-indigo-200">EXP.</span>}
                                                       </td>
                                                   );
                                               })}
@@ -1196,6 +1407,14 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                }
                                return null;
                           }).filter(Boolean) as string[];
+
+                          const expWorkersOnThisDay = Object.entries(data.expedienteDays || {}).filter(([rg, sels]: [string, any]) => rg !== 'ESCALANTE_PREF' && sels.includes(dayStr)).map(([rg, _]) => {
+                               const found = expedienteUsers.find(u => u.rg === rg);
+                               if (found) {
+                                  return found.rank ? `${found.rank} ${found.warName || found.name.split(' ')[0]}` : found.name;
+                               }
+                               return null;
+                          }).filter(Boolean) as string[];
                           
                           const alaOfDay = getAlaForDate(day);
                           const alaLightColorClass = getAlaLightColor(alaOfDay);
@@ -1242,9 +1461,9 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                {!outsideMonth && (
                                   <div className="flex flex-col gap-2 sm:gap-1.5 mt-1 sm:mt-auto">
                                       {((data.selections['ESCALANTE_PREF'] || []).includes(dayStr)) && Object.entries(data.preferencesDetails?.[dayStr] || {}).length > 0 && (
-                                          <div className="flex flex-row sm:flex-col flex-wrap gap-1.5 sm:gap-1">
+                                          <div className="flex flex-row sm:flex-col flex-wrap gap-1.5 sm:gap-1 w-full min-w-0 overflow-hidden">
                                               {Object.entries(data.preferencesDetails?.[dayStr] || {}).map(([func, qt]) => (
-                                                 <span key={func} className="text-[10px] sm:text-[9px] font-bold bg-red-100 text-red-700 border border-red-200 px-2 py-1 sm:px-1.5 sm:py-1 rounded-[4px] uppercase truncate leading-none" title={`${qt}x ${func}`}>
+                                                 <span key={func} className="text-[10px] sm:text-[9px] font-bold bg-red-100 text-red-700 border border-red-200 px-2 py-1 sm:px-1.5 sm:py-1 rounded-[4px] uppercase truncate leading-none max-w-full inline-block" title={`${qt}x ${func}`}>
                                                     {qt}x {func}
                                                  </span>
                                               ))}
@@ -1252,17 +1471,39 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                       )}
 
                                       {workersOnThisDay.length > 0 && (
-                                          <div className="flex flex-row sm:flex-col flex-wrap gap-1.5 sm:gap-1 sm:mt-1 border-t sm:border-t-0 border-slate-100 pt-2 sm:pt-0">
+                                          <div className="flex flex-row sm:flex-col flex-wrap gap-1.5 sm:gap-1 sm:mt-1 border-t sm:border-t-0 border-slate-100 pt-2 sm:pt-0 w-full min-w-0 overflow-hidden">
                                               {workersOnThisDay.map((name, i) => (
                                                  <span key={i} className={cn(
-                                                     "text-[10px] sm:text-[9px] font-black bg-slate-800 text-white px-2 py-1 sm:px-1.5 sm:py-1 rounded-[4px] uppercase truncate leading-none cursor-help",
-                                                     i >= 3 && "sm:hidden"
+                                                     "text-[10px] sm:text-[9px] font-black bg-slate-800 text-white px-2 py-1 sm:px-1.5 sm:py-1 rounded-[4px] uppercase truncate leading-none cursor-help max-w-full inline-block",
+                                                     (i >= 5 && expWorkersOnThisDay.length === 0) || (i >= 3 && expWorkersOnThisDay.length > 0) ? "hidden" : ""
                                                  )} title={name}>
                                                     {formatMilitaryName(name)}
                                                  </span>
                                               ))}
-                                              {workersOnThisDay.length > 3 && (
-                                                 <span className="hidden sm:inline-flex text-[10px] sm:text-[9px] font-black text-slate-500 px-1 py-1">+ {workersOnThisDay.length - 3}</span>
+                                              {workersOnThisDay.length > 5 && expWorkersOnThisDay.length === 0 && (
+                                                 <span className="text-[10px] sm:text-[9px] font-black text-slate-500 px-1 py-1">+ {workersOnThisDay.length - 5}</span>
+                                              )}
+                                              {workersOnThisDay.length > 3 && expWorkersOnThisDay.length > 0 && (
+                                                 <span className="text-[10px] sm:text-[9px] font-black text-slate-500 px-1 py-1">+ {workersOnThisDay.length - 3}</span>
+                                              )}
+                                          </div>
+                                      )}
+
+                                      {expWorkersOnThisDay.length > 0 && (
+                                          <div className="flex flex-row sm:flex-col flex-wrap gap-1.5 sm:gap-1 sm:mt-1 border-t sm:border-t-0 border-slate-100 pt-2 sm:pt-0 w-full min-w-0 overflow-hidden">
+                                              {expWorkersOnThisDay.map((name, i) => (
+                                                 <span key={`exp-${i}`} className={cn(
+                                                     "text-[10px] sm:text-[9px] font-black bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-1 sm:px-1.5 sm:py-1 rounded-[4px] uppercase truncate leading-none cursor-help max-w-full inline-block",
+                                                     (i >= 5 && workersOnThisDay.length === 0) || (i >= 2 && workersOnThisDay.length > 0) ? "hidden" : ""
+                                                 )} title={name}>
+                                                    {formatMilitaryName(name)} (EXP)
+                                                 </span>
+                                              ))}
+                                              {expWorkersOnThisDay.length > 5 && workersOnThisDay.length === 0 && (
+                                                 <span className="text-[10px] sm:text-[9px] font-black text-slate-500 px-1 py-1">+ {expWorkersOnThisDay.length - 5}</span>
+                                              )}
+                                              {expWorkersOnThisDay.length > 2 && workersOnThisDay.length > 0 && (
+                                                 <span className="text-[10px] sm:text-[9px] font-black text-slate-500 px-1 py-1">+ {expWorkersOnThisDay.length - 2}</span>
                                               )}
                                           </div>
                                       )}
@@ -1279,14 +1520,12 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                    <button 
                                       onClick={async (e) => {
                                           e.stopPropagation();
-                                          if (window.confirm("Confirmar e registrar definitivamente a sua escala?")) {
-                                              const newMonthData = {
-                                                  locked: {
-                                                      [activeRg]: true
-                                                  }
-                                              };
-                                              await setDoc(monthDocRef, newMonthData, { merge: true });
-                                          }
+                                          const newMonthData = {
+                                              locked: {
+                                                  [activeRg]: true
+                                              }
+                                          };
+                                          await setDoc(monthDocRef, newMonthData, { merge: true });
                                       }}
                                       className="sm:hidden mt-3 w-full bg-indigo-600 active:bg-indigo-700 hover:bg-indigo-500 text-white py-2.5 px-2 rounded-lg text-[9px] items-center justify-center font-black uppercase tracking-widest flex gap-1 shadow-sm transition-colors"
                                    >
