@@ -5,6 +5,7 @@ import { format, isBefore, startOfToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { db } from '../lib/firebase';
 import { doc, collection, onSnapshot, setDoc, addDoc, query, where, deleteDoc } from 'firebase/firestore';
+import { cleanUndefined } from "../lib/utils";
 
 interface DayDetailsProps {
   isOpen: boolean;
@@ -55,11 +56,11 @@ export function DayDetailsModal({ isOpen, onClose, date, userRg, isWorkingDay, o
   const handleAddTodo = async () => {
     if (!newTodo.trim() || !date) return;
     try {
-      await addDoc(collection(db, `users/${userRg}/todos`), {
-        text: newTodo.trim(),
-        completed: false,
-        date: format(date, 'yyyy-MM-dd')
-      });
+      await addDoc(collection(db, `users/${userRg}/todos`), cleanUndefined({
+              text: newTodo.trim(),
+              completed: false,
+              date: format(date, 'yyyy-MM-dd')
+            }));
       setNewTodo('');
     } catch (e) {
       console.error(e);
@@ -68,9 +69,9 @@ export function DayDetailsModal({ isOpen, onClose, date, userRg, isWorkingDay, o
 
   const toggleTodo = async (id: string, current: boolean) => {
     try {
-      await setDoc(doc(db, `users/${userRg}/todos`, id), {
-        completed: !current
-      }, { merge: true });
+      await setDoc(doc(db, `users/${userRg}/todos`, id), cleanUndefined({
+              completed: !current
+            }), { merge: true });
     } catch (e) {
       console.error(e);
     }
@@ -88,9 +89,9 @@ export function DayDetailsModal({ isOpen, onClose, date, userRg, isWorkingDay, o
     if (!date) return;
     setIsSavingDiario(true);
     try {
-      await setDoc(doc(db, `users/${userRg}/diarios`, format(date, 'yyyy-MM-dd')), {
-        text: diario
-      });
+      await setDoc(doc(db, `users/${userRg}/diarios`, format(date, 'yyyy-MM-dd')), cleanUndefined({
+              text: diario
+            }));
     } catch (e) {
       console.error(e);
     } finally {

@@ -5,6 +5,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { cn } from '../lib/utils';
 import { OBM_HIERARCHY } from '../constants';
+import { cleanUndefined } from "../lib/utils";
 
 function normalizeRg(rg: string | number) {
   if (!rg) return '';
@@ -225,7 +226,7 @@ export function SystemRolesConfig() {
        
        if (db) {
          try {
-           await setDoc(doc(db, 'militaries', safeRg), updates, { merge: true });
+           await setDoc(doc(db, 'militaries', safeRg), cleanUndefined(updates), { merge: true });
          } catch(err) {
            console.warn('Failed writing to Firestore directly', err);
          }

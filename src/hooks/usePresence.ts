@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { UserProfile } from '../types';
+import { cleanUndefined } from "../lib/utils";
 
 export function usePresence(user: UserProfile | null) {
   useEffect(() => {
@@ -10,11 +11,11 @@ export function usePresence(user: UserProfile | null) {
     const presenceRef = doc(db, 'presence', user.rg.toString());
     
     const updatePresence = () => {
-      setDoc(presenceRef, {
-        name: user.name || 'Militar',
-        rank: user.rank || '',
-        lastActive: serverTimestamp()
-      }, { merge: true }).catch(err => {
+      setDoc(presenceRef, cleanUndefined({
+              name: user.name || 'Militar',
+              rank: user.rank || '',
+              lastActive: serverTimestamp()
+            }), { merge: true }).catch(err => {
         console.warn('Erro ao atualizar presence:', err);
       });
     };

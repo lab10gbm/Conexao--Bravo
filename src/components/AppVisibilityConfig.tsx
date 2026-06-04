@@ -3,6 +3,7 @@ import { db } from '../lib/firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { LayoutGrid, Save, Lock } from 'lucide-react';
 import { useAppConfig } from '../contexts/ConfigContext';
+import { cleanUndefined } from "../lib/utils";
 
 export interface ModuleVisibilityConfig {
   [moduleId: string]: string[];
@@ -119,10 +120,10 @@ export function AppVisibilityConfig() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await setDoc(doc(db, 'config', 'app_visibility'), {
-        visibility: config,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+      await setDoc(doc(db, 'config', 'app_visibility'), cleanUndefined({
+              visibility: config,
+              updatedAt: new Date().toISOString()
+            }), { merge: true });
     } catch (e) {
       console.error('Error saving visibility', e);
     } finally {

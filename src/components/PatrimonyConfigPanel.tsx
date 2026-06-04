@@ -3,6 +3,8 @@ import { Check } from "lucide-react";
 import { useMilitars } from "../contexts/MilitarContext";
 import { db } from "../lib/firebase";
 import { doc, onSnapshot, setDoc, collection, query } from "firebase/firestore";
+import { cleanUndefined } from "../lib/utils";
+
 const patrimonioData: any[] = [];
 
 interface PatrimonyConfigPanelProps {
@@ -53,10 +55,10 @@ export function PatrimonyConfigPanel({ onBack }: PatrimonyConfigPanelProps) {
     setIsSaving(true);
     try {
       if (db) {
-        await setDoc(doc(db, "patrimonioConfig", "global"), globalConfig, { merge: true });
+        await setDoc(doc(db, "patrimonioConfig", "global"), cleanUndefined(globalConfig), { merge: true });
         
         const batchPromises = Object.entries(sectionsConfig).map(([id, data]) => 
-          setDoc(doc(db, "patrimonioConfig", id), data, { merge: true })
+          setDoc(doc(db, "patrimonioConfig", id), cleanUndefined(data), { merge: true })
         );
         await Promise.all(batchPromises);
       }

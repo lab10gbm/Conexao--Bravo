@@ -16,6 +16,7 @@ import { UserProfile } from "../types";
 import { RankInsignia } from "./RankInsignia";
 import { MultiSelectFilter } from "./ui/MultiSelectFilter";
 import { CorrelacaoFuncoesModal } from "./CorrelacaoFuncoesModal";
+import { cleanUndefined } from "../lib/utils";
 
 interface ControleDeFuncoesProps {
   obmContext: string;
@@ -256,7 +257,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
       // 2. Client update
       if (db) {
         try {
-          await setDoc(doc(db, "militaries", safeRg), data, { merge: true });
+          await setDoc(doc(db, "militaries", safeRg), cleanUndefined(data), { merge: true });
         } catch (e) {}
       }
 

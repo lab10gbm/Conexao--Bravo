@@ -7,6 +7,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 const medidasDgp: Record<string, any> = {};
 const epiDgp: Record<string, any> = {};
 import { DEFAULT_SOP_SCHEMA } from '../constants';
+import { cleanUndefined } from "../lib/utils";
 
 type EpiValue = { status: string; num: string; letter: string; cond: string };
 
@@ -265,7 +266,7 @@ export function MedidasModule({ user, onBack }: MedidasModuleProps) {
         });
       });
       
-      await setDoc(docRef, dataToSave, { merge: true });
+      await setDoc(docRef, cleanUndefined(dataToSave), { merge: true });
       setSource('PLATAFORMA');
       setSavedData(true);
       setTimeout(() => setSavedData(false), 3000);

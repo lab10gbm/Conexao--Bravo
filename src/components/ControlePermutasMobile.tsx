@@ -10,6 +10,7 @@ import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useMilitars } from '../contexts/MilitarContext';
 import { isOfficer } from '../lib/rankUtils';
+import { cleanUndefined } from "../lib/utils";
 
 interface ControlePermutasMobileProps {
   user: UserProfile;
@@ -272,12 +273,12 @@ export function ControlePermutasMobile({ user, obmContext }: ControlePermutasMob
     try {
       const newStatus = action === 'deferir' ? PermutaStatus.ACCEPTED : PermutaStatus.REJECTED;
       
-      await updateDoc(doc(db, 'permutas', currentCard.id), {
-        status: newStatus,
-        acceptedById: user.uid,
-        acceptedByName: user.name,
-        updatedAt: Date.now()
-      });
+      await updateDoc(doc(db, 'permutas', currentCard.id), cleanUndefined({
+              status: newStatus,
+              acceptedById: user.uid,
+              acceptedByName: user.name,
+              updatedAt: Date.now()
+            }));
       // FireStore listener will naturally keep `permutas` updated 
     } catch (error) {
       console.error("Erro ao alterar permuta", error);

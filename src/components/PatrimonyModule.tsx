@@ -44,6 +44,7 @@ import { db } from "../lib/firebase";
 import { doc, onSnapshot, setDoc, collection, deleteDoc } from "firebase/firestore";
 import { RankInsignia } from "./RankInsignia";
 import { PatrimonyConfigPanel } from "./PatrimonyConfigPanel";
+import { cleanUndefined } from "../lib/utils";
 
 interface SectorQrCodeProps {
   value: string;
@@ -423,11 +424,11 @@ export function PatrimonyModule({
     }
     
     try {
-      await setDoc(doc(db, "patrimonioData", selectedSection.id), {
-        items: updatedItems,
-        updatedAt: new Date().toISOString(),
-        updatedBy: user.warName || user.name
-      }, { merge: true });
+      await setDoc(doc(db, "patrimonioData", selectedSection.id), cleanUndefined({
+              items: updatedItems,
+              updatedAt: new Date().toISOString(),
+              updatedBy: user.warName || user.name
+            }), { merge: true });
       setIsSpreadsheetMode(false);
       setPastedText("");
     } catch (err) {
@@ -439,11 +440,11 @@ export function PatrimonyModule({
     if (!selectedSection || !db) return;
     if (confirm("Confirmar a exclusão dos dados personalizados para retornar aos itens padrões originais?")) {
       try {
-        await setDoc(doc(db, "patrimonioData", selectedSection.id), {
-          items: null,
-          updatedAt: new Date().toISOString(),
-          updatedBy: user.warName || user.name
-        }, { merge: true });
+        await setDoc(doc(db, "patrimonioData", selectedSection.id), cleanUndefined({
+                  items: null,
+                  updatedAt: new Date().toISOString(),
+                  updatedBy: user.warName || user.name
+                }), { merge: true });
         
         setCustomSectionItems(prev => {
           const updated = { ...prev };
@@ -486,21 +487,21 @@ export function PatrimonyModule({
         insertedBy: user.warName || user.name,
       };
 
-      await setDoc(docRef, sectorData);
+      await setDoc(docRef, cleanUndefined(sectorData));
       
       // Also initialize empty data
-      await setDoc(doc(db, "patrimonioData", sectorId), {
-        items: [],
-        updatedAt: finalDate,
-        updatedBy: user.warName || user.name
-      }, { merge: true });
+      await setDoc(doc(db, "patrimonioData", sectorId), cleanUndefined({
+              items: [],
+              updatedAt: finalDate,
+              updatedBy: user.warName || user.name
+            }), { merge: true });
 
       // If a responsible is selected, set it in config immediately
       if (newSectorResponsible) {
-        await setDoc(doc(db, "patrimonioConfig", sectorId), {
-          responsavelId: newSectorResponsible,
-          auxSetorId: "",
-        }, { merge: true });
+        await setDoc(doc(db, "patrimonioConfig", sectorId), cleanUndefined({
+                  responsavelId: newSectorResponsible,
+                  auxSetorId: "",
+                }), { merge: true });
       }
 
       setNewSectorName("");
@@ -548,11 +549,11 @@ export function PatrimonyModule({
       const items = [...getSectionItems(selectedSection)];
       const updatedItems = items.filter(i => i.id !== itemId);
       
-      await setDoc(doc(db, "patrimonioData", selectedSection.id), {
-        items: updatedItems,
-        updatedAt: new Date().toISOString(),
-        updatedBy: user.warName || user.name
-      }, { merge: true });
+      await setDoc(doc(db, "patrimonioData", selectedSection.id), cleanUndefined({
+              items: updatedItems,
+              updatedAt: new Date().toISOString(),
+              updatedBy: user.warName || user.name
+            }), { merge: true });
     } catch (err) {
       console.error("Failed to delete item:", err);
       alert("Erro ao excluir o item.");
@@ -572,11 +573,11 @@ export function PatrimonyModule({
 
       await setDoc(
         doc(db, "patrimonioData", selectedSection.id),
-        {
-          items: items,
-          updatedAt: new Date().toISOString(),
-          updatedBy: user.warName || user.name,
-        },
+        cleanUndefined({
+                  items: items,
+                  updatedAt: new Date().toISOString(),
+                  updatedBy: user.warName || user.name,
+                }),
         { merge: true },
       );
 
@@ -613,11 +614,11 @@ export function PatrimonyModule({
 
       items.push(itemToAdd);
 
-      await setDoc(doc(db, "patrimonioData", selectedSection.id), {
-        items: items,
-        updatedAt: new Date().toISOString(),
-        updatedBy: user.warName || user.name
-      }, { merge: true });
+      await setDoc(doc(db, "patrimonioData", selectedSection.id), cleanUndefined({
+              items: items,
+              updatedAt: new Date().toISOString(),
+              updatedBy: user.warName || user.name
+            }), { merge: true });
 
       setIsAddingItem(false);
       setNewItem({ quantidade: 1, situacao: 'Operante', estado: 'Novo' });
@@ -640,11 +641,11 @@ export function PatrimonyModule({
       currentItems.splice(index, 1);
       
       // Update current section
-      await setDoc(doc(db, "patrimonioData", selectedSection.id), {
-        items: currentItems,
-        updatedAt: new Date().toISOString(),
-        updatedBy: user.warName || user.name
-      }, { merge: true });
+      await setDoc(doc(db, "patrimonioData", selectedSection.id), cleanUndefined({
+              items: currentItems,
+              updatedAt: new Date().toISOString(),
+              updatedBy: user.warName || user.name
+            }), { merge: true });
 
       // 2. Add to target section
       let targetItems: PatrimonioItem[] = [];
@@ -662,11 +663,11 @@ export function PatrimonyModule({
 
       const newTargetItems = [...targetItems, { ...itemToTransfer }];
 
-      await setDoc(doc(db, "patrimonioData", targetSectionId), {
-        items: newTargetItems,
-        updatedAt: new Date().toISOString(),
-        updatedBy: user.warName || user.name
-      }, { merge: true });
+      await setDoc(doc(db, "patrimonioData", targetSectionId), cleanUndefined({
+              items: newTargetItems,
+              updatedAt: new Date().toISOString(),
+              updatedBy: user.warName || user.name
+            }), { merge: true });
 
       setTransferItemData(null);
       alert("Item transferido com sucesso!");
@@ -740,11 +741,11 @@ export function PatrimonyModule({
         return;
       }
 
-      await setDoc(doc(db, "patrimonioData", selectedSection.id), {
-        items: items,
-        updatedAt: new Date().toISOString(),
-        updatedBy: user.warName || user.name
-      }, { merge: true });
+      await setDoc(doc(db, "patrimonioData", selectedSection.id), cleanUndefined({
+              items: items,
+              updatedAt: new Date().toISOString(),
+              updatedBy: user.warName || user.name
+            }), { merge: true });
 
       setEditingItem(null);
       setEditingOriginalId(null);
@@ -777,9 +778,9 @@ export function PatrimonyModule({
 
       await setDoc(
         doc(db, "patrimonioConfig", selectedSection.id),
-        {
-          [fieldName]: signatureData,
-        },
+        cleanUndefined({
+                  [fieldName]: signatureData,
+                }),
         { merge: true },
       );
     } catch (e) {
@@ -805,9 +806,9 @@ export function PatrimonyModule({
 
       await setDoc(
         doc(db, "patrimonioConfig", selectedSection.id),
-        {
-          [fieldName]: null,
-        },
+        cleanUndefined({
+                  [fieldName]: null,
+                }),
         { merge: true },
       );
     } catch (e) {

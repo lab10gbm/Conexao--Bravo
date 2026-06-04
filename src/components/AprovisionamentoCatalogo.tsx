@@ -4,6 +4,7 @@ import { useRefeitorioData } from '../hooks/useRefeitorioData';
 import { Loader2, BookOpen, Plus, Trash2 } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { cleanUndefined } from "../lib/utils";
 
 interface AprovisionamentoCatalogoProps {
   user: UserProfile;
@@ -45,7 +46,7 @@ export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCa
   const saveGastos = async (newGastos: any) => {
     setGastos(newGastos);
     try {
-      await setDoc(doc(db, 'aprovisionamento', 'gastos_catalogo'), { gastos: newGastos }, { merge: true });
+      await setDoc(doc(db, 'aprovisionamento', 'gastos_catalogo'), cleanUndefined({ gastos: newGastos }), { merge: true });
     } catch (e) {
       console.error(e);
     }

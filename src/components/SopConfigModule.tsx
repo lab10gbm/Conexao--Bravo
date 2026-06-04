@@ -5,6 +5,7 @@ import { db } from '../lib/firebase';
 import { doc, getDoc, setDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
 import { DEFAULT_SOP_SCHEMA } from '../constants';
 import { UserProfile } from '../types';
+import { cleanUndefined } from "../lib/utils";
 
 interface SopField {
   id: string;
@@ -83,7 +84,7 @@ export function SopConfigModule({ user, onBack }: { user: UserProfile, onBack: (
   const handleSaveConfig = async () => {
     setSaving(true);
     try {
-      await setDoc(doc(db, 'config', 'sop_schema'), config);
+      await setDoc(doc(db, 'config', 'sop_schema'), cleanUndefined(config));
       alert('Configuração salva com sucesso!');
     } catch (error) {
       console.error('Error saving config:', error);
@@ -109,7 +110,7 @@ export function SopConfigModule({ user, onBack }: { user: UserProfile, onBack: (
         rank: newMilitar.rank,
         isCustom: true
       };
-      await setDoc(doc(db, 'sop_roster', docId), militarData);
+      await setDoc(doc(db, 'sop_roster', docId), cleanUndefined(militarData));
       setRoster(prev => [...prev.filter(r => r.rg !== docId), { ...militarData, docId }]);
       setNewMilitar({ rg: '', name: '', quadro: 'QBMP 1', rank: 'SD' });
     } catch (e) {

@@ -5,6 +5,7 @@ import { UserProfile } from '../types';
 import { COLS_OFICIAIS, parseRank, sortOfficersBySeniority } from '../lib/rankUtils';
 import { db } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
+import { cleanUndefined } from "../lib/utils";
 
 const OFFICER_CATEGORIES = [
   { id: 'COMBATENTE', label: 'Oficiais Combatentes' },
@@ -65,7 +66,7 @@ export function OfficerConfigModule({ onClose }: { onClose: () => void }) {
       // 2. Update Firestore document (using normalizeRg to ensure it targets the right document)
       const cleanRg = id.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
       const militarRef = doc(db, 'militaries', cleanRg);
-      await updateDoc(militarRef, { [field]: value });
+      await updateDoc(militarRef, cleanUndefined({ [field]: value }));
       
       // 3. Inform Backend Server to update its internal cache immediately
       await fetch('/api/admin/militaries/bulk-sync', {

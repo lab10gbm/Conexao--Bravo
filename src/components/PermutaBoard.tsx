@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useMilitars } from '../contexts/MilitarContext';
 import { RankInsignia } from './RankInsignia';
 import { useAppConfig } from '../contexts/ConfigContext';
+import { cleanUndefined } from "../lib/utils";
 
 interface PermutaBoardProps {
   user: UserProfile;
@@ -138,11 +139,11 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
       const isRequester = user?.rg && (signPermuta.requesterRg === user.rg);
       const isSubstitute = user?.rg && (signPermuta.substituteRg === user.rg);
 
-      await updateDoc(doc(db, 'permutas', signPermuta.id), {
-        requesterSigned: isRequester ? true : signPermuta.requesterSigned,
-        substituteSigned: isSubstitute ? true : signPermuta.substituteSigned,
-        updatedAt: serverTimestamp()
-      }).catch(error => {
+      await updateDoc(doc(db, 'permutas', signPermuta.id), cleanUndefined({
+              requesterSigned: isRequester ? true : signPermuta.requesterSigned,
+              substituteSigned: isSubstitute ? true : signPermuta.substituteSigned,
+              updatedAt: serverTimestamp()
+            })).catch(error => {
         handleFirestoreError(error, OperationType.UPDATE, `permutas/${signPermuta.id}`);
       });
       
@@ -223,7 +224,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
          updates.requesterSigned = false; // Revoke creator signature so they must accept the volunteer
       }
 
-      await updateDoc(doc(db, 'permutas', permuta.id), updates).catch(error => {
+      await updateDoc(doc(db, 'permutas', permuta.id), cleanUndefined(updates)).catch(error => {
         handleFirestoreError(error, OperationType.UPDATE, `permutas/${permuta.id}`);
       });
 
@@ -240,10 +241,10 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
   const confirmCancel = async () => {
     if (!cancelPermuta?.id) return;
     try {
-      await updateDoc(doc(db, 'permutas', cancelPermuta.id), {
-        status: PermutaStatus.CANCELLED,
-        updatedAt: serverTimestamp()
-      }).catch(error => {
+      await updateDoc(doc(db, 'permutas', cancelPermuta.id), cleanUndefined({
+              status: PermutaStatus.CANCELLED,
+              updatedAt: serverTimestamp()
+            })).catch(error => {
         handleFirestoreError(error, OperationType.UPDATE, `permutas/${cancelPermuta.id}`);
       });
       setPermutas(prev => prev.map(p => 
@@ -258,10 +259,10 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
   const handleStatusChange = async (permuta: PermutaRequest, newStatus: PermutaStatus) => {
     if (!permuta.id) return;
     try {
-      await updateDoc(doc(db, 'permutas', permuta.id), {
-        status: newStatus,
-        updatedAt: serverTimestamp()
-      }).catch(error => {
+      await updateDoc(doc(db, 'permutas', permuta.id), cleanUndefined({
+              status: newStatus,
+              updatedAt: serverTimestamp()
+            })).catch(error => {
         handleFirestoreError(error, OperationType.UPDATE, `permutas/${permuta.id}`);
       });
       setPermutas(prev => prev.map(p => 

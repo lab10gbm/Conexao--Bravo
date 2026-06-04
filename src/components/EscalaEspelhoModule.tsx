@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 
 import { motion } from "framer-motion";
+import { cleanUndefined } from "../lib/utils";
 
 function FuncoesMultiSelect({
   selected,
@@ -265,10 +266,10 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
   const handleStatusChange = async (permuta: PermutaRequest, newStatus: PermutaStatus) => {
     if (!permuta.id) return;
     try {
-      await updateDoc(doc(db, "permutas", permuta.id), {
-        status: newStatus,
-        updatedAt: serverTimestamp()
-      });
+      await updateDoc(doc(db, "permutas", permuta.id), cleanUndefined({
+              status: newStatus,
+              updatedAt: serverTimestamp()
+            }));
     } catch (error) {
       console.error("Update Status Error:", error);
     }

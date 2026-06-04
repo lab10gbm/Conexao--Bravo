@@ -6,6 +6,7 @@ import { collection, addDoc, query, onSnapshot, serverTimestamp, setDoc, doc, Ti
 import { useMilitars } from '../contexts/MilitarContext';
 import { UserProfile } from '../types';
 import { ViaturaManagerModal } from './ViaturaManagerModal';
+import { cleanUndefined } from "../lib/utils";
 
 interface ComunicanteDashboardProps {
   user: UserProfile;
@@ -80,11 +81,11 @@ export function ComunicanteDashboard({ user, onBack }: ComunicanteDashboardProps
 
   const handleBradarViatura = async (viatura: string) => {
     try {
-      await addDoc(collection(db, 'viatura_alerts'), {
-        viatura,
-        emittedBy: 'Centro de Comunicações',
-        timestamp: serverTimestamp()
-      });
+      await addDoc(collection(db, 'viatura_alerts'), cleanUndefined({
+              viatura,
+              emittedBy: 'Centro de Comunicações',
+              timestamp: serverTimestamp()
+            }));
     } catch (e) {
       console.error('Erro ao bradar viatura:', e);
       alert('Erro ao acionar a viatura.');
@@ -105,9 +106,9 @@ export function ComunicanteDashboard({ user, onBack }: ComunicanteDashboardProps
     setGuarnicoesAtuais(prev => ({ ...prev, [viatura]: newList }));
     
     try {
-      await setDoc(doc(db, 'guarnicoes', 'ativas'), {
-        [viatura]: newList
-      }, { merge: true });
+      await setDoc(doc(db, 'guarnicoes', 'ativas'), cleanUndefined({
+              [viatura]: newList
+            }), { merge: true });
     } catch (e) {
       console.error('Erro ao salvar guarnição', e);
       alert('Erro ao atualizar guarnições. Tente novamente.');

@@ -5,6 +5,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { motion } from 'motion/react';
 import { Save, UserCircle2, Phone, MapPin, Building, Lock } from 'lucide-react';
 import { RankInsignia } from './RankInsignia';
+import { cleanUndefined } from "../lib/utils";
 
 interface ProfileUpdateProps {
   user: UserProfile;
@@ -57,7 +58,7 @@ export function ProfileUpdate({ user, onUpdate, onBack }: ProfileUpdateProps) {
         lastProfileUpdate: Date.now()
       };
       const userRef = doc(db, 'militaries', user.rg.toString());
-      await updateDoc(userRef, updatePayload);
+      await updateDoc(userRef, cleanUndefined(updatePayload));
       
       onUpdate({ ...user, ...updatePayload });
       setSuccess(true);

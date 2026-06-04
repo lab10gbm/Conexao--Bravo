@@ -31,6 +31,7 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 import { UserProfile } from '../types';
 import { COLS_OFICIAIS, parseRank, sortOfficersBySeniority } from '../lib/rankUtils';
+import { cleanUndefined } from "../lib/utils";
 
 interface OfficerGrdModuleProps {
   user: UserProfile;
@@ -120,15 +121,15 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
         setSelectedRgsRas(newRas);
     }
     
-    await setDoc(doc(db, 'officer_scales', docId), {
-      lists: {
-        [monthKey]: {
-            oficialDia: newOficialDia,
-            sobreaviso: newSobreaviso,
-            ras: newRas
-        }
-      }
-    }, { merge: true });
+    await setDoc(doc(db, 'officer_scales', docId), cleanUndefined({
+          lists: {
+            [monthKey]: {
+                oficialDia: newOficialDia,
+                sobreaviso: newSobreaviso,
+                ras: newRas
+            }
+          }
+        }), { merge: true });
   };
 
   const distributionQuotas = useMemo(() => {
@@ -244,9 +245,9 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
             });
         });
         
-        await setDoc(doc(db, 'officer_scales', docId), {
-            days: newOfficerData
-        }, { merge: true });
+        await setDoc(doc(db, 'officer_scales', docId), cleanUndefined({
+                    days: newOfficerData
+                }), { merge: true });
     } catch (err) {
         console.error(err);
     } finally {
@@ -282,9 +283,9 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
           [field]: value
         }
       };
-      await setDoc(doc(db, 'officer_scales', docId), {
-        days: newOfficerData
-      }, { merge: true });
+      await setDoc(doc(db, 'officer_scales', docId), cleanUndefined({
+              days: newOfficerData
+            }), { merge: true });
     } catch (error) {
       console.error("Error saving Officer scale:", error);
     } finally {

@@ -8,6 +8,7 @@ import { ptBR } from 'date-fns/locale';
 import { PermutaRequest } from '../types';
 import { AppVisibilityConfig } from './AppVisibilityConfig';
 import { useAppConfig } from '../contexts/ConfigContext';
+import { cleanUndefined } from "../lib/utils";
 
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRV3PAwJrGMQOUaUabnYNlbebEgrsE9wEnQ8Qpu0h-8ZT5WOgL3oyVIeQopb_X7g7PDByvP8OPy9upD/pub?gid=1221046524&single=true&output=csv";
 
@@ -59,10 +60,10 @@ export function AdminPanel({ adminModeActive, onToggleAdminMode }: AdminPanelPro
     setSaving(true);
     try {
       const sortedMonths = openMonths.sort((a, b) => a - b);
-      await setDoc(doc(db, 'config', 'active_months'), {
-        months: sortedMonths,
-        updatedAt: new Date().toISOString()
-      });
+      await setDoc(doc(db, 'config', 'active_months'), cleanUndefined({
+              months: sortedMonths,
+              updatedAt: new Date().toISOString()
+            }));
       
       // Update SCHEDULED permutas to PENDING if their month is now open
       const pSnapshot = await getDocs(query(collection(db, 'permutas'), where('status', '==', 'scheduled')));
@@ -96,11 +97,11 @@ export function AdminPanel({ adminModeActive, onToggleAdminMode }: AdminPanelPro
   const handleSaveAlaConfig = async () => {
     setSavingAla(true);
     try {
-      await setDoc(doc(db, 'config', 'ala_config'), {
-        referenceYear: alaConfig.referenceYear,
-        startAla: alaConfig.startAla,
-        updatedAt: new Date().toISOString()
-      });
+      await setDoc(doc(db, 'config', 'ala_config'), cleanUndefined({
+              referenceYear: alaConfig.referenceYear,
+              startAla: alaConfig.startAla,
+              updatedAt: new Date().toISOString()
+            }));
     } catch (error) {
       console.error(error);
     } finally {
@@ -120,10 +121,10 @@ export function AdminPanel({ adminModeActive, onToggleAdminMode }: AdminPanelPro
     setSavingEscalantes(true);
     try {
       const updated = [...escalanteRGs, cleaned];
-      await setDoc(doc(db, 'config', 'roles'), {
-        escalanteRGs: updated,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+      await setDoc(doc(db, 'config', 'roles'), cleanUndefined({
+              escalanteRGs: updated,
+              updatedAt: serverTimestamp()
+            }), { merge: true });
       setNewEscalante('');
       localStorage.removeItem('global_configs_cache');
       localStorage.removeItem('global_configs_time');
@@ -139,10 +140,10 @@ export function AdminPanel({ adminModeActive, onToggleAdminMode }: AdminPanelPro
     setSavingEscalantes(true);
     try {
       const updated = escalanteRGs.filter(r => r !== rg);
-      await setDoc(doc(db, 'config', 'roles'), {
-        escalanteRGs: updated,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+      await setDoc(doc(db, 'config', 'roles'), cleanUndefined({
+              escalanteRGs: updated,
+              updatedAt: serverTimestamp()
+            }), { merge: true });
       localStorage.removeItem('global_configs_cache');
       localStorage.removeItem('global_configs_time');
       window.location.reload();
@@ -273,7 +274,7 @@ export function AdminPanel({ adminModeActive, onToggleAdminMode }: AdminPanelPro
         };
 
         const docRef = doc(collection(db, 'militaries'), safeRg);
-        batch.set(docRef, mData);
+        batch.set(docRef, cleanUndefined(mData));
         
         total++;
         count++;

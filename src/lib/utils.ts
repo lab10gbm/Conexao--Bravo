@@ -18,6 +18,21 @@ export const getUserObmAccess = (userObm?: string, isAdmin = false): string[] =>
 export let GLOBAL_REF_YEAR = 2026;
 export let GLOBAL_START_ALA = 2;
 
+export function cleanUndefined(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) return obj.map(cleanUndefined);
+  if (typeof obj === 'object') {
+    const newObj: any = {};
+    for (const key in obj) {
+      if (obj[key] !== undefined) {
+        newObj[key] = cleanUndefined(obj[key]);
+      }
+    }
+    return newObj;
+  }
+  return obj;
+}
+
 export function setGlobalAlaConfig(year: number, startAla: number) {
   GLOBAL_REF_YEAR = year;
   GLOBAL_START_ALA = startAla;

@@ -38,6 +38,7 @@ import { UserProfile } from '../types';
 import { RankInsignia } from './RankInsignia';
 import { PermutaGrdModal } from './PermutaGrdModal';
 import { AnimatePresence, motion } from 'motion/react';
+import { cleanUndefined } from "../lib/utils";
 
 interface GrdModuleProps {
   obmContext: string;
@@ -207,7 +208,7 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
     };
 
     try {
-      await setDoc(doc(db, 'officer_scales', docId), { days: mayData }, { merge: true });
+      await setDoc(doc(db, 'officer_scales', docId), cleanUndefined({ days: mayData }), { merge: true });
     } catch (error) {
       console.error(error);
     } finally {
@@ -237,11 +238,11 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
     setSaving(true);
     try {
       const safeRgs = Array.from(rgs, val => val || "");
-      await setDoc(doc(db, 'grd_configs', docId), {
-        days: {
-          [dateStr]: safeRgs
-        }
-      }, { merge: true });
+      await setDoc(doc(db, 'grd_configs', docId), cleanUndefined({
+              days: {
+                [dateStr]: safeRgs
+              }
+            }), { merge: true });
     } catch (error) {
       console.error("Error saving GRD:", error);
     } finally {
@@ -271,13 +272,13 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
     setSaving(true);
     try {
       const currentDayData = officerData[dateStr] || {};
-      await setDoc(doc(db, 'officer_scales', docId), {
-        days: {
-          [dateStr]: {
-            [field]: value
-          }
-        }
-      }, { merge: true });
+      await setDoc(doc(db, 'officer_scales', docId), cleanUndefined({
+              days: {
+                [dateStr]: {
+                  [field]: value
+                }
+              }
+            }), { merge: true });
     } catch (error) {
       console.error("Error saving Officer scale:", error);
     } finally {
@@ -337,7 +338,7 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
       }
 
       try {
-        await setDoc(doc(db, 'grd_configs', docId), { days: newGrdData }, { merge: true });
+        await setDoc(doc(db, 'grd_configs', docId), cleanUndefined({ days: newGrdData }), { merge: true });
         setPasteResults({ success: successCount, errors });
       } catch (err) {
         console.error(err);
@@ -386,7 +387,7 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
       }
 
       try {
-        await setDoc(doc(db, 'officer_scales', docId), { days: newOfficerData }, { merge: true });
+        await setDoc(doc(db, 'officer_scales', docId), cleanUndefined({ days: newOfficerData }), { merge: true });
         setPasteResults({ success: successCount, errors });
       } catch (err) {
         console.error(err);

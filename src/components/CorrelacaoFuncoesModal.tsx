@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../lib/utils";
 import { db } from "../lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
+import { cleanUndefined } from "../lib/utils";
 
 export interface FuncaoConfig {
   name: string;
@@ -136,12 +137,12 @@ export function CorrelacaoFuncoesModal({
       const docRef = doc(db, "obm_settings", obmContext);
       await setDoc(
         docRef,
-        {
-          escala_regras: {
-            correlation,
-            qtds,
-          },
-        },
+        cleanUndefined({
+                  escala_regras: {
+                    correlation,
+                    qtds,
+                  },
+                }),
         { merge: true },
       );
       onClose(); // Optional: close after save

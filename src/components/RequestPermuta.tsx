@@ -9,6 +9,7 @@ import { Send, CalendarIcon, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppConfig } from '../contexts/ConfigContext';
 import { useMilitars } from '../contexts/MilitarContext';
+import { cleanUndefined } from "../lib/utils";
 
 interface RequestPermutaProps {
   user: UserProfile;
@@ -222,7 +223,7 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
       
       console.log('[Permuta] Submitting payload:', payload);
       try {
-        await addDoc(collection(db, 'permutas'), payload);
+        await addDoc(collection(db, 'permutas'), cleanUndefined(payload));
         console.log('[Permuta] Success submitting!');
         if (onSuccess) {
           onSuccess(String(date));

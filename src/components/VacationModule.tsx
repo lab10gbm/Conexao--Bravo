@@ -33,6 +33,7 @@ import { VacationImporter } from './VacationImporter';
 import { useMilitars } from '../contexts/MilitarContext';
 import { exportToExcel } from '../lib/exportUtils';
 import { VacationStats } from './VacationStats';
+import { cleanUndefined } from "../lib/utils";
 
 interface VacationModuleProps {
   user: UserProfile;
@@ -198,7 +199,7 @@ export function VacationModule({ user, onBackToPortal, isSadMode = false }: Vaca
       if (activeYear === '2026') {
         updateData.months = newPrefs;
       }
-      await setDoc(doc(db, 'vacation_preferences', normalizeRg(selectedMilitar.rg)), updateData, { merge: true });
+      await setDoc(doc(db, 'vacation_preferences', normalizeRg(selectedMilitar.rg)), cleanUndefined(updateData), { merge: true });
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `vacation_preferences/${selectedMilitar.rg}`, false);
     } finally {
@@ -217,10 +218,10 @@ export function VacationModule({ user, onBackToPortal, isSadMode = false }: Vaca
     }
     setSavingPrefs(true);
     try {
-      await setDoc(doc(db, 'vacation_preferences', normalizeRg(selectedMilitar.rg)), {
-        [`submitted.${activeYear}`]: true,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+      await setDoc(doc(db, 'vacation_preferences', normalizeRg(selectedMilitar.rg)), cleanUndefined({
+              [`submitted.${activeYear}`]: true,
+              updatedAt: serverTimestamp()
+            }), { merge: true });
       setIsSubmitted(true);
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `vacation_preferences/${selectedMilitar.rg}`, false);
@@ -232,10 +233,10 @@ export function VacationModule({ user, onBackToPortal, isSadMode = false }: Vaca
   const handleGrantMonth = async (rg: string, month: string) => {
     if (!isPowerUser) return;
     try {
-       await setDoc(doc(db, 'vacation_preferences', normalizeRg(rg)), {
-         [`granted.${reportYear}`]: month,
-         updatedAt: serverTimestamp()
-       }, { merge: true });
+       await setDoc(doc(db, 'vacation_preferences', normalizeRg(rg)), cleanUndefined({
+                [`granted.${reportYear}`]: month,
+                updatedAt: serverTimestamp()
+              }), { merge: true });
        // Update local state without unmounting
        setAllPreferences(prev => ({
          ...prev,
@@ -255,11 +256,11 @@ export function VacationModule({ user, onBackToPortal, isSadMode = false }: Vaca
   const toggleGlobalPreferences = async () => {
     if (!isPowerUser) return;
     try {
-      await setDoc(doc(db, 'config', 'vacation_settings'), {
-        preferencesEnabled: !preferencesEnabled,
-        updatedBy: user.name,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+      await setDoc(doc(db, 'config', 'vacation_settings'), cleanUndefined({
+              preferencesEnabled: !preferencesEnabled,
+              updatedBy: user.name,
+              updatedAt: serverTimestamp()
+            }), { merge: true });
     } catch (e) {
       console.error('Error updating global config:', e);
     }
@@ -289,10 +290,10 @@ export function VacationModule({ user, onBackToPortal, isSadMode = false }: Vaca
       for (const v of newVacations) {
         // Use RefYear + StartDate as a composite ID to avoid duplicates
         const docId = `${v.militarRg}_${v.anoRef}_${v.dataInicio.replace(/\//g, '')}`;
-        await setDoc(doc(db, 'vacations', docId), {
-          ...v,
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
+        await setDoc(doc(db, 'vacations', docId), cleanUndefined({
+                  ...v,
+                  updatedAt: new Date().toISOString()
+                }), { merge: true });
       }
       setShowImporter(false);
       if (selectedMilitar) {
@@ -447,7 +448,7 @@ export function VacationModule({ user, onBackToPortal, isSadMode = false }: Vaca
                    value={activeYear}
                    onChange={async (e) => {
                      const newYear = e.target.value;
-                     await setDoc(doc(db, 'config', 'vacation_settings'), { activeYear: newYear }, { merge: true });
+                     await setDoc(doc(db, 'config', 'vacation_settings'), cleanUndefined({ activeYear: newYear }), { merge: true });
                    }}
                    className="text-[10px] font-black text-indigo-600 bg-transparent outline-none cursor-pointer tracking-widest"
                  >

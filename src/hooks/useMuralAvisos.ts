@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { cleanUndefined } from "../lib/utils";
 
 export interface Aviso {
   id: string;
@@ -50,7 +51,7 @@ export function useMuralAvisos() {
       if (eventoData) {
         dataToSave.eventDate = eventoData;
       }
-      await addDoc(collection(db, 'mural_avisos'), dataToSave);
+      await addDoc(collection(db, 'mural_avisos'), cleanUndefined(dataToSave));
       return true;
     } catch (e) {
       console.error('Erro ao adicionar aviso:', e);

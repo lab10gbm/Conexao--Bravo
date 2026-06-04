@@ -8,6 +8,7 @@ import { cn, formatMilitaryName, getAlaForDate, getAlaLightColor, getAlaColor } 
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Settings, CheckCircle2, User, AlertCircle, Save, CalendarRange, Table, ArrowUpDown, X, UserPlus, Trash2, List, Columns, Copy } from 'lucide-react';
 import { useMilitars } from '../contexts/MilitarContext';
+import { cleanUndefined } from "../lib/utils";
 
 interface ExpedienteSchedulerProps {
   user: UserProfile;
@@ -295,13 +296,13 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
               sectors: { [rgToUpdate]: deleteField() },
               regimes: { [rgToUpdate]: deleteField() }
           };
-          await setDoc(globalDocRef, globalUpdates, { merge: true });
+          await setDoc(globalDocRef, cleanUndefined(globalUpdates), { merge: true });
           
           const monthUpdates: any = {
               selections: { [rgToUpdate]: deleteField() },
               locked: { [rgToUpdate]: deleteField() }
           };
-          await setDoc(monthDocRef, monthUpdates, { merge: true });
+          await setDoc(monthDocRef, cleanUndefined(monthUpdates), { merge: true });
 
           setRemoveMemberRg(null);
       } catch (e) {
@@ -326,22 +327,22 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
               preferencesDetails: newPrefs
           }));
           
-          await setDoc(monthDocRef, { 
-              selections: { 'ESCALANTE_PREF': sels },
-              preferencesDetails: {
-                  [dayStr]: deleteField()
-              }
-          }, { merge: true });
+          await setDoc(monthDocRef, cleanUndefined({ 
+                        selections: { 'ESCALANTE_PREF': sels },
+                        preferencesDetails: {
+                            [dayStr]: deleteField()
+                        }
+                    }), { merge: true });
       } else {
           setData(prev => ({...prev, selections: {...prev.selections, 'ESCALANTE_PREF': sels}}));
-          await setDoc(monthDocRef, { selections: { 'ESCALANTE_PREF': sels } }, { merge: true });
+          await setDoc(monthDocRef, cleanUndefined({ selections: { 'ESCALANTE_PREF': sels } }), { merge: true });
       }
   };
 
   const updateExpQuota = async (rg: string, quota: number) => {
       const newQuotas = { ...data.expQuotas, [rg]: quota };
       setData(prev => ({ ...prev, expQuotas: newQuotas }));
-      await setDoc(globalDocRef, { expQuotas: newQuotas }, { merge: true });
+      await setDoc(globalDocRef, cleanUndefined({ expQuotas: newQuotas }), { merge: true });
   };
 
   const getExpQuota = (rg: string) => {
@@ -380,10 +381,10 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
           expedienteDays: { ...(prev.expedienteDays || {}), [rg]: newExp }
       }));
 
-      await setDoc(monthDocRef, {
-          selections: { [rg]: newSels },
-          expedienteDays: { [rg]: newExp }
-      }, { merge: true });
+      await setDoc(monthDocRef, cleanUndefined({
+                selections: { [rg]: newSels },
+                expedienteDays: { [rg]: newExp }
+            }), { merge: true });
   };
 
   const handleAutoFillExp = async () => {
@@ -444,7 +445,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       console.log("newExpDays", newExpDays);
 
       setData(prev => ({ ...prev, expedienteDays: newExpDays }));
-      await setDoc(monthDocRef, { expedienteDays: newExpDays }, { merge: true });
+      await setDoc(monthDocRef, cleanUndefined({ expedienteDays: newExpDays }), { merge: true });
       
       setAutoExpStatus(true);
       setTimeout(() => setAutoExpStatus(false), 2000);
@@ -460,7 +461,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       }
       const newPrefs = { ...(data.preferencesDetails || {}), [dayStr]: dayData };
       setData(prev => ({...prev, preferencesDetails: newPrefs}));
-      await setDoc(monthDocRef, { preferencesDetails: newPrefs }, { merge: true });
+      await setDoc(monthDocRef, cleanUndefined({ preferencesDetails: newPrefs }), { merge: true });
   };
 
   const handleTargetedToggle = async (rgSelection: string, day: Date) => {
@@ -537,7 +538,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
           }
       } : {}
     })); // optimistic
-    await setDoc(monthDocRef, newMonthData, { merge: true });
+    await setDoc(monthDocRef, cleanUndefined(newMonthData), { merge: true });
   };
 
   const handleToggleDay = async (day: Date) => {
@@ -826,7 +827,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                       newGlobal.requirements = { [rg]: autoReq === 0 ? deleteField() : autoReq };
                                                   }
                                                   
-                                                  await setDoc(globalDocRef, newGlobal, { merge: true });
+                                                  await setDoc(globalDocRef, cleanUndefined(newGlobal), { merge: true });
                                                }}
                                                className="w-full text-[10px] font-bold p-1.5 border-2 border-slate-200 rounded-md bg-white text-slate-700 hover:border-indigo-300 focus:border-indigo-500 outline-none transition-colors"
                                              >
@@ -848,7 +849,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                             regimes: { [rg]: r },
                                                             userNames: { [rg]: formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name) }
                                                         };
-                                                        await setDoc(globalDocRef, newGlobal, { merge: true });
+                                                        await setDoc(globalDocRef, cleanUndefined(newGlobal), { merge: true });
                                                     }}
                                                     className="w-full text-[9px] font-bold p-1 px-2 border border-indigo-100 rounded bg-indigo-50/30 text-indigo-900 focus:border-indigo-300 outline-none"
                                                   />
@@ -868,7 +869,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                     requirements: { [rg]: req <= 0 ? deleteField() : req },
                                                     userNames: { [rg]: formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name) }
                                                 };
-                                                await setDoc(globalDocRef, newGlobal, { merge: true });
+                                                await setDoc(globalDocRef, cleanUndefined(newGlobal), { merge: true });
                                              }}
                                              className="w-16 p-2 text-center text-sm border-2 border-indigo-200 rounded-md bg-white font-black text-indigo-900 hover:border-indigo-400 focus:border-indigo-500 outline-none transition-colors mx-auto block"
                                          />
@@ -886,7 +887,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                     sectors: { [rg]: s || deleteField() },
                                                     userNames: { [rg]: formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name) }
                                                 };
-                                                await setDoc(globalDocRef, newGlobal, { merge: true });
+                                                await setDoc(globalDocRef, cleanUndefined(newGlobal), { merge: true });
                                              }}
                                              className="w-full text-sm p-2 border-2 border-slate-200 rounded-md bg-white font-bold text-slate-700 hover:border-slate-300 focus:border-slate-500 outline-none transition-colors uppercase"
                                          />
@@ -1528,7 +1529,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                   [activeRg]: true
                                               }
                                           };
-                                          await setDoc(monthDocRef, newMonthData, { merge: true });
+                                          await setDoc(monthDocRef, cleanUndefined(newMonthData), { merge: true });
                                       }}
                                       className="sm:hidden mt-3 w-full bg-indigo-600 active:bg-indigo-700 hover:bg-indigo-500 text-white py-2.5 px-2 rounded-lg text-[9px] items-center justify-center font-black uppercase tracking-widest flex gap-1 shadow-sm transition-colors"
                                    >
@@ -1643,7 +1644,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                                 [activeRg!]: true
                                                             }
                                                         };
-                                                        await setDoc(monthDocRef, newMonthData, { merge: true });
+                                                        await setDoc(monthDocRef, cleanUndefined(newMonthData), { merge: true });
                                                         setConfirmLock(false);
                                                     }}
                                                     className="flex-1 bg-green-500 hover:bg-green-400 text-white py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors shadow-sm"
@@ -1686,7 +1687,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                             e.preventDefault();
                                                             e.stopPropagation();
                                                             const updatedRequests = data.swapRequests!.filter(r => r.id !== req.id);
-                                                            await setDoc(monthDocRef, { swapRequests: updatedRequests }, { merge: true });
+                                                            await setDoc(monthDocRef, cleanUndefined({ swapRequests: updatedRequests }), { merge: true });
                                                         }}
                                                         className="w-full py-1.5 bg-red-500/20 hover:bg-red-500/40 border border-red-500/30 text-red-200 text-[9px] font-black uppercase tracking-widest rounded transition-colors mt-1 z-20 relative cursor-pointer"
                                                     >
@@ -1871,7 +1872,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                             [req.rg]: newSels
                                                         }
                                                     };
-                                                    await setDoc(monthDocRef, newMonthData, { merge: true });
+                                                    await setDoc(monthDocRef, cleanUndefined(newMonthData), { merge: true });
                                                 }}
                                                 className="flex-1 bg-green-500 hover:bg-green-600 text-white text-[9px] font-black uppercase py-1.5 rounded transition-colors"
                                               >
@@ -1881,7 +1882,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                 onClick={async () => {
                                                     // Reject
                                                     const updatedRequests = data.swapRequests!.map(r => r.id === req.id ? { ...r, status: 'rejected' as const } : r);
-                                                    await setDoc(monthDocRef, { swapRequests: updatedRequests }, { merge: true });
+                                                    await setDoc(monthDocRef, cleanUndefined({ swapRequests: updatedRequests }), { merge: true });
                                                 }}
                                                 className="flex-1 bg-red-500 hover:bg-red-600 text-white text-[9px] font-black uppercase py-1.5 rounded transition-colors"
                                               >
@@ -1956,7 +1957,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                     };
                     
                     const updatedRequests = [...(data.swapRequests || []), newReq];
-                    await setDoc(monthDocRef, { swapRequests: updatedRequests }, { merge: true });
+                    await setDoc(monthDocRef, cleanUndefined({ swapRequests: updatedRequests }), { merge: true });
                     
                     alert("Solicitação enviada para avaliação!");
                     setShowSwapModal(false);

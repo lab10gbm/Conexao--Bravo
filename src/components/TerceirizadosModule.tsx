@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Users, Plus, ShieldCheck, Trash2, ArrowLeft, Loader2, UtensilsCrossed, Briefcase, MapPin } from 'lucide-react';
 import { UserProfile } from '../types';
 import { OBM_HIERARCHY } from '../constants';
+import { cleanUndefined } from "../lib/utils";
 
 export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBack: () => void }) {
   const [terceirizados, setTerceirizados] = useState<any[]>([]);
@@ -44,20 +45,20 @@ export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBac
     const safeRg = login.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
     
     try {
-      await setDoc(doc(db, 'militaries', safeRg), {
-        rg: safeRg,
-        name: name.toUpperCase(),
-        rank: 'CIVIL',
-        customPassword: '0000',
-        isTerceirizado: true,
-        obm: obm,
-        // Configurações de acordo com o papel
-        isRefeitorioAdmin: role === 'rancho',
-        isAdmin: role === 'expediente',
-        isEscalante: role === 'expediente',
-        ala: role === 'expediente' ? 'EXP' : '1',
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+      await setDoc(doc(db, 'militaries', safeRg), cleanUndefined({
+              rg: safeRg,
+              name: name.toUpperCase(),
+              rank: 'CIVIL',
+              customPassword: '0000',
+              isTerceirizado: true,
+              obm: obm,
+              // Configurações de acordo com o papel
+              isRefeitorioAdmin: role === 'rancho',
+              isAdmin: role === 'expediente',
+              isEscalante: role === 'expediente',
+              ala: role === 'expediente' ? 'EXP' : '1',
+              updatedAt: serverTimestamp()
+            }), { merge: true });
 
       setIsModalOpen(false);
       setName('');

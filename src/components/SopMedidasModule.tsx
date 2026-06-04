@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { exportToExcel } from '../lib/exportUtils';
 import { ManualRgModal } from './ManualRgModal';
 import { EditableSopCell } from './EditableSopCell';
+import { cleanUndefined } from "../lib/utils";
 
 interface SopMedidasModuleProps {
   user: UserProfile;
@@ -154,7 +155,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
         const docRef = doc(db, 'medidasAntropometricas', rg);
         const currentData = dbDataMap[rg] || {};
         const newData = { ...currentData, [bulkActionField]: value };
-        batch.push(setDoc(docRef, { [bulkActionField]: value }, { merge: true }));
+        batch.push(setDoc(docRef, cleanUndefined({ [bulkActionField]: value }), { merge: true }));
         newDbMap[rg] = newData;
       }
 
@@ -182,7 +183,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
       const currentData = dbDataMap[rgStr] || {};
       const newData = { ...currentData, [field]: value };
       
-      await setDoc(docRef, { [field]: value }, { merge: true });
+      await setDoc(docRef, cleanUndefined({ [field]: value }), { merge: true });
       
       // Update local state
       setDbDataMap(prev => ({
@@ -403,7 +404,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
     const docRef = doc(db, 'medidasAntropometricas', rgStr);
     const currentData = dbDataMap[rgStr] || {};
     const newData = { ...currentData, [field]: newVal };
-    await setDoc(docRef, { [field]: newVal }, { merge: true }); // Only merge the specific field to preserve concurrent changes
+    await setDoc(docRef, cleanUndefined({ [field]: newVal }), { merge: true }); // Only merge the specific field to preserve concurrent changes
     setDbDataMap(prev => ({ ...prev, [rgStr]: newData }));
   };
 
@@ -430,10 +431,10 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
                 onClick={async () => {
                   if (confirm("Você quer disparar um alerta obrigatório para TODO o efetivo atualizar o EPI? Todos receberão esse alerta ao entrar no sistema imediatamente.")) {
                     try {
-                      await setDoc(doc(db, 'config', 'epi_request'), {
-                        isActive: true,
-                        requestedAt: new Date().toISOString()
-                      });
+                      await setDoc(doc(db, 'config', 'epi_request'), cleanUndefined({
+                                              isActive: true,
+                                              requestedAt: new Date().toISOString()
+                                            }));
                       alert("Alerta disparado! Todos os usuários verão o aviso sobre a atualização obrigatória no painel.");
                     } catch (e) {
                       console.error(e);

@@ -22,6 +22,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { RefeitorioModule } from './RefeitorioModule';
 import { AprovisionamentoCatalogo, GastoIngrediente } from './AprovisionamentoCatalogo';
+import { cleanUndefined } from '../lib/utils';
 import { db } from '../lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useRefeitorioData } from '../hooks/useRefeitorioData';
@@ -434,7 +435,8 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
     
     pendingSaveRef.current = setTimeout(async () => {
       try {
-        await setDoc(doc(db, 'aprovisionamento', 'dados'), dataRef.current, { merge: true });
+        const cleanedData = cleanUndefined(dataRef.current);
+        await setDoc(doc(db, 'aprovisionamento', 'dados'), cleanUndefined(cleanedData), { merge: true });
         pendingSaveRef.current = null;
       } catch (e) {
         console.error("Error saving aprovisionamento dados:", e);
@@ -448,7 +450,8 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
       if (pendingSaveRef.current) {
         clearTimeout(pendingSaveRef.current);
         // Fire and forget save using the latest data from the ref
-        setDoc(doc(db, 'aprovisionamento', 'dados'), dataRef.current, { merge: true }).catch(console.error);
+        const cleanedData = cleanUndefined(dataRef.current);
+        setDoc(doc(db, 'aprovisionamento', 'dados'), cleanUndefined(cleanedData), { merge: true }).catch(console.error);
         pendingSaveRef.current = null;
       }
     };

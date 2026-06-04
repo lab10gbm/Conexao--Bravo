@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { cleanUndefined } from "../lib/utils";
+
 const INITIAL_MENU_DATA: any[] = [];
 const PROTEINAS: any[] = [
   {
@@ -231,7 +233,7 @@ export function useRefeitorioData() {
           if (dirty) {
              const docRef = doc(db, 'refeitorio', 'data');
              try {
-                await setDoc(docRef, { catalog: loadedCatalog }, { merge: true });
+                await setDoc(docRef, cleanUndefined({ catalog: loadedCatalog }), { merge: true });
              } catch(e) {}
           }
           
@@ -270,7 +272,7 @@ export function useRefeitorioData() {
   const saveMenus = async (newMenus: any[]) => {
     setMenus(newMenus); // optimistic update
     try {
-      await setDoc(doc(db, 'refeitorio', 'data'), { menus: newMenus }, { merge: true });
+      await setDoc(doc(db, 'refeitorio', 'data'), cleanUndefined({ menus: newMenus }), { merge: true });
     } catch (e) {
       console.error("Error saving menus:", e);
     }
@@ -301,7 +303,7 @@ export function useRefeitorioData() {
 
     setCatalog(sortedCatalog); // optimistic update
     try {
-      await setDoc(doc(db, 'refeitorio', 'data'), { catalog: sortedCatalog }, { merge: true });
+      await setDoc(doc(db, 'refeitorio', 'data'), cleanUndefined({ catalog: sortedCatalog }), { merge: true });
     } catch (e) {
       console.error("Error saving catalog:", e);
     }
