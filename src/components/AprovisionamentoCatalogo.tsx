@@ -8,7 +8,7 @@ import { cleanUndefined } from "../lib/utils";
 
 interface AprovisionamentoCatalogoProps {
   user: UserProfile;
-  materiais: { id: string; nome: string }[];
+  materiais: any[];
 }
 
 export type MetodologiaGasto = 'por_dia' | 'por_prato';
@@ -22,7 +22,7 @@ export interface GastoIngrediente {
 }
 
 export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCatalogoProps) {
-  const { catalog, loading } = useRefeitorioData();
+  const { catalog, loading, saveCatalog } = useRefeitorioData();
   const [gastos, setGastos] = useState<Record<string, GastoIngrediente[]>>(() => {
     try {
       const cached = localStorage.getItem('aprovisionamento_gastos_cache');
@@ -94,6 +94,30 @@ export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCa
     });
   };
 
+  const handleAddPrato = async (categoryKey: string, subCategoryName?: string) => {
+    const pratoName = window.prompt("Digite o nome do novo prato:");
+    if (!pratoName || pratoName.trim() === '') return;
+    const name = pratoName.trim().toUpperCase();
+
+    const newCatalog = { ...catalog };
+    if (!newCatalog[categoryKey]) newCatalog[categoryKey] = [];
+
+    if (subCategoryName) {
+      newCatalog[categoryKey] = newCatalog[categoryKey].map((item: any) => {
+        if (item.isCategory && item.name === subCategoryName) {
+          return { ...item, items: [...item.items, name] };
+        }
+        return item;
+      });
+    } else {
+      newCatalog[categoryKey].push(name);
+    }
+    
+    // optimistically update view? well it might just rerender due to useRefeitorioData hook?
+    // the saveCatalog actually updates state internally. We just call it.
+    await saveCatalog(newCatalog);
+  };
+
   if (loading || loadingGastos) {
     return (
       <div className="flex flex-col items-center justify-center p-12 text-slate-400 bg-white rounded-3xl border border-slate-200">
@@ -138,8 +162,16 @@ export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCa
                     onChange={e => handleUpdateIngrediente(itemName, gasto.id, 'metodologia', e.target.value)}
                     className="w-full sm:w-auto flex-1 bg-white border border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider rounded-lg px-3 py-2.5 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
                   >
-                    <option value="por_dia">Kg / Dia</option>
-                    <option value="por_prato">Kg / Prato</option>
+                    {(() => {
+                      const material = materiais.find(m => m.nome === gasto.nome);
+                      const und = material?.undMedida || 'KG';
+                      return (
+                        <>
+                          <option value="por_dia">{und} / Dia</option>
+                          <option value="por_prato">{und} / Prato</option>
+                        </>
+                      );
+                    })()}
                   </select>
                   <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto flex-1">
                     <div className="flex items-center gap-2 flex-1 bg-white sm:bg-transparent rounded-lg border sm:border-0 border-slate-200 pr-1 pl-3 sm:p-0">
@@ -184,14 +216,26 @@ export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCa
     );
   };
 
-  const renderCategory = (title: string, items: any[]) => {
+  const renderCategory = (title: string, dataKey: string, items: any[]) => {
     const safeItems = items || [];
     return (
       <div className="bg-slate-50/50 border border-slate-200 rounded-3xl p-6 mb-8 shadow-sm">
-        <h3 className="font-black text-slate-800 uppercase tracking-widest mb-6 text-sm flex items-center gap-2">
-          {title}
-          <span className="bg-amber-100 text-amber-700 text-[10px] px-2 py-0.5 rounded-full">{safeItems.length}</span>
-        </h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm flex items-center gap-2">
+            {title}
+            <span className="bg-amber-100 text-amber-700 text-[10px] px-2 py-0.5 rounded-full">{safeItems.length}</span>
+          </h3>
+          {(!safeItems.length || typeof safeItems[0] === 'string') && (
+            <button
+              onClick={() => handleAddPrato(dataKey)}
+              className="text-[10px] sm:w-auto font-black uppercase tracking-widest bg-emerald-50 hover:bg-emerald-100 text-emerald-600 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Novo Prato
+            </button>
+          )}
+        </div>
+
         <div className="space-y-4">
           {safeItems.length === 0 ? (
             <div className="text-xs font-semibold text-slate-400 italic">Nenhum item cadastrado nesta seção.</div>
@@ -202,7 +246,16 @@ export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCa
               } else if (item.isCategory) {
                 return (
                   <div key={idx} className="mb-8 last:mb-0 bg-white/50 p-5 rounded-2xl border border-slate-100">
-                    <h4 className="font-black text-slate-600 uppercase tracking-widest mb-4 text-xs">{item.name}</h4>
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-black text-slate-600 uppercase tracking-widest text-xs">{item.name}</h4>
+                      <button
+                        onClick={() => handleAddPrato(dataKey, item.name)}
+                        className="text-[10px] font-black uppercase tracking-widest bg-emerald-50 hover:bg-emerald-100 text-emerald-600 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors shrink-0"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Prato
+                      </button>
+                    </div>
                     <div className="space-y-4">
                       {item.items.length === 0 ? (
                         <div className="text-xs font-semibold text-slate-400 italic">Nenhum item nesta categoria.</div>
@@ -252,11 +305,11 @@ export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCa
             </div>
           </div>
 
-          {renderCategory("Proteínas", catalog.proteinas)}
-          {renderCategory("Acompanhamentos", catalog.acompanhamentos)}
-          {renderCategory("Saladas", catalog.saladas)}
-          {renderCategory("Sobremesas", catalog.sobremesas)}
-          {renderCategory("Ceia", catalog.ceia)}
+          {renderCategory("Proteínas", "proteinas", catalog.proteinas)}
+          {renderCategory("Acompanhamentos", "acompanhamentos", catalog.acompanhamentos)}
+          {renderCategory("Saladas", "saladas", catalog.saladas)}
+          {renderCategory("Sobremesas", "sobremesas", catalog.sobremesas)}
+          {renderCategory("Ceia", "ceia", catalog.ceia)}
         </div>
       )}
     </div>

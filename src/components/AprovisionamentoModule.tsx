@@ -697,7 +697,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   const tabs = [
     { id: 'CADASTRO', label: 'Cadastro & Estoque', icon: Package },
     { id: 'RECEITAS', label: 'Planejamento Semanal', icon: ChefHat },
-    { id: 'CATALOGO', label: 'Catálogo', icon: BookOpen },
+    { id: 'CATALOGO', label: 'Catálogo / Comp. de Pratos', icon: BookOpen },
     { id: 'CARDAPIO', label: 'Cardápio / Simulação', icon: CalendarDays },
     { id: 'PREVISAO', label: 'Listas e Previsão', icon: ClipboardList },
   ] as const;
