@@ -426,7 +426,7 @@ async function startServer() {
           if (safeRg) {
             const existing = militaryCache.get(safeRg);
             if (existing) {
-              militaryCache.set(safeRg, { ...data, ...existing }); 
+              militaryCache.set(safeRg, { ...existing, ...data }); 
               supplementCount++;
             } else {
               if (!data.name) {

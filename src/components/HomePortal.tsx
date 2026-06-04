@@ -141,6 +141,10 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
     const saved = localStorage.getItem('escalanteModuleOrder');
     return saved ? JSON.parse(saved) : [];
   });
+  const [moderadorOrder, setModeradorOrder] = useState<string[]>(() => {
+    const saved = localStorage.getItem('moderadorModuleOrder');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [adminTab, setAdminTab] = useState<'apps' | 'roles'>('apps');
   const [epiRequestActive, setEpiRequestActive] = useState(false);
 
@@ -258,14 +262,6 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       defaultGroups: ['EXP', 'ADMIN', 'ESCALANTE', 'OFICIAIS']
     },
     {
-      id: 'translado',
-      label: 'Translado OBM',
-      description: 'Viaturas Administrativas',
-      icon: Bus,
-      color: 'bg-blue-500 shadow-blue-200',
-      defaultGroups: ['TODOS']
-    },
-    {
       id: 'servicos-grd',
       label: 'Serviços e GRD',
       description: 'Escala de Oficiais',
@@ -276,15 +272,6 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
   ];
 
   const informativoModulesDef = [
-    {
-      id: 'ferias',
-      label: 'Controle de Férias',
-      description: 'Seu Escalonamento Anual',
-      icon: Library,
-      color: 'bg-orange-600 shadow-orange-200',
-      inDevelopment: true,
-      defaultGroups: ['TODOS']
-    },
     {
        id: 'atualizacao',
        label: 'Atualização Cadastral',
@@ -309,14 +296,6 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
        icon: Ruler,
        color: 'bg-indigo-600 shadow-indigo-200',
        defaultGroups: ['TODOS']
-    },
-    {
-      id: 'comunicacao',
-      label: 'Painel do Comunicante',
-      description: 'Acionar Viaturas',
-      icon: Radio,
-      color: 'bg-rose-600 shadow-rose-200',
-      defaultGroups: ['TODOS']
     },
     {
       id: 'refeitorio',
@@ -352,15 +331,6 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
        icon: Package,
        color: 'bg-cyan-600 shadow-cyan-200',
        defaultGroups: ['ADMIN', 'ESCALANTE', 'OFICIAIS']
-    },
-    {
-      id: 'ferias-sad',
-      label: 'Controle Férias SAD',
-      description: 'Gestão Geral de Férias',
-      icon: CalendarOff,
-      color: 'bg-sky-600 shadow-sky-200',
-      inDevelopment: true,
-      defaultGroups: ['ADMIN', 'ESCALANTE', 'OFICIAIS']
     },
     {
       id: 'relatorio',
@@ -406,7 +376,44 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
     }
   ];
 
-  type SectionType = 'operacional' | 'informativo' | 'escalante';
+  const moderadorModulesDef = [
+    {
+      id: 'translado',
+      label: 'Translado OBM',
+      description: 'Viaturas Administrativas',
+      icon: Bus,
+      color: 'bg-blue-500 shadow-blue-200',
+      defaultGroups: ['ADMIN', 'ESCALANTE']
+    },
+    {
+      id: 'ferias',
+      label: 'Controle de Férias',
+      description: 'Seu Escalonamento Anual',
+      icon: Library,
+      color: 'bg-orange-600 shadow-orange-200',
+      inDevelopment: true,
+      defaultGroups: ['ADMIN', 'ESCALANTE']
+    },
+    {
+      id: 'ferias-sad',
+      label: 'Controle Férias SAD',
+      description: 'Gestão Geral de Férias',
+      icon: CalendarOff,
+      color: 'bg-sky-600 shadow-sky-200',
+      inDevelopment: true,
+      defaultGroups: ['ADMIN', 'ESCALANTE']
+    },
+    {
+      id: 'comunicacao',
+      label: 'Painel do Comunicante',
+      description: 'Acionar Viaturas',
+      icon: Radio,
+      color: 'bg-rose-600 shadow-rose-200',
+      defaultGroups: ['ADMIN', 'ESCALANTE']
+    }
+  ];
+
+  type SectionType = 'operacional' | 'informativo' | 'escalante' | 'moderador';
   
   const moveItem = (modules: any[], id: string, direction: -1 | 1, section: SectionType) => {
      const currentIds = modules.map(m => m.id);
@@ -426,6 +433,9 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
      } else if (section === 'operacional') {
         setOperacionalOrder(newIds);
         localStorage.setItem('operacionalModuleOrder', JSON.stringify(newIds));
+     } else if (section === 'moderador') {
+        setModeradorOrder(newIds);
+        localStorage.setItem('moderadorModuleOrder', JSON.stringify(newIds));
      } else {
         setInformativoOrder(newIds);
         localStorage.setItem('informativoModuleOrder', JSON.stringify(newIds));
@@ -435,6 +445,7 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
   const visibleOperacionalModulesRaw = operacionalModulesDef.filter(mod => isVisible(mod.id, mod.defaultGroups));
   const visibleInformativoModulesRaw = informativoModulesDef.filter(mod => isVisible(mod.id, mod.defaultGroups));
   const visibleEscalanteModulesRaw = escalanteModulesDef.filter(mod => isVisible(mod.id, mod.defaultGroups));
+  const visibleModeradorModulesRaw = moderadorModulesDef.filter(mod => isVisible(mod.id, mod.defaultGroups));
 
   const sortModules = (raw: any[], orderList: string[]) => {
     return [...raw].sort((a, b) => {
@@ -450,6 +461,7 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
   const visibleOperacionalModules = sortModules(visibleOperacionalModulesRaw, operacionalOrder);
   const visibleInformativoModules = sortModules(visibleInformativoModulesRaw, informativoOrder);
   const visibleEscalanteModules = sortModules(visibleEscalanteModulesRaw, escalanteOrder);
+  const visibleModeradorModules = sortModules(visibleModeradorModulesRaw, moderadorOrder);
 
   return (
     <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -575,6 +587,33 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
                   onClick={() => !isEditMode && onLaunchModule(mod.id)}
                   onMoveLeft={isEditMode && index > 0 ? (e) => { e.stopPropagation(); moveItem(visibleEscalanteModules, mod.id, -1, 'escalante'); } : undefined}
                   onMoveRight={isEditMode && index < visibleEscalanteModules.length - 1 ? (e) => { e.stopPropagation(); moveItem(visibleEscalanteModules, mod.id, 1, 'escalante'); } : undefined}
+                />
+              ))}
+            </div>
+         </div>
+      )}
+
+      {isAdmin && visibleModeradorModules.length > 0 && (
+         <div className="mb-12">
+            <div className="flex items-center gap-3 mb-6">
+               <Shield className="w-5 h-5 text-indigo-800" />
+               <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Painel de Moderação</h2>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+              {visibleModeradorModules.map((mod, index) => (
+                <ModuleIcon
+                  key={mod.id}
+                  id={mod.id}
+                  label={mod.label}
+                  description={mod.description}
+                  icon={mod.icon}
+                  color={mod.color}
+                  disabled={(mod as any).disabled}
+                  comingSoon={(mod as any).comingSoon}
+                  inDevelopment={(mod as any).inDevelopment}
+                  onClick={() => !isEditMode && onLaunchModule(mod.id)}
+                  onMoveLeft={isEditMode && index > 0 ? (e) => { e.stopPropagation(); moveItem(visibleModeradorModules, mod.id, -1, 'moderador'); } : undefined}
+                  onMoveRight={isEditMode && index < visibleModeradorModules.length - 1 ? (e) => { e.stopPropagation(); moveItem(visibleModeradorModules, mod.id, 1, 'moderador'); } : undefined}
                 />
               ))}
             </div>

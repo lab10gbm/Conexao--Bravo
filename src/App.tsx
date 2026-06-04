@@ -925,9 +925,12 @@ export default function App() {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 1.05 }}
                     transition={{ duration: 0.3 }}
-                    className="flex items-center justify-center h-64 text-slate-400 font-bold uppercase tracking-widest text-sm"
                   >
-                    Em breve
+                    <AgendaPessoal
+                      user={effectiveProfile!}
+                      onBack={() => navigate("/")}
+                      standalone={true}
+                    />
                   </motion.div>
                 }
               />

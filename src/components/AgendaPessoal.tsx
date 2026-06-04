@@ -36,6 +36,7 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
   const [isDashboardExpanded, setIsDashboardExpanded] = useState(standalone ? true : false);
   const [isSimuladorOpen, setIsSimuladorOpen] = useState(false);
   const [openMonths, setOpenMonths] = useState<number[]>([]);
+  const [showPastMonths, setShowPastMonths] = useState(false);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [selectedDayIsWorking, setSelectedDayIsWorking] = useState(false);
   const [showOnlyMyServices, setShowOnlyMyServices] = useState(false);
@@ -327,27 +328,139 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
           </div>
 
           {/* Meses Calendário Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start">
-            {months.map((month) => {
-              const isOpen = openMonths.includes(month.getMonth());
-              return (
-                <MonthGrid 
-                  key={month.getMonth()} 
-                  month={month} 
-                  userAla={user.ala} 
-                  onDateSelect={(date, isWorking) => {
-                     setSelectedDay(date);
-                     setSelectedDayIsWorking(isWorking);
-                  }}
-                  mockAfastamentos={MOCK_AFASTAMENTOS}
-                  mockLembretes={personalTodos}
-                  mockPermutas={userPermutas}
-                  institutionalEvents={institutionalEvents}
-                  isOpenMonth={isOpen}
-                  showOnlyMyServices={showOnlyMyServices}
-                />
-              );
-            })}
+          <div className="flex flex-col gap-6">
+             {/* Past Months Section (Hidden by default on mobile) */}
+             {(() => {
+                const now = new Date();
+                const pastMonths = months.filter(m => isBefore(m, startOfMonth(now)));
+                const currentAndFutureMonths = months.filter(m => !isBefore(m, startOfMonth(now)));
+
+                if (pastMonths.length === 0) {
+                    return (
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start">
+                            {currentAndFutureMonths.map((month) => {
+                              const isOpen = openMonths.includes(month.getMonth());
+                              return (
+                                <MonthGrid 
+                                  key={month.getMonth()} 
+                                  month={month} 
+                                  userAla={user.ala} 
+                                  onDateSelect={(date, isWorking) => {
+                                     setSelectedDay(date);
+                                     setSelectedDayIsWorking(isWorking);
+                                  }}
+                                  mockAfastamentos={MOCK_AFASTAMENTOS}
+                                  mockLembretes={personalTodos}
+                                  mockPermutas={userPermutas}
+                                  institutionalEvents={institutionalEvents}
+                                  isOpenMonth={isOpen}
+                                  showOnlyMyServices={showOnlyMyServices}
+                                />
+                              );
+                            })}
+                        </div>
+                    );
+                }
+
+                return (
+                    <>
+                        <div className="md:hidden flex flex-col items-center border-b border-slate-200 pb-4 mb-2">
+                           <button 
+                              onClick={() => setShowPastMonths(!showPastMonths)}
+                              className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-colors duration-200"
+                           >
+                              {showPastMonths ? (
+                                  <>Ocultar meses anteriores <ChevronUp className="w-4 h-4 text-slate-500" /></>
+                              ) : (
+                                  <>Ver meses que já passaram <ChevronDown className="w-4 h-4 text-slate-500" /></>
+                              )}
+                           </button>
+                        </div>
+                        
+                        <AnimatePresence>
+                            {showPastMonths && (
+                                <motion.div 
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.3 }}
+                                    className="overflow-hidden"
+                                >
+                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start mb-6 border-b border-dashed border-slate-200 pb-6 opacity-60">
+                                        {pastMonths.map((month) => {
+                                          const isOpen = openMonths.includes(month.getMonth());
+                                          return (
+                                            <MonthGrid 
+                                              key={month.getMonth()} 
+                                              month={month} 
+                                              userAla={user.ala} 
+                                              onDateSelect={(date, isWorking) => {
+                                                 setSelectedDay(date);
+                                                 setSelectedDayIsWorking(isWorking);
+                                              }}
+                                              mockAfastamentos={MOCK_AFASTAMENTOS}
+                                              mockLembretes={personalTodos}
+                                              mockPermutas={userPermutas}
+                                              institutionalEvents={institutionalEvents}
+                                              isOpenMonth={isOpen}
+                                              showOnlyMyServices={showOnlyMyServices}
+                                            />
+                                          );
+                                        })}
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                        
+                        {/* Always show past months on desktop, but allow the toggle on mobile */}
+                        <div className="hidden md:grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start mb-6 border-b border-dashed border-slate-200 pb-6 opacity-60">
+                             {pastMonths.map((month) => {
+                               const isOpen = openMonths.includes(month.getMonth());
+                               return (
+                                 <MonthGrid 
+                                   key={month.getMonth()} 
+                                   month={month} 
+                                   userAla={user.ala} 
+                                   onDateSelect={(date, isWorking) => {
+                                      setSelectedDay(date);
+                                      setSelectedDayIsWorking(isWorking);
+                                   }}
+                                   mockAfastamentos={MOCK_AFASTAMENTOS}
+                                   mockLembretes={personalTodos}
+                                   mockPermutas={userPermutas}
+                                   institutionalEvents={institutionalEvents}
+                                   isOpenMonth={isOpen}
+                                   showOnlyMyServices={showOnlyMyServices}
+                                 />
+                               );
+                             })}
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start">
+                            {currentAndFutureMonths.map((month) => {
+                              const isOpen = openMonths.includes(month.getMonth());
+                              return (
+                                <MonthGrid 
+                                  key={month.getMonth()} 
+                                  month={month} 
+                                  userAla={user.ala} 
+                                  onDateSelect={(date, isWorking) => {
+                                     setSelectedDay(date);
+                                     setSelectedDayIsWorking(isWorking);
+                                  }}
+                                  mockAfastamentos={MOCK_AFASTAMENTOS}
+                                  mockLembretes={personalTodos}
+                                  mockPermutas={userPermutas}
+                                  institutionalEvents={institutionalEvents}
+                                  isOpenMonth={isOpen}
+                                  showOnlyMyServices={showOnlyMyServices}
+                                />
+                              );
+                            })}
+                        </div>
+                    </>
+                );
+             })()}
           </div>
 
         </div>

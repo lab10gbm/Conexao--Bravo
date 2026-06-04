@@ -1007,14 +1007,6 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                                  </span>
                                                              </div>
                                                          )}
-                                                         {!isSelected && isExp && (
-                                                            <div className={cn(
-                                                                "mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center shadow-sm",
-                                                                "bg-indigo-100 text-indigo-700 border border-indigo-200"
-                                                            )}>
-                                                                <span className="text-[7px] font-black leading-none pt-[1px]">EXP</span>
-                                                            </div>
-                                                         )}
                                                          {!isSelected && isSwapDay && (
                                                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-80">
                                                                  <ArrowUpDown className="w-3.5 h-3.5 text-orange-500 animate-pulse" />
@@ -1134,14 +1126,6 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                             <span className={cn("text-[10px] font-black leading-none pt-[1px]", isEscalantePref && "text-white")}>
                                                                 {isEscalantePref ? '★' : 'X'}
                                                             </span>
-                                                        </div>
-                                                     )}
-                                                     {!isSelected && data.expedienteDays?.[rg]?.includes(dayStr) && (
-                                                        <div className={cn(
-                                                            "mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center shadow-sm",
-                                                            "bg-indigo-100 text-indigo-700 border border-indigo-200"
-                                                        )}>
-                                                            <span className="text-[7px] font-black leading-none pt-[1px]">EXP</span>
                                                         </div>
                                                      )}
                                                      {!isSelected && isSwapDay && (
@@ -1516,35 +1500,13 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                               {workersOnThisDay.map((name, i) => (
                                                  <span key={i} className={cn(
                                                      "text-[10px] sm:text-[9px] font-black bg-slate-800 text-white px-2 py-1 sm:px-1.5 sm:py-1 rounded-[4px] uppercase truncate leading-none cursor-help max-w-full inline-block",
-                                                     (i >= 5 && expWorkersOnThisDay.length === 0) || (i >= 3 && expWorkersOnThisDay.length > 0) ? "hidden" : ""
+                                                     i >= 5 ? "hidden" : ""
                                                  )} title={name}>
                                                     {formatMilitaryName(name)}
                                                  </span>
                                               ))}
-                                              {workersOnThisDay.length > 5 && expWorkersOnThisDay.length === 0 && (
+                                              {workersOnThisDay.length > 5 && (
                                                  <span className="text-[10px] sm:text-[9px] font-black text-slate-500 px-1 py-1">+ {workersOnThisDay.length - 5}</span>
-                                              )}
-                                              {workersOnThisDay.length > 3 && expWorkersOnThisDay.length > 0 && (
-                                                 <span className="text-[10px] sm:text-[9px] font-black text-slate-500 px-1 py-1">+ {workersOnThisDay.length - 3}</span>
-                                              )}
-                                          </div>
-                                      )}
-
-                                      {expWorkersOnThisDay.length > 0 && (
-                                          <div className="flex flex-row sm:flex-col flex-wrap gap-1.5 sm:gap-1 sm:mt-1 border-t sm:border-t-0 border-slate-100 pt-2 sm:pt-0 w-full min-w-0 overflow-hidden">
-                                              {expWorkersOnThisDay.map((name, i) => (
-                                                 <span key={`exp-${i}`} className={cn(
-                                                     "text-[10px] sm:text-[9px] font-black bg-indigo-100 text-indigo-700 border border-indigo-200 px-2 py-1 sm:px-1.5 sm:py-1 rounded-[4px] uppercase truncate leading-none cursor-help max-w-full inline-block",
-                                                     (i >= 5 && workersOnThisDay.length === 0) || (i >= 2 && workersOnThisDay.length > 0) ? "hidden" : ""
-                                                 )} title={name}>
-                                                    {formatMilitaryName(name)} (EXP)
-                                                 </span>
-                                              ))}
-                                              {expWorkersOnThisDay.length > 5 && workersOnThisDay.length === 0 && (
-                                                 <span className="text-[10px] sm:text-[9px] font-black text-slate-500 px-1 py-1">+ {expWorkersOnThisDay.length - 5}</span>
-                                              )}
-                                              {expWorkersOnThisDay.length > 2 && workersOnThisDay.length > 0 && (
-                                                 <span className="text-[10px] sm:text-[9px] font-black text-slate-500 px-1 py-1">+ {expWorkersOnThisDay.length - 2}</span>
                                               )}
                                           </div>
                                       )}

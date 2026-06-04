@@ -23,7 +23,7 @@ import { cn } from '../lib/utils';
 import { RefeitorioModule } from './RefeitorioModule';
 import { AprovisionamentoCatalogo, GastoIngrediente } from './AprovisionamentoCatalogo';
 import { db } from '../lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useRefeitorioData } from '../hooks/useRefeitorioData';
 
 
@@ -393,20 +393,52 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   const [showNovaDataPopup, setShowNovaDataPopup] = useState(false);
   const [novaDataValue, setNovaDataValue] = useState('');
 
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+
   useEffect(() => {
-    const fetchGastos = async () => {
+    const fetchDados = async () => {
       try {
-        const docRef = doc(db, 'aprovisionamento', 'gastos_catalogo');
-        const snap = await getDoc(docRef);
-        if (snap.exists()) {
-          setGastosCatalogo(snap.data().gastos || {});
+        // Fetch Gastos
+        const docRefGastos = doc(db, 'aprovisionamento', 'gastos_catalogo');
+        const snapGastos = await getDoc(docRefGastos);
+        if (snapGastos.exists()) {
+          setGastosCatalogo(snapGastos.data().gastos || {});
+        }
+
+        // Fetch Dados Principais
+        const docRefDados = doc(db, 'aprovisionamento', 'dados');
+        const snapDados = await getDoc(docRefDados);
+        if (snapDados.exists()) {
+          const data = snapDados.data();
+          if (data.materiais) setMateriais(data.materiais);
+          if (data.receitas) setReceitas(data.receitas);
+          if (data.cardapio) setCardapio(data.cardapio);
         }
       } catch (e) {
-        console.error("Error fetching gastos_catalogo:", e);
+        console.error("Error fetching aprovisionamento dados:", e);
+      } finally {
+        setIsDataLoaded(true);
       }
     };
-    fetchGastos();
+    fetchDados();
   }, []);
+
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    const saveDados = async () => {
+      try {
+        await setDoc(doc(db, 'aprovisionamento', 'dados'), {
+          materiais,
+          receitas,
+          cardapio
+        }, { merge: true });
+      } catch (e) {
+        console.error("Error saving aprovisionamento dados:", e);
+      }
+    };
+    const timeout = setTimeout(saveDados, 2000);
+    return () => clearTimeout(timeout);
+  }, [materiais, receitas, cardapio, isDataLoaded]);
 
   const handleAddDataEstoque = () => {
     if (novaDataValue && !datasEstoque.includes(novaDataValue)) {
