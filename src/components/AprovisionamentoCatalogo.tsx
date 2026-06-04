@@ -23,7 +23,13 @@ export interface GastoIngrediente {
 
 export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCatalogoProps) {
   const { catalog, loading } = useRefeitorioData();
-  const [gastos, setGastos] = useState<Record<string, GastoIngrediente[]>>({});
+  const [gastos, setGastos] = useState<Record<string, GastoIngrediente[]>>(() => {
+    try {
+      const cached = localStorage.getItem('aprovisionamento_gastos_cache');
+      if (cached) return JSON.parse(cached);
+    } catch(e) {}
+    return {};
+  });
   const [loadingGastos, setLoadingGastos] = useState(true);
 
   useEffect(() => {
@@ -32,7 +38,9 @@ export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCa
         const docRef = doc(db, 'aprovisionamento', 'gastos_catalogo');
         const snap = await getDoc(docRef);
         if (snap.exists()) {
-          setGastos(snap.data().gastos || {});
+          const fetchedGastos = snap.data().gastos || {};
+          setGastos(fetchedGastos);
+          localStorage.setItem('aprovisionamento_gastos_cache', JSON.stringify(fetchedGastos));
         }
       } catch (e) {
         console.error(e);
@@ -45,6 +53,7 @@ export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCa
 
   const saveGastos = async (newGastos: any) => {
     setGastos(newGastos);
+    localStorage.setItem('aprovisionamento_gastos_cache', JSON.stringify(newGastos));
     try {
       await setDoc(doc(db, 'aprovisionamento', 'gastos_catalogo'), cleanUndefined({ gastos: newGastos }), { merge: true });
     } catch (e) {

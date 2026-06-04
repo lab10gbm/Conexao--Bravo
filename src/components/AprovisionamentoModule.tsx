@@ -355,12 +355,43 @@ const MOCK_CARDAPIO: CardapioDia[] = [
 export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfile | null }) {
   const [activeTab, setActiveTab] = useState<'CADASTRO' | 'RECEITAS' | 'CARDAPIO' | 'PREVISAO' | 'CATALOGO'>('CADASTRO');
   
-  const [materiais, setMateriais] = useState<Material[]>(MOCK_MATERIAIS);
-  const [receitas, setReceitas] = useState<Receita[]>(MOCK_RECEITAS);
-  const [cardapio, setCardapio] = useState<CardapioDia[]>(MOCK_CARDAPIO);
+  const [materiais, setMateriais] = useState<Material[]>(() => {
+    try {
+      const cached = localStorage.getItem('aprovisionamento_dados_cache');
+      if (cached) return JSON.parse(cached).materiais || [];
+    } catch(e) {}
+    return [];
+  });
+  const [receitas, setReceitas] = useState<Receita[]>(() => {
+    try {
+      const cached = localStorage.getItem('aprovisionamento_dados_cache');
+      if (cached) return JSON.parse(cached).receitas || [];
+    } catch(e) {}
+    return [];
+  });
+  const [cardapio, setCardapio] = useState<CardapioDia[]>(() => {
+    try {
+      const cached = localStorage.getItem('aprovisionamento_dados_cache');
+      if (cached) return JSON.parse(cached).cardapio || [];
+    } catch(e) {}
+    return [];
+  });
+  const [datasEstoque, setDatasEstoque] = useState<string[]>(() => {
+    try {
+      const cached = localStorage.getItem('aprovisionamento_dados_cache');
+      if (cached) return JSON.parse(cached).datasEstoque || ['27/05'];
+    } catch(e) {}
+    return ['27/05'];
+  });
   const [cadastroFiltroMsg, setCadastroFiltroMsg] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState<CategoriaMaterial>('MERCADO');
-  const [gastosCatalogo, setGastosCatalogo] = useState<Record<string, GastoIngrediente[]>>({});
+  const [gastosCatalogo, setGastosCatalogo] = useState<Record<string, GastoIngrediente[]>>(() => {
+    try {
+      const cached = localStorage.getItem('aprovisionamento_gastos_cache');
+      if (cached) return JSON.parse(cached);
+    } catch(e) {}
+    return {};
+  });
 
   const { menus } = useRefeitorioData();
 
@@ -389,8 +420,6 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
       .sort((a, b) => a.time - b.time)
       .map(item => item.menu);
   }, [menus]);
-
-  const [datasEstoque, setDatasEstoque] = useState<string[]>(['27/05']);
   const [showNovaDataPopup, setShowNovaDataPopup] = useState(false);
   const [novaDataValue, setNovaDataValue] = useState('');
 
@@ -403,7 +432,9 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
         const docRefGastos = doc(db, 'aprovisionamento', 'gastos_catalogo');
         const snapGastos = await getDoc(docRefGastos);
         if (snapGastos.exists()) {
-          setGastosCatalogo(snapGastos.data().gastos || {});
+          const gastos = snapGastos.data().gastos || {};
+          setGastosCatalogo(gastos);
+          localStorage.setItem('aprovisionamento_gastos_cache', JSON.stringify(gastos));
         }
 
         // Fetch Dados Principais
@@ -415,6 +446,18 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
           if (data.receitas) setReceitas(data.receitas);
           if (data.cardapio) setCardapio(data.cardapio);
           if (data.datasEstoque) setDatasEstoque(data.datasEstoque);
+          localStorage.setItem('aprovisionamento_dados_cache', JSON.stringify(data));
+        } else {
+          // Initialize with MOCK data if doesn't exist at all
+          setMateriais(MOCK_MATERIAIS);
+          setReceitas(MOCK_RECEITAS);
+          setCardapio(MOCK_CARDAPIO);
+          
+          const initialData = { materiais: MOCK_MATERIAIS, receitas: MOCK_RECEITAS, cardapio: MOCK_CARDAPIO, datasEstoque: ['27/05'] };
+          localStorage.setItem('aprovisionamento_dados_cache', JSON.stringify(initialData));
+          
+          // Seed the database
+          setDoc(docRefDados, cleanUndefined(initialData));
         }
       } catch (e) {
         console.error("Error fetching aprovisionamento dados:", e);
@@ -430,6 +473,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
 
   const syncAndSave = (newData: Partial<typeof dataRef.current>) => {
     dataRef.current = { ...dataRef.current, ...newData };
+    localStorage.setItem('aprovisionamento_dados_cache', JSON.stringify(dataRef.current));
     
     if (pendingSaveRef.current) clearTimeout(pendingSaveRef.current);
     
