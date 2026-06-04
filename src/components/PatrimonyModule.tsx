@@ -470,16 +470,30 @@ export function PatrimonyModule({
       const sectorId = "custom_" + Date.now();
       const docRef = doc(db, "customSectors", sectorId);
       
+      let finalDate = new Date().toISOString();
+      try {
+        if (newSectorDate) finalDate = new Date(newSectorDate).toISOString();
+      } catch (e) {
+        // use current date if invalid
+      }
+      
       const sectorData = {
         id: sectorId,
         nome: newSectorName.toUpperCase().trim(),
-        obm: newSectorObm || selectedObmFilter,
+        obm: newSectorObm || selectedObmFilter || "10º",
         itens: [],
-        insertedAt: new Date(newSectorDate).toISOString(),
+        insertedAt: finalDate,
         insertedBy: user.warName || user.name,
       };
 
       await setDoc(docRef, sectorData);
+      
+      // Also initialize empty data
+      await setDoc(doc(db, "patrimonioData", sectorId), {
+        items: [],
+        updatedAt: finalDate,
+        updatedBy: user.warName || user.name
+      }, { merge: true });
 
       // If a responsible is selected, set it in config immediately
       if (newSectorResponsible) {
@@ -491,6 +505,7 @@ export function PatrimonyModule({
 
       setNewSectorName("");
       setNewSectorResponsible("");
+      setNewSectorDate("");
       setShowNewSectorModal(false);
 
       // Select newly created sector

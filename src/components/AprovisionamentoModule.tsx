@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   ShoppingCart, 
   Package, 
@@ -413,6 +413,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
           if (data.materiais) setMateriais(data.materiais);
           if (data.receitas) setReceitas(data.receitas);
           if (data.cardapio) setCardapio(data.cardapio);
+          if (data.datasEstoque) setDatasEstoque(data.datasEstoque);
         }
       } catch (e) {
         console.error("Error fetching aprovisionamento dados:", e);
@@ -423,38 +424,61 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
     fetchDados();
   }, []);
 
-  useEffect(() => {
-    if (!isDataLoaded) return;
-    const saveDados = async () => {
+  const pendingSaveRef = useRef<NodeJS.Timeout | null>(null);
+  const dataRef = useRef({ materiais, receitas, cardapio, datasEstoque });
+
+  const syncAndSave = (newData: Partial<typeof dataRef.current>) => {
+    dataRef.current = { ...dataRef.current, ...newData };
+    
+    if (pendingSaveRef.current) clearTimeout(pendingSaveRef.current);
+    
+    pendingSaveRef.current = setTimeout(async () => {
       try {
-        await setDoc(doc(db, 'aprovisionamento', 'dados'), {
-          materiais,
-          receitas,
-          cardapio
-        }, { merge: true });
+        await setDoc(doc(db, 'aprovisionamento', 'dados'), dataRef.current, { merge: true });
+        pendingSaveRef.current = null;
       } catch (e) {
         console.error("Error saving aprovisionamento dados:", e);
       }
+    }, 1000);
+  };
+
+  // Flush remaining saves exactly when component unmounts
+  useEffect(() => {
+    return () => {
+      if (pendingSaveRef.current) {
+        clearTimeout(pendingSaveRef.current);
+        // Fire and forget save using the latest data from the ref
+        setDoc(doc(db, 'aprovisionamento', 'dados'), dataRef.current, { merge: true }).catch(console.error);
+        pendingSaveRef.current = null;
+      }
     };
-    const timeout = setTimeout(saveDados, 2000);
-    return () => clearTimeout(timeout);
-  }, [materiais, receitas, cardapio, isDataLoaded]);
+  }, []);
 
   const handleAddDataEstoque = () => {
     if (novaDataValue && !datasEstoque.includes(novaDataValue)) {
       const novaData = novaDataValue;
-      setDatasEstoque(prev => [...prev, novaData]);
+      const newDatasEstoque = [...datasEstoque, novaData];
+      setDatasEstoque(newDatasEstoque);
       
       const latestData = datasEstoque[datasEstoque.length - 1];
-      setMateriais(prev => prev.map(m => {
-        const estoques = m.estoquesPorData || { '27/05': m.estoque };
-        const val = estoques[latestData] ?? m.estoque;
-        return {
-          ...m,
-          estoquesPorData: { ...estoques, [novaData]: val },
-          estoque: val
-        };
-      }));
+      
+      let newMateriais = materiais;
+      setMateriais(prev => {
+        newMateriais = prev.map(m => {
+          const estoques = m.estoquesPorData || { '27/05': m.estoque };
+          const val = estoques[latestData] ?? m.estoque;
+          return {
+            ...m,
+            estoquesPorData: { ...estoques, [novaData]: val },
+            estoque: val
+          };
+        });
+        return newMateriais;
+      });
+      
+      if (isDataLoaded) {
+        syncAndSave({ datasEstoque: newDatasEstoque, materiais: newMateriais });
+      }
     }
     setShowNovaDataPopup(false);
     setNovaDataValue('');
@@ -462,7 +486,9 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
 
   const handleRemoveDataEstoque = (dataToRemove: string) => {
     if (datasEstoque.length > 1) {
-      setDatasEstoque(prev => prev.filter(dt => dt !== dataToRemove));
+      const newDatas = datasEstoque.filter(dt => dt !== dataToRemove);
+      setDatasEstoque(newDatas);
+      if (isDataLoaded) syncAndSave({ datasEstoque: newDatas });
     }
   };
 
@@ -614,7 +640,11 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   }, [filteredMenus, materiais, gastosCatalogo]);
 
   const updateMaterial = (id: string, updates: Partial<Material>) => {
-    setMateriais(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
+    setMateriais(prev => {
+      const next = prev.map(m => m.id === id ? { ...m, ...updates } : m);
+      if (isDataLoaded) syncAndSave({ materiais: next });
+      return next;
+    });
   };
 
   const tabs = [
