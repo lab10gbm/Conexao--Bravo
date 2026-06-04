@@ -6,7 +6,7 @@ import { doc, onSnapshot, setDoc, query, collection, getDocs, deleteField } from
 import { db } from '../lib/firebase';
 import { cn, formatMilitaryName, getAlaForDate, getAlaLightColor, getAlaColor } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, Settings, CheckCircle2, User, AlertCircle, Save, CalendarRange, Table, ArrowUpDown, X, UserPlus, Trash2, List, Columns } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, CheckCircle2, User, AlertCircle, Save, CalendarRange, Table, ArrowUpDown, X, UserPlus, Trash2, List, Columns, Copy } from 'lucide-react';
 import { useMilitars } from '../contexts/MilitarContext';
 
 interface ExpedienteSchedulerProps {
@@ -147,10 +147,34 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   const [adminConfigMode, setAdminConfigMode] = useState(false);
   const [viewMode, setViewMode] = useState<'calendar' | 'table' | 'lista' | 'escala_sv' | 'necessidades'>('calendar');
   const [transposeTable, setTransposeTable] = useState(false);
+  const [copyStatus, setCopyStatus] = useState(false);
+  const [autoExpStatus, setAutoExpStatus] = useState(false);
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [confirmLock, setConfirmLock] = useState(false);
   const [removeMemberRg, setRemoveMemberRg] = useState<string | null>(null);
   const [removeMemberAla, setRemoveMemberAla] = useState('');
+
+  const handleCopyTables = () => {
+      const containerId = viewMode === 'table' ? 'table-view-container' : viewMode === 'escala_sv' ? 'escala-sv-container' : null;
+      if (!containerId) return;
+      const el = document.getElementById(containerId);
+      if (!el) return;
+      
+      try {
+          const range = document.createRange();
+          range.selectNode(el);
+          const selection = window.getSelection();
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+          document.execCommand('copy');
+          selection?.removeAllRanges();
+          
+          setCopyStatus(true);
+          setTimeout(() => setCopyStatus(false), 2000);
+      } catch (err) {
+          console.error("Failed to copy", err);
+      }
+  };
   
   const isAdmin = user.isAdmin;
   const isEscalante = user.isEscalante;
@@ -421,6 +445,9 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
 
       setData(prev => ({ ...prev, expedienteDays: newExpDays }));
       await setDoc(monthDocRef, { expedienteDays: newExpDays }, { merge: true });
+      
+      setAutoExpStatus(true);
+      setTimeout(() => setAutoExpStatus(false), 2000);
   };
 
   const handleUpdatePrefDetail = async (dayStr: string, func: string, qty: number) => {
@@ -656,13 +683,27 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                               </button>
                           )}
                           {(viewMode === 'escala_sv' || viewMode === 'table') && (isAdmin || user.isEscalante) && (
-                              <button
-                                  onClick={handleAutoFillExp}
-                                  className="ml-2 px-3 py-1.5 rounded-lg border-2 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5 bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
-                                  title="Preencher Dias de Expediente Automaticamente"
-                              >
-                                  <CalendarRange className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Auto EXP</span>
-                              </button>
+                              <>
+                                  <button
+                                      onClick={handleAutoFillExp}
+                                      className={cn(
+                                          "ml-2 px-3 py-1.5 rounded-lg border-2 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer",
+                                          autoExpStatus ? "bg-green-50 border-green-200 text-green-700" : "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
+                                      )}
+                                      title="Preencher Dias de Expediente Automaticamente"
+                                  >
+                                      {autoExpStatus ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <CalendarRange className="w-3.5 h-3.5" />}
+                                      <span className="hidden sm:inline">{autoExpStatus ? 'Preenchido' : 'Auto EXP'}</span>
+                                  </button>
+                                  <button
+                                      onClick={handleCopyTables}
+                                      className="ml-2 px-3 py-1.5 rounded-lg border-2 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5 bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 shrink-0 cursor-pointer"
+                                      title="Copiar Tabelas"
+                                  >
+                                      {copyStatus ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />} 
+                                      <span className="hidden sm:inline">{copyStatus ? 'Copiado' : 'Copiar'}</span>
+                                  </button>
+                              </>
                           )}
                       </div>
                   )}
@@ -866,7 +907,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                     </table>
                </div>
            ) : viewMode === 'table' ? (
-                 <div className="bg-white rounded-xl border-2 border-slate-200 shadow-sm overflow-x-auto custom-scrollbar">
+                 <div id="table-view-container" className="bg-white rounded-xl border-2 border-slate-200 shadow-sm overflow-x-auto custom-scrollbar">
                      {transposeTable ? (
                          <table className="w-full text-left border-collapse min-w-[max-content]">
                              <thead>
@@ -1160,7 +1201,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                     </div>
                 </div>
            ) : viewMode === 'escala_sv' ? (
-                <div className="flex flex-col gap-8 w-full">
+                <div id="escala-sv-container" className="flex flex-col gap-8 w-full">
                     {Array.from({ length: Math.ceil(expedienteUsers.filter(u => u.rg !== 'ESCALANTE_PREF').length / 7) }).map((_, tableIndex) => {
                         let tableUsers = expedienteUsers.filter(u => u.rg !== 'ESCALANTE_PREF').slice(tableIndex * 7, tableIndex * 7 + 7);
                         const paddedUsers = [...tableUsers];
