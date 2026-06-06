@@ -73,7 +73,7 @@ async function syncMilitariesFromSheetInternal() {
     let count = 0;
     let adminSuccess = false;
     // We will try Admin SDK (db) if available, as it is completely bypassed from security rule restrictions and much safer on startup
-    if (db) {
+    if (db && isDbHealthy) {
       try {
         let batch = db.batch();
         for (const row of records) {
@@ -957,7 +957,7 @@ async function startServer() {
   // Backend routine to archive old permutas (older than 4 months and CONCLUIDAS/EXPIRADAS/CANCELLED)
   // Runs every 12 hours
   setInterval(async () => {
-    if (!db) return;
+    if (!db || !isDbHealthy) return;
     try {
       console.log('[ARCHIVE] Running permutas archive routine...');
       const cutoffDate = new Date();
@@ -1007,7 +1007,7 @@ async function startServer() {
 
   // Also run it 5 seconds after server start
   setTimeout(async () => {
-    if (!db) return;
+    if (!db || !isDbHealthy) return;
     try {
       console.log('[ARCHIVE] Initial boot permutas archive routine...');
       const cutoffDate = new Date();

@@ -295,7 +295,7 @@ app.post('/api/militar/emprestar', async (req, res) => {
     const safeRg = normalizeRg(rg);
     
     try {
-      if (db) {
+      if (db && isDbHealthy) {
         try {
           await db.collection('militaries').doc(safeRg).set({ lentTo: lentTo || null }, { merge: true });
         } catch (e: any) {
