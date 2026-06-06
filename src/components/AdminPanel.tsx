@@ -160,147 +160,26 @@ export function AdminPanel({ adminModeActive, onToggleAdminMode }: AdminPanelPro
   }));
 
   const handleSync = async () => {
-    // @ts-ignore - Accessing internal database properties for debugging
-    const rawDbId = db?._databaseId;
-    const dbIdString = rawDbId ? (typeof rawDbId === 'string' ? rawDbId : rawDbId.database || '(default)') : (db?.type === 'firestore' ? '(default)' : 'desconhecido');
-    
-    // Removido confirm() pois é bloqueado no iframe!
     setSyncing(true);
     setSyncStatus('Iniciando sincronização...');
-    console.log('[Sync] Started. Using Database ID:', dbIdString);
     
     try {
-      // 1. Fetch CSV
-      const response = await fetch('/api/csv');
-      if (!response.ok) throw new Error('Não foi possível baixar a planilha do servidor.');
-      
-      const csvText = await response.text();
-      const lines = csvText.split('\n');
-      
-      // 2. Find Header (expecting line 2 based on previous debug)
-      let headerIdx = -1;
-      for (let i = 0; i < Math.min(lines.length, 10); i++) {
-        if (lines[i].includes('RG') && lines[i].includes('NOME')) {
-          headerIdx = i;
-          break;
-        }
+      const response = await fetch('/api/admin/sync', { method: 'POST' });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro de servidor: ${response.status}`);
       }
+      const data = await response.json();
       
-      if (headerIdx === -1) {
-        // Fallback search
-        headerIdx = lines.findIndex(l => l.includes('RG'));
-      }
-
-      if (headerIdx === -1) throw new Error('Cabeçalho da planilha não encontrado.');
-
-      const headers = lines[headerIdx].split(',').map(h => h.trim());
-      const rows = lines.slice(headerIdx + 1);
-      
-      const rgIdx = headers.indexOf('RG');
-      const nameIdx = headers.indexOf('NOME');
-      const rankIdx = headers.indexOf('Posto/Grad');
-      const warNameIdx = headers.indexOf('N.Guerra');
-      const alaIdx = headers.indexOf('ALA');
-      const birthIdx = headers.indexOf('Nascimento');
-      const quadroIdx = headers.indexOf('Quadro') !== -1 ? headers.indexOf('Quadro') : headers.indexOf('QUADRO');
-      const idFuncionalIdx = headers.indexOf('ID Funcional');
-      const cidadeIdx = headers.indexOf('Cidade') !== -1 ? headers.indexOf('Cidade') : headers.indexOf('CIDADE');
-      const celIdx = headers.indexOf('Cel');
-      const telIdx = headers.indexOf('Tel');
-      const emailIdx = headers.indexOf('E-mail');
-      const situacaoIdx = headers.indexOf('Situação');
-      const obmIdx = headers.indexOf('OBM');
-
-      setSyncStatus(`Processando ${rows.length} registros...`);
-
-      // 3. Sync in batches
-      let batch = writeBatch(db);
-      let count = 0;
-      let total = 0;
-
-      for (const rowLine of rows) {
-        if (!rowLine.trim()) continue;
-        
-        // Basic CSV column splitter (handle nested commas if needed, but simple is fine for pub-csv)
-        // If names have commas, use regex split
-        const cols = rowLine.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-        const rawRg = cols[rgIdx]?.replace(/"/g, '')?.trim();
-        const safeRg = normalizeRg(rawRg);
-
-        if (!safeRg) continue;
-
-        const warName = cols[warNameIdx]?.replace(/"/g, '')?.trim() || '';
-        const fullName = cols[nameIdx]?.replace(/"/g, '')?.trim() || '';
-        const rank = cols[rankIdx]?.replace(/"/g, '')?.trim() || '';
-        let ala = cols[alaIdx]?.replace(/"/g, '')?.trim() || '1';
-        if (ala.toUpperCase() === 'ALA') continue; // header skip
-
-        const birthDate = cols[birthIdx]?.replace(/"/g, '')?.trim() || '';
-        
-        let rawQuadro = quadroIdx !== -1 ? cols[quadroIdx]?.replace(/"/g, '')?.trim() : '';
-        const quadroSplit = rawQuadro ? rawQuadro.split('/') : [''];
-        if (quadroSplit.length > 1) quadroSplit.pop();
-        const quadro = quadroSplit.join('/');
-
-        const idFuncional = idFuncionalIdx !== -1 ? cols[idFuncionalIdx]?.replace(/"/g, '')?.trim() : '';
-        const cidade = cidadeIdx !== -1 ? cols[cidadeIdx]?.replace(/"/g, '')?.trim() : '';
-        const cel = celIdx !== -1 ? cols[celIdx]?.replace(/"/g, '')?.trim() : '';
-        const tel = telIdx !== -1 ? cols[telIdx]?.replace(/"/g, '')?.trim() : '';
-        const email = emailIdx !== -1 ? cols[emailIdx]?.replace(/"/g, '')?.trim() : '';
-        const situacao = situacaoIdx !== -1 ? cols[situacaoIdx]?.replace(/"/g, '')?.trim() : '';
-        let obm = obmIdx !== -1 ? cols[obmIdx]?.replace(/"/g, '')?.trim() : '';
-        
-        const obmUpper = (obm || '').toUpperCase();
-        if (obmUpper === '10º' || obmUpper === '10' || obmUpper === 'OBM' || obmUpper === '10º GBM' || !obm) {
-          obm = '10º GBM';
-        }
-
-        const mData = {
-          rg: rawRg,
-          name: fullName,
-          warName: warName || (fullName || '').split(' ')[0] || 'Militar',
-          rank: rank,
-          ala: ala,
-          birthDate: birthDate,
-          quadro: quadro,
-          idFuncional: idFuncional,
-          cidade: cidade,
-          cel: cel,
-          tel: tel,
-          email: email,
-          situacao: situacao,
-          obm: obm,
-          updatedAt: serverTimestamp()
-        };
-
-        const docRef = doc(collection(db, 'militaries'), safeRg);
-        batch.set(docRef, cleanUndefined(mData));
-        
-        total++;
-        count++;
-
-        if (count >= 400) {
-          setSyncStatus(`Gravando lote (${total}/${rows.length})...`);
-          try {
-            await batch.commit();
-          } catch (e: any) {
-             console.error('[Sync] Batch failed:', e);
-             // Continue to next batch
-          }
-          batch = writeBatch(db);
-          count = 0;
-        }
-      }
-
-      if (count > 0) {
-        await batch.commit();
-      }
-
-      setSyncStatus(`Sucesso! ${total} militares sincronizados.`);
+      setSyncStatus(`Sucesso! ${data.count} militares sincronizados.`);
       setTimeout(() => setSyncStatus(''), 5000);
     } catch (error: any) {
       console.error(error);
-      setSyncStatus("Erro: " + error.message);
+      if (error.message.includes('401')) {
+         setSyncStatus("Erro: Planilha Privada! Altere o compartilhamento para 'Qualquer pessoa com o link'.");
+      } else {
+         setSyncStatus("Erro: " + error.message);
+      }
     } finally {
       setTimeout(() => {
         setSyncing(false);

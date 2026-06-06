@@ -38,68 +38,63 @@ export function useViaturaAlerts(user: UserProfile | null) {
 
     let active = true;
 
-    const fetchViaturaAlerts = async () => {
-      try {
-        const res = await fetch("/api/viaturas/alerts");
-        const data = await res.json();
+    const q = query(
+      collection(db, "viatura_alerts"),
+      orderBy("timestamp", "desc"),
+      limit(1)
+    );
 
-        if (!active || !data) return;
+    const unsubAlerts = onSnapshot(q, async (snapshot) => {
+      if (!active || snapshot.empty) return;
+      
+      const docData = snapshot.docs[0].data();
+      const time = docData.timestamp?.toMillis?.() || 0;
 
-        const time = data.timestamp || 0;
+      // se o alerta for de menos de 15 segundos atrás
+      if (Date.now() - time < 15000) {
+        const viatura = docData.viatura;
 
-        // se o alerta for de menos de 15 segundos atrás
-        if (Date.now() - time < 15000) {
-          const viatura = data.viatura;
-
-          let isAssigned = false;
-          try {
-            const gRes = await fetch("/api/guarnicoes");
-            const guarnicoesData = await gRes.json();
-
-            if (guarnicoesData) {
-              const rgsInViatura = guarnicoesData[viatura] || [];
-              const safeRg = String(user.rg)
+        let isAssigned = false;
+        try {
+          const gDoc = await getDoc(doc(db, "guarnicoes", "ativas"));
+          if (gDoc.exists()) {
+             const guarnicoesData = gDoc.data();
+             const rgsInViatura = guarnicoesData[viatura] || [];
+             const safeRg = String(user.rg)
                 .replace(/^0+/, "")
                 .replace(/\D/g, "");
-              const formattedRgForSearch =
-                safeRg.length < 5 ? safeRg.padStart(5, "0") : safeRg;
+             const formattedRgForSearch = safeRg.length < 5 ? safeRg.padStart(5, "0") : safeRg;
 
-              if (
+             if (
                 rgsInViatura.includes(formattedRgForSearch) ||
                 rgsInViatura.includes(user.rg) ||
                 rgsInViatura.includes(safeRg)
-              ) {
+             ) {
                 isAssigned = true;
-              }
-            }
-          } catch (e) {
-            console.error("Erro ao checar guarnições via API", e);
+             }
           }
-
-          if (isAssigned) {
-            setActiveAlert({
-              viatura,
-              emittedBy: data.emittedBy,
-              timestamp: time,
-            });
-            audioRef.current
-              ?.play()
-              .catch((e) => console.warn("Audio auto-play prevented", e));
-          }
+        } catch (e) {
+          console.error("Erro ao checar guarnições", e);
         }
-      } catch (error: any) {
-        if (active && error.message !== "Failed to fetch") {
-          console.error("Error fetching viatura alerts:", error);
+
+        if (isAssigned) {
+          setActiveAlert({
+            viatura,
+            emittedBy: docData.emittedBy,
+            timestamp: time,
+          });
+          audioRef.current
+            ?.play()
+            .catch((e) => console.warn("Audio auto-play prevented", e));
         }
       }
-    };
-
-    fetchViaturaAlerts();
-    const intervalId = setInterval(fetchViaturaAlerts, 5000); // 5s polling
+    }, (error) => {
+      console.warn("Viatura fetch error (client):", error);
+    });
 
     return () => {
       active = false;
-      clearInterval(intervalId);
+      unsubAlerts();
     };
   }, [user?.rg]);
 

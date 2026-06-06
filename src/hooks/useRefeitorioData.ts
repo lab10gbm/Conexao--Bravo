@@ -191,6 +191,18 @@ export function useRefeitorioData() {
     } catch(e) {}
     return null;
   });
+  const [defaults, setDefaults] = useState<any>(() => {
+    try {
+      const cached = localStorage.getItem('refeitorio_defaults_cache');
+      if (cached) return JSON.parse(cached);
+    } catch(e) {}
+    return {
+      almoco: { principal: "", acompanhamentos: "ARROZ, FEIJÃO", saladas: "SALADA TRADICIONAL", sobremesa: "" },
+      jantar: { principal: "", acompanhamentos: "ARROZ, FEIJÃO", saladas: "SALADA TRADICIONAL", ceia: "" },
+      lancheTarde: "CAFÉ, SUCO, PIPOCA, PÃO RECHEADO",
+      cafeManha: "CAFÉ, PÃO, OVOS, QUEIJO, PRESUNTO"
+    };
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -218,6 +230,15 @@ export function useRefeitorioData() {
           saladas: SALADAS,
           ceia: CEIA
         };
+
+        const defaultRefeicao = data.defaults || {
+          almoco: { principal: "", acompanhamentos: "ARROZ, FEIJÃO", saladas: "SALADA TRADICIONAL", sobremesa: "" },
+          jantar: { principal: "", acompanhamentos: "ARROZ, FEIJÃO", saladas: "SALADA TRADICIONAL", ceia: "" },
+          lancheTarde: "CAFÉ, SUCO, PIPOCA, PÃO RECHEADO",
+          cafeManha: "CAFÉ, PÃO, OVOS, QUEIJO, PRESUNTO"
+        };
+        setDefaults(defaultRefeicao);
+        localStorage.setItem('refeitorio_defaults_cache', JSON.stringify(defaultRefeicao));
 
         const DEFAULTS = {
           proteinas: PROTEINAS,
@@ -319,6 +340,16 @@ export function useRefeitorioData() {
     await saveCatalog(DEFAULTS);
   };
 
-  return { menus, catalog, loading, saveMenus, saveCatalog, restoreDefaultCatalog };
+  const saveDefaults = async (newDefaults: any) => {
+    setDefaults(newDefaults);
+    localStorage.setItem('refeitorio_defaults_cache', JSON.stringify(newDefaults));
+    try {
+      await setDoc(doc(db, 'refeitorio', 'data'), cleanUndefined({ defaults: newDefaults }), { merge: true });
+    } catch (e) {
+      console.error("Error saving defaults:", e);
+    }
+  };
+
+  return { menus, catalog, loading, defaults, saveMenus, saveCatalog, restoreDefaultCatalog, saveDefaults };
 }
 

@@ -6,11 +6,12 @@ import { ptBR } from 'date-fns/locale';
 import { getAlaForDate, getAlaColor, getAlaLightColor, cn } from '../lib/utils';
 import { generateICS } from '../lib/exportUtils';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronDown, ChevronUp, Briefcase, Coffee, ArrowRightLeft, CalendarOff, MessageSquare, Info, CalendarDays, Megaphone, CalendarSearch, Download } from 'lucide-react';
+import { ChevronDown, ChevronUp, Briefcase, Coffee, CalendarOff, MessageSquare, Info, CalendarDays, Megaphone, CalendarSearch, Download } from 'lucide-react';
 import { UserProfile, PermutaRequest } from '../types';
 import { Simulador48x144 } from './Simulador48x144';
 import { MuralAvisos } from './MuralAvisos';
 import { DayDetailsModal } from './DayDetailsModal';
+import { RequestPermuta } from './RequestPermuta';
 
 import { useMuralAvisos } from '../hooks/useMuralAvisos';
 import { useAppConfig } from '../contexts/ConfigContext';
@@ -20,6 +21,7 @@ interface AgendaPessoalProps {
   onDateSelect?: (date: Date) => void;
   onBack?: () => void;
   standalone?: boolean;
+  obmContext?: string;
 }
 
 // Temporary Mock Data for UI presentation
@@ -31,11 +33,10 @@ const MOCK_LEMBRETES = [
   { id: '2', date: new Date(2026, 0, 15), text: 'Levar Uniforme de Prontidão' }
 ];
 
-export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, onBack, standalone }: AgendaPessoalProps) {
+export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, onBack, standalone, obmContext }: AgendaPessoalProps) {
   const months = Array.from({ length: 12 }, (_, i) => new Date(new Date().getFullYear(), i, 1));
   const [isDashboardExpanded, setIsDashboardExpanded] = useState(standalone ? true : false);
   const [isSimuladorOpen, setIsSimuladorOpen] = useState(false);
-  const [openMonths, setOpenMonths] = useState<number[]>([]);
   const [showPastMonths, setShowPastMonths] = useState(false);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [selectedDayIsWorking, setSelectedDayIsWorking] = useState(false);
@@ -43,6 +44,10 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
   const [personalTodos, setPersonalTodos] = useState<{ date: Date, id: string }[]>([]);
   const [institutionalEvents, setInstitutionalEvents] = useState<{ date: Date, title: string }[]>([]);
   const [userPermutas, setUserPermutas] = useState<{ date: Date, type: string, status: string }[]>([]);
+  
+  // Local state for future permuta requests
+  const [isPermutaModalOpen, setIsPermutaModalOpen] = useState(false);
+  const [selectedPermutaDate, setSelectedPermutaDate] = useState<Date | null>(null);
 
   const { avisos } = useMuralAvisos();
   const { activeMonths: ctxActiveMonths } = useAppConfig();
@@ -94,10 +99,8 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
   }, [user?.rg]);
 
 
-  useEffect(() => {
-    if (ctxActiveMonths) {
-      setOpenMonths(ctxActiveMonths.map(Number));
-    }
+  const openMonths = useMemo(() => {
+    return Array.isArray(ctxActiveMonths) ? ctxActiveMonths : [];
   }, [ctxActiveMonths]);
 
   useEffect(() => {
@@ -124,7 +127,7 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
     setInstitutionalEvents(events);
   }, [avisos]);
 
-  const { servicosRestantes, totalServicos, folgasRestantes, totalFolgas, permutaBalance, allYearServices, permutasEsteMes } = useMemo(() => {
+  const { servicosRestantes, totalServicos, folgasRestantes, totalFolgas, allYearServices } = useMemo(() => {
     let servicosTotais = 0;
     let servicosFeitos = 0;
     let folgasTotais = 0;
@@ -156,17 +159,12 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
       }
     });
 
-    const saldo = userPermutas.filter(p => p.type === 'COBREU').length - userPermutas.filter(p => p.type === 'PAGOU').length;
-    const permutasEsteMesVal = userPermutas.filter(p => isSameMonth(p.date, new Date())).length;
-
     return {
       servicosRestantes: servicosTotais - servicosFeitos,
       totalServicos: servicosTotais,
       folgasRestantes: folgasTotais - folgasFeitas,
       totalFolgas: folgasTotais,
-      permutaBalance: saldo,
-      allYearServices,
-      permutasEsteMes: permutasEsteMesVal
+      allYearServices
     };
   }, [user.ala, userPermutas]);
 
@@ -240,7 +238,7 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
           <MuralAvisos isAdminOrEscalante={!!(user.isAdmin || user.isEscalante)} userName={user.name} />
 
           {/* Resumo Operacional (Bento Grid) */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-slate-200 pb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-b border-slate-200 pb-6">
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-4">
               <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
                 <Briefcase className="w-6 h-6" />
@@ -249,21 +247,6 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Serviços Ano</p>
                 <p className="text-2xl font-black text-slate-800">
                    {servicosRestantes} <span className="text-sm text-slate-400">faltam de {totalServicos}</span>
-                </p>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center text-amber-600 relative">
-                <ArrowRightLeft className="w-6 h-6" />
-                {permutasEsteMes >= 6 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white" title="Limite Mensal Atingido"></span>}
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Permutas Mês / Saldo Ano</p>
-                <p className="text-2xl font-black text-slate-800 flex items-baseline gap-2">
-                   <span className={cn(permutasEsteMes > 4 ? "text-amber-500" : "", permutasEsteMes >= 6 ? "text-red-500" : "")}>{permutasEsteMes}/6</span>
-                   <span className="text-sm font-bold text-slate-400 border-l border-slate-300 pl-2">
-                     {permutaBalance > 0 ? `+${permutaBalance}` : permutaBalance} Saldo
-                   </span>
                 </p>
               </div>
             </div>
@@ -329,134 +312,101 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
 
           {/* Meses Calendário Grid */}
           <div className="flex flex-col gap-6">
-             {/* Past Months Section (Hidden by default on mobile) */}
+             {/* Seção de Meses Anteriores e Grid Principal */}
              {(() => {
                 const now = new Date();
                 const pastMonths = months.filter(m => isBefore(m, startOfMonth(now)));
                 const currentAndFutureMonths = months.filter(m => !isBefore(m, startOfMonth(now)));
 
-                if (pastMonths.length === 0) {
-                    return (
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start">
-                            {currentAndFutureMonths.map((month) => {
-                              const isOpen = openMonths.includes(month.getMonth());
-                              return (
-                                <MonthGrid 
-                                  key={month.getMonth()} 
-                                  month={month} 
-                                  userAla={user.ala} 
-                                  onDateSelect={(date, isWorking) => {
-                                     setSelectedDay(date);
-                                     setSelectedDayIsWorking(isWorking);
-                                  }}
-                                  mockAfastamentos={MOCK_AFASTAMENTOS}
-                                  mockLembretes={personalTodos}
-                                  mockPermutas={userPermutas}
-                                  institutionalEvents={institutionalEvents}
-                                  isOpenMonth={isOpen}
-                                  showOnlyMyServices={showOnlyMyServices}
-                                />
-                              );
-                            })}
-                        </div>
-                    );
-                }
-
                 return (
                     <>
-                        <div className="md:hidden flex flex-col items-center border-b border-slate-200 pb-4 mb-2">
-                           <button 
-                              onClick={() => setShowPastMonths(!showPastMonths)}
-                              className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-colors duration-200"
-                           >
-                              {showPastMonths ? (
-                                  <>Ocultar meses anteriores <ChevronUp className="w-4 h-4 text-slate-500" /></>
-                              ) : (
-                                  <>Ver meses que já passaram <ChevronDown className="w-4 h-4 text-slate-500" /></>
-                              )}
-                           </button>
-                        </div>
-                        
-                        <AnimatePresence>
-                            {showPastMonths && (
-                                <motion.div 
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: "auto", opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    transition={{ duration: 0.3 }}
-                                    className="overflow-hidden"
-                                >
-                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start mb-6 border-b border-dashed border-slate-200 pb-6 opacity-60">
-                                        {pastMonths.map((month) => {
-                                          const isOpen = openMonths.includes(month.getMonth());
-                                          return (
-                                            <MonthGrid 
-                                              key={month.getMonth()} 
-                                              month={month} 
-                                              userAla={user.ala} 
-                                              onDateSelect={(date, isWorking) => {
-                                                 setSelectedDay(date);
-                                                 setSelectedDayIsWorking(isWorking);
-                                              }}
-                                              mockAfastamentos={MOCK_AFASTAMENTOS}
-                                              mockLembretes={personalTodos}
-                                              mockPermutas={userPermutas}
-                                              institutionalEvents={institutionalEvents}
-                                              isOpenMonth={isOpen}
-                                              showOnlyMyServices={showOnlyMyServices}
-                                            />
-                                          );
-                                        })}
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                        
-                        {/* Always show past months on desktop, but allow the toggle on mobile */}
-                        <div className="hidden md:grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start mb-6 border-b border-dashed border-slate-200 pb-6 opacity-60">
-                             {pastMonths.map((month) => {
-                               const isOpen = openMonths.includes(month.getMonth());
-                               return (
-                                 <MonthGrid 
-                                   key={month.getMonth()} 
-                                   month={month} 
-                                   userAla={user.ala} 
-                                   onDateSelect={(date, isWorking) => {
-                                      setSelectedDay(date);
-                                      setSelectedDayIsWorking(isWorking);
-                                   }}
-                                   mockAfastamentos={MOCK_AFASTAMENTOS}
-                                   mockLembretes={personalTodos}
-                                   mockPermutas={userPermutas}
-                                   institutionalEvents={institutionalEvents}
-                                   isOpenMonth={isOpen}
-                                   showOnlyMyServices={showOnlyMyServices}
-                                 />
-                               );
-                             })}
-                        </div>
-                        
+                        {pastMonths.length > 0 && (
+                          <div className="w-full mb-6">
+                            <button 
+                               onClick={() => setShowPastMonths(!showPastMonths)}
+                               className="w-full flex items-center justify-between p-4 bg-white border-2 border-slate-200 rounded-2xl hover:bg-slate-50 transition-colors shadow-sm"
+                            >
+                               <div className="flex items-center gap-3">
+                                  <div className="p-2.5 bg-slate-100 rounded-xl border border-slate-200">
+                                     <CalendarDays className="w-5 h-5 text-slate-500" />
+                                  </div>
+                                  <div className="text-left">
+                                     <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight">Meses Anteriores</h4>
+                                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">Histórico de escalas concluídas</p>
+                                  </div>
+                               </div>
+                               <div className={cn("p-2 rounded-full transition-all", showPastMonths ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-400")}>
+                                  {showPastMonths ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                               </div>
+                            </button>
+                            
+                            <AnimatePresence>
+                                {showPastMonths && (
+                                    <motion.div 
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: "auto", opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.3 }}
+                                        className="overflow-hidden"
+                                    >
+                                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start mt-6 mb-2 border-b border-dashed border-slate-200 pb-6 opacity-60 grayscale-[0.5]">
+                                            {pastMonths.map((month) => {
+                                              const isOpen = openMonths.includes(month.getMonth());
+                                              return (
+                                                <MonthGrid 
+                                                  key={month.getMonth()} 
+                                                  month={month} 
+                                                  userAla={user.ala} 
+                                                  onDateSelect={(date, isWorking) => {
+                                                     setSelectedDay(date);
+                                                     setSelectedDayIsWorking(isWorking);
+                                                  }}
+                                                  mockAfastamentos={MOCK_AFASTAMENTOS}
+                                                  mockLembretes={personalTodos}
+                                                  mockPermutas={userPermutas}
+                                                  institutionalEvents={institutionalEvents}
+                                                  isOpenMonth={isOpen}
+                                                  showOnlyMyServices={showOnlyMyServices}
+                                                  onAgendarClick={(date) => {
+                                                     setSelectedPermutaDate(date);
+                                                     setIsPermutaModalOpen(true);
+                                                  }}
+                                                />
+                                              );
+                                            })}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-start">
-                            {currentAndFutureMonths.map((month) => {
-                              const isOpen = openMonths.includes(month.getMonth());
-                              return (
-                                <MonthGrid 
-                                  key={month.getMonth()} 
-                                  month={month} 
-                                  userAla={user.ala} 
-                                  onDateSelect={(date, isWorking) => {
-                                     setSelectedDay(date);
-                                     setSelectedDayIsWorking(isWorking);
-                                  }}
-                                  mockAfastamentos={MOCK_AFASTAMENTOS}
-                                  mockLembretes={personalTodos}
-                                  mockPermutas={userPermutas}
-                                  institutionalEvents={institutionalEvents}
-                                  isOpenMonth={isOpen}
-                                  showOnlyMyServices={showOnlyMyServices}
-                                />
-                              );
-                            })}
+                              {currentAndFutureMonths.map((month) => {
+                                const monthIdx = month.getMonth();
+                                const isOpen = openMonths.includes(monthIdx);
+                                return (
+                                  <MonthGrid 
+                                    key={monthIdx} 
+                                    month={month} 
+                                    userAla={user.ala} 
+                                    onDateSelect={(date, isWorking) => {
+                                       setSelectedDay(date);
+                                       setSelectedDayIsWorking(isWorking);
+                                    }}
+                                    mockAfastamentos={MOCK_AFASTAMENTOS}
+                                    mockLembretes={personalTodos}
+                                    mockPermutas={userPermutas}
+                                    institutionalEvents={institutionalEvents}
+                                    isOpenMonth={isOpen}
+                                    showOnlyMyServices={showOnlyMyServices}
+                                    onAgendarClick={(date) => {
+                                       setSelectedPermutaDate(date);
+                                       setIsPermutaModalOpen(true);
+                                    }}
+                                  />
+                                );
+                              })}
                         </div>
                     </>
                 );
@@ -483,9 +433,21 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
                 // If it came from props, we trigger the original behavior (like openPermutaRequest)
                 onDateSelect(d);
             } else {
-                alert("Nenhuma rota definida para permuta a partir daqui.");
+                setSelectedPermutaDate(d);
+                setIsPermutaModalOpen(true);
             }
          }}
+      />
+
+      <RequestPermuta
+        user={user}
+        obmContext={obmContext || user.obm || '10º GBM'}
+        isOpen={isPermutaModalOpen}
+        setIsOpen={setIsPermutaModalOpen}
+        initialDate={selectedPermutaDate}
+        onSuccess={() => {
+          setIsPermutaModalOpen(false);
+        }}
       />
     </div>
   );
@@ -501,9 +463,10 @@ interface MonthGridProps {
   institutionalEvents?: { date: Date, title: string }[];
   isOpenMonth?: boolean;
   showOnlyMyServices?: boolean;
+  onAgendarClick?: (date?: Date) => void;
 }
 
-const MonthGrid = memo(function MonthGrid({ month, userAla, onDateSelect, mockAfastamentos, mockLembretes, mockPermutas, institutionalEvents = [], isOpenMonth, showOnlyMyServices }: MonthGridProps) {
+const MonthGrid = memo(function MonthGrid({ month, userAla, onDateSelect, mockAfastamentos, mockLembretes, mockPermutas, institutionalEvents = [], isOpenMonth, showOnlyMyServices, onAgendarClick }: MonthGridProps) {
   const isPast = isBefore(endOfMonth(month), new Date());
   const [isCollapsed, setIsCollapsed] = useState(isPast); // Start collapsed if the month is past
 
@@ -512,9 +475,13 @@ const MonthGrid = memo(function MonthGrid({ month, userAla, onDateSelect, mockAf
   const days = eachDayOfInterval({ start, end });
   const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
 
-  const handleAgendarClick = (e: React.MouseEvent) => {
+  const handleAgendarClick = (e: React.MouseEvent, day?: Date) => {
     e.stopPropagation();
-    alert("Função 'Agendar Permuta' em desenvolvimento. Você poderá procurar permutas futuras aqui e elas ficarão pendentes até o mês abrir.");
+    if (onAgendarClick) {
+      onAgendarClick(day || month);
+    } else {
+      alert("Função 'Agendar Permuta' em desenvolvimento.");
+    }
   };
 
   return (
@@ -596,7 +563,7 @@ const MonthGrid = memo(function MonthGrid({ month, userAla, onDateSelect, mockAf
                       onClick={(e) => {
                          if (!outsideMonth && !shouldHide) {
                              if (!isOpenMonth && !isPast) {
-                                 handleAgendarClick(e);
+                                 handleAgendarClick(e, day);
                              } else if (onDateSelect) {
                                  onDateSelect(day, isWorkingDay);
                              }

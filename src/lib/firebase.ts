@@ -18,14 +18,16 @@ function initFirestore() {
     experimentalForceLongPolling: true // Bypasses adblockers/VPNs blocking WebSockets (fixes ERR_BLOCKED_BY_CLIENT on Listen/channel)
   };
 
+  const dbId = firebaseConfigData.firestoreDatabaseId;
+
   try {
-    // Try the specific database ID if provided
-    if (firebaseConfigData.firestoreDatabaseId && 
-        firebaseConfigData.firestoreDatabaseId !== 'remixed-firestore-database-id' && 
-        firebaseConfigData.firestoreDatabaseId !== '(default)' &&
-        firebaseConfigData.firestoreDatabaseId !== '') {
-      console.log('[Firebase] Attempting connection to custom database:', firebaseConfigData.firestoreDatabaseId);
-      return initializeFirestore(app, settings, firebaseConfigData.firestoreDatabaseId);
+    // Try the specific database ID if provided and allowed
+    if (dbId && 
+        dbId !== 'remixed-firestore-database-id' && 
+        dbId !== '(default)' &&
+        dbId !== '') {
+      console.log('[Firebase] Attempting connection to custom database:', dbId);
+      return initializeFirestore(app, settings, dbId);
     }
   } catch (e) {
     console.warn('[Firebase] Custom database init failed, falling back to (default):', e);

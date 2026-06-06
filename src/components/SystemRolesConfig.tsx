@@ -216,14 +216,6 @@ export function SystemRolesConfig() {
      try {
        const safeRg = normalizeRg(rg);
        
-       const promises = Object.keys(updates).map(k => 
-         fetch('/api/militar/role', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rg, role: k, value: updates[k] })
-         })
-       );
-       
        if (db) {
          try {
            await setDoc(doc(db, 'militaries', safeRg), cleanUndefined(updates), { merge: true });
@@ -231,8 +223,6 @@ export function SystemRolesConfig() {
            console.warn('Failed writing to Firestore directly', err);
          }
        }
-       
-       await Promise.all(promises);
        
        setTimeout(() => {
           refreshMilitars(rg);

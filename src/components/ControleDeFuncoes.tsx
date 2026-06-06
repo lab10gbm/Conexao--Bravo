@@ -247,21 +247,14 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
     updateMilitarLocal(safeRg, data);
 
     try {
-      // 1. API Fallback update (updates Server memory cache)
-      const fetchPromise = fetch("/api/militar/update", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rg: safeRg, data }),
-      });
-
-      // 2. Client update
+      // Client update
       if (db) {
         try {
           await setDoc(doc(db, "militaries", safeRg), cleanUndefined(data), { merge: true });
-        } catch (e) {}
+        } catch (e) {
+          console.warn('Failed writing to Firestore', e);
+        }
       }
-
-      await fetchPromise;
 
       setTimeout(() => {
         refreshMilitars();
@@ -343,14 +336,14 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
 
     // 2. Background sync with backend
     await Promise.all(
-      displayMilitars.map((m) => {
+      displayMilitars.map(async (m) => {
         if (!m.rg) return Promise.resolve();
         const safeRg = String(m.rg).replace(/^0+/, "").replace(/\D/g, "");
-        return fetch("/api/militar/update", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rg: safeRg, data: { [field]: newState } }),
-        }).catch(() => {});
+        if (db) {
+            const { doc, setDoc } = await import('firebase/firestore');
+            return setDoc(doc(db, 'militaries', safeRg), cleanUndefined({ [field]: newState }), { merge: true }).catch(() => {});
+        }
+        return Promise.resolve();
       }),
     );
   };
@@ -372,17 +365,14 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
     });
 
     await Promise.all(
-      displayMilitars.map((m) => {
+      displayMilitars.map(async (m) => {
         if (!m.rg) return Promise.resolve();
         const safeRg = String(m.rg).replace(/^0+/, "").replace(/\D/g, "");
-        return fetch("/api/militar/update", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            rg: safeRg,
-            data: { viaturas: { [viat]: newState } },
-          }),
-        }).catch(() => {});
+        if (db) {
+           const { doc, setDoc } = await import('firebase/firestore');
+           return setDoc(doc(db, 'militaries', safeRg), cleanUndefined({ viaturas: { [viat]: newState } }), { merge: true }).catch(() => {});
+        }
+        return Promise.resolve();
       }),
     );
   };

@@ -1,22 +1,41 @@
 {
   "entities": {
-    "User": {
-      "title": "User",
-      "description": "Military personnel profile",
+    "Military": {
+      "title": "Military",
+      "description": "Military personnel profile and synchronized role/permissions from the Sheet",
       "type": "object",
       "properties": {
-        "uid": { "type": "string" },
+        "rg": { "type": "string" },
         "name": { "type": "string" },
+        "warName": { "type": "string" },
         "rank": { "type": "string" },
-        "ala": { "type": "number", "description": "1, 2, 3 or 4" },
+        "ala": { "type": "string" },
+        "obm": { "type": "string" },
         "email": { "type": "string" },
-        "photoURL": { "type": "string" }
+        "cel": { "type": "string" },
+        "quadro": { "type": "string" },
+        "idFuncional": { "type": "string" },
+        "birthDate": { "type": "string" },
+        "isAdmin": { "type": "boolean" },
+        "isEscalante": { "type": "boolean" },
+        "isRefeitorioAdmin": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["uid", "name", "ala", "email"]
+      "required": ["rg", "name"]
+    },
+    "RefeitorioData": {
+      "title": "RefeitorioData",
+      "description": "Configuration data, catalog, and menu details for the mess/refeitorio",
+      "type": "object",
+      "properties": {
+        "menus": { "type": "array" },
+        "catalog": { "type": "array" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
     },
     "Permuta": {
       "title": "Permuta",
-      "description": "A request to swap a shift",
+      "description": "A request to swap a shift between two military members",
       "type": "object",
       "properties": {
         "requesterId": { "type": "string" },
@@ -24,55 +43,46 @@
         "requesterRg": { "type": "string" },
         "substituteRg": { "type": "string" },
         "substituteName": { "type": "string" },
-        "date": { "type": "string", "format": "date", "description": "YYYY-MM-DD" },
-        "originalAla": { "type": "number", "description": "1, 2, 3 or 4" },
+        "date": { "type": "string", "format": "date" },
+        "originalAla": { "type": "number" },
         "status": { "type": "string", "enum": ["pending", "accepted", "rejected", "cancelled"] },
         "acceptedById": { "type": "string" },
         "acceptedByName": { "type": "string" },
-        "requesterSigned": { "type": "boolean" },
-        "substituteSigned": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["requesterId", "requesterRg", "date", "originalAla", "status", "createdAt"]
+      "required": ["requesterRg", "date", "status", "createdAt"]
+    },
+    "Escala": {
+      "title": "Escala",
+      "description": "Officer scales or duty scales configured for active operational environments",
+      "type": "object",
+      "properties": {
+        "days": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "firestore": {
-    "/users/{userId}": {
-      "schema": "User",
-      "description": "Stores military profiles"
+    "/militaries/{rg}": {
+      "schema": "Military",
+      "description": "Collection storing military personnel records"
+    },
+    "/refeitorio/{id}": {
+      "schema": "RefeitorioData",
+      "description": "Stores mess hall menus, dynamic catalogs and meal tracking details"
     },
     "/permutas/{permutaId}": {
       "schema": "Permuta",
-      "description": "Stores shift swap requests"
+      "description": "Registry of service swap requests between personnel"
     },
-    "/militaries/{rg}": {
-      "schema": "User",
-      "description": "Internal database of military personnel synchronized from Sheet"
+    "/officer_scales/{docId}": {
+      "schema": "Escala",
+      "description": "Operational schedules for officers"
     },
-    "/vacation_preferences/{rg}": {
-      "description": "Stores user preferred months for vacations (up to 3)",
-      "schema": {
-        "type": "object",
-        "properties": {
-          "rg": { "type": "string" },
-          "months": { "type": "array", "items": { "type": "string" } },
-          "year": { "type": "string" },
-          "updatedAt": { "type": "string", "format": "date-time" }
-        },
-        "required": ["rg", "months", "year"]
-      }
-    },
-    "/config/vacation_settings": {
-      "description": "Global settings for the vacation module controlled by Escalante",
-      "schema": {
-        "type": "object",
-        "properties": {
-          "preferencesEnabled": { "type": "boolean" },
-          "updatedBy": { "type": "string" },
-          "updatedAt": { "type": "string", "format": "date-time" }
-        }
-      }
+    "/grd_configs/{docId}": {
+      "schema": "Escala",
+      "description": "GRD configuration tables and calendars"
     }
   }
 }

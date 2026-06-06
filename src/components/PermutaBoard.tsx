@@ -201,7 +201,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
       const formattedName = user.rank ? `${user.rank} ${user.warName || user.name}` : user.name;
       
       const dateObj = new Date(permuta.date + 'T00:00:00');
-      const isMonthOpen = ctxActiveMonths ? ctxActiveMonths.includes(String(dateObj.getMonth())) : true;
+      const isMonthOpen = ctxActiveMonths ? ctxActiveMonths.includes(dateObj.getMonth()) : true;
 
       const updates: any = {
         isLookingForSubstitute: false,
@@ -608,8 +608,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
                       if (permuta.status === 'rejected') return 'INDEFERIDO';
                       if (permuta.status === 'cancelled') return 'CANCELADA';
                       const fullySigned = permuta.requesterSigned && permuta.substituteSigned;
-                      if (permuta.status === 'scheduled') return 'AGUARDANDO';
-                      if (fullySigned) return 'CONTRATO FINALIZADO';
+                      if (fullySigned) return 'EM ANÁLISE';
                       return '1/2 PENDENTE';
                     };
 

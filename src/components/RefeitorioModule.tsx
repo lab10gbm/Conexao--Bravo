@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, Clock, Coffee, Utensils, UtensilsCrossed, Sunrise, Sunset, Grape, ChefHat, BookOpen, Settings2, Plus, Edit2, Trash2, QrCode, X, Save, Calendar, Loader2, Printer, Download, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Clock, Coffee, Utensils, UtensilsCrossed, Sunrise, Sunset, Grape, ChefHat, BookOpen, Settings2, Plus, Edit2, Trash2, QrCode, X, Save, Calendar, Loader2, Printer, Download, ChevronDown, ChevronUp, Star } from 'lucide-react';
 import { UserProfile } from '../types';
 const DAY_MAP: Record<string, string> = {
   1: 'Segunda',
@@ -14,6 +14,7 @@ const DAY_MAP: Record<string, string> = {
 import { QRCodeSVG } from 'qrcode.react';
 import { TagInput } from './TagInput';
 import { useRefeitorioData } from '../hooks/useRefeitorioData';
+import { RefeitorioEditModal } from './RefeitorioEditModal';
 
 interface RefeitorioModuleProps {
   user: UserProfile;
@@ -39,9 +40,10 @@ export function RefeitorioModule({ user, onBack, initialTab = 'cardapio' }: Refe
   const [pastItemsToShow, setPastItemsToShow] = useState(0);
   const [hiddenCatalogs, setHiddenCatalogs] = useState<string[]>([]);
   const [addingCategory, setAddingCategory] = useState<string | null>(null);
+  const [showDefaultsConfig, setShowDefaultsConfig] = useState(false);
   const [confirmAction, setConfirmAction] = useState<{ message: string; onConfirm: () => void } | null>(null);
 
-  const { menus, catalog, loading, saveMenus, saveCatalog, restoreDefaultCatalog } = useRefeitorioData();
+  const { menus, catalog, loading, defaults, saveMenus, saveCatalog, restoreDefaultCatalog, saveDefaults } = useRefeitorioData();
 
   if (loading) {
     return (
@@ -168,14 +170,15 @@ export function RefeitorioModule({ user, onBack, initialTab = 'cardapio' }: Refe
     setEditingItem({
       date: "",
       weekday: "",
-      almoco: { principal: "", acompanhamentos: "ARROZ, FEIJÃO", saladas: "SALADA TRADICIONAL", sobremesa: "" },
-      jantar: { principal: "", acompanhamentos: "ARROZ, FEIJÃO", saladas: "SALADA TRADICIONAL", ceia: "" },
-      lancheTarde: "CAFÉ, SUCO, PIPOCA, PÃO RECHEADO",
-      cafeManha: "CAFÉ, PÃO, OVOS, QUEIJO, PRESUNTO"
+      almoco: defaults?.almoco || { principal: "", acompanhamentos: "ARROZ, FEIJÃO", saladas: "SALADA TRADICIONAL", sobremesa: "" },
+      jantar: defaults?.jantar || { principal: "", acompanhamentos: "ARROZ, FEIJÃO", saladas: "SALADA TRADICIONAL", ceia: "" },
+      lancheTarde: defaults?.lancheTarde || "CAFÉ, SUCO, PIPOCA, PÃO RECHEADO",
+      cafeManha: defaults?.cafeManha || "CAFÉ, PÃO, OVOS, QUEIJO, PRESUNTO"
     });
     setEditingIndex(null);
     setEditingDateValue("");
     setIsCustomDate(false);
+    setShowDefaultsConfig(false);
     setIsEditing(true);
   };
 
@@ -184,6 +187,7 @@ export function RefeitorioModule({ user, onBack, initialTab = 'cardapio' }: Refe
     setEditingItem(JSON.parse(JSON.stringify(item)));
     setEditingIndex(idx);
     setIsCustomDate(true); // Default to showing custom date when editing an existing one, unless it matches a suggestion
+    setShowDefaultsConfig(false);
     if (item.date) {
       const parts = item.date.split('/');
       if (parts.length === 2) {
@@ -219,6 +223,17 @@ export function RefeitorioModule({ user, onBack, initialTab = 'cardapio' }: Refe
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    if (showDefaultsConfig) {
+      saveDefaults({
+         almoco: editingItem.almoco,
+         jantar: editingItem.jantar,
+         lancheTarde: editingItem.lancheTarde,
+         cafeManha: editingItem.cafeManha
+      });
+      setShowDefaultsConfig(false);
+      handleAdd(); // reset form to normal edit
+      return;
+    }
     const newMenus = [...menus];
     if (editingIndex !== null) {
       newMenus[editingIndex] = editingItem;
@@ -978,9 +993,12 @@ export function RefeitorioModule({ user, onBack, initialTab = 'cardapio' }: Refe
                   <tbody className="text-sm">
                     {visibleMenus.map((m, i) => (
                       <tr key={'row-' + m.originalIndex + '-' + i} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors group">
-                        <td className="py-4 px-6">
+                        <td className="py-4 px-6 flex flex-col items-start gap-1">
                           <div className="font-black text-slate-700">{m.date}</div>
                           <div translate="no" className="text-xs font-bold text-slate-400 uppercase tracking-widest">{m.weekday}</div>
+                          {m.isEvento && (
+                             <div className="text-[9px] font-black uppercase tracking-widest bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded flex items-center gap-1"><Star className="w-2.5 h-2.5" /> Evento</div>
+                          )}
                         </td>
                         <td className="py-4 px-6">
                           <div className="text-rose-700 font-bold uppercase tracking-tight text-xs flex items-center gap-2">
@@ -1141,185 +1159,14 @@ export function RefeitorioModule({ user, onBack, initialTab = 'cardapio' }: Refe
         )}
 
         {/* Modal de Gestão/Edição */}
-        {isEditing && editingItem && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-start justify-center p-2 sm:p-4 lg:p-8 overflow-y-auto"
-            onClick={() => setIsEditing(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              onClick={e => e.stopPropagation()}
-              className="bg-white rounded-3xl p-4 sm:p-6 lg:p-8 max-w-4xl w-full shadow-2xl relative my-4 sm:my-8 mx-auto"
-            >
-              <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100">
-                <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
-                    <Edit2 className="w-5 h-5" />
-                  </div>
-                  {editingIndex !== null ? 'Editar Refeição' : 'Nova Refeição'}
-                </h2>
-                <button
-                  onClick={() => setIsEditing(false)}
-                  className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSave} className="flex flex-col gap-6">
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                     <div className="flex items-center justify-between mb-1.5 ml-1 mr-1">
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Data da Refeição</label>
-                        <button 
-                           type="button" 
-                           onClick={() => setIsCustomDate(!isCustomDate)}
-                           className="text-[10px] font-bold text-indigo-500 hover:text-indigo-600 uppercase"
-                        >
-                           {isCustomDate ? 'Usar Sugestões' : 'Informar Outra Data'}
-                        </button>
-                     </div>
-                     {!isCustomDate ? (
-                        <div className="relative">
-                           <select
-                              value={editingDateValue}
-                              onChange={e => {
-                                 const val = e.target.value;
-                                 setEditingDateValue(val);
-                                 if (val) {
-                                    const opt = suggestedDates.find(d => d.value === val);
-                                    if (opt) {
-                                       setEditingItem({
-                                          ...editingItem,
-                                          date: opt.dateKey,
-                                          weekday: opt.weekday
-                                       });
-                                    }
-                                 }
-                              }}
-                              required={!isCustomDate}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold uppercase text-slate-700 appearance-none outline-none focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 transition-all"
-                           >
-                              <option value="" disabled>Selecione uma data sugerida...</option>
-                              {suggestedDates.map(d => (
-                                 <option key={d.value} value={d.value}>{d.label}</option>
-                              ))}
-                           </select>
-                           <Calendar className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
-                        </div>
-                     ) : (
-                        <div className="relative">
-                          <input 
-                            type="date"
-                            value={editingDateValue}
-                            onChange={e => {
-                              const val = e.target.value;
-                              setEditingDateValue(val);
-                              if (val) {
-                                 const [y, m, d] = val.split('-');
-                                 const dat = new Date(parseInt(y), parseInt(m)-1, parseInt(d));
-                                 const weekdays = ['DOMINGO', 'SEGUNDA-FEIRA', 'TERÇA-FEIRA', 'QUARTA-FEIRA', 'QUINTA-FEIRA', 'SEXTA-FEIRA', 'SÁBADO'];
-                                 setEditingItem({
-                                   ...editingItem,
-                                   date: `${d}/${m}`,
-                                   weekday: weekdays[dat.getDay()]
-                                 });
-                              }
-                            }} 
-                            required={isCustomDate}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold uppercase text-slate-700 outline-none focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/10 transition-all [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-50 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
-                          />
-                        </div>
-                     )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Almoço */}
-                  <div className="bg-rose-50/50 p-5 rounded-2xl border border-rose-100 flex flex-col gap-4">
-                    <h4 className="text-rose-700 font-black uppercase text-xs tracking-widest flex items-center gap-2">
-                       <Utensils className="w-4 h-4" /> Almoço
-                    </h4>
-                    
-                    <div>
-                      <label className="block text-[10px] font-black text-rose-500/70 uppercase tracking-widest mb-1.5 ml-1">Prato Principal</label>
-                      <TagInput value={editingItem.almoco.principal} onChange={val => setEditingItem({...editingItem, almoco: {...editingItem.almoco, principal: val}})} suggestions={catalog.proteinas} className="border-rose-200 focus-within:border-rose-400 focus-within:ring-rose-100 bg-white" />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black text-rose-500/70 uppercase tracking-widest mb-1.5 ml-1">Acompanhamentos</label>
-                      <TagInput value={editingItem.almoco.acompanhamentos} onChange={val => setEditingItem({...editingItem, almoco: {...editingItem.almoco, acompanhamentos: val}})} suggestions={catalog.acompanhamentos} className="border-rose-200 focus-within:border-rose-400 focus-within:ring-rose-100 bg-white" />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black text-rose-500/70 uppercase tracking-widest mb-1.5 ml-1">Saladas</label>
-                      <TagInput value={editingItem.almoco.saladas} onChange={val => setEditingItem({...editingItem, almoco: {...editingItem.almoco, saladas: val}})} suggestions={catalog.saladas} className="border-rose-200 focus-within:border-rose-400 focus-within:ring-rose-100 bg-white" />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black text-rose-500/70 uppercase tracking-widest mb-1.5 ml-1">Sobremesa</label>
-                      <TagInput value={editingItem.almoco.sobremesa} onChange={val => setEditingItem({...editingItem, almoco: {...editingItem.almoco, sobremesa: val}})} suggestions={catalog.sobremesas} className="border-rose-200 focus-within:border-rose-400 focus-within:ring-rose-100 bg-white" />
-                    </div>
-                  </div>
-
-                  {/* Jantar */}
-                  <div className="bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100 flex flex-col gap-4">
-                    <h4 className="text-indigo-700 font-black uppercase text-xs tracking-widest flex items-center gap-2">
-                       <Sunset className="w-4 h-4" /> Jantar
-                    </h4>
-                    
-                    <div>
-                      <label className="block text-[10px] font-black text-indigo-500/70 uppercase tracking-widest mb-1.5 ml-1">Prato Principal</label>
-                      <TagInput value={editingItem.jantar.principal} onChange={val => setEditingItem({...editingItem, jantar: {...editingItem.jantar, principal: val}})} suggestions={catalog.proteinas} className="border-indigo-200 focus-within:border-indigo-400 focus-within:ring-indigo-100 bg-white" />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black text-indigo-500/70 uppercase tracking-widest mb-1.5 ml-1">Acompanhamentos</label>
-                      <TagInput value={editingItem.jantar.acompanhamentos} onChange={val => setEditingItem({...editingItem, jantar: {...editingItem.jantar, acompanhamentos: val}})} suggestions={catalog.acompanhamentos} className="border-indigo-200 focus-within:border-indigo-400 focus-within:ring-indigo-100 bg-white" />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black text-indigo-500/70 uppercase tracking-widest mb-1.5 ml-1">Saladas</label>
-                      <TagInput value={editingItem.jantar.saladas} onChange={val => setEditingItem({...editingItem, jantar: {...editingItem.jantar, saladas: val}})} suggestions={catalog.saladas} className="border-indigo-200 focus-within:border-indigo-400 focus-within:ring-indigo-100 bg-white" />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black text-indigo-500/70 uppercase tracking-widest mb-1.5 ml-1">Ceia</label>
-                      <TagInput value={editingItem.jantar.ceia} onChange={val => setEditingItem({...editingItem, jantar: {...editingItem.jantar, ceia: val}})} suggestions={catalog.ceia} className="border-indigo-200 focus-within:border-indigo-400 focus-within:ring-indigo-100 bg-white" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
-                    <label className="block text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1.5 ml-1 flex items-center gap-1"><Sunrise className="w-3 h-3" /> Café da Manhã</label>
-                    <TagInput value={editingItem.cafeManha} onChange={val => setEditingItem({...editingItem, cafeManha: val})} suggestions={['CAFÉ', 'PÃO', 'OVOS', 'QUEIJO', 'PRESUNTO', 'FRUTAS', 'BOLO']} className="border-emerald-200 focus-within:border-emerald-400 focus-within:ring-emerald-100 bg-white" />
-                  </div>
-                  <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-100">
-                    <label className="block text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1.5 ml-1 flex items-center gap-1"><Coffee className="w-3 h-3" /> Lanche da Tarde</label>
-                    <TagInput value={editingItem.lancheTarde} onChange={val => setEditingItem({...editingItem, lancheTarde: val})} suggestions={['CAFÉ', 'SUCO', 'PIPOCA', 'PÃO RECHEADO', 'BOLO DE BANANA', 'BOLO DE ABACAXI']} className="border-amber-200 focus-within:border-amber-400 focus-within:ring-amber-100 bg-white" />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3 mt-4 pt-6 border-t border-slate-100">
-                   <button 
-                     type="button"
-                     onClick={() => setIsEditing(false)}
-                     className="px-6 py-3 rounded-xl font-bold uppercase tracking-widest text-xs text-slate-500 hover:bg-slate-100 transition-all"
-                   >
-                     Cancelar
-                   </button>
-                   <button 
-                     type="submit"
-                     className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs shadow-md shadow-slate-200 transition-all"
-                   >
-                     <Save className="w-4 h-4" />
-                     Salvar Refeição
-                   </button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
+        <AnimatePresence>
+          {isEditing && (
+            <RefeitorioEditModal 
+               onClose={() => setIsEditing(false)} 
+               editIndex={editingIndex} 
+            />
+          )}
+        </AnimatePresence>
 
         {/* Modal de Relatório */}
         {showReport && (

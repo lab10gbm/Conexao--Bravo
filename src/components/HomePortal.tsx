@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { 
   ArrowRightLeft, 
@@ -25,16 +25,20 @@ import {
   UtensilsCrossed,
   Radio,
   Bus,
-  ShoppingCart
+  ShoppingCart,
+  Megaphone,
+  ChevronDown
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { db } from '../lib/firebase';
+import { getAuth } from 'firebase/auth';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { isOfficer } from '../lib/rankUtils';
 
 import { AppVisibilityConfig } from './AppVisibilityConfig';
 import { SystemRolesConfig } from './SystemRolesConfig';
 import { useAppConfig } from '../contexts/ConfigContext';
+import { MuralAvisos } from './MuralAvisos';
 
 interface ModuleIconProps {
   id: string;
@@ -147,12 +151,20 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
   });
   const [adminTab, setAdminTab] = useState<'apps' | 'roles'>('apps');
   const [epiRequestActive, setEpiRequestActive] = useState(false);
+  const [showMural, setShowMural] = useState(true);
 
   useEffect(() => {
     if (!user?.rg || !db) return;
     
-    // Check global EPI request config once on mount
+    // Check global EPI request config
     const checkEpiRequest = async () => {
+      // Ensure auth is ready before fetching to avoid permission errors
+      const auth = getAuth();
+      if (!auth.currentUser) {
+         // wait briefly and retry if auth isn't ready
+         setTimeout(checkEpiRequest, 1000);
+         return;
+      }
       try {
         const snap = await getDoc(doc(db, 'config', 'epi_request'));
         if (snap.exists()) {
@@ -378,6 +390,14 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
 
   const moderadorModulesDef = [
     {
+      id: 'gestao-efetivo-moderacao',
+      label: 'Gestão de Efetivo',
+      description: 'Moderação e Cadastro',
+      icon: Users,
+      color: 'bg-emerald-700 shadow-emerald-200',
+      defaultGroups: ['ADMIN', 'ESCALANTE']
+    },
+    {
       id: 'translado',
       label: 'Translado OBM',
       description: 'Viaturas Administrativas',
@@ -503,6 +523,56 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
              {isEditMode ? "Concluir Edição" : "Editar Ordem"}
            </button>
         )}
+      </div>
+
+      <div className="mb-6 group">
+        <button 
+          onClick={() => setShowMural(!showMural)}
+          className={cn(
+            "w-full flex items-center justify-between p-3 sm:p-4 rounded-3xl border-2 transition-all shadow-md relative overflow-hidden",
+            showMural 
+              ? "bg-white border-indigo-100 ring-2 ring-indigo-50/50" 
+              : "bg-gradient-to-r from-indigo-500 to-indigo-700 border-transparent text-white hover:shadow-indigo-100"
+          )}
+        >
+          {showMural && <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 blur-2xl -translate-y-1/2 translate-x-1/4 rounded-full pointer-events-none"></div>}
+          
+          <div className="flex items-center gap-4">
+            <div className={cn(
+              "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 backdrop-blur-sm transition-colors",
+              showMural ? "bg-indigo-100 text-indigo-600" : "bg-white/20 text-white"
+            )}>
+              <Megaphone className="w-5 h-5" />
+            </div>
+            <div className="text-left">
+              <h3 className={cn("text-sm sm:text-base font-black uppercase tracking-tight", showMural ? "text-slate-800" : "text-white")}>
+                Mural de Avisos & Prazos
+              </h3>
+              <p className={cn("text-[9px] sm:text-[10px] font-bold uppercase tracking-widest mt-0.5", showMural ? "text-indigo-600" : "text-white/80")}>
+                {showMural ? "Informações Institucionais" : "Visualizar avisos do dia"}
+              </p>
+            </div>
+          </div>
+          <div className={cn(
+            "w-8 h-8 rounded-full flex items-center justify-center transition-all",
+            showMural ? "bg-slate-100 text-slate-400 rotate-180" : "bg-white/20 text-white"
+          )}>
+            <ChevronDown className="w-4 h-4" />
+          </div>
+        </button>
+
+        <AnimatePresence>
+          {showMural && (
+            <motion.div
+              initial={{ height: 0, opacity: 0, marginTop: 0 }}
+              animate={{ height: "auto", opacity: 1, marginTop: 12 }}
+              exit={{ height: 0, opacity: 0, marginTop: 0 }}
+              className="overflow-hidden"
+            >
+              <MuralAvisos isAdminOrEscalante={!!(isAdminRaw || isEscalanteRaw)} userName={user.name} />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {visibleOperacionalModules.length > 0 && (

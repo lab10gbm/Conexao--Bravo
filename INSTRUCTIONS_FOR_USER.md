@@ -1,32 +1,24 @@
-# Manual de Configuração do Firebase para 10º GBM
+# Manual de Configuração do Firebase para 10º GBM (Conexão Bravo)
 
-Para que o seu banco de dados funcione corretamente e não fique carregando infinitamente, você precisa realizar dois passos rápidos no console do Firebase para o projeto **ai-studio-applet-webapp-33cfe**.
+Para que o sistema de login e recuperação de senhas funcione corretamente, você precisa ativar o provedor de autenticação **E-mail/Senha** no console do Firebase para o projeto **endless-cosine-m3n78**.
 
-## Links Diretos para seu Projeto:
+Se você encontrar o erro `auth/operation-not-allowed`, siga as etapas abaixo para ativá-lo:
 
-### 1. Ativar o Firestore
-O erro de permissão ocorre porque o banco de dados ainda não foi inicializado.
-- **Clique aqui:** [Console do Firestore - ai-studio-applet-webapp-33cfe](https://console.firebase.google.com/project/ai-studio-applet-webapp-33cfe/firestore)
-- Clique em **"Criar banco de dados"**.
-- Escolha o local mais próximo (ex: `southamerica-east1` ou `us-east1`).
-- Comece em **"Modo de Produção"**. (O código já envia as regras de segurança para proteger seus dados).
+## Link Direto para Configurar a Autenticação:
 
-### 2. Ativar Autenticação Anônima
-Fundamental para o login por RG sem senha.
-- **Clique aqui:** [Configurar Login - ai-studio-applet-webapp-33cfe](https://console.firebase.google.com/project/ai-studio-applet-webapp-33cfe/authentication/providers)
-- Role até **Anônimo**, clique nele e mude a chave para **Ativado**.
-- Clique em **Salvar**.
-
-## Adicionar lab.10gbm@gmail.com como Dono
-Se você quer que este e-mail tenha acesso total ao banco de dados:
-1. Vá em [Usuários e Permissões](https://console.firebase.google.com/project/ai-studio-applet-webapp-33cfe/settings/iam).
-2. Clique em **Adicionar membro**.
-3. Digite `lab.10gbm@gmail.com`.
-4. Em "Papel" ou "Role", escolha **Proprietário** (Owner) ou **Editor**.
-
-## É Gratuito?
-**Sim.** O Google permite até 50.000 leituras e 20.000 escritas **por dia** sem cobrar nada. Para uma unidade como o 10º GBM, este limite é muito alto e provavelmente você nunca pagará nada pelo uso do banco de dados.
+### Ativar o Provedor de E-mail/Senha:
+1. **Clique aqui para ir diretamente à página correspondente no painel do Firebase:**
+   👉 [Configurar Métodos de Login - endless-cosine-m3n78](https://console.firebase.google.com/project/endless-cosine-m3n78/authentication/providers)
+2. Clique no botão **"Adicionar novo provedor"** (ou "Add new provider").
+3. Selecione a opção **"E-mail/Senha"** (ou "Email/Password").
+4. Ative a primeira chave **"E-mail/Senha (Ativado)"** e deixe a de "Link do e-mail" desativada.
+5. Clique em **"Salvar"** (ou "Save").
 
 ---
-**Nota sobre o projeto `gen-lang-client-...`**:
-Aquele projeto que você mencionou é provavelmente sua conta pessoal do Google. O sistema do AI Studio criou este projeto dedicado chamado **ai-studio-applet-webapp-33cfe** para hospedar esta aplicação específica. Use os links acima para configurar este projeto correto.
+
+## Como funciona a autenticação no sistema?
+* **RG Militar como Usuário:** O sistema cria um e-mail simulado no formato `RG_Militar@cbmerj.local` de forma transparente no Firebase Auth.
+* **Segurança:** O acesso fica totalmente seguro e individual utilizando os servidores do Google Firebase.
+
+## É Gratuito?
+**Sim.** A autenticação e o banco de dados do Firebase são 100% gratuitos na cota Spark fornecida pelo Google. Para a unidade do CBA VII / Costa Verde, a franquia diária (~50.000 leituras/dia) é mais do que suficiente para operar sem qualquer custo.

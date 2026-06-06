@@ -20,14 +20,14 @@ export function usePresence(user: UserProfile | null) {
       });
     };
 
-    // Update immediately and then every minute
+    // Update immediately and then every 15 minutes
     updatePresence();
-    const intervalId = setInterval(updatePresence, 60000);
+    const intervalId = setInterval(updatePresence, 900000);
     
     // Also update on activity (with basic debounce to avoid spamming)
     const handleActivity = debounce(() => {
        updatePresence();
-    }, 30000); // at most every 30s
+    }, 900000); // at most every 15m
     
     window.addEventListener('mousemove', handleActivity);
     window.addEventListener('keydown', handleActivity);

@@ -5,7 +5,7 @@
 
 import React, { useEffect, useState } from "react";
 import { auth, db } from "./lib/firebase";
-import { onAuthStateChanged, signOut, signInAnonymously } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import {
   Routes,
   Route,
@@ -16,15 +16,7 @@ import {
 import { useAppConfig } from "./contexts/ConfigContext";
 import { useMilitars } from "./contexts/MilitarContext";
 import { UserProfile } from "./types";
-import { Login } from "./components/Login";
 import { Header } from "./components/Header";
-import { WeeklyMonitor } from "./components/WeeklyMonitor";
-import { AgendaPessoal } from "./components/AgendaPessoal";
-import { PermutaBoard } from "./components/PermutaBoard";
-import { RequestPermuta } from "./components/RequestPermuta";
-import { CalendarHighlights } from "./components/CalendarHighlights";
-import { AdminPanel } from "./components/AdminPanel";
-import { ExpedienteScheduler } from "./components/ExpedienteScheduler";
 import {
   LogOut,
   User,
@@ -48,7 +40,6 @@ import {
   getAlaForDate,
   GLOBAL_REF_YEAR,
 } from "./lib/utils";
-import { HomePortal } from "./components/HomePortal";
 import { PlatformLogo } from "./components/PlatformLogo";
 import { RankInsignia } from "./components/RankInsignia";
 
@@ -90,6 +81,7 @@ const EscalanteDashboard = React.lazy(() =>
     default: m.EscalanteDashboard,
   })),
 );
+const GestaoEfetivoModeracaoModule = React.lazy(() => import("./components/GestaoEfetivoModeracaoModule").then((m) => ({ default: m.GestaoEfetivoModeracaoModule })));
 const MedidasModule = React.lazy(() =>
   import("./components/MedidasModule").then((m) => ({
     default: m.MedidasModule,
@@ -157,6 +149,16 @@ const ComunicanteDashboard = React.lazy(() =>
 import { usePresence } from "./hooks/usePresence";
 import { useViaturaAlerts } from "./hooks/useViaturaAlerts";
 
+import { MainLayout } from "./components/layout/MainLayout";
+const Login = React.lazy(() => import("./components/Login").then((m) => ({ default: m.Login })));
+const WeeklyMonitor = React.lazy(() => import("./components/WeeklyMonitor").then((m) => ({ default: m.WeeklyMonitor })));
+const AgendaPessoal = React.lazy(() => import("./components/AgendaPessoal").then((m) => ({ default: m.AgendaPessoal })));
+const PermutaBoard = React.lazy(() => import("./components/PermutaBoard").then((m) => ({ default: m.PermutaBoard })));
+const RequestPermuta = React.lazy(() => import("./components/RequestPermuta").then((m) => ({ default: m.RequestPermuta })));
+const CalendarHighlights = React.lazy(() => import("./components/CalendarHighlights").then((m) => ({ default: m.CalendarHighlights })));
+const AdminPanel = React.lazy(() => import("./components/AdminPanel").then((m) => ({ default: m.AdminPanel })));
+const ExpedienteScheduler = React.lazy(() => import("./components/ExpedienteScheduler").then((m) => ({ default: m.ExpedienteScheduler })));
+const HomePortal = React.lazy(() => import("./components/HomePortal").then((m) => ({ default: m.HomePortal })));
 export default function App() {
   const [user, setUser] = useState<any>(null);
 
@@ -278,16 +280,31 @@ export default function App() {
   usePresence(effectiveProfile);
   const { activeAlert, dismissAlert } = useViaturaAlerts(effectiveProfile);
 
-  // Update profile with escalante role dynamically from legacy config
+  // Update profile with escalante and admin roles dynamically from legacy config
   useEffect(() => {
     if (profile?.rg) {
       const isLegacyEscalante =
         escalanteRGs.includes(profile.rg) || profile.rg === "54444";
+      const isLegacyAdmin = profile.rg === "54444";
+      
+      let changed = false;
+      let nextProfile = { ...profile };
+
       if (isLegacyEscalante && !profile.isEscalante) {
-        setProfile((prev) => (prev ? { ...prev, isEscalante: true } : null));
+        nextProfile.isEscalante = true;
+        changed = true;
+      }
+      if (isLegacyAdmin && !profile.isAdmin) {
+        nextProfile.isAdmin = true;
+        changed = true;
+      }
+
+      if (changed) {
+        setProfile(nextProfile);
+        localStorage.setItem("militar_profile", JSON.stringify(nextProfile));
       }
     }
-  }, [profile?.rg, profile?.isEscalante, escalanteRGs]);
+  }, [profile?.rg, profile?.isEscalante, profile?.isAdmin, escalanteRGs]);
 
   // Auto-redirect to /patrimonio if a section query parameter exists
   useEffect(() => {
@@ -306,26 +323,18 @@ export default function App() {
 
     // Safety timeout: Never stay in loading state for more than 5 seconds
     const safetyTimeout = setTimeout(() => {
-      if (isMounted) setLoading(false);
+      if (isMounted) {
+         setLoading(false);
+         setAuthReady(true);
+      }
     }, 5000);
 
     // 2. Listen for Auth changes
     const unsubscribeAuth = onAuthStateChanged(auth, async (u) => {
       if (!isMounted) return;
       setUser(u);
-
-      if (u) {
-        setAuthReady(true);
-        setLoading(false);
-      } else {
-        // 4. No session found, joining anonymously
-        signInAnonymously(auth).catch((e) => {
-          if (!e.message?.includes("network-request-failed")) {
-            console.warn("[Auth] Anonymous join failed:", e.message);
-          }
-          if (isMounted) setLoading(false);
-        });
-      }
+      setAuthReady(true);
+      setLoading(false);
     });
 
     return () => {
@@ -343,28 +352,32 @@ export default function App() {
 
       const refreshProfile = async () => {
         try {
-          const res = await fetch(`/api/militar/${profile.rg}`);
-          const data = await res.json();
-          if (data.success && data.member) {
-            // Only update if the new data is "better" (not just generic 'Militar')
-            // or if the current profile has no name
+          const { getDoc, doc } = await import('firebase/firestore');
+          const { db } = await import('./lib/firebase');
+          const pDoc = await getDoc(doc(db, 'militaries', profile.rg));
+          
+          if (pDoc.exists()) {
+            const memberData = pDoc.data();
             const isNewDataBetter =
-              data.member.name && data.member.name !== "Militar";
+              memberData.name && memberData.name !== "Militar";
             const isCurrentProfileDefault =
               !profile.name || profile.name === "Militar";
 
             if (isNewDataBetter || isCurrentProfileDefault) {
               const updatedProfile = {
                 ...profile,
-                name: data.member.name || profile.name,
-                rank: data.member.rank || profile.rank,
-                warName: data.member.warName || profile.warName,
-                ala: data.member.ala || profile.ala,
+                ...memberData,
+                // Ensure aliases are mapped to expected internal names
+                nascimento: memberData.nascimento || memberData.birthDate || profile.nascimento || (profile as any).birthDate,
+                idFuncional: memberData.idFuncional || memberData.id_funcional || profile.idFuncional || (profile as any).id_funcional,
+                promotionDate: memberData.promotionDate || memberData.ultimaPromocao || profile.promotionDate || (profile as any).ultimaPromocao,
+                quadro: memberData.quadro || memberData.QUADRO || profile.quadro || (profile as any).QUADRO
               };
 
               // Only update if something actually changed to avoid re-render loops
+              // Use specific fields if whole object comparison is too noisy, but here we want everything
               if (JSON.stringify(updatedProfile) !== JSON.stringify(profile)) {
-                console.log("[Auth] Profile updated with server data.");
+                console.log("[Auth] Profile updated with all real-time db data.");
                 setProfile(updatedProfile);
                 localStorage.setItem(
                   "militar_profile",
@@ -383,11 +396,17 @@ export default function App() {
   }, [profile?.rg, loading, authReady]);
 
   useEffect(() => {
-    if (profile && !obmContext) {
+    if (profile) {
       const rawUserObm = profile.obm ? profile.obm.trim() : "10º GBM";
-      setObmContext(rawUserObm);
+      
+      // Sync obmContext with profile OBM if:
+      // 1. obmContext is not set yet
+      // 2. OR the user is NOT in admin/escalante mode and their OBM changed (simulated or real)
+      if (!obmContext || (!adminModeActive && !escalanteModeActive && obmContext !== rawUserObm)) {
+        setObmContext(rawUserObm);
+      }
     }
-  }, [profile, obmContext]);
+  }, [profile?.obm, adminModeActive, escalanteModeActive]);
 
   const handleSignOut = () => {
     // Clear state immediately for instant feedback
@@ -451,13 +470,22 @@ export default function App() {
     );
   }
 
-  // Se não temos perfil, pedimos login IMEDIATAMENTE.
-  // Isso mascara o tempo de inicialização do Firebase e config.
+  // Optional: Wait for Firebase Auth but fallback gracefully if disabled
+  const isAuthSettled = !loading;
+  
   if (!profile) {
-    return <Login onLogin={setProfile} />;
+    return (
+      <React.Suspense fallback={
+        <div className="min-h-screen bg-[var(--color-bg-main)] flex items-center justify-center">
+          <div className="w-12 h-12 border-4 border-[var(--color-brand-red)] border-t-white rounded-full animate-spin shadow-xl"></div>
+        </div>
+      }>
+        <Login onLogin={setProfile} />
+      </React.Suspense>
+    );
   }
 
-  if (loading || !alaConfigLoaded) {
+  if (!alaConfigLoaded) {
     return (
       <div className="min-h-screen bg-[#FDFDFD] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -490,188 +518,19 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg-main)] text-[#1D1D1D] font-sans selection:bg-red-100 selection:text-red-900 flex flex-col">
-      {(profile.isAdmin ||
-        (profile.adminObms && profile.adminObms.length > 0)) &&
-        moderatorMode && (
-          <div className="bg-indigo-600 text-white px-3 py-2 border-b border-indigo-500 animate-in slide-in-from-top duration-300">
-            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-3 h-3 sm:w-4 sm:h-4 text-indigo-200" />
-                <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-indigo-100">
-                  Modo Moderador
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1.5 bg-indigo-700/50 p-1 rounded-xl border border-indigo-400/30 shadow-inner overflow-x-auto no-scrollbar w-full sm:w-auto">
-                {[
-                  { id: "", label: "Original" },
-                  { id: "OFICIAIS", label: "Oficiais" },
-                  { id: "1", label: "Ala 1" },
-                  { id: "2", label: "Ala 2" },
-                  { id: "3", label: "Ala 3" },
-                  { id: "4", label: "Ala 4" },
-                  { id: "EXP", label: "EXP" },
-                  { id: "ESCALANTE", label: "Escalante" },
-                ].map((opt) => (
-                  <button
-                    key={opt.id}
-                    onClick={() => setSimulatedVersion(opt.id)}
-                    className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-tighter transition-all whitespace-nowrap ${
-                      simulatedVersion === opt.id
-                        ? "bg-white text-indigo-600 shadow-sm"
-                        : "text-indigo-200 hover:text-white hover:bg-indigo-500"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      <nav
-        className={`bg-[var(--color-brand-dark)] text-white p-4 sticky top-0 z-[100] border-b-4 border-[var(--color-brand-red)] shadow-lg transition-transform duration-300 ${isHeaderVisible ? "translate-y-0" : "-translate-y-full"}`}
-      >
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div
-            className="flex items-center gap-2 sm:gap-4 cursor-pointer hover:opacity-80 transition-opacity flex-1 min-w-0"
-            onClick={() => {
-              navigate("/");
-              setSelectedMonthView(null);
-            }}
-          >
-            <div className="w-10 h-10 sm:w-[70px] sm:h-[70px] bg-white rounded-full flex items-center justify-center p-0 shadow-inner overflow-hidden shrink-0">
-              <PlatformLogo className="w-10 h-10 sm:w-[70px] sm:h-[70px] text-[var(--color-brand-dark)] scale-[1.25]" />
-            </div>
-            <div className="flex flex-col truncate">
-              <div className="text-xs min-[400px]:text-sm min-[800px]:text-xl xl:text-3xl font-black tracking-tight leading-tight uppercase truncate">
-                CONEXÃO BRAVO
-              </div>
-              <div className="text-[9px] min-[400px]:text-[10px] xl:text-sm font-black opacity-80 uppercase tracking-widest truncate">
-                {effectiveProfile?.obm || "CBA VII"} - COSTA VERDE
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1.5 sm:gap-6 shrink-0">
-            <div className="hidden lg:flex items-center gap-4 border-l border-white/10 pl-6 h-10">
-              <div className="text-right">
-                <span className="block text-2xl font-black leading-none text-[var(--color-brand-red)] italic">
-                  {GLOBAL_REF_YEAR}
-                </span>
-                <span className="text-[8px] uppercase font-bold tracking-tighter opacity-60">
-                  Ano de Referência
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1 sm:gap-2 ml-1 sm:ml-2">
-              {profile && profile.isEscalante && !profile.isAdmin && (
-                <button
-                  onClick={() => setEscalanteModeActive(!escalanteModeActive)}
-                  className={`p-1.5 sm:p-2 transition-colors rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-3 ${escalanteModeActive ? "bg-blue-500 text-white shadow-inner" : "text-white/50 hover:text-blue-400 hover:bg-white/5 border border-white/10"}`}
-                  title="Modo Escalante"
-                >
-                  <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest hidden sm:block">
-                    Escalante
-                  </span>
-                </button>
-              )}
-              {profile && profile.isAdmin && (
-                <button
-                  onClick={() => {
-                    const nextMode = !moderatorMode;
-                    setModeratorMode(nextMode);
-                    setAdminModeActive(nextMode);
-                  }}
-                  className={`p-1.5 sm:p-2 transition-colors rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-3 ${moderatorMode ? "bg-indigo-500 text-white shadow-inner" : "text-white/50 hover:text-indigo-400 hover:bg-white/5 border border-white/10"}`}
-                  title="Modo Moderador"
-                >
-                  <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest hidden sm:block">
-                    Moderador
-                  </span>
-                </button>
-              )}
-            </div>
-
-            <div className="relative">
-              <button
-                onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                className="flex items-center gap-2 sm:gap-3 px-1 sm:px-2 py-1 ml-1 sm:ml-2 transition-opacity hover:opacity-80 text-white text-left"
-              >
-                <div className="flex flex-col items-center justify-center shrink-0">
-                  <div className="scale-[0.8] sm:scale-100 origin-center drop-shadow-sm">
-                    <RankInsignia rankStr={profile.rank || ""} />
-                  </div>
-                </div>
-
-                <div className="flex flex-col text-left justify-center pb-0.5 pt-1">
-                  <span className="text-[9px] sm:text-[10px] font-black uppercase text-current opacity-80 tracking-widest leading-none mb-0.5 whitespace-nowrap">
-                    <span className="hidden sm:inline">
-                      {profile.rank ? profile.rank.replace("º", "") : "MIL"}
-                    </span>
-                    <span className="sm:hidden">
-                      {profile.rank
-                        ? profile.rank
-                            .replace("º", "")
-                            .replace(/.*SGT/, "SGT")
-                            .replace("SOLDADO", "SD")
-                            .replace("CABO", "CB")
-                            .replace("SUBTENENTE", "ST")
-                            .replace("ASPIRANTE", "ASP")
-                        : "MIL"}
-                    </span>
-                  </span>
-                  <span className="text-[11px] sm:text-[13px] font-black uppercase tracking-tight text-current leading-none truncate block mt-[1px]">
-                    {profile.warName || profile.name.split(" ")[0]}
-                  </span>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-current opacity-70 font-mono leading-none whitespace-nowrap">
-                      RG: {profile.rg || "----"}
-                    </span>
-                    <span className="text-[9px] sm:text-[10px] font-black tracking-widest uppercase opacity-90 leading-none">
-                      {typeof profile.ala === "string" &&
-                      profile.ala.toUpperCase() === "EXP"
-                        ? "EXP"
-                        : typeof profile.ala === "string" &&
-                            profile.ala.toUpperCase() === "ESCALANTE"
-                          ? "ESC"
-                          : `ALA ${profile.ala}`}
-                    </span>
-                  </div>
-                </div>
-              </button>
-
-              <AnimatePresence>
-                {userDropdownOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-full mt-2 w-48 bg-white text-slate-800 rounded-xl shadow-xl border border-slate-200 overflow-hidden z-[200]"
-                  >
-                    <div className="p-1.5 pt-2">
-                      <button
-                        onClick={handleSignOut}
-                        className="w-full flex items-center justify-between px-3 py-2 text-sm text-red-600 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors font-bold group"
-                      >
-                        Sair da Conta
-                        <LogOut className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity" />
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      <main className="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-10 flex-1 overflow-x-hidden pb-24 sm:pb-10">
+    <MainLayout
+      profile={profile!}
+      handleSignOut={handleSignOut}
+      moderatorMode={moderatorMode}
+      setModeratorMode={setModeratorMode}
+      adminModeActive={adminModeActive}
+      setAdminModeActive={setAdminModeActive}
+      escalanteModeActive={escalanteModeActive}
+      setEscalanteModeActive={setEscalanteModeActive}
+      simulatedVersion={simulatedVersion}
+      setSimulatedVersion={setSimulatedVersion}
+      GLOBAL_REF_YEAR={GLOBAL_REF_YEAR}
+    >
         <React.Suspense
           fallback={
             <div className="h-40 flex items-center justify-center">
@@ -709,6 +568,13 @@ export default function App() {
                   >
                     <Header
                       profile={effectiveProfile!}
+                      realProfile={profile!}
+                      adminModeActive={adminModeActive}
+                      onToggleAdminMode={() => {
+                        const next = !adminModeActive;
+                        setAdminModeActive(next);
+                        setModeratorMode(next);
+                      }}
                       obmContext={obmContext}
                       setObmContext={setObmContext}
                       availableObms={availableObms}
@@ -930,6 +796,7 @@ export default function App() {
                       user={effectiveProfile!}
                       onBack={() => navigate("/")}
                       standalone={true}
+                      obmContext={obmContext}
                     />
                   </motion.div>
                 }
@@ -1036,6 +903,13 @@ export default function App() {
                     >
                       <Header
                         profile={effectiveProfile!}
+                        realProfile={profile!}
+                        adminModeActive={adminModeActive}
+                        onToggleAdminMode={() => {
+                          const next = !adminModeActive;
+                          setAdminModeActive(next);
+                          setModeratorMode(next);
+                        }}
                         obmContext={obmContext}
                         setObmContext={setObmContext}
                         availableObms={availableObms}
@@ -1179,11 +1053,26 @@ export default function App() {
                   </motion.div>
                 }
               />
+              <Route
+                path="/gestao-efetivo-moderacao"
+                element={
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.05 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <GestaoEfetivoModeracaoModule
+                      user={effectiveProfile!}
+                      onBack={() => navigate("/")}
+                    />
+                  </motion.div>
+                }
+              />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </AnimatePresence>
         </React.Suspense>
-      </main>
 
       {/* Controlled Floating Button */}
       {currentPath.includes("permutas") && !isPermutaModalOpen && (
@@ -1339,6 +1228,6 @@ export default function App() {
           );
         })}
       </div>
-    </div>
+    </MainLayout>
   );
 }

@@ -15,7 +15,13 @@ import {
   ArrowRight,
   Star,
   X,
-  BookOpen
+  BookOpen,
+  ShoppingBag,
+  Sunrise,
+  Utensils,
+  Sunset,
+  Edit2,
+  Trash2
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -26,10 +32,21 @@ import { cleanUndefined } from '../lib/utils';
 import { db } from '../lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useRefeitorioData } from '../hooks/useRefeitorioData';
+import { RefeitorioEditModal } from './RefeitorioEditModal';
 
 
 type CategoriaMaterial = 'MERCADO' | 'PROTEINA' | 'SACOLAO' | 'LIMPEZA';
 type TipoUso = 'imediato' | 'prolongado';
+
+interface ItemListaCompras {
+  id: string;
+  materialId?: string;
+  nome: string;
+  categoria: CategoriaMaterial | 'OUTROS' | string;
+  undMedida: string;
+  quantidade: number;
+  concluido: boolean;
+}
 
 interface Material {
   id: string;
@@ -353,7 +370,7 @@ const MOCK_CARDAPIO: CardapioDia[] = [
 ];
 
 export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfile | null }) {
-  const [activeTab, setActiveTab] = useState<'CADASTRO' | 'RECEITAS' | 'CARDAPIO' | 'PREVISAO' | 'CATALOGO'>('CADASTRO');
+  const [activeTab, setActiveTab] = useState<'CADASTRO' | 'RECEITAS' | 'CARDAPIO' | 'PREVISAO' | 'CATALOGO' | 'LISTA_COMPRAS'>('CADASTRO');
   
   const [materiais, setMateriais] = useState<Material[]>(() => {
     try {
@@ -376,6 +393,20 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
     } catch(e) {}
     return [];
   });
+  const [listaCompras, setListaCompras] = useState<ItemListaCompras[]>(() => {
+    try {
+      const cached = localStorage.getItem('aprovisionamento_dados_cache');
+      if (cached && JSON.parse(cached).listaCompras) return JSON.parse(cached).listaCompras;
+    } catch(e) {}
+    return [];
+  });
+  const [paxDefaults, setPaxDefaults] = useState<{ cafe: number, almoco: number, jantar: number }>(() => {
+    try {
+      const cached = localStorage.getItem('aprovisionamento_dados_cache');
+      if (cached && JSON.parse(cached).paxDefaults) return JSON.parse(cached).paxDefaults;
+    } catch(e) {}
+    return { cafe: 60, almoco: 60, jantar: 60 };
+  });
   const [datasEstoque, setDatasEstoque] = useState<string[]>(() => {
     try {
       const cached = localStorage.getItem('aprovisionamento_dados_cache');
@@ -392,6 +423,20 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
     } catch(e) {}
     return {};
   });
+  
+  const [previsaoDiasOptions, setPrevisaoDiasOptions] = useState<number[]>([3, 5, 10]);
+  const [newPrevisaoDiaStr, setNewPrevisaoDiaStr] = useState<string>('');
+  const [mostrarTodosPrevisao, setMostrarTodosPrevisao] = useState(false);
+  const [showAddListaModal, setShowAddListaModal] = useState(false);
+  const [manualItemForm, setManualItemForm] = useState({ 
+    nome: '', 
+    quantidade: 1, 
+    undMedida: 'UN', 
+    categoria: 'OUTROS',
+    materialId: '' as string | undefined
+  });
+  const [manualItemSuggestions, setManualItemSuggestions] = useState<Material[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const { menus } = useRefeitorioData();
 
@@ -423,6 +468,9 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   const [showNovaDataPopup, setShowNovaDataPopup] = useState(false);
   const [novaDataValue, setNovaDataValue] = useState('');
 
+  const [isEditingMenu, setIsEditingMenu] = useState(false);
+  const [editingMenuIndex, setEditingMenuIndex] = useState<number | null>(null);
+
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   useEffect(() => {
@@ -446,6 +494,8 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
           if (data.receitas) setReceitas(data.receitas);
           if (data.cardapio) setCardapio(data.cardapio);
           if (data.datasEstoque) setDatasEstoque(data.datasEstoque);
+          if (data.listaCompras) setListaCompras(data.listaCompras);
+          if (data.paxDefaults) setPaxDefaults(data.paxDefaults);
           localStorage.setItem('aprovisionamento_dados_cache', JSON.stringify(data));
         } else {
           // Initialize with MOCK data if doesn't exist at all
@@ -453,7 +503,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
           setReceitas(MOCK_RECEITAS);
           setCardapio(MOCK_CARDAPIO);
           
-          const initialData = { materiais: MOCK_MATERIAIS, receitas: MOCK_RECEITAS, cardapio: MOCK_CARDAPIO, datasEstoque: ['27/05'] };
+          const initialData = { materiais: MOCK_MATERIAIS, receitas: MOCK_RECEITAS, cardapio: MOCK_CARDAPIO, datasEstoque: ['27/05'], listaCompras: [], paxDefaults: { cafe: 60, almoco: 60, jantar: 60 } };
           localStorage.setItem('aprovisionamento_dados_cache', JSON.stringify(initialData));
           
           // Seed the database
@@ -468,8 +518,106 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
     fetchDados();
   }, []);
 
+  const handleAddToListaCompras = (material: Material, suggestedQty: number) => {
+    setListaCompras(prev => {
+      const existing = prev.find(i => i.materialId === material.id);
+      if (existing) return prev;
+      const qt = suggestedQty > 0 ? Math.ceil(suggestedQty) : 1;
+      const newItem: ItemListaCompras = {
+        id: Math.random().toString(36).substring(2, 9),
+        materialId: material.id,
+        nome: material.nome,
+        categoria: material.categoria,
+        undMedida: material.undMedida,
+        quantidade: qt,
+        concluido: false
+      };
+      const next = [...prev, newItem];
+      syncAndSave({ listaCompras: next });
+      return next;
+    });
+  };
+
+  const handleManualAddToLista = () => {
+    setManualItemForm({ nome: '', quantidade: 1, undMedida: 'UN', categoria: 'OUTROS', materialId: undefined });
+    setManualItemSuggestions([]);
+    setShowSuggestions(false);
+    setShowAddListaModal(true);
+  };
+
+  const handleManualItemNameChange = (val: string) => {
+    setManualItemForm(prev => ({ ...prev, nome: val }));
+    if (val.trim().length >= 2) {
+      const filtered = materiais.filter(m => 
+        m.nome.toLowerCase().includes(val.toLowerCase())
+      ).slice(0, 5);
+      setManualItemSuggestions(filtered);
+      setShowSuggestions(filtered.length > 0);
+    } else {
+      setManualItemSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  const handleSelectSuggestion = (m: Material) => {
+    setManualItemForm({
+      nome: m.nome,
+      quantidade: 1,
+      undMedida: m.undMedida,
+      categoria: m.categoria,
+      materialId: m.id
+    });
+    setManualItemSuggestions([]);
+    setShowSuggestions(false);
+  };
+
+  const handleSaveManualItem = () => {
+    if (!manualItemForm.nome.trim()) return;
+
+    const newItem: ItemListaCompras = {
+      id: Math.random().toString(36).substring(2, 9),
+      materialId: manualItemForm.materialId,
+      nome: manualItemForm.nome.toUpperCase().trim(),
+      categoria: manualItemForm.categoria.toUpperCase().trim() || 'OUTROS',
+      undMedida: manualItemForm.undMedida.toUpperCase().trim() || 'UN',
+      quantidade: manualItemForm.quantidade,
+      concluido: false
+    };
+
+    setListaCompras(prev => {
+      const next = [...prev, newItem];
+      syncAndSave({ listaCompras: next });
+      return next;
+    });
+    setShowAddListaModal(false);
+  };
+
+  const handleRemoveFromListaCompras = (id: string) => {
+    setListaCompras(prev => {
+      const next = prev.filter(i => i.id !== id);
+      syncAndSave({ listaCompras: next });
+      return next;
+    });
+  };
+
+  const handleToggleConcluidoListaCompras = (id: string) => {
+    setListaCompras(prev => {
+      const next = prev.map(i => i.id === id ? { ...i, concluido: !i.concluido } : i);
+      syncAndSave({ listaCompras: next });
+      return next;
+    });
+  };
+
+  const handleChangeQuantidadeListaCompras = (id: string, qty: number) => {
+    setListaCompras(prev => {
+      const next = prev.map(i => i.id === id ? { ...i, quantidade: qty } : i);
+      syncAndSave({ listaCompras: next });
+      return next;
+    });
+  };
+
   const pendingSaveRef = useRef<NodeJS.Timeout | null>(null);
-  const dataRef = useRef({ materiais, receitas, cardapio, datasEstoque });
+  const dataRef = useRef({ materiais, receitas, cardapio, datasEstoque, listaCompras, paxDefaults });
 
   const syncAndSave = (newData: Partial<typeof dataRef.current>) => {
     dataRef.current = { ...dataRef.current, ...newData };
@@ -541,14 +689,15 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
 
   // Cálculos de Previsão
   const calculoPrevisao = useMemo(() => {
-    // Dias a considerar: hoje até +3, +5, +10 dias
+    // Dias a considerar: usando as datas escolhidas nas opções
     const hoje = new Date();
     hoje.setHours(0,0,0,0);
     
-    const needsByMaterialId: Record<string, { in3Days: number, in5Days: number, in10Days: number, total: number }> = {};
+    const needsByMaterialId: Record<string, { inDays: Record<number, number>, total: number }> = {};
     
     materiais.forEach(m => {
-      needsByMaterialId[m.id] = { in3Days: 0, in5Days: 0, in10Days: 0, total: 0 };
+      needsByMaterialId[m.id] = { inDays: {}, total: 0 };
+      previsaoDiasOptions.forEach(opt => needsByMaterialId[m.id].inDays[opt] = 0);
     });
 
     filteredMenus.forEach(menu => {
@@ -570,60 +719,70 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
       const diffTime = cDate.getTime() - hoje.getTime(); // Not using absolute, so negative for past
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       
-      // Default to 60 for now if pax is not specified in menu
-      const paxForDay = menu.qtdMilitares || 60;
+      const paxLocalCafe = menu.efetivoCafe || paxDefaults.cafe || 60;
+      const paxLocalAlmoco = menu.efetivoAlmoco || paxDefaults.almoco || 60;
+      const paxLocalJantar = menu.efetivoJantar || paxDefaults.jantar || 60;
+      // Default to almoco pax for standard daily items if not specified
+      const paxForDay = paxLocalAlmoco;
 
       // Extract all dishes names configured for this day
-      const itemsOfDay: string[] = [];
-      const addDishes = (dishes: string) => {
+      const itemsOfDay: { name: string, meal: 'CAFE' | 'ALMOCO' | 'JANTAR' }[] = [];
+      const addDishes = (dishes: string, meal: 'CAFE' | 'ALMOCO' | 'JANTAR') => {
         if (!dishes || dishes === '-') return;
         dishes.split(',').forEach(dStr => {
            const trimmed = dStr.trim();
-           if (trimmed) itemsOfDay.push(trimmed);
+           if (trimmed) itemsOfDay.push({ name: trimmed, meal });
         });
       };
       
+      if (menu.cafeManha) addDishes(menu.cafeManha, 'CAFE');
+      if (menu.lancheTarde) addDishes(menu.lancheTarde, 'CAFE');
+
       // Almoço
       if (menu.almoco) {
-        if (menu.almoco.principal) itemsOfDay.push(menu.almoco.principal.trim());
-        addDishes(menu.almoco.acompanhamentos);
-        addDishes(menu.almoco.saladas);
-        if (menu.almoco.sobremesa && menu.almoco.sobremesa !== '-') itemsOfDay.push(menu.almoco.sobremesa.trim());
+        if (menu.almoco.principal) itemsOfDay.push({ name: menu.almoco.principal.trim(), meal: 'ALMOCO' });
+        addDishes(menu.almoco.acompanhamentos, 'ALMOCO');
+        addDishes(menu.almoco.saladas, 'ALMOCO');
+        if (menu.almoco.sobremesa && menu.almoco.sobremesa !== '-') itemsOfDay.push({ name: menu.almoco.sobremesa.trim(), meal: 'ALMOCO' });
       }
       
       // Jantar
       if (menu.jantar) {
-        if (menu.jantar.principal) itemsOfDay.push(menu.jantar.principal.trim());
-        addDishes(menu.jantar.acompanhamentos);
-        addDishes(menu.jantar.saladas);
-        if (menu.jantar.ceia && menu.jantar.ceia !== '-') itemsOfDay.push(menu.jantar.ceia.trim());
+        if (menu.jantar.principal) itemsOfDay.push({ name: menu.jantar.principal.trim(), meal: 'JANTAR' });
+        addDishes(menu.jantar.acompanhamentos, 'JANTAR');
+        addDishes(menu.jantar.saladas, 'JANTAR');
+        if (menu.jantar.ceia && menu.jantar.ceia !== '-') itemsOfDay.push({ name: menu.jantar.ceia.trim(), meal: 'JANTAR' });
       }
       
       // Para cada prato, checamos se existe configuracao em gastos_catalogo
-      itemsOfDay.forEach(itemName => {
-         const regrasGasto = gastosCatalogo[itemName];
+      itemsOfDay.forEach(item => {
+         const regrasGasto = gastosCatalogo[item.name];
          if (!regrasGasto) return;
          
          const dayOfWeek = cDate.getDay();
          const isFds = dayOfWeek === 0 || dayOfWeek === 6;
+         
+         const paxForMeal = item.meal === 'CAFE' ? paxLocalCafe : item.meal === 'ALMOCO' ? paxLocalAlmoco : paxLocalJantar;
 
          regrasGasto.forEach(gasto => {
             const mat = materiais.find(m => m.nome === gasto.nome);
             if (!mat || !needsByMaterialId[mat.id]) return;
 
             let qtdCost = 0;
-            const multiplier = isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana;
+            const multiplier = menu.isEvento ? (gasto.quantidadeEvento || 0) : (isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana);
             if (gasto.metodologia === 'por_dia') {
               qtdCost = multiplier; // Fixed daily total for this dish
             } else if (gasto.metodologia === 'por_prato') {
-              qtdCost = multiplier * paxForDay; // Multiplied by pax
+              qtdCost = multiplier * paxForMeal; // Multiplied by pax for this meal
             }
 
             if (qtdCost > 0 && !isPast) {
               needsByMaterialId[mat.id].total += qtdCost;
-              if (diffDays >= 0 && diffDays < 3) needsByMaterialId[mat.id].in3Days += qtdCost;
-              if (diffDays >= 0 && diffDays < 5) needsByMaterialId[mat.id].in5Days += qtdCost;
-              if (diffDays >= 0 && diffDays < 10) needsByMaterialId[mat.id].in10Days += qtdCost;
+              previsaoDiasOptions.forEach(opt => {
+                if (diffDays >= 0 && diffDays < opt) {
+                  needsByMaterialId[mat.id].inDays[opt] += qtdCost;
+                }
+              });
             }
          });
       });
@@ -635,60 +794,84 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
       ...(gastosCatalogo['Itens Não Alimentares'] || [])
     ];
 
-    const uniqueDates = Array.from(new Set(filteredMenus.map((m: any) => m.date).filter(Boolean)));
+    const maxDays = previsaoDiasOptions.length > 0 ? Math.max(...previsaoDiasOptions) : 0;
+    
+    // We want to simulate global daily expenses every day up to the maximum preview days.
+    // E.g., if checking up to 21 days, we loop 21 days.
+    for (let diffDays = 0; diffDays < maxDays; diffDays++) {
+      const cDate = new Date(hoje.getTime() + diffDays * 24 * 60 * 60 * 1000);
+      const isFds = cDate.getDay() === 0 || cDate.getDay() === 6;
 
-    uniqueDates.forEach(dateStr => {
-      const parts = dateStr.split('/');
-      if (parts.length < 2) return;
-      const d = parseInt(parts[0]);
-      const mo = parseInt(parts[1]);
-      if (isNaN(d) || isNaN(mo)) return;
+      // For daily total calculation, we need to find what the likely pax is.
+      // We will try to find if there is a menu for this date to get specific pax, otherwise fallback to 60.
+      const d = String(cDate.getDate()).padStart(2, '0');
+      const m = String(cDate.getMonth() + 1).padStart(2, '0');
+      const dateStr = `${d}/${m}`;
       
-      let year = hoje.getFullYear();
-      if (hoje.getMonth() === 0 && mo === 12) year--;
-      else if (hoje.getMonth() === 11 && mo === 1) year++;
-      
-      const cDate = new Date(year, mo - 1, d);
-      cDate.setHours(0,0,0,0);
-      
-      const dayOfWeek = cDate.getDay();
-      const isFds = dayOfWeek === 0 || dayOfWeek === 6;
-      
-      const isPast = cDate.getTime() < hoje.getTime();
-      const diffTime = cDate.getTime() - hoje.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-      // Consider global pax
-      const findMenu = filteredMenus.find((m: any) => m.date === dateStr);
-      const paxForDay = findMenu?.qtdMilitares || 60;
+      const findMenu = filteredMenus.find((menu: any) => menu.date === dateStr);
+      const paxForDay = findMenu?.efetivoAlmoco || paxDefaults?.almoco || 60;
 
       currentGastosGlobais.forEach(gasto => {
         const mat = materiais.find(m => m.nome === gasto.nome);
         if (!mat || !needsByMaterialId[mat.id]) return;
 
         let qtdCost = 0;
-        const multiplier = isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana;
+        const multiplier = findMenu?.isEvento ? (gasto.quantidadeEvento || 0) : (isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana);
         if (gasto.metodologia === 'por_dia') {
           qtdCost = multiplier;
         } else if (gasto.metodologia === 'por_prato') {
           qtdCost = multiplier * paxForDay;
         }
 
-        if (qtdCost > 0 && !isPast) {
-          needsByMaterialId[mat.id].total += qtdCost;
-          if (diffDays >= 0 && diffDays < 3) needsByMaterialId[mat.id].in3Days += qtdCost;
-          if (diffDays >= 0 && diffDays < 5) needsByMaterialId[mat.id].in5Days += qtdCost;
-          if (diffDays >= 0 && diffDays < 10) needsByMaterialId[mat.id].in10Days += qtdCost;
+        if (qtdCost > 0) {
+          needsByMaterialId[mat.id].total += qtdCost; // Update Total Planejado as well (representing up to maxDays)
+          previsaoDiasOptions.forEach(opt => {
+            if (diffDays < opt) {
+              needsByMaterialId[mat.id].inDays[opt] += qtdCost;
+            }
+          });
         }
       });
-    });
+    }
 
     return needsByMaterialId;
-  }, [filteredMenus, materiais, gastosCatalogo]);
+  }, [filteredMenus, materiais, gastosCatalogo, previsaoDiasOptions]);
 
   const updateMaterial = (id: string, updates: Partial<Material>) => {
     setMateriais(prev => {
       const next = prev.map(m => m.id === id ? { ...m, ...updates } : m);
+      if (isDataLoaded) syncAndSave({ materiais: next });
+      return next;
+    });
+  };
+
+  const handleAddNewMaterial = () => {
+    const nome = prompt("Digite o nome do novo material:");
+    if (!nome?.trim()) return;
+
+    const newMat: Material = {
+      id: `mat_${Date.now()}`,
+      nome: nome.trim().toUpperCase(),
+      categoria: filtroCategoria,
+      undMedida: 'KG',
+      tipoUso: 'imediato',
+      estoque: 0,
+      estoquesPorData: {},
+      favorito: false
+    };
+
+    setMateriais(prev => {
+      const next = [...prev, newMat];
+      if (isDataLoaded) syncAndSave({ materiais: next });
+      return next;
+    });
+  };
+
+  const handleRemoveMaterial = (id: string, nome: string) => {
+    if (!window.confirm(`Deseja realmente remover o material "${nome}"?`)) return;
+    
+    setMateriais(prev => {
+      const next = prev.filter(m => m.id !== id);
       if (isDataLoaded) syncAndSave({ materiais: next });
       return next;
     });
@@ -700,6 +883,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
     { id: 'CATALOGO', label: 'Catálogo / Comp. de Pratos', icon: BookOpen },
     { id: 'CARDAPIO', label: 'Cardápio / Simulação', icon: CalendarDays },
     { id: 'PREVISAO', label: 'Listas e Previsão', icon: ClipboardList },
+    { id: 'LISTA_COMPRAS', label: 'Lista de Compras', icon: ShoppingBag },
   ] as const;
 
   const materiaisFiltrados = materiais.filter(m => 
@@ -765,6 +949,11 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
           <AprovisionamentoCatalogo 
             user={userProfile || { uid: '0', name: 'User', rank: 'SD', ala: '0', isAdmin: false }} 
             materiais={materiais}
+            paxDefaults={paxDefaults}
+            onUpdatePaxDefaults={(newPaxDefaults) => {
+              setPaxDefaults(newPaxDefaults);
+              syncAndSave({ paxDefaults: newPaxDefaults });
+            }}
           />
         </div>
       ) : (
@@ -791,15 +980,23 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                   </button>
                 ))}
               </div>
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Buscar material..."
-                  value={cadastroFiltroMsg}
-                  onChange={e => setCadastroFiltroMsg(e.target.value)}
-                  className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all w-full sm:w-64"
-                />
+              <div className="flex gap-2">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Buscar material..."
+                    value={cadastroFiltroMsg}
+                    onChange={e => setCadastroFiltroMsg(e.target.value)}
+                    className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all w-full sm:w-64"
+                  />
+                </div>
+                <button 
+                  onClick={handleAddNewMaterial}
+                  className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-bold uppercase transition-colors whitespace-nowrap"
+                >
+                  <Plus className="w-4 h-4" /> Adicionar
+                </button>
               </div>
             </div>
 
@@ -960,7 +1157,15 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                           </td>
                         );
                       })}
-                      <td className="py-2.5 px-2"></td>
+                      <td className="py-2.5 px-2 text-center">
+                        <button
+                          onClick={() => handleRemoveMaterial(m.id, m.nome)}
+                          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors focus:outline-none"
+                          title="Excluir Material"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   {materiaisFiltrados.length === 0 && (
@@ -972,7 +1177,10 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
               </table>
             </div>
             
-            <button className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 text-xs font-bold uppercase hover:bg-slate-50 hover:border-slate-400 hover:text-slate-700 transition-colors w-full justify-center">
+            <button 
+              onClick={handleAddNewMaterial}
+              className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 text-xs font-bold uppercase hover:bg-slate-50 hover:border-slate-400 hover:text-slate-700 transition-colors w-full justify-center"
+            >
               <Plus className="w-4 h-4" /> Adicionar Novo Material
             </button>
           </motion.div>
@@ -980,7 +1188,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
 
         {activeTab === 'CARDAPIO' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div>
                 <h2 className="text-lg font-black text-slate-800 tracking-tight uppercase">Simulador de Consumo</h2>
                 <p className="text-xs font-semibold text-slate-500">
@@ -989,53 +1197,130 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
               </div>
             </div>
 
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 mb-8 flex flex-col md:flex-row gap-6 items-start md:items-center">
+              <div className="flex-1">
+                <h3 className="font-black text-slate-800 uppercase tracking-widest text-xs mb-1">Efetivos Estimados Padrão</h3>
+                <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">
+                  (Aplicado em dias que não possuem efetivo específico informado)
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest px-1">Café da Manhã</label>
+                  <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 py-2 w-32 focus-within:border-amber-400 focus-within:ring-1 focus-within:ring-amber-400">
+                    <input 
+                      type="number" 
+                      value={paxDefaults?.cafe || ''}
+                      onChange={e => {
+                        const newPax = {...paxDefaults, cafe: parseInt(e.target.value) || 0};
+                        setPaxDefaults(newPax);
+                        syncAndSave({ paxDefaults: newPax });
+                      }}
+                      placeholder="0"
+                      className="w-full text-sm font-black text-slate-800 outline-none text-right bg-transparent"
+                    />
+                    <span className="text-[10px] font-black text-slate-400 ml-2 uppercase">Pax</span>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest px-1">Almoço</label>
+                  <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 py-2 w-32 focus-within:border-amber-400 focus-within:ring-1 focus-within:ring-amber-400">
+                    <input 
+                      type="number" 
+                      value={paxDefaults?.almoco || ''}
+                      onChange={e => {
+                        const newPax = {...paxDefaults, almoco: parseInt(e.target.value) || 0};
+                        setPaxDefaults(newPax);
+                        syncAndSave({ paxDefaults: newPax });
+                      }}
+                      placeholder="0"
+                      className="w-full text-sm font-black text-slate-800 outline-none text-right bg-transparent"
+                    />
+                    <span className="text-[10px] font-black text-slate-400 ml-2 uppercase">Pax</span>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest px-1">Jantar</label>
+                  <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 py-2 w-32 focus-within:border-amber-400 focus-within:ring-1 focus-within:ring-amber-400">
+                    <input 
+                      type="number" 
+                      value={paxDefaults?.jantar || ''}
+                      onChange={e => {
+                        const newPax = {...paxDefaults, jantar: parseInt(e.target.value) || 0};
+                        setPaxDefaults(newPax);
+                        syncAndSave({ paxDefaults: newPax });
+                      }}
+                      placeholder="0"
+                      className="w-full text-sm font-black text-slate-800 outline-none text-right bg-transparent"
+                    />
+                    <span className="text-[10px] font-black text-slate-400 ml-2 uppercase">Pax</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <AnimatePresence>
+              {isEditingMenu && (
+                <RefeitorioEditModal 
+                  onClose={() => setIsEditingMenu(false)} 
+                  editIndex={editingMenuIndex} 
+                />
+              )}
+            </AnimatePresence>
+            
             <div className="space-y-4">
               {filteredMenus.map((menu: any, index: number) => {
                 if (!menu.date) return null;
-                const paxForDay = menu.qtdMilitares || 60; // defaulting to 60 if not specified
+                const paxLocalCafe = menu.efetivoCafe || paxDefaults.cafe || 60;
+                const paxLocalAlmoco = menu.efetivoAlmoco || paxDefaults.almoco || 60;
+                const paxLocalJantar = menu.efetivoJantar || paxDefaults.jantar || 60;
+                const paxForDay = paxLocalAlmoco; // Global fallback
                 const isFds = menu.weekday?.toLowerCase().includes('sáb') || menu.weekday?.toLowerCase().includes('dom');
 
                 // Extract all dishes
-                const itemsOfDay: string[] = [];
-                const addDishes = (dishes: string) => {
+                const itemsOfDay: { name: string, meal: 'CAFE' | 'ALMOCO' | 'JANTAR' }[] = [];
+                const addDishes = (dishes: string, meal: 'CAFE' | 'ALMOCO' | 'JANTAR') => {
                   if (!dishes || dishes === '-') return;
                   dishes.split(',').forEach(dStr => {
                     const trimmed = dStr.trim();
-                    if (trimmed) itemsOfDay.push(trimmed);
+                    if (trimmed) itemsOfDay.push({ name: trimmed, meal });
                   });
                 };
+                if (menu.cafeManha) addDishes(menu.cafeManha, 'CAFE');
+                if (menu.lancheTarde) addDishes(menu.lancheTarde, 'CAFE');
                 if (menu.almoco) {
-                  if (menu.almoco.principal) itemsOfDay.push(menu.almoco.principal.trim());
-                  addDishes(menu.almoco.acompanhamentos);
-                  addDishes(menu.almoco.saladas);
-                  if (menu.almoco.sobremesa && menu.almoco.sobremesa !== '-') itemsOfDay.push(menu.almoco.sobremesa.trim());
+                  if (menu.almoco.principal) itemsOfDay.push({ name: menu.almoco.principal.trim(), meal: 'ALMOCO' });
+                  addDishes(menu.almoco.acompanhamentos, 'ALMOCO');
+                  addDishes(menu.almoco.saladas, 'ALMOCO');
+                  if (menu.almoco.sobremesa && menu.almoco.sobremesa !== '-') itemsOfDay.push({ name: menu.almoco.sobremesa.trim(), meal: 'ALMOCO' });
                 }
                 if (menu.jantar) {
-                  if (menu.jantar.principal) itemsOfDay.push(menu.jantar.principal.trim());
-                  addDishes(menu.jantar.acompanhamentos);
-                  addDishes(menu.jantar.saladas);
-                  if (menu.jantar.ceia && menu.jantar.ceia !== '-') itemsOfDay.push(menu.jantar.ceia.trim());
+                  if (menu.jantar.principal) itemsOfDay.push({ name: menu.jantar.principal.trim(), meal: 'JANTAR' });
+                  addDishes(menu.jantar.acompanhamentos, 'JANTAR');
+                  addDishes(menu.jantar.saladas, 'JANTAR');
+                  if (menu.jantar.ceia && menu.jantar.ceia !== '-') itemsOfDay.push({ name: menu.jantar.ceia.trim(), meal: 'JANTAR' });
                 }
                 
                 // Calculate simulation needed for these dishes
-                const simulacaoData: { nomeIngrediente: string; needed: number; und: string }[] = [];
-                itemsOfDay.forEach(itemName => {
-                   const regrasGasto = gastosCatalogo[itemName];
+                const simulacaoRefeicoes: { nomeIngrediente: string; needed: number; und: string }[] = [];
+                itemsOfDay.forEach(item => {
+                   const regrasGasto = gastosCatalogo[item.name];
                    if (regrasGasto) {
+                      const paxForMeal = item.meal === 'CAFE' ? paxLocalCafe : item.meal === 'ALMOCO' ? paxLocalAlmoco : paxLocalJantar;
                       regrasGasto.forEach(gasto => {
                          const mat = materiais.find(m => m.nome === gasto.nome);
                          if (mat) {
-                            const multiplier = isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana;
+                            const multiplier = menu.isEvento ? (gasto.quantidadeEvento || 0) : (isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana);
                             let qtd = 0;
                             if (gasto.metodologia === 'por_dia') qtd = multiplier;
-                            else if (gasto.metodologia === 'por_prato') qtd = multiplier * paxForDay;
+                            else if (gasto.metodologia === 'por_prato') qtd = multiplier * paxForMeal;
                             
                             if (qtd > 0) {
-                               const existing = simulacaoData.find(s => s.nomeIngrediente === mat.nome);
+                               const existing = simulacaoRefeicoes.find(s => s.nomeIngrediente === mat.nome);
                                if (existing) {
                                   existing.needed += qtd;
                                } else {
-                                  simulacaoData.push({ nomeIngrediente: mat.nome, needed: qtd, und: mat.undMedida });
+                                  simulacaoRefeicoes.push({ nomeIngrediente: mat.nome, needed: qtd, und: mat.undMedida });
                                }
                             }
                          }
@@ -1048,19 +1333,20 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                   ...(gastosCatalogo['Itens Alimentação'] || []),
                   ...(gastosCatalogo['Itens Não Alimentares'] || [])
                 ];
+                const simulacaoDiaria: { nomeIngrediente: string; needed: number; und: string }[] = [];
                 currentGastos.forEach(gasto => {
                    const mat = materiais.find(m => m.nome === gasto.nome);
                    if (mat) {
-                      const multiplier = isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana;
+                      const multiplier = menu.isEvento ? (gasto.quantidadeEvento || 0) : (isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana);
                       let qtd = 0;
                       if (gasto.metodologia === 'por_dia') qtd = multiplier;
                       else if (gasto.metodologia === 'por_prato') qtd = multiplier * paxForDay;
                       if (qtd > 0) {
-                         const existing = simulacaoData.find(s => s.nomeIngrediente === mat.nome);
+                         const existing = simulacaoDiaria.find(s => s.nomeIngrediente === mat.nome);
                          if (existing) {
                             existing.needed += qtd;
                          } else {
-                            simulacaoData.push({ nomeIngrediente: mat.nome, needed: qtd, und: mat.undMedida });
+                            simulacaoDiaria.push({ nomeIngrediente: mat.nome, needed: qtd, und: mat.undMedida });
                          }
                       }
                    }
@@ -1070,44 +1356,99 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
 
                 return (
                   <div key={index} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm group">
-                    <div className="bg-slate-50 px-5 py-3 border-b border-slate-100 flex flex-wrap gap-4 justify-between items-center">
-                      <div className="flex gap-4 items-center">
+                    <div className="bg-slate-50 px-5 py-4 border-b border-slate-100 flex flex-col gap-4">
+                      <div className="flex justify-between items-center">
                         <div className="flex flex-col">
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Data</span>
-                          <span className="text-sm font-black text-slate-800">{menu.weekday} ({menu.date})</span>
+                          <span className="text-base font-black text-slate-800">{menu.weekday} ({menu.date})</span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const actualIndex = menus.findIndex((m: any) => m.date === menu.date);
+                            setEditingMenuIndex(actualIndex !== -1 ? actualIndex : null);
+                            setIsEditingMenu(true);
+                          }}
+                          className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                          Editar Dia
+                        </button>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 border-t border-slate-200/60 pt-4">
+                        {menu.cafeManha && menu.cafeManha !== '-' && (
+                          <div className="flex flex-col gap-1.5">
+                             <div className="flex items-center justify-between">
+                               <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Café da Manhã</span>
+                               <span className="text-[10px] font-black text-amber-700 bg-amber-100/50 px-2 pl-1.5 py-0.5 rounded flex items-center gap-1 shadow-sm border border-amber-200/50"><Sunrise className="w-3 h-3" /> {paxLocalCafe} pax</span>
+                             </div>
+                             <span className="text-xs font-semibold text-slate-700 leading-relaxed uppercase">{menu.cafeManha}</span>
+                          </div>
+                        )}
+                        {menu.almoco && (
+                          <div className="flex flex-col gap-1.5 border-t md:border-t-0 md:border-l border-slate-200/60 pt-4 md:pt-0 md:pl-6">
+                             <div className="flex items-center justify-between">
+                               <span className="text-[10px] font-bold text-sky-500 uppercase tracking-widest">Almoço</span>
+                               <span className="text-[10px] font-black text-sky-700 bg-sky-100/50 px-2 pl-1.5 py-0.5 rounded flex items-center gap-1 shadow-sm border border-sky-200/50"><Utensils className="w-3 h-3" /> {paxLocalAlmoco} pax</span>
+                             </div>
+                             <span className="text-xs font-semibold text-slate-700 leading-relaxed uppercase">
+                               {[menu.almoco.principal, menu.almoco.acompanhamentos, menu.almoco.saladas, menu.almoco.sobremesa].filter(Boolean).map(i => i.trim()).filter(i => i).join(' / ')}
+                             </span>
+                          </div>
+                        )}
+                        {menu.jantar && (
+                          <div className="flex flex-col gap-1.5 border-t md:border-t-0 md:border-l border-slate-200/60 pt-4 md:pt-0 md:pl-6">
+                             <div className="flex items-center justify-between">
+                               <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">Jantar & Ceia</span>
+                               <span className="text-[10px] font-black text-indigo-700 bg-indigo-100/50 px-2 pl-1.5 py-0.5 rounded flex items-center gap-1 shadow-sm border border-indigo-200/50"><Sunset className="w-3 h-3" /> {paxLocalJantar} pax</span>
+                             </div>
+                             <span className="text-xs font-semibold text-slate-700 leading-relaxed uppercase">
+                               {[menu.jantar.principal, menu.jantar.acompanhamentos, menu.jantar.saladas, menu.jantar.ceia].filter(Boolean).map(i => i.trim()).filter(i => i !== '-').join(' / ')}
+                             </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="p-5 bg-white flex flex-col gap-5">
+                      <div className="flex gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center flex-shrink-0">
+                          <Calculator className="w-5 h-5 text-slate-400" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Simulação Refeições do Dia</h4>
+                          <div className="flex flex-wrap gap-2 text-xs">
+                            {simulacaoRefeicoes.length === 0 ? (
+                              <span className="text-slate-400 italic font-semibold">Nenhum ingrediente mapeado para os pratos deste dia no Catálogo.</span>
+                            ) : (
+                              simulacaoRefeicoes.map(item => (
+                                <div key={item.nomeIngrediente} className="flex items-center gap-1.5 bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-1">
+                                  <span className="font-semibold text-slate-600">{item.nomeIngrediente}:</span>
+                                  <span className="font-black font-mono text-slate-800">{item.needed.toFixed(2)} {item.und}</span>
+                                </div>
+                              ))
+                            )}
+                          </div>
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-6">
-                        <div className="flex flex-col items-end">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pratos do Dia</span>
-                          <span className="text-sm font-black text-rose-600 line-clamp-1 max-w-sm">{itemsOfDay.join(', ')}</span>
+                      {simulacaoDiaria.length > 0 && (
+                        <div className="flex gap-4 border-t border-slate-100 pt-5 mt-1">
+                          <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
+                            <TrendingDown className="w-5 h-5 text-amber-500" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="text-[10px] font-bold uppercase tracking-widest text-amber-600 mb-2">Simulação de Gastos Diários</h4>
+                            <div className="flex flex-wrap gap-2 text-xs">
+                              {simulacaoDiaria.map(item => (
+                                <div key={item.nomeIngrediente} className="flex items-center gap-1.5 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1">
+                                  <span className="font-semibold text-amber-700">{item.nomeIngrediente}:</span>
+                                  <span className="font-black font-mono text-amber-900">{item.needed.toFixed(2)} {item.und}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex flex-col items-end">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Qtd Militares</span>
-                          <span className="text-sm font-black text-slate-700">{paxForDay} pax</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="p-5 bg-white flex gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center flex-shrink-0">
-                        <Calculator className="w-5 h-5 text-slate-400" />
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Simulação Consolidada do Dia</h4>
-                        <div className="flex flex-wrap gap-2 text-xs">
-                          {simulacaoData.length === 0 ? (
-                            <span className="text-slate-400 italic font-semibold">Nenhum ingrediente mapeado para os pratos de hoje no Catálogo.</span>
-                          ) : (
-                            simulacaoData.map(item => (
-                              <div key={item.nomeIngrediente} className="flex items-center gap-1.5 bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-1">
-                                <span className="font-semibold text-slate-600">{item.nomeIngrediente}:</span>
-                                <span className="font-black font-mono text-slate-800">{item.needed.toFixed(2)} {item.und}</span>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
+                      )}
                     </div>
                   </div>
                 )
@@ -1155,8 +1496,8 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                               const isFds = dayOfWeek === 0 || dayOfWeek === 6;
                               
                               const findMenu = filteredMenus.find((m: any) => m.date === dateStr);
-                              const paxForDay = findMenu?.qtdMilitares || 60;
-                              const multiplier = isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana;
+                              const paxForDay = findMenu?.efetivoAlmoco || paxDefaults?.almoco || 60;
+                              const multiplier = findMenu?.isEvento ? (gasto.quantidadeEvento || 0) : (isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana);
                               
                               if (gasto.metodologia === 'por_dia') {
                                 totalQtdCost += multiplier;
@@ -1194,15 +1535,56 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
              <div>
                 <h2 className="text-lg font-black text-slate-800 tracking-tight uppercase">Ordens de Compra & Previsão</h2>
-                <p className="text-xs font-semibold text-slate-500">
+                <p className="text-xs font-semibold text-slate-500 mb-4">
                   Subtração lógica do Estoque atual contra a necessidade extraída dos próximos dias no Cardápio.
                 </p>
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="text-[10px] font-black uppercase text-slate-500 tracking-widest mr-2">Configuração de Prazos (Max 4):</div>
+                    {previsaoDiasOptions.map(opt => (
+                       <div key={opt} className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 flex items-center gap-2 shadow-sm">
+                          {opt} Dias
+                          <button onClick={() => {
+                             const n = previsaoDiasOptions.filter(o => o !== opt);
+                             setPrevisaoDiasOptions(n);
+                             localStorage.setItem('previsaoDiasOptions', JSON.stringify(n));
+                          }} className="text-slate-400 hover:text-red-500 transition-colors"><X className="w-3 h-3" /></button>
+                       </div>
+                    ))}
+                    {previsaoDiasOptions.length < 4 && (
+                       <form onSubmit={(e) => {
+                          e.preventDefault();
+                          const val = parseInt(newPrevisaoDiaStr);
+                          if (!isNaN(val) && val > 0 && !previsaoDiasOptions.includes(val)) {
+                             const n = [...previsaoDiasOptions, val].sort((a,b) => a-b);
+                             setPrevisaoDiasOptions(n);
+                             localStorage.setItem('previsaoDiasOptions', JSON.stringify(n));
+                             setNewPrevisaoDiaStr('');
+                          }
+                       }} className="flex items-center gap-2">
+                          <input type="number" min="1" max="180" className="w-20 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold focus:ring-amber-500 focus:border-amber-500 outline-none text-slate-700 shadow-sm" placeholder="Ex: 14" value={newPrevisaoDiaStr} onChange={e => setNewPrevisaoDiaStr(e.target.value)} />
+                          <button type="submit" className="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-amber-200 transition-colors uppercase tracking-widest shadow-sm">Adicionar</button>
+                       </form>
+                    )}
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+                      <input 
+                        type="checkbox" 
+                        checked={mostrarTodosPrevisao} 
+                        onChange={e => setMostrarTodosPrevisao(e.target.checked)}
+                        className="rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                      />
+                      <span className="text-xs font-bold text-slate-700 uppercase tracking-widest">Exibir todos os itens cadastrados</span>
+                    </label>
+                  </div>
+                </div>
               </div>
 
               {['MERCADO', 'PROTEINA', 'SACOLAO', 'LIMPEZA'].map(cat => {
               const catItems = [...materiais]
                 .filter(m => m.categoria === cat)
-                .filter(m => calculoPrevisao[m.id]?.total > 0 || m.estoque < 5 || m.favorito)
+                .filter(m => mostrarTodosPrevisao || calculoPrevisao[m.id]?.total > 0 || m.estoque < 5 || m.favorito)
                 .sort((a, b) => {
                   if (a.favorito && !b.favorito) return -1;
                   if (!a.favorito && b.favorito) return 1;
@@ -1224,15 +1606,17 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                           <th className="py-3 px-4 font-black">Material</th>
                           <th className="py-3 px-4 font-black text-center">Unidade</th>
                           <th className="py-3 px-4 font-black text-right">Estoque Atual</th>
-                          <th className="py-3 px-4 font-black text-right border-l border-slate-700 bg-slate-700/50">Prev. 3 Dias</th>
-                          <th className="py-3 px-4 font-black text-right border-l border-slate-700 bg-slate-700/30">Prev. 5 Dias</th>
+                          {previsaoDiasOptions.map(opt => (
+                            <th key={opt} className="py-3 px-4 font-black text-right border-l border-slate-700 bg-slate-700/50">Prev. {opt} Dias</th>
+                          ))}
                           <th className="py-3 px-4 font-black text-right border-l border-slate-700 bg-slate-700/10">Total Planejado</th>
                           <th className="py-3 px-4 font-black text-right bg-amber-600/20 text-amber-200">Saldo/Déficit</th>
+                          <th className="py-3 px-4 font-black text-center border-l border-slate-700 bg-slate-700/50">Ações</th>
                         </tr>
                       </thead>
                       <tbody className="text-sm font-semibold text-slate-700 divide-y divide-slate-100">
                         {catItems.map(m => {
-                          const needs = calculoPrevisao[m.id] || { in3Days: 0, in5Days: 0, in10Days: 0, total: 0 };
+                          const needs = calculoPrevisao[m.id] || { inDays: {}, total: 0 };
                           const saldo = m.estoque - needs.total;
                           const isDeficit = saldo < 0;
 
@@ -1251,12 +1635,14 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                               <td className="py-2.5 px-4 text-right font-mono font-black text-slate-600">
                                 {m.estoque.toFixed(2)}
                               </td>
-                              <td className="py-2.5 px-4 text-right bg-slate-50 font-mono font-semibold text-slate-500 border-l border-slate-100">
-                                {needs.in3Days > 0 ? needs.in3Days.toFixed(2) : '-'}
-                              </td>
-                              <td className="py-2.5 px-4 text-right bg-slate-50 font-mono font-semibold text-slate-500 border-l border-slate-100">
-                                {needs.in5Days > 0 ? needs.in5Days.toFixed(2) : '-'}
-                              </td>
+                              {previsaoDiasOptions.map(opt => {
+                                 const val = needs.inDays?.[opt] || 0;
+                                 return (
+                                   <td key={opt} className="py-2.5 px-4 text-right bg-slate-50 font-mono font-semibold text-slate-500 border-l border-slate-100">
+                                     {val > 0 ? val.toFixed(2) : '-'}
+                                   </td>
+                                 );
+                              })}
                               <td className="py-2.5 px-4 text-right bg-slate-50 font-mono font-bold text-slate-800 border-l border-slate-100">
                                 {needs.total > 0 ? needs.total.toFixed(2) : '-'}
                               </td>
@@ -1269,6 +1655,21 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                                    {Math.abs(saldo).toFixed(2)} {m.undMedida} {isDeficit && 'em falta'}
                                  </span>
                               </td>
+                              <td className="py-2.5 px-4 text-center border-l border-slate-100">
+                                 <button 
+                                   onClick={() => handleAddToListaCompras(m, isDeficit ? Math.abs(saldo) : 1)}
+                                   disabled={listaCompras.some(lc => lc.materialId === m.id)}
+                                   className={cn(
+                                     "p-2 rounded-lg transition-colors inline-flex mb-0",
+                                     listaCompras.some(lc => lc.materialId === m.id) 
+                                       ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
+                                       : "bg-amber-100 text-amber-600 hover:bg-amber-200"
+                                   )}
+                                   title={listaCompras.some(lc => lc.materialId === m.id) ? 'Já na Lista' : 'Adicionar à Lista'}
+                                 >
+                                   <ShoppingBag className="w-4 h-4" />
+                                 </button>
+                              </td>
                             </tr>
                           );
                         })}
@@ -1278,7 +1679,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                 </div>
               );
             })}
-            {materiais.filter(m => calculoPrevisao[m.id]?.total > 0 || m.estoque < 5 || m.favorito).length === 0 && (
+            {materiais.filter(m => mostrarTodosPrevisao || calculoPrevisao[m.id]?.total > 0 || m.estoque < 5 || m.favorito).length === 0 && (
               <div className="py-8 text-center bg-slate-50 rounded-2xl border border-slate-200 text-slate-400 font-bold uppercase text-xs">
                 Nenhum consumo previsto ou item em falta detectado.
               </div>
@@ -1286,8 +1687,208 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
 
           </motion.div>
         )}
+
+        {activeTab === 'LISTA_COMPRAS' && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+             <div>
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h2 className="text-lg font-black text-slate-800 tracking-tight uppercase">Lista de Compras</h2>
+                    <p className="text-xs font-semibold text-slate-500 mb-4">
+                      Lista consolidada para realizar as próximas aquisições.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={handleManualAddToLista}
+                      className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg text-xs font-bold uppercase transition-colors tracking-widest shadow-sm"
+                    >
+                      <Plus className="w-4 h-4" /> Adicionar Item
+                    </button>
+                    {listaCompras.length > 0 && (
+                       <button onClick={() => {
+                          if(window.confirm('Limpar toda a lista?')) {
+                             setListaCompras([]);
+                             syncAndSave({ listaCompras: [] });
+                          }
+                       }} className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold uppercase transition-colors tracking-widest border border-red-100">
+                          Limpar Lista
+                       </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {listaCompras.length === 0 ? (
+                 <div className="py-16 flex flex-col items-center justify-center bg-slate-50 rounded-3xl border border-slate-200 border-dashed">
+                    <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-100 mb-4 text-slate-300">
+                       <ShoppingBag className="w-8 h-8" />
+                    </div>
+                    <p className="text-sm font-black text-slate-400 uppercase tracking-widest mb-1">Sua lista está vazia</p>
+                    <p className="text-xs font-semibold text-slate-400">Adicione itens navegando pela aba "Listas e Previsão".</p>
+                 </div>
+              ) : (
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {listaCompras.map(item => (
+                       <div key={item.id} className={cn(
+                          "p-4 rounded-2xl border transition-all", 
+                          item.concluido ? "bg-slate-50 border-slate-200 opacity-60 grayscale-[0.8]" : "bg-white border-slate-200 shadow-sm hover:border-amber-400 hover:shadow-md"
+                       )}>
+                          <div className="flex justify-between items-start mb-3 gap-3">
+                             <div className="flex items-start gap-4">
+                                <button 
+                                   onClick={() => handleToggleConcluidoListaCompras(item.id)} 
+                                   className={cn(
+                                      "w-6 h-6 rounded flex items-center justify-center border mt-0.5 transition-colors cursor-pointer", 
+                                      item.concluido ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300 bg-slate-50 hover:border-emerald-500"
+                                   )}
+                                >
+                                   {item.concluido && <div className="w-2.5 h-2.5 bg-white rounded-[2px]" />}
+                                </button>
+                                <div>
+                                   <div className={cn("text-sm font-bold text-slate-800", item.concluido && "line-through text-slate-500")}>
+                                      {item.nome}
+                                   </div>
+                                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                      {item.categoria}
+                                   </div>
+                                </div>
+                             </div>
+                             <button onClick={() => handleRemoveFromListaCompras(item.id)} className="text-slate-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors flex-shrink-0">
+                                <X className="w-4 h-4" />
+                             </button>
+                          </div>
+                          
+                          <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-4">
+                             <div className="text-xs font-bold text-slate-500 tracking-wider">QUANTIDADE:</div>
+                             <div className="flex items-center gap-1.5">
+                                <input 
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  value={item.quantidade}
+                                  onChange={e => handleChangeQuantidadeListaCompras(item.id, parseFloat(e.target.value) || 0)}
+                                  className="w-24 text-right bg-slate-50 border border-slate-200 rounded-lg text-sm font-black py-1.5 px-3 text-slate-700 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
+                                />
+                                <span className="text-xs font-bold text-slate-400 w-8">{item.undMedida}</span>
+                             </div>
+                          </div>
+                       </div>
+                    ))}
+                 </div>
+              )}
+          </motion.div>
+        )}
       </div>
       )}
+
+      <AnimatePresence>
+        {showAddListaModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200"
+            >
+              <div className="p-6 border-b border-slate-100 bg-slate-50">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Novo Item</h3>
+                    <p className="text-xs font-semibold text-slate-500">Adicione um item manual na lista de compras.</p>
+                  </div>
+                  <button onClick={() => setShowAddListaModal(false)} className="p-2 hover:bg-slate-200 rounded-xl transition-colors">
+                    <X className="w-5 h-5 text-slate-400" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-6">
+                <div className="relative">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Descrição do Item</label>
+                  <input 
+                    autoFocus
+                    placeholder="Ex: ARROZ, DETERGENTE..."
+                    className="w-full bg-slate-100 border-none rounded-2xl p-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    value={manualItemForm.nome}
+                    onChange={e => handleManualItemNameChange(e.target.value)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                    onFocus={() => {
+                      if (manualItemSuggestions.length > 0) setShowSuggestions(true);
+                    }}
+                    onKeyDown={e => e.key === 'Enter' && !showSuggestions && handleSaveManualItem()}
+                  />
+                  
+                  <AnimatePresence>
+                    {showSuggestions && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-[110]"
+                      >
+                        {manualItemSuggestions.map(m => (
+                          <button
+                            key={m.id}
+                            onClick={() => handleSelectSuggestion(m)}
+                            className="w-full p-4 text-left hover:bg-indigo-50 flex items-center justify-between group transition-colors"
+                          >
+                            <div>
+                              <p className="text-sm font-bold text-slate-700">{m.nome}</p>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{m.categoria} • {m.undMedida}</p>
+                            </div>
+                            <Plus className="w-4 h-4 text-slate-300 group-hover:text-indigo-500" />
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Quantidade</label>
+                    <input 
+                      type="number"
+                      step="any"
+                      min="0.1"
+                      className="w-full bg-slate-100 border-none rounded-2xl p-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      value={manualItemForm.quantidade}
+                      onChange={e => setManualItemForm(prev => ({ ...prev, quantidade: parseFloat(e.target.value) || 0 }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Unidade</label>
+                    <input 
+                      placeholder="Ex: KG, UN, PCT"
+                      className="w-full bg-slate-100 border-none rounded-2xl p-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      value={manualItemForm.undMedida}
+                      onChange={e => setManualItemForm(prev => ({ ...prev, undMedida: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
+                <button 
+                  onClick={() => setShowAddListaModal(false)}
+                  className="flex-1 py-3 px-4 rounded-2xl text-sm font-bold text-slate-500 hover:bg-slate-200 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleSaveManualItem}
+                  disabled={!manualItemForm.nome.trim()}
+                  className="flex-1 py-3 px-4 rounded-2xl bg-indigo-600 text-white text-sm font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  Salvar Item
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

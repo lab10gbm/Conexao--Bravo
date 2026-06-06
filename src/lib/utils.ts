@@ -20,8 +20,11 @@ export let GLOBAL_START_ALA = 2;
 
 export function cleanUndefined(obj: any): any {
   if (obj === null || obj === undefined) return obj;
-  if (Array.isArray(obj)) return obj.map(cleanUndefined);
   if (typeof obj === 'object') {
+    if (Array.isArray(obj)) return obj.map(cleanUndefined);
+    if (obj instanceof Date) return obj;
+    // Keep Firebase FieldValues untouched (they usually have _methodName, or isEqual function)
+    if (obj._methodName || typeof obj.isEqual === 'function' || (obj.constructor && obj.constructor.name && obj.constructor.name.includes('FieldValue'))) return obj;
     const newObj: any = {};
     for (const key in obj) {
       if (obj[key] !== undefined) {

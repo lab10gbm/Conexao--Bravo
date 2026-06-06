@@ -31,7 +31,7 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
 
   useEffect(() => {
     if (contextActiveMonths && contextActiveMonths.length > 0) {
-      const sorted = [...contextActiveMonths].map(m => parseInt(m, 10)).sort((a, b) => a - b);
+      const sorted = [...contextActiveMonths].sort((a, b) => a - b);
       setActiveMonthIndices(sorted);
     }
   }, [contextActiveMonths]);

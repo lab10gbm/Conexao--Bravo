@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, Mail, Phone, MapPin, Calendar, Contact, 
   Award, Briefcase, Building2, Shield, ArrowRightLeft,
-  User, CheckCircle2, MapPinned
+  User, CheckCircle2, MapPinned, UserCheck
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { RankInsignia } from './RankInsignia';
@@ -135,39 +135,76 @@ export function MilitaryProfile({ militar, viewer, onClose, onLendRequested }: M
               </section>
             </div>
 
-            {/* Column 2: Professional/Competencies */}
-            <div className="space-y-6">
-              <section>
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                  <Award className="w-4 h-4" /> Competências e Especialidades
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {militar.specializations && militar.specializations.length > 0 ? (
-                    militar.specializations.map(spec => (
-                      <span 
-                        key={spec}
-                        className="px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-700 text-[10px] font-bold uppercase tracking-tight rounded-lg hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 transition-colors cursor-default"
-                      >
-                        {spec}
-                      </span>
-                    ))
-                  ) : (
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">Nenhuma especialidade registrada</p>
-                  )}
-                </div>
-              </section>
+             {/* Column 2: Professional/Competencies */}
+             <div className="space-y-6">
+               <section>
+                 <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                   <Award className="w-4 h-4" /> Competências e Especialidades
+                 </h3>
+                 <div className="flex flex-wrap gap-2">
+                   {militar.specializations && militar.specializations.length > 0 ? (
+                     militar.specializations.map(spec => (
+                       <span 
+                         key={spec}
+                         className="px-3 py-1.5 bg-slate-50 border border-slate-200 text-slate-700 text-[10px] font-bold uppercase tracking-tight rounded-lg hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 transition-colors cursor-default"
+                       >
+                         {spec}
+                       </span>
+                     ))
+                   ) : (
+                     <p className="text-[10px] font-bold text-slate-400 uppercase">Nenhuma especialidade registrada</p>
+                   )}
+                 </div>
+               </section>
 
-              {militar.cursos && (
-                <section>
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                    <Shield className="w-4 h-4" /> Cursos Extras
-                  </h3>
-                  <div className="p-3 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                    <p className="text-xs font-medium text-slate-600 italic">"{militar.cursos}"</p>
-                  </div>
-                </section>
-              )}
-            </div>
+               <section>
+                 <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                   <UserCheck className="w-4 h-4" /> Funções e Aptidões
+                 </h3>
+                 <div className="grid grid-cols-2 gap-2">
+                   {[
+                     { key: 'ativoCondutor', label: 'Condutor' },
+                     { key: 'ativoEncarregado', label: 'Encarregado' },
+                     { key: 'ativoAbastecedor', label: 'Abastecedor' },
+                     { key: 'ativoChefeGua', label: 'Chefe GUA' },
+                     { key: 'ativoMaritimo', label: 'Marítimo' },
+                     { key: 'ativoEnfermeiro', label: 'Enfermeiro' },
+                     { key: 'ativoComunicante', label: 'Comunicante' },
+                     { key: 'ativoGraduado', label: 'Grad Dia' },
+                     { key: 'ativoCbsSds', label: 'Cb/Sd Dia' },
+                     { id: 'auxRancho', label: 'Aux Rancho' },
+                     { id: 'toqueDeFogo', label: 'T. Fogo' },
+                     { id: 'sentinela', label: 'Sentinela' }
+                   ].map(item => {
+                     const isActive = (militar as any)[item.key || (item as any).id];
+                     return (
+                       <div 
+                         key={item.key || (item as any).id}
+                         className={`flex items-center gap-2 px-2 py-1.5 rounded-lg border text-[9px] font-black uppercase transition-all ${
+                           isActive 
+                             ? 'bg-emerald-50 border-emerald-100 text-emerald-700' 
+                             : 'bg-slate-50 border-slate-100 text-slate-400 opacity-50'
+                         }`}
+                       >
+                         {isActive ? <CheckCircle2 className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                         {item.label}
+                       </div>
+                     );
+                   })}
+                 </div>
+               </section>
+
+               {militar.cursos && (
+                 <section>
+                   <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                     <Shield className="w-4 h-4" /> Cursos Extras
+                   </h3>
+                   <div className="p-3 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                     <p className="text-xs font-medium text-slate-600 italic">"{militar.cursos}"</p>
+                   </div>
+                 </section>
+               )}
+             </div>
           </div>
         </div>
       </motion.div>

@@ -9,6 +9,8 @@ import { cleanUndefined } from "../lib/utils";
 interface AprovisionamentoCatalogoProps {
   user: UserProfile;
   materiais: any[];
+  paxDefaults: { cafe: number, almoco: number, jantar: number };
+  onUpdatePaxDefaults: (newPaxDefaults: { cafe: number, almoco: number, jantar: number }) => void;
 }
 
 export type MetodologiaGasto = 'por_dia' | 'por_prato';
@@ -19,9 +21,85 @@ export interface GastoIngrediente {
   metodologia: MetodologiaGasto;
   quantidadeSemana: number;
   quantidadeFDS: number;
+  quantidadeEvento?: number;
+  paxSimulacao?: number;
+  paxSimulacaoSemana?: number;
+  paxSimulacaoFDS?: number;
+  paxSimulacaoEvento?: number;
+  separarPax?: boolean;
 }
 
-export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCatalogoProps) {
+function AutocompleteSelect({ value, onChange, options, placeholder }: { value: string, onChange: (v: string) => void, options: string[], placeholder?: string }) {
+  const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState(value);
+  const wrapperRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    setSearch(value);
+  }, [value]);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setOpen(false);
+        // On blur, if search exactly matches an option, use it. Otherwise revert.
+        const match = options.find(o => o.toLowerCase() === search.toLowerCase());
+        if (match) {
+          onChange(match);
+          setSearch(match);
+        } else {
+          setSearch(value);
+        }
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [value, search, options, onChange]);
+
+  const filtered = options.filter(opt => opt.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div ref={wrapperRef} className="relative flex-1 w-full min-w-[200px]">
+      <input
+        type="text"
+        value={search}
+        onChange={e => {
+          const val = e.target.value;
+          setSearch(val);
+          setOpen(true);
+          const match = options.find(o => o.toLowerCase() === val.toLowerCase());
+          if (match) onChange(match);
+        }}
+        onFocus={() => setOpen(true)}
+        placeholder={placeholder}
+        className="w-full bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-lg px-3 py-2.5 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
+      />
+      {open && (
+        <div className="absolute z-10 top-full mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+          {filtered.length === 0 ? (
+             <div className="px-3 py-2 text-xs text-slate-400 font-semibold">Nenhum encontrado</div>
+          ) : (
+            filtered.map(opt => (
+              <div 
+                key={opt}
+                onClick={() => {
+                  onChange(opt);
+                  setSearch(opt);
+                  setOpen(false);
+                }}
+                className="px-3 py-2 text-xs font-bold text-slate-700 hover:bg-amber-50 hover:text-amber-700 cursor-pointer border-b border-slate-50 last:border-0"
+              >
+                {opt}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function AprovisionamentoCatalogo({ user, materiais, paxDefaults, onUpdatePaxDefaults }: AprovisionamentoCatalogoProps) {
   const { catalog, loading, saveCatalog } = useRefeitorioData();
   const [gastos, setGastos] = useState<Record<string, GastoIngrediente[]>>(() => {
     try {
@@ -69,6 +147,8 @@ export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCa
       metodologia: 'por_dia',
       quantidadeSemana: 0,
       quantidadeFDS: 0,
+      quantidadeEvento: 0,
+      separarPax: false,
     };
     saveGastos({
       ...gastos,
@@ -131,11 +211,11 @@ export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCa
     const itemGastos = gastos[itemName] || [];
     return (
       <div className="flex flex-col gap-4 p-5 bg-white rounded-2xl border border-slate-200 shadow-sm transition-all focus-within:border-amber-300">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="font-black text-slate-800 text-sm flex-1 uppercase tracking-tight">{itemName}</div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50/50 p-2 rounded-xl mb-2 border border-amber-100/50">
+          <div className="font-black text-amber-900 text-sm flex-1 uppercase tracking-wider px-2">{itemName}</div>
           <button 
             onClick={() => handleAddIngrediente(itemName)}
-            className="text-[10px] w-full sm:w-auto justify-center font-black uppercase tracking-widest bg-amber-50 hover:bg-amber-100 text-amber-600 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors shrink-0"
+            className="text-[10px] w-full sm:w-auto justify-center font-black uppercase tracking-widest bg-amber-100 hover:bg-amber-200 text-amber-700 px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors shrink-0"
           >
             <Plus className="w-3.5 h-3.5" />
             Vincular Ingrediente
@@ -145,22 +225,28 @@ export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCa
         {itemGastos.length > 0 ? (
           <div className="space-y-3 mt-2">
             {itemGastos.map(gasto => (
-              <div key={gasto.id} className="flex flex-col lg:flex-row lg:items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <select 
-                  value={gasto.nome}
-                  onChange={e => handleUpdateIngrediente(itemName, gasto.id, 'nome', e.target.value)}
-                  className="flex-1 w-full bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-lg px-3 py-2.5 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
-                >
-                  <option value="" disabled>Selecione um ingrediente...</option>
-                  {materiais.map(mat => (
-                    <option key={mat.id} value={mat.nome}>{mat.nome}</option>
-                  ))}
-                </select>
-                <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-2 lg:shrink-0 w-full xl:w-auto">
+               <div key={gasto.id} className="flex flex-col gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100 shadow-sm relative pt-8 sm:pt-4">
+                  <div className="sm:hidden absolute top-3 left-4">
+                    <span className="text-[10px] font-black uppercase text-slate-400">Ingrediente</span>
+                  </div>
+                  <button 
+                    onClick={() => handleRemoveIngrediente(itemName, gasto.id)}
+                    className="absolute top-2 right-2 sm:top-4 sm:right-4 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100 shrink-0"
+                    title="Remover Ingrediente"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                <div className="flex w-full pr-10 items-center gap-3">
+                  <AutocompleteSelect
+                    value={gasto.nome}
+                    onChange={val => handleUpdateIngrediente(itemName, gasto.id, 'nome', val)}
+                    options={materiais.map(m => m.nome)}
+                    placeholder="Selecione um ingrediente..."
+                  />
                   <select 
                     value={gasto.metodologia}
                     onChange={e => handleUpdateIngrediente(itemName, gasto.id, 'metodologia', e.target.value)}
-                    className="w-full sm:w-auto flex-1 bg-white border border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider rounded-lg px-3 py-2.5 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
+                    className="w-28 bg-white border border-slate-200 text-slate-600 font-bold uppercase text-[9px] tracking-wider rounded-lg px-2 py-2 outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 shrink-0"
                   >
                     {(() => {
                       const material = materiais.find(m => m.nome === gasto.nome);
@@ -173,36 +259,154 @@ export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCa
                       );
                     })()}
                   </select>
-                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto flex-1">
-                    <div className="flex items-center gap-2 flex-1 bg-white sm:bg-transparent rounded-lg border sm:border-0 border-slate-200 pr-1 pl-3 sm:p-0">
-                      <span className="text-[9px] font-black text-slate-400 whitespace-nowrap sm:w-14 sm:text-right tracking-widest uppercase">Semana</span>
+                </div>
+                <div className="flex flex-col w-full mt-3 bg-white p-3 rounded-lg border border-slate-200 gap-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Configuração Diária</span>
+                    <div className="flex items-center gap-1.5">
+                       <input type="checkbox" id={`separarPax-${gasto.id}`} checked={!!gasto.separarPax} onChange={e => handleUpdateIngrediente(itemName, gasto.id, 'separarPax', e.target.checked)} className="w-3.5 h-3.5 text-amber-600 rounded border-slate-300 focus:ring-amber-500 cursor-pointer" />
+                       <label htmlFor={`separarPax-${gasto.id}`} className="text-[9px] font-bold text-slate-500 uppercase tracking-widest cursor-pointer">Simulação: Separar PAX</label>
+                    </div>
+                  </div>
+
+                  {/* SEMANA */}
+                  <div className="flex flex-col xl:flex-row xl:items-center gap-2 xl:gap-4 p-2 bg-slate-50/50 rounded-lg">
+                    <div className="flex items-center gap-2 flex-1 relative">
+                      <span className="text-[9px] font-black text-slate-400 whitespace-nowrap w-[72px] uppercase">DIA/SEMANA</span>
                       <input 
                         type="number" 
                         value={gasto.quantidadeSemana || ''}
                         onChange={e => handleUpdateIngrediente(itemName, gasto.id, 'quantidadeSemana', parseFloat(e.target.value) || 0)}
                         placeholder="0.0"
-                        className="w-full min-w-0 sm:w-20 bg-white border-0 sm:border sm:border-slate-200 text-slate-800 font-black text-right text-sm px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent rounded"
+                        className="w-24 bg-white border border-slate-200 text-slate-800 font-black text-right text-sm px-2 py-1 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent rounded"
                       />
                     </div>
-                    <div className="flex items-center gap-2 flex-1 bg-white sm:bg-transparent rounded-lg border sm:border-0 border-slate-200 pr-1 pl-3 sm:p-0">
-                      <span className="text-[9px] font-black text-slate-400 whitespace-nowrap sm:w-14 sm:text-right tracking-widest uppercase">FDS/Fer</span>
+                    {gasto.separarPax ? (
+                      <div className="flex items-center gap-2 flex-1">
+                        <span className="text-[9px] font-black text-amber-700 whitespace-nowrap w-[40px] xl:w-auto uppercase">PAX</span>
+                        <input 
+                          type="number" 
+                          value={gasto.paxSimulacaoSemana || ''}
+                          onChange={e => handleUpdateIngrediente(itemName, gasto.id, 'paxSimulacaoSemana', parseInt(e.target.value) || null)}
+                          placeholder={(paxDefaults?.almoco || 60).toString()}
+                          className="w-20 bg-white border border-amber-200 text-amber-800 font-black text-right text-sm px-2 py-1 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent rounded placeholder:text-amber-300"
+                        />
+                        <div className="text-[9px] font-black text-indigo-700 uppercase px-2">
+                           {(() => {
+                              const currentPax = gasto.paxSimulacaoSemana || gasto.paxSimulacao || paxDefaults?.almoco || 60;
+                              const und = materiais.find(m => m.nome === gasto.nome)?.undMedida || 'KG';
+                              return gasto.metodologia === 'por_prato' 
+                                 ? `= ${Number((currentPax * (gasto.quantidadeSemana || 0)).toFixed(3))} ${und}`
+                                 : `= ${Number(((gasto.quantidadeSemana || 0) / currentPax).toFixed(4))} ${und}/pax`;
+                           })()}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {/* FDS */}
+                  <div className="flex flex-col xl:flex-row xl:items-center gap-2 xl:gap-4 p-2 bg-slate-50/50 rounded-lg">
+                    <div className="flex items-center gap-2 flex-1 relative">
+                      <span className="text-[9px] font-black text-slate-400 whitespace-nowrap w-[72px] uppercase">DIA FDS/FER</span>
                       <input 
                         type="number" 
                         value={gasto.quantidadeFDS || ''}
                         onChange={e => handleUpdateIngrediente(itemName, gasto.id, 'quantidadeFDS', parseFloat(e.target.value) || 0)}
                         placeholder="0.0"
-                        className="w-full min-w-0 sm:w-20 bg-white border-0 sm:border sm:border-slate-200 text-slate-800 font-black text-right text-sm px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent rounded"
+                        className="w-24 bg-white border border-slate-200 text-slate-800 font-black text-right text-sm px-2 py-1 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent rounded"
                       />
                     </div>
+                    {gasto.separarPax ? (
+                      <div className="flex items-center gap-2 flex-1">
+                        <span className="text-[9px] font-black text-amber-700 whitespace-nowrap w-[40px] xl:w-auto uppercase">PAX</span>
+                        <input 
+                          type="number" 
+                          value={gasto.paxSimulacaoFDS || ''}
+                          onChange={e => handleUpdateIngrediente(itemName, gasto.id, 'paxSimulacaoFDS', parseInt(e.target.value) || null)}
+                          placeholder={(paxDefaults?.almoco || 60).toString()}
+                          className="w-20 bg-white border border-amber-200 text-amber-800 font-black text-right text-sm px-2 py-1 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent rounded placeholder:text-amber-300"
+                        />
+                        <div className="text-[9px] font-black text-indigo-700 uppercase px-2">
+                           {(() => {
+                              const currentPax = gasto.paxSimulacaoFDS || gasto.paxSimulacao || paxDefaults?.almoco || 60;
+                              const und = materiais.find(m => m.nome === gasto.nome)?.undMedida || 'KG';
+                              return gasto.metodologia === 'por_prato' 
+                                 ? `= ${Number((currentPax * (gasto.quantidadeFDS || 0)).toFixed(3))} ${und}`
+                                 : `= ${Number(((gasto.quantidadeFDS || 0) / currentPax).toFixed(4))} ${und}/pax`;
+                           })()}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
-                  <button 
-                    onClick={() => handleRemoveIngrediente(itemName, gasto.id)}
-                    className="w-full sm:w-auto py-2.5 px-3 sm:p-2.5 text-slate-400 hover:text-red-500 bg-white sm:bg-transparent hover:bg-red-50 rounded-lg transition-colors border border-slate-200 sm:border-transparent hover:border-red-100 flex items-center justify-center shrink-0 mt-2 xl:mt-0"
-                    title="Remover Ingrediente"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    <span className="sm:hidden ml-2 text-xs font-bold uppercase tracking-widest text-red-500">Remover Ingrediente</span>
-                  </button>
+
+                  {/* EVENTO */}
+                  <div className="flex flex-col xl:flex-row xl:items-center gap-2 xl:gap-4 p-2 bg-slate-50/50 rounded-lg">
+                    <div className="flex items-center gap-2 flex-1 relative">
+                      <span className="text-[9px] font-black text-slate-400 whitespace-nowrap w-[72px] uppercase">DIA EVENTO</span>
+                      <input 
+                        type="number" 
+                        value={gasto.quantidadeEvento || ''}
+                        onChange={e => handleUpdateIngrediente(itemName, gasto.id, 'quantidadeEvento', parseFloat(e.target.value) || 0)}
+                        placeholder="0.0"
+                        className="w-24 bg-white border border-slate-200 text-slate-800 font-black text-right text-sm px-2 py-1 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent rounded"
+                      />
+                    </div>
+                    {gasto.separarPax ? (
+                      <div className="flex items-center gap-2 flex-1">
+                        <span className="text-[9px] font-black text-amber-700 whitespace-nowrap w-[40px] xl:w-auto uppercase">PAX</span>
+                        <input 
+                          type="number" 
+                          value={gasto.paxSimulacaoEvento || ''}
+                          onChange={e => handleUpdateIngrediente(itemName, gasto.id, 'paxSimulacaoEvento', parseInt(e.target.value) || null)}
+                          placeholder={(paxDefaults?.almoco || 60).toString()}
+                          className="w-20 bg-white border border-amber-200 text-amber-800 font-black text-right text-sm px-2 py-1 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent rounded placeholder:text-amber-300"
+                        />
+                        <div className="text-[9px] font-black text-indigo-700 uppercase px-2">
+                           {(() => {
+                              const currentPax = gasto.paxSimulacaoEvento || gasto.paxSimulacao || paxDefaults?.almoco || 60;
+                              const und = materiais.find(m => m.nome === gasto.nome)?.undMedida || 'KG';
+                              return gasto.metodologia === 'por_prato' 
+                                 ? `= ${Number((currentPax * (gasto.quantidadeEvento || 0)).toFixed(3))} ${und}`
+                                 : `= ${Number(((gasto.quantidadeEvento || 0) / currentPax).toFixed(4))} ${und}/pax`;
+                           })()}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {!gasto.separarPax && (
+                     <div className="flex flex-col sm:flex-row gap-3 items-center justify-between p-2 bg-amber-50/50 rounded-lg mt-1 border border-amber-100">
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                          <span className="text-[9px] font-black text-amber-700 whitespace-nowrap uppercase w-[72px]">PAX ÚNICO</span>
+                          <input 
+                            type="number" 
+                            value={gasto.paxSimulacao || ''}
+                            onChange={e => handleUpdateIngrediente(itemName, gasto.id, 'paxSimulacao', parseInt(e.target.value) || null)}
+                            placeholder={(paxDefaults?.almoco || 60).toString()}
+                            className="w-24 bg-white border border-amber-200 text-amber-800 font-black text-right text-sm px-2 py-1 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent rounded placeholder:text-amber-300"
+                          />
+                        </div>
+                        <div className="flex flex-col md:flex-row gap-2 md:gap-4 md:items-center text-[9px] font-black text-indigo-700 uppercase w-full sm:w-auto">
+                           {(() => {
+                              const currentPax = gasto.paxSimulacao || paxDefaults?.almoco || 60;
+                              const und = materiais.find(m => m.nome === gasto.nome)?.undMedida || 'KG';
+                              const isPrato = gasto.metodologia === 'por_prato';
+                              const calc = (q: number) => isPrato ? Number((currentPax * q).toFixed(3)) : Number((q / currentPax).toFixed(4));
+                              const lbl = isPrato ? und : `${und}/p`;
+                              return (
+                                 <>
+                                    <span>SEM: {calc(gasto.quantidadeSemana || 0)} {lbl}</span>
+                                    <span className="hidden md:inline text-indigo-200">•</span>
+                                    <span>FDS: {calc(gasto.quantidadeFDS || 0)} {lbl}</span>
+                                    <span className="hidden md:inline text-indigo-200">•</span>
+                                    <span>EVT: {calc(gasto.quantidadeEvento || 0)} {lbl}</span>
+                                 </>
+                              );
+                           })()}
+                        </div>
+                     </div>
+                  )}
+
                 </div>
               </div>
             ))}
@@ -286,6 +490,56 @@ export function AprovisionamentoCatalogo({ user, materiais }: AprovisionamentoCa
         <p className="text-sm font-semibold text-slate-500 max-w-2xl leading-relaxed">
           Vincule um ou mais ingredientes do estoque físico aos itens do cardápio. Para cada ingrediente, defina a metodologia de uso (kilos por dia ou kilos por prato) para a correta previsão de compras.
         </p>
+      </div>
+
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 mb-8 flex flex-col md:flex-row gap-6 items-start md:items-center">
+        <div className="flex-1">
+          <h3 className="font-black text-slate-800 uppercase tracking-widest text-xs mb-1">Efetivos Estimados Padrão</h3>
+          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">
+            (Padrão utilizado na simulação quando não substituído no dia)
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest px-1">Café da Manhã</label>
+            <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 py-2 w-32 focus-within:border-amber-400 focus-within:ring-1 focus-within:ring-amber-400">
+              <input 
+                type="number" 
+                value={paxDefaults?.cafe || ''}
+                onChange={e => onUpdatePaxDefaults({...paxDefaults, cafe: parseInt(e.target.value) || 0})}
+                placeholder="0"
+                className="w-full text-sm font-black text-slate-800 outline-none text-right bg-transparent"
+              />
+              <span className="text-[10px] font-black text-slate-400 ml-2 uppercase">Pax</span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest px-1">Almoço</label>
+            <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 py-2 w-32 focus-within:border-amber-400 focus-within:ring-1 focus-within:ring-amber-400">
+              <input 
+                type="number" 
+                value={paxDefaults?.almoco || ''}
+                onChange={e => onUpdatePaxDefaults({...paxDefaults, almoco: parseInt(e.target.value) || 0})}
+                placeholder="0"
+                className="w-full text-sm font-black text-slate-800 outline-none text-right bg-transparent"
+              />
+              <span className="text-[10px] font-black text-slate-400 ml-2 uppercase">Pax</span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest px-1">Jantar</label>
+            <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 py-2 w-32 focus-within:border-amber-400 focus-within:ring-1 focus-within:ring-amber-400">
+              <input 
+                type="number" 
+                value={paxDefaults?.jantar || ''}
+                onChange={e => onUpdatePaxDefaults({...paxDefaults, jantar: parseInt(e.target.value) || 0})}
+                placeholder="0"
+                className="w-full text-sm font-black text-slate-800 outline-none text-right bg-transparent"
+              />
+              <span className="text-[10px] font-black text-slate-400 ml-2 uppercase">Pax</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {catalog && (

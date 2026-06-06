@@ -39,15 +39,12 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
   const [searchingSubstitute, setSearchingSubstitute] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [openMonths, setOpenMonths] = useState<number[]>([]);
   const { activeMonths: ctxActiveMonths } = useAppConfig();
   const { militars } = useMilitars();
 
-  React.useEffect(() => {
-    if (isOpen && ctxActiveMonths) {
-      setOpenMonths(ctxActiveMonths.map(Number));
-    }
-  }, [isOpen, ctxActiveMonths]);
+  const openMonths = React.useMemo(() => {
+    return Array.isArray(ctxActiveMonths) ? ctxActiveMonths : [];
+  }, [ctxActiveMonths]);
 
   // Sincroniza a data inicial se fornecida
   React.useEffect(() => {
@@ -136,7 +133,14 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
   const minDeadline = addHours(new Date(), 48);
   const isLate = selectedDateObj && isBefore(new Date(selectedDateObj).setHours(8, 0, 0, 0), minDeadline);
   
-  const isMonthOpen = selectedDateObj ? openMonths.includes(selectedDateObj.getMonth()) : true;
+  const isMonthOpen = React.useMemo(() => {
+    if (!date) return true;
+    const monthPart = date.split('-')[1];
+    if (!monthPart) return true;
+    const monthIdx = parseInt(monthPart, 10) - 1;
+    return openMonths.includes(monthIdx);
+  }, [date, openMonths]);
+
   const isFutureAgendamento = !isMonthOpen && selectedDateObj && !isBefore(selectedDateObj, new Date());
 
   const targetMissing = requesterRg ? 'substitute' : (substituteRg ? 'requester' : 'substitute');

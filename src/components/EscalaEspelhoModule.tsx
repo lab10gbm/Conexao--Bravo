@@ -532,8 +532,7 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
                     if (p.status === 'rejected') return 'INDEFERIDO';
                     if (p.status === 'cancelled') return 'CANCELADA';
                     const fullySigned = p.requesterSigned && p.substituteSigned;
-                    if (p.status === 'scheduled') return 'AGUARDANDO';
-                    if (fullySigned) return 'CONTRATO FINALIZADO';
+                    if (fullySigned) return 'EM ANÁLISE';
                     return '1/2 PENDENTE';
                   };
 

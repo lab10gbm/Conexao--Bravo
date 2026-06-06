@@ -16,28 +16,21 @@ export function useMuralAvisos() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let active = true;
-    
-    const fetchAvisos = async () => {
-      try {
-        const res = await fetch('/api/mural');
-        const data = await res.json();
-        if (active) {
-          setAvisos(data);
-          setLoading(false);
-        }
-      } catch(e) {
-        if (active) setLoading(false);
-      }
-    };
+    setLoading(true);
+    const q = query(collection(db, 'mural_avisos'), orderBy('createdAt', 'desc'), limit(15));
+    const unsub = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      })) as Aviso[];
+      setAvisos(data);
+      setLoading(false);
+    }, (error) => {
+      console.warn("Mural fetch warning:", error);
+      setLoading(false);
+    });
 
-    fetchAvisos();
-    const intervalId = setInterval(fetchAvisos, 15000); // 15s polling
-
-    return () => {
-      active = false;
-      clearInterval(intervalId);
-    };
+    return () => unsub();
   }, []);
 
   const addAviso = async ({ novoAviso, eventoData, userName }: { novoAviso: string, eventoData?: string, userName: string }) => {

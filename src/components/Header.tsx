@@ -35,6 +35,9 @@ import { useAppConfig } from "../contexts/ConfigContext";
 
 interface HeaderProps {
   profile: UserProfile;
+  realProfile?: UserProfile;
+  adminModeActive?: boolean;
+  onToggleAdminMode?: () => void;
   obmContext: string;
   setObmContext: (obm: string) => void;
   availableObms: string[];
@@ -43,6 +46,9 @@ interface HeaderProps {
 
 export function Header({
   profile,
+  realProfile,
+  adminModeActive = false,
+  onToggleAdminMode,
   obmContext,
   setObmContext,
   availableObms,
@@ -497,12 +503,37 @@ export function Header({
                   <h2 className="text-xl sm:text-2xl font-black text-[var(--color-brand-dark)] uppercase tracking-tight flex items-center">
                     {profile.warName || profile.name}
                   </h2>
-                  {profile.isAdmin && (
-                    <span className="bg-amber-100 text-amber-700 text-[8px] sm:text-[10px] font-black px-2 py-1 rounded flex items-center gap-1 border border-amber-200">
-                      <Shield className="w-3 h-3 sm:w-4 sm:h-4" />
-                      MODERADOR
-                    </span>
-                  )}
+                  {(() => {
+                    const actualProfile = realProfile || profile;
+                    const hasAdminPrivilege = actualProfile?.isAdmin || (actualProfile?.adminObms && actualProfile.adminObms.length > 0);
+                    
+                    if (!hasAdminPrivilege) return null;
+                    
+                    if (onToggleAdminMode) {
+                      return (
+                        <button
+                          onClick={onToggleAdminMode}
+                          className={cn(
+                            "text-[8px] sm:text-[10px] font-black px-2.5 py-1 rounded-xl flex items-center gap-1.5 border transition-all shadow-sm active:scale-95 cursor-pointer",
+                            adminModeActive
+                              ? "bg-indigo-600 text-white border-indigo-700 shadow-indigo-100/50 hover:bg-indigo-700"
+                              : "bg-slate-100 text-slate-500 border-slate-300 hover:bg-slate-200"
+                          )}
+                          title="Habilitar/Desabilitar Modo Moderador"
+                        >
+                          <Shield className={cn("w-3.5 h-3.5", adminModeActive ? "animate-pulse" : "")} />
+                          MODERADOR: {adminModeActive ? "ATIVO" : "INATIVO"}
+                        </button>
+                      );
+                    }
+                    
+                    return (
+                      <span className="bg-amber-100 text-amber-700 text-[8px] sm:text-[10px] font-black px-2 py-1 rounded flex items-center gap-1 border border-amber-200">
+                        <Shield className="w-3 h-3 sm:w-4 sm:h-4" />
+                        MODERADOR
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

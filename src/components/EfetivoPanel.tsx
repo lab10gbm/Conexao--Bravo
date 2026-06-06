@@ -223,20 +223,16 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
     try {
       const safeRg = militar.rg ? militar.rg.toString().trim().toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^0+/, '') : '';
 
-      const res = await fetch(`/api/militar/emprestar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          rg: militar.rg,
-          lentTo: targetLentTo 
-        })
-      });
-      if (res.ok) {
-        setLendingMilitar(null);
-        setSelectedLendGroup('');
-        await refreshMilitars();
+      const { doc, setDoc } = await import('firebase/firestore');
+      const { db } = await import('../lib/firebase');
+      
+      if (db && safeRg) {
+         await setDoc(doc(db, 'militaries', safeRg), { lentTo: targetLentTo }, { merge: true });
+         setLendingMilitar(null);
+         setSelectedLendGroup('');
+         await refreshMilitars();
       } else {
-        alert('Erro ao emprestar militar');
+         throw new Error("Missing DB or RG");
       }
     } catch (e) {
       console.error(e);

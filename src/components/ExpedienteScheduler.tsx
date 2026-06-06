@@ -87,10 +87,17 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
     }
     return startOfMonth(now);
   });
+  const normalizeObm = (val: string) => {
+    const v = (val || '').trim().toUpperCase();
+    if (v === '10º' || v === '10º GBM' || v === '10' || v === '10ºGBM') return '10º GBM';
+    if (v === '26º' || v === '26º GBM' || v === '26' || v === '26ºGBM') return '26º GBM';
+    return (val || '').trim();
+  };
+
   const [selectedObm, setSelectedObm] = useState<string>(() => {
-     const rawUserObm = user.obm ? user.obm.trim() : '10º GBM';
+     const rawUserObm = normalizeObm(user.obm || '10º GBM');
      if (user.isAdmin || user.isEscalante) {
-        if (obmContext && obmContext !== 'GLOBAL') return obmContext.trim();
+        if (obmContext && obmContext !== 'GLOBAL') return normalizeObm(obmContext);
      }
      return rawUserObm;
   });
@@ -103,7 +110,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
     const addedRgs = new Set<string>();
 
     militars.forEach(u => {
-      const rawObm = u.obm ? u.obm.trim() : '10º GBM'; // Treat empty as '10º GBM'
+      const rawObm = normalizeObm(u.obm || '10º GBM');
       const obmMatch = rawObm === selectedObm;
       if (!obmMatch) return;
 
@@ -186,13 +193,24 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   const activeRg = ((isAdmin || user.isEscalante) && adminTargetRg) ? adminTargetRg : user.rg;
 
   const availableObms = useMemo(() => {
-     const obms = new Set<string>();
-     militars.forEach(m => {
-        if (m.obm) obms.add(m.obm.trim());
+     // Defines the hard whitelist requested by user
+     const allowedObms = ['10º GBM', '1/10', '2/10', '3/10', '4/10', '26º GBM', '1/26'];
+     
+     // Determine the "Mother OBM" (10 or 26) to properly separate the systems
+     const target = normalizeObm(obmContext || user.obm || '10º GBM');
+     const is26Context = target.includes('26');
+     const is10Context = target.includes('10');
+
+     let list = allowedObms.filter(obm => {
+       if (is26Context) return obm.includes('26');
+       if (is10Context) return obm.includes('10');
+       return true;
      });
-     if (!obms.has('10º GBM')) obms.add('10º GBM');
-     return Array.from(obms).sort();
-  }, [militars]);
+
+     if (list.length === 0) list = [is26Context ? '26º GBM' : '10º GBM'];
+
+     return list.sort();
+  }, [obmContext, user.obm]);
 
   useEffect(() => {
     if (obmContext && obmContext !== 'GLOBAL') {
@@ -250,11 +268,11 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   const handleAddToExpediente = async () => {
       if (!addMemberRg) return;
       try {
-          await fetch('/api/militar/update', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ rg: addMemberRg, data: { ala: 'EXP' } })
-          });
+          const safeRg = addMemberRg.toString().trim().toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^0+/, '');
+          if (db) {
+             const { doc, setDoc } = await import('firebase/firestore');
+             await setDoc(doc(db, 'militaries', safeRg), { ala: 'EXP' }, { merge: true });
+          }
           updateMilitarLocal(addMemberRg, { ala: 'EXP' });
           setAddMemberRg('');
       } catch (e) {
@@ -283,11 +301,12 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       
       try {
           const rgToUpdate = removeMemberRg;
-          await fetch('/api/militar/update', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ rg: rgToUpdate, data: { ala: alaValue } })
-          });
+          const safeRg = rgToUpdate.toString().trim().toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^0+/, '');
+          
+          if (db) {
+              const { doc, setDoc } = await import('firebase/firestore');
+              await setDoc(doc(db, 'militaries', safeRg), { ala: alaValue }, { merge: true });
+          }
           updateMilitarLocal(rgToUpdate, { ala: alaValue });
 
           const globalUpdates: any = {
@@ -312,7 +331,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   };
 
   const handleTogglePrefDate = async (dayStr: string) => {
-      let sels = data.selections['ESCALANTE_PREF'] || [];
+      let sels = Array.isArray(data.selections['ESCALANTE_PREF']) ? data.selections['ESCALANTE_PREF'] : [];
       const isRemoving = sels.includes(dayStr);
       if (isRemoving) sels = sels.filter(d => d !== dayStr);
       else sels = [...sels, dayStr];
@@ -345,18 +364,32 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       await setDoc(globalDocRef, cleanUndefined({ expQuotas: newQuotas }), { merge: true });
   };
 
+  const getReqAmount = (rg: string) => {
+      const val = data.requirements?.[rg];
+      return (typeof val === 'number' && !isNaN(val)) ? val : 0;
+  };
+  const getRegime = (rg: string) => {
+      const val = data.regimes?.[rg];
+  return typeof val === 'string' ? val : '';
+  };
+  const safeArr = (val: any) => Array.isArray(val) ? val : [];
+  const getSector = (rg: string) => {
+      const val = data.sectors?.[rg];
+      return typeof val === 'string' ? val : '';
+  };
+  
   const getExpQuota = (rg: string) => {
       if (data.expQuotas && data.expQuotas[rg] !== undefined) {
           return data.expQuotas[rg];
       }
-      const regime = data.regimes?.[rg] || '';
+      const regime = getRegime(rg);
       const match = regime.match(/(\d+)\s*Exped/i);
       return match ? parseInt(match[1], 10) : 0;
   };
 
   const handleCycleCellStatus = async (rg: string, dayStr: string) => {
-      const userSels = data.selections[rg] || [];
-      const userExp = data.expedienteDays?.[rg] || [];
+      const userSels = safeArr(data.selections[rg]);
+      const userExp = safeArr(data.expedienteDays?.[rg]);
       const isSel = userSels.includes(dayStr);
       const isExp = userExp.includes(dayStr);
 
@@ -428,7 +461,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                   if (assignedThisWeek >= quota) break;
                   
                   const dayStr = format(d, 'yyyy-MM-dd');
-                  if (!svSelections[rg]?.includes(dayStr)) {
+                  if (!safeArr(svSelections[rg]).includes(dayStr)) {
                       userExpDays.push(dayStr);
                       assignedThisWeek++;
                   }
@@ -452,16 +485,25 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   };
 
   const handleUpdatePrefDetail = async (dayStr: string, func: string, qty: number) => {
-      if (!func) return;
-      const dayData = { ...(data.preferencesDetails?.[dayStr] || {}) };
+      if (!func || func.startsWith('_')) return;
+      if (typeof qty !== 'number' || isNaN(qty)) return;
+
+      const localDayData = { ...(data.preferencesDetails?.[dayStr] || {}) };
+      const fbDayData = { ...(data.preferencesDetails?.[dayStr] || {}) };
+      
       if (qty <= 0) {
-          delete dayData[func];
+          delete localDayData[func];
+          (fbDayData as any)[func] = deleteField();
       } else {
-          dayData[func] = qty;
+          localDayData[func] = qty;
+          fbDayData[func] = qty;
       }
-      const newPrefs = { ...(data.preferencesDetails || {}), [dayStr]: dayData };
-      setData(prev => ({...prev, preferencesDetails: newPrefs}));
-      await setDoc(monthDocRef, cleanUndefined({ preferencesDetails: newPrefs }), { merge: true });
+      
+      const newLocalPrefs = { ...(data.preferencesDetails || {}), [dayStr]: localDayData };
+      const newFbPrefs = { ...(data.preferencesDetails || {}), [dayStr]: fbDayData };
+      
+      setData(prev => ({...prev, preferencesDetails: newLocalPrefs}));
+      await setDoc(monthDocRef, cleanUndefined({ preferencesDetails: newFbPrefs }), { merge: true });
   };
 
   const handleTargetedToggle = async (rgSelection: string, day: Date) => {
@@ -476,8 +518,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
     }
 
     const dayStr = format(day, 'yyyy-MM-dd');
-    let userSelections = data.selections[rgSelection] || [];
-    let userExpDays = data.expedienteDays?.[rgSelection] || [];
+    let userSelections = safeArr(data.selections[rgSelection]);
+    let userExpDays = safeArr(data.expedienteDays?.[rgSelection]);
     let isRemovingExp = false;
     
     if (rgSelection === 'ESCALANTE_PREF') {
@@ -491,7 +533,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
            userSelections = [...userSelections, dayStr];
         }
     } else {
-        const req = data.requirements[rgSelection] || 0;
+        const req = getReqAmount(rgSelection);
         if (req === 0) {
            alert("Este militar não possui serviços definidos para este mês. Configure-os na aba de Configurar Membros.");
            return;
@@ -555,8 +597,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   const currentMonthDays = eachDayOfInterval({ start: startOfMonth(currentMonth), end: endOfMonth(currentMonth) });
   const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
 
-  const userReq = activeRg ? (data.requirements[activeRg] || 0) : 0;
-  const userSels = activeRg ? (data.selections[activeRg] || []) : [];
+  const userReq = activeRg ? getReqAmount(activeRg) : 0;
+  const userSels = activeRg ? safeArr(data.selections[activeRg]) : [];
   const progress = userReq > 0 ? Math.round((userSels.length / userReq) * 100) : 0;
 
   let activeMilitaryName = "Seu Status";
@@ -789,9 +831,9 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                           )}
                           {expedienteUsers.filter(u => u.rg !== 'ESCALANTE_PREF').map((u) => {
                              const rg = u.rg || u.uid;
-                             const reqAmount = data.requirements[rg] || 0;
-                             const sector = data.sectors?.[rg] || '';
-                             const currentRegime = data.regimes?.[rg] || '';
+                             const reqAmount = getReqAmount(rg);
+                             const sector = getSector(rg);
+                             const currentRegime = getRegime(rg);
                              
                              return (
                                  <tr key={rg} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
@@ -811,7 +853,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                   if (val === "Outro") r = "";
                                                   
                                                   // Auto-calculate required days based on selected regime
-                                                  let autoReq = data.requirements?.[rg];
+                                                  let autoReq = (typeof data.requirements?.[rg] === 'number' && !isNaN(data.requirements[rg])) ? data.requirements[rg] : undefined;
                                                   if (val === "3 Exped. e 2 serv. 24h") autoReq = 2;
                                                   else if (val === "4 Exped. e 1 serv. 24h") autoReq = 1;
                                                   else if (val === "1 Exped. e 3 Serv. 24h (Militar com Redução de Carga Horária)") autoReq = 3;
@@ -928,13 +970,13 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                  {isEscalantePref ? (
                                                     <div className="flex flex-col items-center gap-1">
                                                         <span>PREF.</span>
-                                                        <span className="text-red-600 font-bold text-[9px] normal-case bg-red-100 px-1.5 py-0.5 rounded">{(data.selections[rg]?.length || 0)} dias</span>
+                                                        <span className="text-red-600 font-bold text-[9px] normal-case bg-red-100 px-1.5 py-0.5 rounded">{(safeArr(data.selections[rg]).length)} dias</span>
                                                     </div>
                                                  ) : (
                                                      <div className="flex flex-col items-center gap-1">
                                                          <span className="truncate max-w-[120px]">{formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name)}</span>
-                                                         <span className={cn("text-[9px] normal-case px-1.5 py-0.5 rounded font-bold", (data.selections[rg]?.length || 0) >= (data.requirements[rg] || 0) && (data.requirements[rg] || 0) > 0 ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700")}>
-                                                             {(data.selections[rg]?.length || 0)} / {data.requirements[rg] || '?'}
+                                                         <span className={cn("text-[9px] normal-case px-1.5 py-0.5 rounded font-bold", (safeArr(data.selections[rg]).length) >= getReqAmount(rg) && getReqAmount(rg) > 0 ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700")}>
+                                                             {(safeArr(data.selections[rg]).length)} / {typeof data.requirements[rg] === 'number' && !isNaN(data.requirements[rg]) ? data.requirements[rg] : '?'}
                                                          </span>
                                                      </div>
                                                  )}
@@ -947,7 +989,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                  {currentMonthDays.map((day, i) => {
                                      const dayStr = format(day, 'yyyy-MM-dd');
                                      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-                                     const isPreferredDate = (data.selections['ESCALANTE_PREF'] || []).includes(dayStr);
+                                     const isPreferredDate = safeArr(data.selections['ESCALANTE_PREF']).includes(dayStr);
                                      const isEven = i % 2 === 0;
 
                                      return (
@@ -973,9 +1015,9 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                              {expedienteUsers.map(u => {
                                                  const rg = u.rg || u.uid;
                                                  const isEscalantePref = rg === 'ESCALANTE_PREF';
-                                                 const userSels = data.selections[rg] || [];
+                                                 const userSels = safeArr(data.selections[rg]);
                                                  const isSelected = userSels.includes(dayStr);
-                                                 const isExp = data.expedienteDays?.[rg]?.includes(dayStr);
+                                                 const isExp = safeArr(data.expedienteDays?.[rg]).includes(dayStr);
                                                  const isTargetUser = activeRg === rg;
                                                  const canEdit = isAdmin || isTargetUser || (isEscalantePref && (isAdmin || user.isEscalante));
                                                  
@@ -1039,7 +1081,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                 {currentMonthDays.map(day => {
                                     const dayStr = format(day, 'yyyy-MM-dd');
                                     const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-                                    const isPreferredDate = (data.selections['ESCALANTE_PREF'] || []).includes(dayStr);
+                                    const isPreferredDate = safeArr(data.selections['ESCALANTE_PREF']).includes(dayStr);
                                     return (
                                         <th key={day.toISOString()} className={cn(
                                             "py-2 px-1 border-r border-slate-200 text-center min-w-[32px] sm:min-w-[40px] text-[10px] font-black",
@@ -1059,8 +1101,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                             {expedienteUsers.map((u, i) => {
                                  const rg = u.rg || u.uid;
                                  const isEscalantePref = rg === 'ESCALANTE_PREF';
-                                 const userSels = data.selections[rg] || [];
-                                 const reqAmount = data.requirements[rg] || 0;
+                                 const userSels = safeArr(data.selections[rg]);
+                                 const reqAmount = getReqAmount(rg);
                                  const isTargetUser = activeRg === rg;
                                  const canEdit = isAdmin || isTargetUser || (isEscalantePref && (isAdmin || user.isEscalante));
                                  const isEven = i % 2 === 0;
@@ -1095,9 +1137,9 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                          {currentMonthDays.map(day => {
                                              const dayStr = format(day, 'yyyy-MM-dd');
                                              const isSelected = userSels.includes(dayStr);
-                                             const isExp = data.expedienteDays?.[rg]?.includes(dayStr);
+                                             const isExp = safeArr(data.expedienteDays?.[rg]).includes(dayStr);
                                              const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-                                             const isPreferredDate = !isEscalantePref && (data.selections['ESCALANTE_PREF'] || []).includes(dayStr);
+                                             const isPreferredDate = !isEscalantePref && safeArr(data.selections['ESCALANTE_PREF']).includes(dayStr);
                                              const isSwapDay = !isEscalantePref && data.swapRequests?.some(r => r.rg === rg && r.status === 'pending' && (r.fromDay === dayStr || r.toDay === dayStr));
                                              
                                              return (
@@ -1156,7 +1198,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                             const dayStr = format(day, 'yyyy-MM-dd');
                             const dayNum = format(day, 'dd');
                             const selectedUsers = expedienteUsers
-                                .filter(u => u.rg !== 'ESCALANTE_PREF' && data.selections[u.rg || u.uid]?.includes(dayStr))
+                                .filter(u => u.rg !== 'ESCALANTE_PREF' && safeArr(data.selections[u.rg || u.uid]).includes(dayStr))
                                 .map(u => formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name))
                                 .join(' / ');
                                 
@@ -1172,8 +1214,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                     <div className="flex flex-col pt-6 border-t font-semibold border-slate-200 border-dashed">
                         {expedienteUsers.filter(u => u.rg !== 'ESCALANTE_PREF').map(u => {
                             const rg = u.rg || u.uid;
-                            const count = data.selections[rg]?.length || 0;
-                            const req = data.requirements[rg] || 0;
+                            const count = safeArr(data.selections[rg]).length;
+                            const req = getReqAmount(rg);
                             const isDTS = req === 0 && count === 0;
                             const name = formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name);
                             const suffix = isDTS ? "DTS" : `${count} serv.`;
@@ -1237,8 +1279,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                   {format(day, "EEEE, d 'de' MMMM", { locale: ptBR })}
                                               </td>
                                               {paddedUsers.map((u, i) => {
-                                                  const isSelected = u && data.selections[u.rg || u.uid]?.includes(dayStr);
-                                                  const isExp = u && data.expedienteDays?.[u.rg || u.uid]?.includes(dayStr);
+                                                  const isSelected = u && safeArr(data.selections[u.rg || u.uid]).includes(dayStr);
+                                                  const isExp = u && safeArr(data.expedienteDays?.[u.rg || u.uid]).includes(dayStr);
                                                   const canClick = u && (isAdmin || user.isEscalante);
                                                   return (
                                                       <td 
@@ -1276,7 +1318,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                             {currentMonthDays.map(day => {
                                 const dayStr = format(day, 'yyyy-MM-dd');
-                                const isPreferred = (data.selections['ESCALANTE_PREF'] || []).includes(dayStr);
+                                const isPreferred = safeArr(data.selections['ESCALANTE_PREF']).includes(dayStr);
                                 const details = data.preferencesDetails?.[dayStr] || {};
                                 
                                 return (
@@ -1303,8 +1345,12 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                         
                                         {isPreferred && (
                                             <div className="mt-4 pt-4 border-t-2 border-red-100/50 flex flex-col gap-3">
-                                                {Object.entries(details).length > 0 ? (
-                                                    Object.entries(details).map(([func, qt]) => (
+                                                {Object.entries(details).filter(([k]) => !k.startsWith('_')).length > 0 ? (
+                                                    Object.entries(details)
+                                                      .filter(([k]) => !k.startsWith('_'))
+                                                      .map(([func, qtRaw]) => {
+                                                        const qt = typeof qtRaw === 'number' ? qtRaw : 1;
+                                                        return (
                                                         <div key={func} className="flex justify-between items-center bg-white border border-red-100 rounded-lg p-2 shadow-sm">
                                                             <span className="text-[10px] font-black text-slate-700 tracking-tight">{func}</span>
                                                             <div className="flex items-center gap-2 bg-slate-50 rounded-md border border-slate-100 p-0.5">
@@ -1323,7 +1369,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                                 </button>
                                                             </div>
                                                         </div>
-                                                    ))
+                                                        );
+                                                    })
                                                 ) : (
                                                     <div className="text-[10px] font-bold text-red-400 text-center py-2 italic">
                                                         Nenhuma função especificada.
@@ -1362,7 +1409,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                       {(() => {
                           const preferredDays = currentMonthDays.filter(day => {
                               const dayStr = format(day, 'yyyy-MM-dd');
-                              const isPreferred = (data.selections['ESCALANTE_PREF'] || []).includes(dayStr);
+                              const isPreferred = safeArr(data.selections['ESCALANTE_PREF']).includes(dayStr);
                               if (!isPreferred) return false;
                               const details = data.preferencesDetails?.[dayStr] || {};
                               const totalVagas = Object.values(details).reduce((sum, qt) => sum + qt, 0);
@@ -1422,11 +1469,11 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                           const dayStr = format(day, 'yyyy-MM-dd');
                           const outsideMonth = !isSameMonth(day, currentMonth);
                           const isToday = isSameDay(day, new Date());
-                          const isTargetUserSelected = activeRg && (data.selections[activeRg] || []).includes(dayStr);
-                          const isPreferredDate = (data.selections['ESCALANTE_PREF'] || []).includes(dayStr);
+                          const isTargetUserSelected = activeRg && safeArr(data.selections[activeRg]).includes(dayStr);
+                          const isPreferredDate = safeArr(data.selections['ESCALANTE_PREF']).includes(dayStr);
                           
                           // Let's identify who is working this day (for all expedientes) to show on map
-                          const workersOnThisDay = Object.entries(data.selections).filter(([rg, sels]: [string, any]) => rg !== 'ESCALANTE_PREF' && sels.includes(dayStr)).map(([rg, _]) => {
+                          const workersOnThisDay = Object.entries(data.selections).filter(([rg, sels]: [string, any]) => rg !== 'ESCALANTE_PREF' && Array.isArray(sels) && sels.includes(dayStr)).map(([rg, _]) => {
                                const found = expedienteUsers.find(u => u.rg === rg);
                                if (found) {
                                   return found.rank ? `${found.rank} ${found.warName || found.name.split(' ')[0]}` : found.name;
@@ -1434,7 +1481,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                return null;
                           }).filter(Boolean) as string[];
 
-                          const expWorkersOnThisDay = Object.entries(data.expedienteDays || {}).filter(([rg, sels]: [string, any]) => rg !== 'ESCALANTE_PREF' && sels.includes(dayStr)).map(([rg, _]) => {
+                          const expWorkersOnThisDay = Object.entries(data.expedienteDays || {}).filter(([rg, sels]: [string, any]) => rg !== 'ESCALANTE_PREF' && Array.isArray(sels) && sels.includes(dayStr)).map(([rg, _]) => {
                                const found = expedienteUsers.find(u => u.rg === rg);
                                if (found) {
                                   return found.rank ? `${found.rank} ${found.warName || found.name.split(' ')[0]}` : found.name;
@@ -1486,7 +1533,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                
                                {!outsideMonth && (
                                   <div className="flex flex-col gap-2 sm:gap-1.5 mt-1 sm:mt-auto">
-                                      {((data.selections['ESCALANTE_PREF'] || []).includes(dayStr)) && Object.entries(data.preferencesDetails?.[dayStr] || {}).length > 0 && (
+                                      {(safeArr(data.selections['ESCALANTE_PREF']).includes(dayStr)) && Object.entries(data.preferencesDetails?.[dayStr] || {}).length > 0 && (
                                           <div className="flex flex-row sm:flex-col flex-wrap gap-1.5 sm:gap-1 w-full min-w-0 overflow-hidden">
                                               {Object.entries(data.preferencesDetails?.[dayStr] || {}).map(([func, qt]) => (
                                                  <span key={func} className="text-[10px] sm:text-[9px] font-bold bg-red-100 text-red-700 border border-red-200 px-2 py-1 sm:px-1.5 sm:py-1 rounded-[4px] uppercase truncate leading-none max-w-full inline-block" title={`${qt}x ${func}`}>
@@ -1555,9 +1602,9 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                   <h3 className="font-black text-[11px] uppercase tracking-widest flex items-center gap-1.5 shrink-0">
                                      <User className="w-3.5 h-3.5" /> {activeMilitaryName}
                                   </h3>
-                                  {activeRg && data.regimes?.[activeRg] && (
+                                  {activeRg && typeof data.regimes?.[activeRg] === 'string' && data.regimes[activeRg] !== '' && (
                                     <span className="text-[8px] font-black bg-white/20 px-1.5 py-0.5 rounded uppercase tracking-tighter truncate max-w-[120px] text-right ml-2 leading-tight">
-                                      {data.regimes[activeRg]}
+                                      {data.regimes[activeRg] as string}
                                     </span>
                                   )}
                                 </div>
@@ -1720,7 +1767,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                              {(() => {
                                  const activeMembers = expedienteUsers.filter(u => u.rg !== 'ESCALANTE_PREF').filter(u => {
                                      const rg = u.rg || u.uid;
-                                     const reqAmount = data.requirements[rg] || 0;
+                                     const reqAmount = getReqAmount(rg);
                                      return true;
                                  });
 
@@ -1734,9 +1781,9 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                  const completedMembers = activeMembers.filter(u => {
                                      if (hasPendingSwap(u)) return false;
                                      const rg = u.rg || u.uid;
-                                     const reqAmount = data.requirements[rg] || 0;
-                                     const sels = data.selections[rg] || [];
-                                     const regime = data.regimes?.[rg] || '';
+                                     const reqAmount = getReqAmount(rg);
+                                     const sels = safeArr(data.selections[rg]);
+                                     const regime = getRegime(rg);
                                      const isExento = reqAmount === 0 && (regime.includes('Readaptado') || regime.includes('Redução'));
                                      return isExento || (reqAmount > 0 && sels.length >= reqAmount);
                                  });
@@ -1744,19 +1791,19 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                  const pendingMembers = activeMembers.filter(u => {
                                      if (hasPendingSwap(u)) return false;
                                      const rg = u.rg || u.uid;
-                                     const reqAmount = data.requirements[rg] || 0;
-                                     const sels = data.selections[rg] || [];
-                                     const regime = data.regimes?.[rg] || '';
+                                     const reqAmount = getReqAmount(rg);
+                                     const sels = safeArr(data.selections[rg]);
+                                     const regime = getRegime(rg);
                                      const isExento = reqAmount === 0 && (regime.includes('Readaptado') || regime.includes('Redução'));
                                      return !isExento && !(reqAmount > 0 && sels.length >= reqAmount);
                                  });
 
                                  const renderMember = (u: UserProfile) => {
                                      const rg = u.rg || u.uid;
-                                     const reqAmount = data.requirements[rg] || 0;
-                                     const sels = data.selections[rg] || [];
-                                     const sector = data.sectors?.[rg] || '';
-                                     const regime = data.regimes?.[rg] || '';
+                                     const reqAmount = getReqAmount(rg);
+                                     const sels = safeArr(data.selections[rg]);
+                                     const sector = getSector(rg);
+                                     const regime = getRegime(rg);
                                      const isExento = reqAmount === 0 && (regime.includes('Readaptado') || regime.includes('Redução'));
                                      const isComplete = isExento || (reqAmount > 0 && sels.length >= reqAmount);
                                      
@@ -1779,7 +1826,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                              
                                              {!isExento && reqAmount > 0 && (
                                                  <div className="w-full bg-slate-200 rounded-full h-1 mt-1">
-                                                     <div className={cn("h-1 rounded-full", isComplete ? "bg-green-500" : "bg-amber-500")} style={{ width: `${Math.min(100, (sels.length / reqAmount) * 100)}%` }}></div>
+                                                     <div className={cn("h-1 rounded-full", isComplete ? "bg-green-500" : "bg-amber-500")} style={{ width: `${reqAmount > 0 ? Math.min(100, (sels.length / reqAmount) * 100) : 0}%` }}></div>
                                                  </div>
                                              )}
                                          </div>
@@ -1854,7 +1901,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                               <button 
                                                 onClick={async () => {
                                                     // Approve
-                                                    const userSels = data.selections[req.rg] || [];
+                                                    const userSels = safeArr(data.selections[req.rg]);
                                                     if (!userSels.includes(req.fromDay)) {
                                                         alert("O militar não possui mais o serviço original agendado. Permuta não pode ser concluída.");
                                                         return;
@@ -1970,7 +2017,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                       </label>
                       <select name="fromDay" required className="w-full text-sm p-3 bg-white border-2 border-slate-200 rounded-xl outline-none focus:border-indigo-500">
                           <option value="">Selecione o serviço atual...</option>
-                          {(data.selections[activeRg] || []).sort().map(d => (
+                          {safeArr(data.selections[activeRg]).sort().map(d => (
                               <option key={d} value={d}>{format(new Date(`${d}T12:00:00`), "dd/MM/yyyy (EEEE)", {locale: ptBR})}</option>
                           ))}
                       </select>
@@ -1984,7 +2031,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                           <option value="">Selecione o novo serviço...</option>
                           {currentMonthDays.map(d => {
                               const dStr = format(d, 'yyyy-MM-dd');
-                              if ((data.selections[activeRg] || []).includes(dStr)) return null;
+                              if (safeArr(data.selections[activeRg]).includes(dStr)) return null;
                               return <option key={dStr} value={dStr}>{format(d, "dd/MM/yyyy (EEEE)", {locale: ptBR})}</option>;
                           })}
                       </select>

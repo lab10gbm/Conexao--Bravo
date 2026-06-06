@@ -3,9 +3,10 @@ import { UserProfile } from '../types';
 import { db } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { motion } from 'motion/react';
-import { Save, UserCircle2, Phone, MapPin, Building, Lock } from 'lucide-react';
+import { Save, UserCircle2, Phone, MapPin, Building, Lock, Calendar, Award, Shield, Briefcase, UserCheck, Settings2, Trash2 } from 'lucide-react';
 import { RankInsignia } from './RankInsignia';
 import { cleanUndefined } from "../lib/utils";
+import { TagInput } from './TagInput';
 
 interface ProfileUpdateProps {
   user: UserProfile;
@@ -15,17 +16,65 @@ interface ProfileUpdateProps {
 
 export function ProfileUpdate({ user, onUpdate, onBack }: ProfileUpdateProps) {
   const [formData, setFormData] = useState<Partial<UserProfile>>({
-    tel: user.tel || '',
+    name: user.name || '',
+    warName: user.warName || '',
+    rank: user.rank || '',
+    rg: user.rg || '',
+    ala: user.ala || '',
+    quadro: user.quadro || '',
+    idFuncional: user.idFuncional || (user as any).id_funcional || '',
     cel: user.cel || '',
     cel2: user.cel2 || '',
+    tel: user.tel || '',
     endereco: user.endereco || '',
     cidade: user.cidade || '',
     email: user.email || '',
     email2: user.email2 || '',
+    nascimento: user.nascimento || (user as any).birthDate || '',
+    promotionDate: user.promotionDate || (user as any).ultimaPromocao || '',
+    cursos: user.cursos || '',
+    specializations: user.specializations || [],
+    obm: user.obm || '',
+    // Funções
+    ativoCondutor: user.ativoCondutor || false,
+    ativoEncarregado: user.ativoEncarregado || false,
+    ativoAbastecedor: user.ativoAbastecedor || false,
+    ativoChefeGua: user.ativoChefeGua || false,
+    ativoMaritimo: user.ativoMaritimo || false,
+    ativoEnfermeiro: user.ativoEnfermeiro || false,
+    ativoComunicante: user.ativoComunicante || false,
+    ativoGraduado: user.ativoGraduado || false,
+    ativoCbsSds: user.ativoCbsSds || false,
+    adjunto: user.adjunto || false,
+    sgtDia: user.sgtDia || false,
+    cmtGuarda: user.cmtGuarda || false,
+    cbGuarda: user.cbGuarda || false,
+    cbDia: user.cbDia || false,
   });
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
+
+  // Sync formData with prop updates (e.g. when App.tsx refreshes profile from Firestore)
+  React.useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      name: user.name || prev.name,
+      warName: user.warName || prev.warName,
+      rank: user.rank || prev.rank,
+      rg: user.rg || prev.rg,
+      ala: user.ala || prev.ala,
+      quadro: user.quadro || (user as any).QUADRO || prev.quadro,
+      idFuncional: user.idFuncional || (user as any).id_funcional || (user as any).ID_FUNCIONAL || prev.idFuncional,
+      nascimento: user.nascimento || (user as any).birthDate || (user as any).NASCIMENTO || prev.nascimento,
+      promotionDate: user.promotionDate || (user as any).ultimaPromocao || (user as any).PROMOTED || prev.promotionDate,
+      obm: user.obm || prev.obm,
+      email: user.email || prev.email,
+      cel: user.cel || prev.cel,
+      endereco: user.endereco || prev.endereco,
+      cidade: user.cidade || prev.cidade,
+    }));
+  }, [user]);
 
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -36,8 +85,51 @@ export function ProfileUpdate({ user, onUpdate, onBack }: ProfileUpdateProps) {
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [passwordError, setPasswordError] = useState('');
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    if (type === 'checkbox') {
+      const checkbox = e.target as HTMLInputElement;
+      setFormData({ ...formData, [name]: checkbox.checked });
+    } else {
+      setFormData({ ...formData, [name]: value });
+    }
+  };
+
+  const handleSpecializationsChange = (value: string) => {
+    setFormData({ ...formData, specializations: value.split(',').map(s => s.trim()).filter(Boolean) });
+  };
+
+  const formatDate = (dateValue: any) => {
+    if (!dateValue) return 'Não informado';
+    
+    // Handle Firestore Timestamp object
+    if (typeof dateValue === 'object' && dateValue.seconds) {
+      return new Date(dateValue.seconds * 1000).toLocaleDateString('pt-BR');
+    }
+
+    // Handle number (timestamp)
+    if (typeof dateValue === 'number') {
+      return new Date(dateValue).toLocaleDateString('pt-BR');
+    }
+
+    if (typeof dateValue === 'string') {
+      // If already in DD/MM/YYYY or D/M/YYYY format, return as is
+      if (dateValue.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) return dateValue;
+
+      // Handle ISO format YYYY-MM-DD or YYYY-M-D
+      if (dateValue.match(/^\d{4}-\d{1,2}-\d{1,2}$/)) {
+        const [year, month, day] = dateValue.split('-');
+        return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+      }
+
+      // Fallback to native Date parsing if it looks like a date string
+      const date = new Date(dateValue);
+      if (!isNaN(date.getTime())) {
+        return date.toLocaleDateString('pt-BR');
+      }
+    }
+
+    return dateValue.toString();
   };
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -57,10 +149,22 @@ export function ProfileUpdate({ user, onUpdate, onBack }: ProfileUpdateProps) {
         ...formData,
         lastProfileUpdate: Date.now()
       };
-      const userRef = doc(db, 'militaries', user.rg.toString());
-      await updateDoc(userRef, cleanUndefined(updatePayload));
       
-      onUpdate({ ...user, ...updatePayload });
+      const response = await fetch('/api/militar/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          rg: user.rg,
+          data: updatePayload
+        })
+      });
+
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error || 'Erro ao sincronizar com o servidor');
+      
+      onUpdate({ ...user, ...updatePayload } as UserProfile);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
@@ -141,117 +245,376 @@ export function ProfileUpdate({ user, onUpdate, onBack }: ProfileUpdateProps) {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-8">
+        <form onSubmit={handleSubmit} className="p-8 space-y-12">
            {error && (
-             <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-6 text-xs font-bold uppercase tracking-wider border border-red-200">
+             <div className="bg-red-50 text-red-600 p-4 rounded-xl text-xs font-bold uppercase tracking-wider border border-red-200">
                {error}
              </div>
            )}
            {success && (
-             <div className="bg-emerald-50 text-emerald-600 p-4 rounded-xl mb-6 text-xs font-bold uppercase tracking-wider border border-emerald-200">
+             <div className="bg-emerald-50 text-emerald-600 p-4 rounded-xl text-xs font-bold uppercase tracking-wider border border-emerald-200">
                Dados atualizados com sucesso!
              </div>
            )}
 
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
-              <div className="space-y-4">
+           {/* SECTION 1: IDENTIFICAÇÃO E DADOS BÁSICOS */}
+           <div className="space-y-6">
+              <h4 className="flex items-center gap-2 text-sm font-black text-slate-800 uppercase tracking-tighter border-b border-slate-100 pb-2">
+                <UserCircle2 className="w-4 h-4 text-indigo-600" /> Identificação e Dados Básicos (Apenas Leitura)
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" /> Nome Completo
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    readOnly
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black text-slate-500 outline-none cursor-not-allowed"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" /> Nome de Guerra
+                  </label>
+                  <input
+                    type="text"
+                    name="warName"
+                    value={formData.warName}
+                    readOnly
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black text-slate-500 outline-none cursor-not-allowed"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" /> RG (Militar)
+                  </label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={formData.rg}
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black text-slate-500 outline-none cursor-not-allowed"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" /> Posto/Graduação
+                  </label>
+                  <input
+                    type="text"
+                    name="rank"
+                    value={formData.rank}
+                    readOnly
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black text-slate-500 outline-none cursor-not-allowed"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" /> ID Funcional
+                  </label>
+                  <input
+                    type="text"
+                    name="idFuncional"
+                    value={formData.idFuncional}
+                    readOnly
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black text-slate-500 outline-none cursor-not-allowed"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" /> Data de Nascimento
+                  </label>
+                  <input
+                    type="text"
+                    name="nascimento"
+                    value={formatDate(formData.nascimento)}
+                    readOnly
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black text-slate-500 outline-none cursor-not-allowed"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" /> Quadro
+                  </label>
+                  <input
+                    type="text"
+                    name="quadro"
+                    value={formData.quadro}
+                    readOnly
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black text-slate-500 outline-none cursor-not-allowed"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" /> Última Promoção
+                  </label>
+                  <input
+                    type="text"
+                    name="promotionDate"
+                    value={formatDate(formData.promotionDate)}
+                    readOnly
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black text-slate-500 outline-none cursor-not-allowed"
+                  />
+                </div>
+              </div>
+              <p className="text-[9px] text-slate-400 font-bold uppercase py-2 px-3 bg-slate-50 rounded-lg flex items-center gap-2">
+                <Shield className="w-3 h-3 text-slate-400" /> Estes dados são oficiais do cadastro e só podem ser alterados pelo setor de pessoal ou administrador.
+              </p>
+           </div>
+
+           {/* SECTION 2: CARREIRA E LOTAÇÃO */}
+           <div className="space-y-6">
+              <h4 className="flex items-center gap-2 text-sm font-black text-slate-800 uppercase tracking-tighter border-b border-slate-100 pb-2">
+                <Building className="w-4 h-4 text-indigo-600" /> Carreira e Lotação (Apenas Leitura)
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" /> Ala (Escala)
+                  </label>
+                  <input
+                    type="text"
+                    name="ala"
+                    value={formData.ala === 'EXP' ? 'EXPEDIENTE' : formData.ala ? `${formData.ala}ª ALA` : 'Não informada'}
+                    readOnly
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black text-slate-500 outline-none cursor-not-allowed"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest flex items-center gap-1">
+                    <Lock className="w-2.5 h-2.5" /> Unidade (OBM)
+                  </label>
+                  <input
+                    type="text"
+                    name="obm"
+                    value={formData.obm || '10º GBM'}
+                    readOnly
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black text-slate-500 outline-none cursor-not-allowed"
+                  />
+                </div>
+              </div>
+           </div>
+
+           {/* SECTION 3: CONTATO E LOCALIZAÇÃO */}
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+              <div className="space-y-6">
                  <h4 className="flex items-center gap-2 text-sm font-black text-slate-800 uppercase tracking-tighter border-b border-slate-100 pb-2">
                    <Phone className="w-4 h-4 text-indigo-600" /> Contato
                  </h4>
                  
-                 <div className="space-y-1">
-                   <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Celular Principal / WhatsApp</label>
-                   <input
-                     type="text"
-                     name="cel"
-                     value={formData.cel}
-                     onChange={handleChange}
-                     placeholder="(XX) XXXXX-XXXX"
-                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                   />
-                 </div>
-                 
-                 <div className="space-y-1">
-                   <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Celular Secundário</label>
-                   <input
-                     type="text"
-                     name="cel2"
-                     value={formData.cel2}
-                     onChange={handleChange}
-                     placeholder="(XX) XXXXX-XXXX"
-                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                   />
-                 </div>
-                 
-                 <div className="space-y-1">
-                   <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Telefone Fixo (Opcional)</label>
-                   <input
-                     type="text"
-                     name="tel"
-                     value={formData.tel}
-                     onChange={handleChange}
-                     placeholder="(XX) XXXX-XXXX"
-                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                   />
-                 </div>
+                 <div className="space-y-4">
+                   <div className="space-y-1">
+                     <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Celular Principal / WhatsApp</label>
+                     <input
+                       type="text"
+                       name="cel"
+                       value={formData.cel}
+                       onChange={handleChange}
+                       placeholder="(XX) XXXXX-XXXX"
+                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                     />
+                   </div>
+                   
+                   <div className="space-y-1">
+                     <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Celular Secundário</label>
+                     <input
+                       type="text"
+                       name="cel2"
+                       value={formData.cel2}
+                       onChange={handleChange}
+                       placeholder="(XX) XXXXX-XXXX"
+                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                     />
+                   </div>
+                   
+                   <div className="space-y-1">
+                     <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Telefone Fixo (Opcional)</label>
+                     <input
+                       type="text"
+                       name="tel"
+                       value={formData.tel}
+                       onChange={handleChange}
+                       placeholder="(XX) XXXX-XXXX"
+                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                     />
+                   </div>
 
-                 <div className="space-y-1">
-                   <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest flex items-center justify-between">
-                     Email (Google)
-                   </label>
-                   <input
-                     type="email"
-                     name="email"
-                     value={formData.email}
-                     onChange={handleChange}
-                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                   />
-                 </div>
+                   <div className="space-y-1">
+                     <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Email (Google Login)</label>
+                     <input
+                       type="email"
+                       name="email"
+                       value={formData.email}
+                       onChange={handleChange}
+                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                     />
+                   </div>
 
-                 <div className="space-y-1">
-                   <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Email Alternativo</label>
-                   <input
-                     type="email"
-                     name="email2"
-                     value={formData.email2}
-                     onChange={handleChange}
-                     placeholder="seu.email@exemplo.com"
-                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                   />
+                   <div className="space-y-1">
+                     <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Email Alternativo</label>
+                     <input
+                       type="email"
+                       name="email2"
+                       value={formData.email2}
+                       onChange={handleChange}
+                       placeholder="seu.email@exemplo.com"
+                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                     />
+                   </div>
                  </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-6">
                  <h4 className="flex items-center gap-2 text-sm font-black text-slate-800 uppercase tracking-tighter border-b border-slate-100 pb-2">
-                   <MapPin className="w-4 h-4 text-indigo-600" /> Endereço
+                   <MapPin className="w-4 h-4 text-indigo-600" /> Endereço Residencial
                  </h4>
                  
-                 <div className="space-y-1">
-                   <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Endereço Completo</label>
-                   <input
-                     type="text"
-                     name="endereco"
-                     value={formData.endereco}
-                     onChange={handleChange}
-                     placeholder="Rua, Número, Complemento, Bairro"
-                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                   />
-                 </div>
+                 <div className="space-y-4">
+                   <div className="space-y-1">
+                     <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Endereço Completo</label>
+                     <textarea
+                       name="endereco"
+                       value={formData.endereco}
+                       onChange={handleChange}
+                       rows={3}
+                       placeholder="Rua, Número, Complemento, Bairro"
+                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none"
+                     />
+                   </div>
 
-                 <div className="space-y-1">
-                   <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Cidade</label>
-                   <input
-                     type="text"
-                     name="cidade"
-                     value={formData.cidade}
-                     onChange={handleChange}
-                     placeholder="Ex: Angra dos Reis, Rio Claro..."
-                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                   />
+                   <div className="space-y-1">
+                     <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Cidade</label>
+                     <input
+                       type="text"
+                       name="cidade"
+                       value={formData.cidade}
+                       onChange={handleChange}
+                       placeholder="Ex: Angra dos Reis, Rio Claro..."
+                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
+                     />
+                   </div>
                  </div>
               </div>
+           </div>
 
+           {/* SECTION 4: QUALIFICAÇÃO E ESPECIALIDADES */}
+           <div className="space-y-6">
+              <h4 className="flex items-center gap-2 text-sm font-black text-slate-800 uppercase tracking-tighter border-b border-slate-100 pb-2">
+                <Award className="w-4 h-4 text-indigo-600" /> Qualificações Profissionais
+              </h4>
+              <div className="grid grid-cols-1 gap-6">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Especialidades (Tags)</label>
+                  <TagInput
+                    value={(formData.specializations || []).join(', ')}
+                    onChange={handleSpecializationsChange}
+                    placeholder="Adicione especialidades (Ex: MERGULHO, SALVAMENTO, COMBATE A INCÊNDIO)"
+                  />
+                  <p className="text-[8px] text-slate-400 font-bold uppercase mt-1">Pressione Enter ou vírgula para adicionar cada tag</p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Cursos e Observações Profissionais</label>
+                  <textarea
+                    name="cursos"
+                    value={formData.cursos}
+                    onChange={handleChange}
+                    rows={4}
+                    placeholder="Descreva cursos realizados, certificados e outras informações relevantes para sua escala."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none"
+                  />
+                </div>
+              </div>
+           </div>
+
+           {/* SECTION 5: FUNÇÕES E APTIDÕES (BOOLEANS) */}
+           <div className="space-y-6">
+              <h4 className="flex items-center gap-2 text-sm font-black text-slate-800 uppercase tracking-tighter border-b border-slate-100 pb-2">
+                <UserCheck className="w-4 h-4 text-indigo-600" /> Aptidões e Funções na Escala
+              </h4>
+              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest italic mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                Marque as funções que você está apto e autorizado a exercer. Estas informações serão validadas pelo Escalante para composição das escalas.
+              </p>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[
+                  { id: 'ativoCondutor', label: 'Condutor de Viatura' },
+                  { id: 'ativoEncarregado', label: 'Encarregado' },
+                  { id: 'ativoAbastecedor', label: 'Abastecedor' },
+                  { id: 'ativoChefeGua', label: 'Chefe de Guarnição' },
+                  { id: 'ativoMaritimo', label: 'Apto p/ Marítimo' },
+                  { id: 'ativoEnfermeiro', label: 'Enfermeiro/Téc. Enfermagem' },
+                  { id: 'ativoComunicante', label: 'Comunicante' },
+                  { id: 'ativoGraduado', label: 'Graduado de Dia' },
+                  { id: 'ativoCbsSds', label: 'Cb/Sd de Dia' },
+                  { id: 'adjunto', label: 'Adjunto' },
+                  { id: 'sgtDia', label: 'Sgt de Dia' },
+                  { id: 'cmtGuarda', label: 'Cmt da Guarda' },
+                  { id: 'cbGuarda', label: 'Cb da Guarda' },
+                  { id: 'cbDia', label: 'Cb de Dia' },
+                  { id: 'auxRancho', label: 'Auxiliar de Rancho' },
+                  { id: 'toqueDeFogo', label: 'Toque de Fogo' },
+                  { id: 'sentinela', label: 'Sentinela' },
+                  { id: 'marinheiros', label: 'Marinheiro' },
+                  { id: 'mestreAl', label: 'Mestre Alfa' },
+                  { id: 'mestreBia', label: 'Mestre Bravo' },
+                ].map((func) => (
+                  <label 
+                    key={func.id} 
+                    className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-100 rounded-2xl cursor-pointer hover:bg-indigo-50 hover:border-indigo-100 transition-all group"
+                  >
+                    <div className="relative flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        name={func.id}
+                        checked={!!(formData as any)[func.id]}
+                        onChange={handleChange}
+                        className="peer h-6 w-6 appearance-none rounded-lg border-2 border-slate-300 bg-white checked:bg-indigo-600 checked:border-indigo-600 transition-all cursor-pointer"
+                      />
+                      <Save className="absolute w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
+                    </div>
+                    <span className="text-xs font-black uppercase tracking-tight text-slate-600 group-hover:text-indigo-900">
+                      {func.label}
+                    </span>
+                  </label>
+                ))}
+              </div>
+           </div>
+
+           {/* SECTION 6: HABILITAÇÃO EM VIATURAS */}
+           <div className="space-y-6">
+              <h4 className="flex items-center gap-2 text-sm font-black text-slate-800 uppercase tracking-tighter border-b border-slate-100 pb-2">
+                <Settings2 className="w-4 h-4 text-indigo-600" /> Habilitação em Viaturas (Operação)
+              </h4>
+              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest italic mb-4">
+                Selecione as viaturas que você está habilitado a operar (conforme curso de especialização de condutor).
+              </p>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+                {['ABT', 'ABSL', 'ASE', 'AR', 'ARC'].map((vtr) => (
+                  <label 
+                    key={vtr} 
+                    className="flex flex-col items-center gap-3 p-4 bg-slate-50 border border-slate-100 rounded-2xl cursor-pointer hover:bg-indigo-50 hover:border-indigo-100 transition-all group text-center"
+                  >
+                    <div className="relative flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        checked={!!(formData.viaturas as any)?.[vtr]}
+                        onChange={(e) => {
+                          const newViaturas = { ...(formData.viaturas || {}), [vtr]: e.target.checked };
+                          setFormData({ ...formData, viaturas: newViaturas });
+                        }}
+                        className="peer h-8 w-8 appearance-none rounded-xl border-2 border-slate-300 bg-white checked:bg-indigo-600 checked:border-indigo-600 transition-all cursor-pointer"
+                      />
+                      <Save className="absolute w-4 h-4 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 group-hover:text-indigo-900">
+                      {vtr}
+                    </span>
+                  </label>
+                ))}
+              </div>
            </div>
 
            <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-slate-100">
@@ -269,17 +632,17 @@ export function ProfileUpdate({ user, onUpdate, onBack }: ProfileUpdateProps) {
                  onClick={onBack}
                  className="flex-1 sm:flex-none px-6 py-3 rounded-xl text-slate-600 font-bold uppercase tracking-widest text-xs hover:bg-slate-100 transition-colors"
                >
-                 Voltar
+                 Cancelar
                </button>
                <button
                  type="submit"
                  disabled={loading}
-                 className="flex-1 sm:flex-none px-6 py-3 rounded-xl bg-indigo-600 text-white font-black uppercase tracking-widest text-xs hover:bg-indigo-700 shadow-md shadow-indigo-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                 className="flex-1 sm:flex-none px-10 py-4 rounded-2xl bg-indigo-600 text-white font-black uppercase tracking-widest text-xs hover:bg-indigo-700 shadow-xl shadow-indigo-200 transition-all flex items-center justify-center gap-3 disabled:opacity-50 active:scale-95"
                >
-                 {loading ? 'Salvando...' : (
+                 {loading ? 'Processando...' : (
                    <>
-                     <Save className="w-4 h-4" />
-                     Salvar e Confirmar Dados
+                     <Save className="w-5 h-5" />
+                     Salvar e Confirmar Todos os Dados
                    </>
                  )}
                </button>
