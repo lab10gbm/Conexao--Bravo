@@ -6,7 +6,7 @@ import { ptBR } from 'date-fns/locale';
 import { getAlaForDate, getAlaColor, getAlaLightColor, cn } from '../lib/utils';
 import { generateICS } from '../lib/exportUtils';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronDown, ChevronUp, Briefcase, Coffee, CalendarOff, MessageSquare, Info, CalendarDays, Megaphone, CalendarSearch, Download } from 'lucide-react';
+import { ChevronDown, ChevronUp, Briefcase, Coffee, CalendarOff, MessageSquare, Info, CalendarDays, Megaphone, CalendarSearch, Download, Shield } from 'lucide-react';
 import { UserProfile, PermutaRequest } from '../types';
 import { Simulador48x144 } from './Simulador48x144';
 import { MuralAvisos } from './MuralAvisos';
@@ -45,6 +45,7 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
   const [institutionalEvents, setInstitutionalEvents] = useState<{ date: Date, title: string }[]>([]);
   const [userPermutas, setUserPermutas] = useState<{ date: Date, type: string, status: string }[]>([]);
   const [expedienteDays, setExpedienteDays] = useState<Record<string, 'SV' | 'EXP'>>({});
+  const [grdDays, setGrdDays] = useState<Record<string, boolean>>({});
   
   // Local state for future permuta requests
   const [isPermutaModalOpen, setIsPermutaModalOpen] = useState(false);
@@ -175,6 +176,25 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
             }
         });
         unsubscribes.push(unsub);
+
+        // Also fetch GRD configs
+        const obmId = obm.replace(/\//g, '_').replace(/\s/g, '_');
+        const grdRef = doc(db, 'grd_configs', `${obmId}_${monthKey}`);
+        const unsubGrd = onSnapshot(grdRef, (snapshot) => {
+            if (snapshot.exists()) {
+                const daysData = snapshot.data().days || {};
+                setGrdDays(prev => {
+                    const updated = { ...prev };
+                    Object.keys(daysData).forEach(dateStr => {
+                        const rgs = daysData[dateStr] || [];
+                        const normalizedGrdRgs = rgs.map((r: string) => normalizeRg(r));
+                        updated[dateStr] = normalizedGrdRgs.includes(userRgEscaped);
+                    });
+                    return updated;
+                });
+            }
+        });
+        unsubscribes.push(unsubGrd);
     }
     
     return () => unsubscribes.forEach(u => u());
@@ -598,6 +618,9 @@ const MonthGrid = memo(function MonthGrid({ month, userAla, onDateSelect, mockAf
                     if (isSameDay(lem.date, day)) hasLembrete = true;
                   });
 
+                  const dayStr = format(day, 'yyyy-MM-dd');
+                  const isGrd = grdDays[dayStr];
+
                   institutionalEvents.forEach(ev => {
                     if (isSameDay(ev.date, day)) hasInstitutionalEvent = true;
                   });
@@ -609,7 +632,6 @@ const MonthGrid = memo(function MonthGrid({ month, userAla, onDateSelect, mockAf
                     }
                   });
                   
-                  const dayStr = format(day, 'yyyy-MM-dd');
                   const expedienteStatus = expedienteDays[dayStr];
                   if (expedienteStatus) isWorkingDay = true;
                   
@@ -637,6 +659,7 @@ const MonthGrid = memo(function MonthGrid({ month, userAla, onDateSelect, mockAf
                         isToday && !outsideMonth && !shouldHide && "ring-2 ring-slate-800 ring-offset-2",
                         !outsideMonth && !isAfastamento && !shouldHide && getAlaLightColor(ala),
                         isWorkingDayFinal && !outsideMonth && !isAfastamento && !shouldHide && "shadow-md ring-2 ring-blue-500 ring-offset-1 flex flex-col pt-1",
+                        isGrd && !outsideMonth && !isAfastamento && !shouldHide && "bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500 ring-offset-1",
                         isAfastamento && !outsideMonth && !shouldHide && "bg-indigo-50 border-indigo-200 text-indigo-700 ring-1 ring-indigo-300",
                         expedienteStatus === 'SV' && !outsideMonth && "ring-[3px] ring-indigo-500 ring-offset-2 shadow-[0_0_15px_rgba(79,70,229,0.4)] z-10",
                         expedienteStatus === 'EXP' && !outsideMonth && "ring-[3px] ring-emerald-500 ring-offset-2 shadow-[0_0_15px_rgba(16,185,129,0.4)] z-10"
@@ -646,6 +669,7 @@ const MonthGrid = memo(function MonthGrid({ month, userAla, onDateSelect, mockAf
                         "z-10",
                         !outsideMonth && !isAfastamento ? "text-slate-800 text-[13px] font-bold" : "text-slate-400",
                         isWorkingDayFinal && !outsideMonth && !isAfastamento && "text-slate-900 font-black",
+                        isGrd && !outsideMonth && "text-emerald-900 font-black",
                         isAfastamento && "text-indigo-800 text-[13px] font-extrabold"
                       )}>
                         {format(day, 'd')}

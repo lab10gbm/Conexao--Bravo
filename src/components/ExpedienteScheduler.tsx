@@ -6,7 +6,7 @@ import { doc, onSnapshot, setDoc, query, collection, getDocs, deleteField } from
 import { db } from '../lib/firebase';
 import { cn, formatMilitaryName, getAlaForDate, getAlaLightColor, getAlaColor } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, Settings, CheckCircle2, User, AlertCircle, Save, CalendarRange, Table, ArrowUpDown, X, UserPlus, Trash2, List, Columns, Copy } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, CheckCircle2, User, AlertCircle, Save, CalendarRange, Table, ArrowUpDown, X, UserPlus, Trash2, List, Columns, Copy, Shield } from 'lucide-react';
 import { useMilitars } from '../contexts/MilitarContext';
 import { cleanUndefined } from "../lib/utils";
 
@@ -1338,7 +1338,11 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                       >
                                                           {isSelected && <span className="text-slate-900 mx-0.5">SV.</span>}
                                                           {isExp && <span className="text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded mx-0.5 border border-indigo-200">EXP.</span>}
-                                                          {isGrd && <span className="text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded mx-0.5 border border-emerald-200 shadow-sm text-[8px] uppercase tracking-tighter">GRD</span>}
+                                                          {isGrd && (
+                                                            <span className="text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded mx-0.5 border border-emerald-200 shadow-sm text-[8px] font-black uppercase tracking-tighter flex items-center gap-0.5">
+                                                              <Shield className="w-2 h-2 fill-emerald-500" /> GRD
+                                                            </span>
+                                                          )}
                                                       </td>
                                                   );
                                               })}
@@ -1516,6 +1520,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                           const isToday = isSameDay(day, new Date());
                           const isTargetUserSelected = activeRg && safeArr(data.selections[activeRg]).includes(dayStr);
                           const isPreferredDate = safeArr(data.selections['ESCALANTE_PREF']).includes(dayStr);
+                          const isGrd = activeRg && data.grdData?.[dayStr]?.includes(activeRg);
                           
                           // Let's identify who is working this day (for all expedientes) to show on map
                           const workersOnThisDay = Object.entries(data.selections).filter(([rg, sels]: [string, any]) => rg !== 'ESCALANTE_PREF' && Array.isArray(sels) && sels.includes(dayStr)).map(([rg, _]) => {
@@ -1555,6 +1560,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                             >
                                <div className="flex justify-between items-center sm:items-start mb-2 sm:mb-1.5">
                                    <div className="flex items-center gap-2 border-b-0 pb-0">
+                                       {isGrd && <Shield className="w-5 h-5 sm:w-4 sm:h-4 text-emerald-600 fill-emerald-100" title="Escalado de GRD" />}
                                        <span className={cn(
                                           "text-base sm:text-sm font-black text-slate-700",
                                           isTargetUserSelected && "text-indigo-700",
