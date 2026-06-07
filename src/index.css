@@ -8,6 +8,8 @@
   --color-brand-dark: #0B1D33;
   --color-brand-red: #DC2626;
   --color-bg-main: #F1F3F4;
+  
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 @layer utilities {

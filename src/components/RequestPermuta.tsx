@@ -4,7 +4,7 @@ import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/fires
 import { UserProfile, PermutaStatus, PermutaRequest } from '../types';
 import { format, isBefore, addHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { getAlaForDate, getAlaName } from '../lib/utils';
+import { getAlaForDate, getAlaName, calculateDeadline, cn } from '../lib/utils';
 import { Send, CalendarIcon, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppConfig } from '../contexts/ConfigContext';
@@ -130,8 +130,7 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
   const alaOnDateVal = selectedDateObj ? getAlaForDate(selectedDateObj) : null;
   const isDifferentAla = alaOnDateVal !== null && alaOnDateVal.toString() !== user.ala?.toString();
   
-  const minDeadline = addHours(new Date(), 48);
-  const isLate = selectedDateObj && isBefore(new Date(selectedDateObj).setHours(8, 0, 0, 0), minDeadline);
+  const isLate = selectedDateObj && !user.isAdmin && (new Date() > calculateDeadline(selectedDateObj));
   
   const isMonthOpen = React.useMemo(() => {
     if (!date) return true;
@@ -417,7 +416,7 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
                     animate={{ opacity: 1, height: 'auto' }}
                     className="space-y-2"
                   >
-                    <div className={`p-2.5 sm:p-4 rounded border-2 text-[8px] sm:text-[10px] font-black leading-tight uppercase ${isDifferentAla ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : 'bg-emerald-50 border-emerald-100 text-emerald-700'}`}>
+                    <div className={cn("p-2.5 sm:p-4 rounded border-2 text-[8px] sm:text-[10px] font-black leading-tight uppercase", isDifferentAla ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : 'bg-emerald-50 border-emerald-100 text-emerald-700')}>
                       DATA ({format(selectedDateObj, 'dd/MM')}) É DA {getAlaName(alaOnDateVal!)}.
                       {isDifferentAla ? (
                          <> VOCÊ É {typeof user.ala === 'string' && (user.ala.toUpperCase() === 'EXP' || user.ala.toUpperCase() === 'EXPEDIENTE' || user.ala.toUpperCase() === 'ESCALANTE') ? user.ala.toUpperCase() : getAlaName(user.ala)}, SUGERIMOS QUE VOCÊ <span className="underline">ENTRE</span>.</>
@@ -426,8 +425,9 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
                       )}
                     </div>
                     {isLate && (
-                      <div className="bg-red-50 border-2 border-red-200 p-2.5 sm:p-4 rounded text-red-700 text-[8px] sm:text-[10px] font-black leading-tight uppercase">
-                        FORA DO PRAZO (48H).
+                      <div className="bg-red-50 border-2 border-red-200 p-2.5 sm:p-4 rounded text-red-700 text-[8px] sm:text-[10px] font-black leading-tight uppercase flex flex-col gap-1">
+                        <span>FORA DO PRAZO DE REQUISIÇÃO.</span>
+                        <span className="text-[7px] opacity-70">O prazo encerrou em: {format(calculateDeadline(selectedDateObj), 'dd/MM HH:mm')}</span>
                       </div>
                     )}
                   </motion.div>

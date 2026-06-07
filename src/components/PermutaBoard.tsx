@@ -136,6 +136,13 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
     if (!signPermuta?.id) return;
     
     try {
+      const dateObj = new Date(signPermuta.date + 'T00:00:00');
+      if (!user.isAdmin && new Date() > calculateDeadline(dateObj)) {
+        alert("O prazo para assinatura desta permuta expirou.");
+        setSignPermuta(null);
+        return;
+      }
+
       const isRequester = user?.rg && (signPermuta.requesterRg === user.rg);
       const isSubstitute = user?.rg && (signPermuta.substituteRg === user.rg);
 
@@ -165,6 +172,13 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
 
   const handleFillVacancy = async (permuta: PermutaRequest, role: 'requester' | 'substitute') => {
     if (!permuta.id || !user?.rg) return;
+
+    const dateObj = new Date(permuta.date + 'T00:00:00');
+    if (!user.isAdmin && new Date() > calculateDeadline(dateObj)) {
+       alert("O prazo para preenchimento de vaga nesta permuta já expirou.");
+       return;
+    }
+
     if (permuta.requesterRg === user.rg || permuta.substituteRg === user.rg) {
        alert("Você não pode se inscrever na sua própria permuta.");
        return;
@@ -241,14 +255,22 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
   const confirmCancel = async () => {
     if (!cancelPermuta?.id) return;
     try {
+      const dateObj = new Date(cancelPermuta.date + 'T00:00:00');
+      if (!user.isAdmin && new Date() > calculateDeadline(dateObj)) {
+        alert("O prazo para cancelamento desta permuta já expirou.");
+        setCancelPermuta(null);
+        return;
+      }
+
       await updateDoc(doc(db, 'permutas', cancelPermuta.id), cleanUndefined({
               status: PermutaStatus.CANCELLED,
+              cancelledByRg: user.rg,
               updatedAt: serverTimestamp()
             })).catch(error => {
         handleFirestoreError(error, OperationType.UPDATE, `permutas/${cancelPermuta.id}`);
       });
       setPermutas(prev => prev.map(p => 
-        p.id === cancelPermuta.id ? { ...p, status: PermutaStatus.CANCELLED } : p
+        p.id === cancelPermuta.id ? { ...p, status: PermutaStatus.CANCELLED, cancelledByRg: user.rg } : p
       ));
       setCancelPermuta(null);
     } catch (error) {
@@ -696,7 +718,14 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
                             <div className="flex items-center justify-center w-full h-full min-h-[32px]">
                                {(isRequester || isSubstitute || isEscalante) && permuta.status !== 'cancelled' ? (
                                  <button 
-                                   onClick={() => setCancelPermuta(permuta)}
+                                   onClick={() => {
+                                     const dateObj = new Date(permuta.date + 'T00:00:00');
+                                     if (!user.isAdmin && new Date() > calculateDeadline(dateObj)) {
+                                       alert("O prazo para cancelamento desta permuta expirou.");
+                                       return;
+                                     }
+                                     setCancelPermuta(permuta);
+                                   }}
                                    className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center hover:bg-red-200 rounded-full transition-colors group mx-auto"
                                    title="Cancelar Permuta"
                                  >
@@ -764,7 +793,14 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
                          <td className="border-r border-slate-300 p-1 text-center px-2 align-middle">
                            {isMyTurnToSign && permuta.status !== 'cancelled' ? (
                              <button
-                               onClick={() => setSignPermuta(permuta)}
+                               onClick={() => {
+                                 const dateObj = new Date(permuta.date + 'T00:00:00');
+                                 if (!user.isAdmin && new Date() > calculateDeadline(dateObj)) {
+                                   alert("O prazo para assinatura desta permuta expirou.");
+                                   return;
+                                 }
+                                 setSignPermuta(permuta);
+                               }}
                                className="bg-indigo-600 w-full text-white px-2 py-1.5 rounded-[4px] text-[9px] font-black hover:bg-emerald-600 transition-all shadow-md active:scale-95 uppercase tracking-widest flex items-center justify-center gap-1"
                              >
                                <PenTool className="w-3 h-3" /> Assinar

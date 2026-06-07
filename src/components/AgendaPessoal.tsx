@@ -44,6 +44,7 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
   const [personalTodos, setPersonalTodos] = useState<{ date: Date, id: string }[]>([]);
   const [institutionalEvents, setInstitutionalEvents] = useState<{ date: Date, title: string }[]>([]);
   const [userPermutas, setUserPermutas] = useState<{ date: Date, type: string, status: string }[]>([]);
+  const [expedienteDays, setExpedienteDays] = useState<Record<string, 'SV' | 'EXP'>>({});
   
   // Local state for future permuta requests
   const [isPermutaModalOpen, setIsPermutaModalOpen] = useState(false);
@@ -126,6 +127,58 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
     });
     setInstitutionalEvents(events);
   }, [avisos]);
+  
+  useEffect(() => {
+    if (!user?.rg) return;
+    
+    const obm = obmContext || user.obm || '10º GBM';
+    const normalizedObm = obm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+    const rawRg = String(user.rg).trim();
+    
+    const currentYear = new Date().getFullYear();
+    const unsubscribes: (() => void)[] = [];
+    
+    const normalizeRg = (rg: string | number) => {
+        const str = (rg || '').toString().trim().toUpperCase();
+        const clean = str.replace(/[^A-Z0-9]/g, '');
+        return clean.replace(/^0+/, '') || clean;
+    };
+    const userRgEscaped = normalizeRg(user.rg);
+    
+    // Fetch for the 12 months of the current year
+    for (let i = 0; i < 12; i++) {
+        const monthKey = `${currentYear}-${String(i + 1).padStart(2, '0')}`;
+        const docRef = doc(db, `expediente_${normalizedObm}`, monthKey);
+        
+        const unsub = onSnapshot(docRef, (snapshot) => {
+            if (snapshot.exists()) {
+                const data = snapshot.data();
+                const selections = data.selections || {};
+                const exp = data.expedienteDays || {};
+                
+                setExpedienteDays(prev => {
+                    const updated = { ...prev };
+                    
+                    // Flexible RG matching
+                    const matchedKeys = Object.keys(selections).filter(k => normalizeRg(k) === userRgEscaped);
+                    const matchedExpKeys = Object.keys(exp).filter(k => normalizeRg(k) === userRgEscaped);
+                    
+                    matchedKeys.forEach(key => {
+                       (selections[key] || []).forEach((d: string) => { updated[d] = 'SV'; });
+                    });
+                    matchedExpKeys.forEach(key => {
+                       (exp[key] || []).forEach((d: string) => { updated[d] = 'EXP'; });
+                    });
+                    
+                    return updated;
+                });
+            }
+        });
+        unsubscribes.push(unsub);
+    }
+    
+    return () => unsubscribes.forEach(u => u());
+  }, [user.rg, user.obm, obmContext]);
 
   const { servicosRestantes, totalServicos, folgasRestantes, totalFolgas, allYearServices } = useMemo(() => {
     let servicosTotais = 0;
@@ -364,6 +417,7 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
                                                   mockAfastamentos={MOCK_AFASTAMENTOS}
                                                   mockLembretes={personalTodos}
                                                   mockPermutas={userPermutas}
+                                                  expedienteDays={expedienteDays}
                                                   institutionalEvents={institutionalEvents}
                                                   isOpenMonth={isOpen}
                                                   showOnlyMyServices={showOnlyMyServices}
@@ -397,6 +451,7 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
                                     mockAfastamentos={MOCK_AFASTAMENTOS}
                                     mockLembretes={personalTodos}
                                     mockPermutas={userPermutas}
+                                    expedienteDays={expedienteDays}
                                     institutionalEvents={institutionalEvents}
                                     isOpenMonth={isOpen}
                                     showOnlyMyServices={showOnlyMyServices}
@@ -460,13 +515,14 @@ interface MonthGridProps {
   mockAfastamentos: any[];
   mockLembretes: any[];
   mockPermutas: any[];
+  expedienteDays?: Record<string, 'SV' | 'EXP'>;
   institutionalEvents?: { date: Date, title: string }[];
   isOpenMonth?: boolean;
   showOnlyMyServices?: boolean;
   onAgendarClick?: (date?: Date) => void;
 }
 
-const MonthGrid = memo(function MonthGrid({ month, userAla, onDateSelect, mockAfastamentos, mockLembretes, mockPermutas, institutionalEvents = [], isOpenMonth, showOnlyMyServices, onAgendarClick }: MonthGridProps) {
+const MonthGrid = memo(function MonthGrid({ month, userAla, onDateSelect, mockAfastamentos, mockLembretes, mockPermutas, expedienteDays = {}, institutionalEvents = [], isOpenMonth, showOnlyMyServices, onAgendarClick }: MonthGridProps) {
   const isPast = isBefore(endOfMonth(month), new Date());
   const [isCollapsed, setIsCollapsed] = useState(isPast); // Start collapsed if the month is past
 
@@ -553,6 +609,10 @@ const MonthGrid = memo(function MonthGrid({ month, userAla, onDateSelect, mockAf
                     }
                   });
                   
+                  const dayStr = format(day, 'yyyy-MM-dd');
+                  const expedienteStatus = expedienteDays[dayStr];
+                  if (expedienteStatus) isWorkingDay = true;
+                  
                   const isWorkingDayFinal = isWorkingDay || isAfastamento;
                   const shouldHide = showOnlyMyServices && !isWorkingDayFinal && !outsideMonth;
                   
@@ -565,7 +625,7 @@ const MonthGrid = memo(function MonthGrid({ month, userAla, onDateSelect, mockAf
                              if (!isOpenMonth && !isPast) {
                                  handleAgendarClick(e, day);
                              } else if (onDateSelect) {
-                                 onDateSelect(day, isWorkingDay);
+                                 onDateSelect(day, isWorkingDayFinal);
                              }
                          }
                       }}
@@ -576,14 +636,16 @@ const MonthGrid = memo(function MonthGrid({ month, userAla, onDateSelect, mockAf
                           : "border-transparent hover:shadow-md",
                         isToday && !outsideMonth && !shouldHide && "ring-2 ring-slate-800 ring-offset-2",
                         !outsideMonth && !isAfastamento && !shouldHide && getAlaLightColor(ala),
-                        isWorkingDay && !outsideMonth && !isAfastamento && !shouldHide && "shadow-md ring-2 ring-blue-500 ring-offset-1 flex flex-col pt-1",
-                        isAfastamento && !outsideMonth && !shouldHide && "bg-indigo-50 border-indigo-200 text-indigo-700 ring-1 ring-indigo-300"
+                        isWorkingDayFinal && !outsideMonth && !isAfastamento && !shouldHide && "shadow-md ring-2 ring-blue-500 ring-offset-1 flex flex-col pt-1",
+                        isAfastamento && !outsideMonth && !shouldHide && "bg-indigo-50 border-indigo-200 text-indigo-700 ring-1 ring-indigo-300",
+                        expedienteStatus === 'SV' && !outsideMonth && "ring-[3px] ring-indigo-500 ring-offset-2 shadow-[0_0_15px_rgba(79,70,229,0.4)] z-10",
+                        expedienteStatus === 'EXP' && !outsideMonth && "ring-[3px] ring-emerald-500 ring-offset-2 shadow-[0_0_15px_rgba(16,185,129,0.4)] z-10"
                       )}
                     >
                       <span className={cn(
                         "z-10",
                         !outsideMonth && !isAfastamento ? "text-slate-800 text-[13px] font-bold" : "text-slate-400",
-                        isWorkingDay && !outsideMonth && !isAfastamento && "text-slate-900 font-black",
+                        isWorkingDayFinal && !outsideMonth && !isAfastamento && "text-slate-900 font-black",
                         isAfastamento && "text-indigo-800 text-[13px] font-extrabold"
                       )}>
                         {format(day, 'd')}
@@ -595,8 +657,15 @@ const MonthGrid = memo(function MonthGrid({ month, userAla, onDateSelect, mockAf
 
                       {!outsideMonth && !shouldHide && (
                          <div className="flex gap-1 mt-0.5 z-10 w-full justify-center px-1">
-                            {isWorkingDay && !isAfastamento && (
-                               <span className="text-[6px] tracking-widest uppercase opacity-90 font-bold bg-black/5 text-slate-800 px-1 rounded-sm mt-0.5 inline-block truncate">Svc</span>
+                            {isWorkingDayFinal && !isAfastamento && (
+                               <span className={cn(
+                                   "text-[6px] tracking-widest uppercase opacity-90 font-bold px-1 rounded-sm mt-0.5 inline-block truncate",
+                                   expedienteStatus === 'SV' ? "bg-indigo-600 text-white" :
+                                   expedienteStatus === 'EXP' ? "bg-emerald-600 text-white" :
+                                   "bg-black/5 text-slate-800"
+                               )}>
+                                   {expedienteStatus || 'Svc'}
+                               </span>
                             )}
                             {isAfastamento && (
                                <span className="text-[6px] tracking-widest uppercase opacity-90 font-bold bg-indigo-200/50 px-1 rounded-sm text-indigo-800 inline-block truncate">Afast</span>

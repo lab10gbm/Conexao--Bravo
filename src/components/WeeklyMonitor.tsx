@@ -37,6 +37,7 @@ export function WeeklyMonitor({
   const [now, setNow] = useState(new Date());
   const [isExpanded, setIsExpanded] = useState(true);
   const [grdDays, setGrdDays] = useState<Record<string, boolean>>({});
+  const [expedienteDaysState, setExpedienteDaysState] = useState<Record<string, 'SV' | 'EXP' | null>>({});
 
   const theme = getThemeColors(user?.ala);
 
@@ -49,12 +50,15 @@ export function WeeklyMonitor({
     if (!obmContext || !user?.rg) return;
 
     const obmId = obmContext.replace(/\//g, "_").replace(/\s/g, "_");
+    const normalizedObm = obmContext.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+    
     const normalizeRg = (rg: string | number) => {
       const str = (rg || "").toString().trim().toUpperCase();
       const clean = str.replace(/[^A-Z0-9]/g, "");
       return clean.replace(/^0+/, "") || clean;
     };
     const userRgEscaped = normalizeRg(user.rg);
+    const rawRg = (user.rg || "").toString().trim();
 
     const today = startOfDay(new Date());
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(today, i));
@@ -62,7 +66,7 @@ export function WeeklyMonitor({
       new Set(weekDays.map((day) => format(day, "yyyy-MM"))),
     );
 
-    const unsubscribes = monthKeys.map((monthKey) => {
+    const unsubscribesGrd = monthKeys.map((monthKey) => {
       const docRef = doc(db, "grd_configs", `${obmId}_${monthKey}`);
       return onSnapshot(docRef, (snapshot) => {
         if (snapshot.exists()) {
@@ -84,8 +88,37 @@ export function WeeklyMonitor({
       });
     });
 
+    const unsubscribesExp = monthKeys.map((monthKey) => {
+        const docRef = doc(db, `expediente_${normalizedObm}`, monthKey);
+        return onSnapshot(docRef, (snapshot) => {
+          if (snapshot.exists()) {
+            const data = snapshot.data();
+            const selections = data.selections || {};
+            const expDays = data.expedienteDays || {};
+            
+            setExpedienteDaysState((prev) => {
+              const updated = { ...prev };
+              
+              // Flexible RG matching
+              const matchedKeys = Object.keys(selections).filter(k => normalizeRg(k) === userRgEscaped);
+              const matchedExpKeys = Object.keys(expDays).filter(k => normalizeRg(k) === userRgEscaped);
+              
+              matchedKeys.forEach(key => {
+                 (selections[key] || []).forEach((d: string) => { updated[d] = 'SV'; });
+              });
+              matchedExpKeys.forEach(key => {
+                 (expDays[key] || []).forEach((d: string) => { updated[d] = 'EXP'; });
+              });
+              
+              return updated;
+            });
+          }
+        });
+      });
+
     return () => {
-      unsubscribes.forEach((unsub) => unsub());
+      unsubscribesGrd.forEach((unsub) => unsub());
+      unsubscribesExp.forEach((unsub) => unsub());
     };
   }, [obmContext, user?.rg]);
 
@@ -207,6 +240,7 @@ export function WeeklyMonitor({
                 const isToday = i === 0;
                 const dateStr = format(day, "yyyy-MM-dd");
                 const isGrd = grdDays[dateStr];
+                const expedienteStatus = expedienteDaysState[dateStr];
 
                 const deadline = calculateDeadline(day);
                 const status = getStatus(deadline);
@@ -221,6 +255,7 @@ export function WeeklyMonitor({
                         "border rounded-xl shadow-sm flex flex-col items-center justify-center p-2 w-[52px] sm:w-[64px] shrink-0 relative cursor-not-allowed",
                         theme.borderInner,
                         theme.panel,
+                        expedienteStatus ? "ring-1 ring-blue-400" : ""
                       )}
                     >
                       <span className="text-base sm:text-lg font-black leading-none mt-1 opacity-50">
@@ -229,6 +264,11 @@ export function WeeklyMonitor({
                       <span className="text-[9px] font-bold uppercase tracking-widest mt-1 opacity-40">
                         {format(day, "MMM", { locale: ptBR })}
                       </span>
+                      {expedienteStatus && (
+                        <div className="absolute top-1 left-1 bg-blue-500 rounded px-1 py-0.5">
+                           <span className="text-[6px] font-black text-white">{expedienteStatus}</span>
+                        </div>
+                      )}
                       <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full shadow-sm ring-1 ring-slate-200 z-10 w-4 h-4 flex items-center justify-center opacity-80">
                         <AlertTriangle className="w-2.5 h-2.5 text-red-500" />
                       </div>
@@ -245,6 +285,8 @@ export function WeeklyMonitor({
                       "border rounded-xl shadow-sm flex flex-col items-center p-1.5 sm:p-2 flex-1 min-w-[70px] sm:min-w-[80px] shrink-0 relative cursor-pointer hover:opacity-90 transition-opacity",
                       getAlaCardColor(ala),
                       isToday ? "ring-2 ring-blue-500 ring-offset-1" : "",
+                      expedienteStatus === 'SV' ? "ring-[3px] ring-indigo-500 ring-offset-1 shadow-[0_0_15px_rgba(79,70,229,0.4)]" : 
+                      expedienteStatus === 'EXP' ? "ring-[3px] ring-emerald-500 ring-offset-1 shadow-[0_0_15px_rgba(16,185,129,0.4)]" : ""
                     )}
                   >
                     {isGrd && (
@@ -254,6 +296,18 @@ export function WeeklyMonitor({
                         </div>
                       </div>
                     )}
+
+                    <div className="flex items-center justify-between w-full z-10">
+                         {expedienteStatus && (
+                            <div className={cn(
+                                "rounded px-1.5 py-0.5 shadow-sm",
+                                expedienteStatus === 'SV' ? "bg-indigo-600 text-white" : "bg-emerald-600 text-white"
+                            )}>
+                                <span className="text-[7px] font-black">{expedienteStatus}</span>
+                            </div>
+                         )}
+                         <div className="flex-1" />
+                    </div>
 
                     <span
                       className={cn(

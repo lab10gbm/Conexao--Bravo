@@ -261,11 +261,15 @@ export function MonthDetail({ month, userAla, obmContext, userRg, onDateSelect }
   const weekdays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
   const [grdDays, setGrdDays] = useState<Record<string, boolean>>({});
+  const [expedienteDays, setExpedienteDays] = useState<Record<string, 'SV' | 'EXP'>>({});
 
   useEffect(() => {
     if (!obmContext || !userRg) return;
 
     const obmId = obmContext.replace(/\//g, '_').replace(/\s/g, '_');
+    const normalizedObm = obmContext.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+    const rawRg = String(userRg).trim();
+    
     const normalizeRg = (rg: string | number) => {
         const str = (rg || '').toString().trim().toUpperCase();
         const clean = str.replace(/[^A-Z0-9]/g, '');
@@ -275,9 +279,9 @@ export function MonthDetail({ month, userAla, obmContext, userRg, onDateSelect }
 
     // We only need the month's key
     const monthKey = format(month, 'yyyy-MM');
+    
     const docRef = doc(db, 'grd_configs', `${obmId}_${monthKey}`);
-
-    const unsub = onSnapshot(docRef, (snapshot) => {
+    const unsubGrd = onSnapshot(docRef, (snapshot) => {
        if (snapshot.exists()) {
            const daysData = snapshot.data().days || {};
            setGrdDays(prev => {
@@ -292,7 +296,36 @@ export function MonthDetail({ month, userAla, obmContext, userRg, onDateSelect }
        }
     });
 
-    return () => unsub();
+    const expDocRef = doc(db, `expediente_${normalizedObm}`, monthKey);
+    const unsubExp = onSnapshot(expDocRef, (snapshot) => {
+        if (snapshot.exists()) {
+            const data = snapshot.data();
+            const selections = data.selections || {};
+            const exp = data.expedienteDays || {};
+            
+            setExpedienteDays(prev => {
+                const updated = { ...prev };
+                
+                // Flexible RG matching
+                const matchedKeys = Object.keys(selections).filter(k => normalizeRg(k) === userRgEscaped);
+                const matchedExpKeys = Object.keys(exp).filter(k => normalizeRg(k) === userRgEscaped);
+                
+                matchedKeys.forEach(key => {
+                   (selections[key] || []).forEach((d: string) => { updated[d] = 'SV'; });
+                });
+                matchedExpKeys.forEach(key => {
+                   (exp[key] || []).forEach((d: string) => { updated[d] = 'EXP'; });
+                });
+                
+                return updated;
+            });
+        }
+    });
+
+    return () => {
+        unsubGrd();
+        unsubExp();
+    };
   }, [obmContext, userRg, month]);
 
   return (
@@ -318,6 +351,7 @@ export function MonthDetail({ month, userAla, obmContext, userRg, onDateSelect }
             const isMyAla = userAla && ala.toString() === userAla.toString();
             const dateStr = format(day, 'yyyy-MM-dd');
             const isGrd = grdDays[dateStr];
+            const expedienteStatus = expedienteDays[dateStr];
             
             return (
               <motion.div 
@@ -327,11 +361,17 @@ export function MonthDetail({ month, userAla, obmContext, userRg, onDateSelect }
                 className={cn(
                   "relative aspect-square flex flex-col items-center justify-center rounded-lg text-[11px] sm:text-xs font-mono font-bold transition-all cursor-pointer border-2",
                   outsideMonth ? "opacity-0 pointer-events-none" : getAlaBg(ala),
-                  isMyAla && !outsideMonth && "ring-4 ring-amber-400 ring-opacity-20 shadow-[0_0_15px_rgba(251,191,36,0.5)] z-10 border-amber-200"
+                  isMyAla && !outsideMonth && !expedienteStatus && "ring-4 ring-amber-400 ring-opacity-20 shadow-[0_0_15px_rgba(251,191,36,0.5)] z-10 border-amber-200",
+                  expedienteStatus === 'SV' && !outsideMonth && "ring-[5px] ring-indigo-500 ring-opacity-50 shadow-[0_0_20px_rgba(79,70,229,0.5)] z-20 border-indigo-400 bg-indigo-50/50",
+                  expedienteStatus === 'EXP' && !outsideMonth && "ring-[5px] ring-emerald-500 ring-opacity-50 shadow-[0_0_20px_rgba(16,185,129,0.5)] z-20 border-emerald-400 bg-emerald-50/50"
                 )}
               >
-                {isMyAla && !outsideMonth && (
-                   <div className="absolute inset-0 bg-white/20 rounded-lg animate-pulse" />
+                {(isMyAla || expedienteStatus) && !outsideMonth && (
+                   <div className={cn(
+                       "absolute inset-0 rounded-lg animate-pulse-slow",
+                       expedienteStatus === 'SV' ? "bg-indigo-500/20" : 
+                       expedienteStatus === 'EXP' ? "bg-emerald-500/20" : "bg-white/20"
+                   )} />
                 )}
 
                 {/* Shield background if user is in GRD */}
@@ -343,14 +383,31 @@ export function MonthDetail({ month, userAla, obmContext, userRg, onDateSelect }
                 
                 <span className={cn(
                   "z-10",
-                  !outsideMonth ? (isMyAla ? "text-slate-900 font-black" : "text-slate-600") : "text-slate-400",
-                  isGrd && !outsideMonth ? "text-indigo-900" : ""
+                  !outsideMonth ? ( (isMyAla || expedienteStatus) ? "text-slate-900 font-black" : "text-slate-600") : "text-slate-400",
+                  isGrd && !outsideMonth ? "text-indigo-900" : "",
+                  expedienteStatus === 'SV' ? "text-indigo-900" : "",
+                  expedienteStatus === 'EXP' ? "text-emerald-900" : ""
                 )}>
                   {format(day, 'd')}
                 </span>
                 
                 {!outsideMonth && (
-                  <div className={cn("mt-1.5 w-1.5 h-1.5 rounded-full z-10", getAlaColor(ala), isGrd ? "bg-indigo-600" : "")} />
+                  <div className={cn(
+                      "mt-1.5 w-1.5 h-1.5 rounded-full z-10", 
+                      getAlaColor(ala), 
+                      isGrd ? "bg-indigo-600" : "",
+                      expedienteStatus === 'SV' ? "bg-indigo-600" :
+                      expedienteStatus === 'EXP' ? "bg-emerald-600" : ""
+                  )} />
+                )}
+
+                {expedienteStatus && !outsideMonth && (
+                    <div className={cn(
+                        "absolute top-0.5 left-0.5 px-1 rounded-[2px] z-30",
+                        expedienteStatus === 'SV' ? "bg-indigo-600" : "bg-emerald-600"
+                    )}>
+                        <span className="text-[6px] font-black text-white leading-none">{expedienteStatus}</span>
+                    </div>
                 )}
                 
                 {isToday && (

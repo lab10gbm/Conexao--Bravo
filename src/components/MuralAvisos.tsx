@@ -43,17 +43,8 @@ export function MuralAvisos({ isAdminOrEscalante, userName }: MuralAvisosProps) 
       transition={{ duration: 0.5, ease: "easeOut" }}
       className="bg-blue-50 border-l-4 border-blue-600 rounded-r-xl p-4 shadow-sm flex flex-col gap-3"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <div className="bg-blue-200 text-blue-700 p-2 rounded-lg shrink-0">
-            <Megaphone className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="font-black text-blue-900 text-sm uppercase tracking-widest mb-1">Mural de Avisos & Prazos</h3>
-            <p className="text-xs text-blue-800 font-medium mb-1">Avisos e eventos institucionais para todos.</p>
-          </div>
-        </div>
-        {isAdminOrEscalante && (
+      {isAdminOrEscalante && (
+        <div className="flex justify-end">
           <button 
             onClick={() => setIsAdding(!isAdding)}
             className="flex items-center gap-1 bg-blue-600 text-white px-2 py-1.5 rounded text-[10px] uppercase font-black tracking-widest hover:bg-blue-700 transition"
@@ -61,8 +52,8 @@ export function MuralAvisos({ isAdminOrEscalante, userName }: MuralAvisosProps) 
              {isAdding ? <X className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
              {isAdding ? 'Cancelar' : 'Novo Evento/Aviso'}
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       <AnimatePresence>
         {isAdding && isAdminOrEscalante && (
@@ -103,7 +94,7 @@ export function MuralAvisos({ isAdminOrEscalante, userName }: MuralAvisosProps) 
         )}
       </AnimatePresence>
 
-      <ul className="text-sm text-blue-900 space-y-2 mt-2">
+      <ul className="text-sm text-blue-900 space-y-2">
         {avisos.length === 0 && !isAdding && (
           <motion.li initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-blue-600 italic">Nenhum aviso no momento.</motion.li>
         )}

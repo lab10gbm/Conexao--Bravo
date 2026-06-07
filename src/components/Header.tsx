@@ -521,7 +521,6 @@ export function Header({
                           )}
                           title="Habilitar/Desabilitar Modo Moderador"
                         >
-                          <Shield className={cn("w-3.5 h-3.5", adminModeActive ? "animate-pulse" : "")} />
                           MODERADOR: {adminModeActive ? "ATIVO" : "INATIVO"}
                         </button>
                       );
@@ -529,7 +528,6 @@ export function Header({
                     
                     return (
                       <span className="bg-amber-100 text-amber-700 text-[8px] sm:text-[10px] font-black px-2 py-1 rounded flex items-center gap-1 border border-amber-200">
-                        <Shield className="w-3 h-3 sm:w-4 sm:h-4" />
                         MODERADOR
                       </span>
                     );
@@ -1060,7 +1058,9 @@ export function Header({
                                   ? `Decisão por: Escalante (${n.acceptedById || ""})`
                                   : n.status === PermutaStatus.SCHEDULED
                                     ? `Área de Permutas Futuras`
-                                    : `Cancelado por: Usuário`}
+                                    : n.status === PermutaStatus.CANCELLED
+                                      ? `Cancelado por RG: ${n.cancelledByRg || "USUÁRIO"}`
+                                      : `Cancelado por: Usuário`}
                               </div>
                             </div>
                           </div>

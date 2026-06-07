@@ -118,6 +118,7 @@ export interface PermutaRequest {
   status: PermutaStatus;
   acceptedById?: string;
   acceptedByName?: string;
+  cancelledByRg?: string;
   archived?: boolean;
   createdAt: number;
   updatedAt: number;
