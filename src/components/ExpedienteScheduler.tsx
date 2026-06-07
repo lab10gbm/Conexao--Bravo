@@ -1237,7 +1237,12 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                             const dayNum = format(day, 'dd');
                             const selectedUsers = expedienteUsers
                                 .filter(u => u.rg !== 'ESCALANTE_PREF' && safeArr(data.selections[u.rg || u.uid]).includes(dayStr))
-                                .map(u => formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name))
+                                .map(u => {
+                                    const rg = u.rg || u.uid;
+                                    const isGrd = data.grdData?.[dayStr]?.includes(rg);
+                                    const name = formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name);
+                                    return isGrd ? `${name} (🛡️ GRD)` : name;
+                                })
                                 .join(' / ');
                                 
                             return (
@@ -1523,21 +1528,31 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                           const isGrd = activeRg && data.grdData?.[dayStr]?.includes(activeRg);
                           
                           // Let's identify who is working this day (for all expedientes) to show on map
-                          const workersOnThisDay = Object.entries(data.selections).filter(([rg, sels]: [string, any]) => rg !== 'ESCALANTE_PREF' && Array.isArray(sels) && sels.includes(dayStr)).map(([rg, _]) => {
+                          const workersOnThisDay = Object.entries(data.selections)
+                            .filter(([rg, sels]: [string, any]) => rg !== 'ESCALANTE_PREF' && Array.isArray(sels) && sels.includes(dayStr))
+                            .map(([rg, _]) => {
                                const found = expedienteUsers.find(u => u.rg === rg);
                                if (found) {
-                                  return found.rank ? `${found.rank} ${found.warName || found.name.split(' ')[0]}` : found.name;
+                                  return {
+                                    name: found.rank ? `${found.rank} ${found.warName || found.name.split(' ')[0]}` : found.name,
+                                    isGrd: data.grdData?.[dayStr]?.includes(rg)
+                                  };
                                }
                                return null;
-                          }).filter(Boolean) as string[];
+                            }).filter(Boolean) as { name: string, isGrd: boolean }[];
 
-                          const expWorkersOnThisDay = Object.entries(data.expedienteDays || {}).filter(([rg, sels]: [string, any]) => rg !== 'ESCALANTE_PREF' && Array.isArray(sels) && sels.includes(dayStr)).map(([rg, _]) => {
+                          const expWorkersOnThisDay = Object.entries(data.expedienteDays || {})
+                            .filter(([rg, sels]: [string, any]) => rg !== 'ESCALANTE_PREF' && Array.isArray(sels) && sels.includes(dayStr))
+                            .map(([rg, _]) => {
                                const found = expedienteUsers.find(u => u.rg === rg);
                                if (found) {
-                                  return found.rank ? `${found.rank} ${found.warName || found.name.split(' ')[0]}` : found.name;
+                                  return {
+                                    name: found.rank ? `${found.rank} ${found.warName || found.name.split(' ')[0]}` : found.name,
+                                    isGrd: data.grdData?.[dayStr]?.includes(rg)
+                                  };
                                }
                                return null;
-                          }).filter(Boolean) as string[];
+                            }).filter(Boolean) as { name: string, isGrd: boolean }[];
                           
                           const alaOfDay = getAlaForDate(day);
                           const alaLightColorClass = getAlaLightColor(alaOfDay);
@@ -1560,7 +1575,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                             >
                                <div className="flex justify-between items-center sm:items-start mb-2 sm:mb-1.5">
                                    <div className="flex items-center gap-2 border-b-0 pb-0">
-                                       {isGrd && <Shield className="w-5 h-5 sm:w-4 sm:h-4 text-emerald-600 fill-emerald-100" title="Escalado de GRD" />}
+                                       {isGrd && <Shield className="w-5 h-5 sm:w-4 sm:h-4 text-emerald-600 fill-emerald-100" />}
                                        <span className={cn(
                                           "text-base sm:text-sm font-black text-slate-700",
                                           isTargetUserSelected && "text-indigo-700",
@@ -1596,12 +1611,13 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
 
                                       {workersOnThisDay.length > 0 && (
                                           <div className="flex flex-row sm:flex-col flex-wrap gap-1.5 sm:gap-1 sm:mt-1 border-t sm:border-t-0 border-slate-100 pt-2 sm:pt-0 w-full min-w-0 overflow-hidden">
-                                              {workersOnThisDay.map((name, i) => (
+                                              {workersOnThisDay.map((w, i) => (
                                                  <span key={i} className={cn(
-                                                     "text-[10px] sm:text-[9px] font-black bg-slate-800 text-white px-2 py-1 sm:px-1.5 sm:py-1 rounded-[4px] uppercase truncate leading-none cursor-help max-w-full inline-block",
+                                                     "text-[10px] sm:text-[9px] font-black bg-slate-800 text-white px-2 py-1 sm:px-1.5 sm:py-1 rounded-[4px] uppercase truncate leading-none cursor-help max-w-full inline-flex items-center gap-1",
                                                      i >= 5 ? "hidden" : ""
-                                                 )} title={name}>
-                                                    {formatMilitaryName(name)}
+                                                 )} title={w.name}>
+                                                    {w.isGrd && <Shield className="w-2 h-2 text-emerald-400 fill-emerald-400" />}
+                                                    <span className="truncate">{formatMilitaryName(w.name)}</span>
                                                  </span>
                                               ))}
                                               {workersOnThisDay.length > 5 && (

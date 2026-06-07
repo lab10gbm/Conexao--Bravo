@@ -112,7 +112,13 @@ export function MuralAvisos({ isAdminOrEscalante, userName }: MuralAvisosProps) 
             <div className="flex-1 w-full overflow-hidden">
                {aviso.eventDate && (
                  <span className="inline-block px-1.5 py-0.5 mb-1 bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-black uppercase tracking-widest rounded">
-                    Evento: {format(new Date(aviso.eventDate + 'T12:00:00'), 'dd/MM/yyyy')}
+                    Evento: {(() => {
+                      try {
+                        return format(new Date(aviso.eventDate + 'T12:00:00'), 'dd/MM/yyyy');
+                      } catch (e) {
+                        return aviso.eventDate;
+                      }
+                    })()}
                  </span>
                )}
                <p className="whitespace-pre-wrap break-words">{aviso.texto}</p>

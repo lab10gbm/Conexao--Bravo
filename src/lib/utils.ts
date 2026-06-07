@@ -3,6 +3,19 @@ import { twMerge } from 'tailwind-merge';
 import { getDay, subDays, addDays } from 'date-fns';
 import { OBM_HIERARCHY } from '../constants';
 
+export function normalizeObm(obm?: string): string {
+  if (!obm) return '10º GBM';
+  const clean = obm.toString().trim().toUpperCase();
+  
+  const sede10Variations = ['10', '10º', '10 GBM', '10º GBM', '10ºGBM', '10GBM', 'OBM', '10º GBM - SEDE', '10º GBM SEDE', '10 GBM SEDE', '10º GBM-SEDE'];
+  if (sede10Variations.includes(clean)) return '10º GBM';
+  
+  const sede26Variations = ['26', '26º', '26 GBM', '26º GBM', '26ºGBM', '26GBM', '26º GBM - SEDE'];
+  if (sede26Variations.includes(clean)) return '26º GBM';
+  
+  return clean;
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }

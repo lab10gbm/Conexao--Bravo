@@ -3,7 +3,7 @@ import { collection, getDocs, getDoc, doc } from 'firebase/firestore';
 
 export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
   app.get('/api/militar', async (req, res) => {
-    const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, OBM_HIERARCHY, admin, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
+    const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, normalizeObm, OBM_HIERARCHY, admin, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
     const requesterRg = req.query.rg as string;
     let usersData: any[] = [];
     
@@ -28,18 +28,21 @@ export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
               snap.forEach((d: any) => usersData.push(d.data()));
             } else {
               const userObm = requester.obm || '';
-              const allowedSet = new Set<string>();
-              (OBM_HIERARCHY[userObm] || [userObm]).forEach((o: string) => allowedSet.add(o));
-              if (requester.adminObms) requester.adminObms.forEach((o: string) => allowedSet.add(o));
-              if (requester.escalanteObms) requester.escalanteObms.forEach((o: string) => allowedSet.add(o));
+              const allowedSetCount = new Set<string>();
+              (OBM_HIERARCHY[userObm] || [userObm]).forEach((o: string) => allowedSetCount.add(o));
+              if (requester.adminObms) requester.adminObms.forEach((o: string) => allowedSetCount.add(o));
+              if (requester.escalanteObms) requester.escalanteObms.forEach((o: string) => allowedSetCount.add(o));
               
-              const allowedObms = Array.from(allowedSet).filter(Boolean);
+              const allowedObms = Array.from(allowedSetCount).filter(Boolean);
+              const allowedObmsNormalized = allowedObms.map(o => normalizeObm(o));
               
-              // Fallback to fetch all and filter in memory since query logic is complex
               const snap = await db.collection('militaries').get();
               snap.forEach((d: any) => {
                  const dat = d.data();
-                 if (allowedObms.includes(dat.obm) || allowedObms.includes(dat.lentTo) || allowedObms.length === 0) {
+                 const datObmNorm = normalizeObm(dat.obm);
+                 const datLentToNorm = normalizeObm(dat.lentTo);
+                 
+                 if (allowedObmsNormalized.includes(datObmNorm) || allowedObmsNormalized.includes(datLentToNorm) || allowedObms.length === 0) {
                    usersData.push(dat);
                  }
               });
@@ -60,13 +63,13 @@ export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
           const requester = militaryCache.get(normalizeRg(requesterRg));
           if (requester && !requester.isAdmin) {
              const userObm = requester.obm || '';
-             const allowedSet = new Set<string>();
-             (OBM_HIERARCHY[userObm] || [userObm]).forEach(o => allowedSet.add(o));
-             if (requester.adminObms) requester.adminObms.forEach((o: string) => allowedSet.add(o));
-             if (requester.escalanteObms) requester.escalanteObms.forEach((o: string) => allowedSet.add(o));
+             const allowedSetCount = new Set<string>();
+             (OBM_HIERARCHY[userObm] || [userObm]).forEach(o => allowedSetCount.add(o));
+             if (requester.adminObms) requester.adminObms.forEach((o: string) => allowedSetCount.add(o));
+             if (requester.escalanteObms) requester.escalanteObms.forEach((o: string) => allowedSetCount.add(o));
              
-             const allowedObms = Array.from(allowedSet);
-             usersData = usersData.filter(u => allowedObms.includes(u.obm || '') || allowedObms.includes(u.lentTo || ''));
+             const allowedObmsNormalized = Array.from(allowedSetCount).map(o => normalizeObm(o));
+             usersData = usersData.filter(u => allowedObmsNormalized.includes(normalizeObm(u.obm)) || allowedObmsNormalized.includes(normalizeObm(u.lentTo)));
           }
        }
     }

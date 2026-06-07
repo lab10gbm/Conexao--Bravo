@@ -2,6 +2,7 @@ import React from 'react';
 import { UserProfile } from '../types';
 import { Building2, Maximize2, Minimize2, Shield } from 'lucide-react';
 import { RankInsignia } from './RankInsignia';
+import { normalizeObm } from '../lib/utils';
 
 interface EfetivoTableObmModeProps {
   currentGroups: any[];
@@ -37,7 +38,7 @@ export function EfetivoTableObmMode({
     const matchesSearch = (m.name?.toLowerCase().includes(term) || m.warName?.toLowerCase().includes(term) || m.rg?.includes(term));
     const matchesPosto = filters.filterPostoGrad.length === 0 || filters.filterPostoGrad.includes(m.rank || '');
     const matchesQuadro = filters.filterQuadro.length === 0 || filters.filterQuadro.includes(m.quadro || '');
-    const matchesObm = filters.filterObm.length === 0 || filters.filterObm.includes(m.obm ? m.obm : '10º GBM');
+    const matchesObm = filters.filterObm.length === 0 || filters.filterObm.includes(normalizeObm(m.obm));
     const matchesAla = filters.filterAla.length === 0 || filters.filterAla.includes(m.ala?.toString() || '');
     const matchesCidade = filters.filterCidade.length === 0 || filters.filterCidade.includes(m.cidade || '');
     const matchesSituacao = filters.filterSituacao.length === 0 || filters.filterSituacao.includes(m.situacao || '');
@@ -137,7 +138,8 @@ export function EfetivoTableObmMode({
                                }
                                let val = m[col.id as keyof UserProfile] as string;
                                if (['quadro', 'ala', 'obm', 'situacao'].includes(col.id)) {
-                                  return <td key={col.id} className="p-1 sm:p-2 px-2 sm:px-4 text-[9px] sm:text-[11px] font-bold text-slate-500 uppercase">{val || '-'}</td>;
+                                  const displayVal = col.id === 'obm' ? normalizeObm(val) : val;
+                                  return <td key={col.id} className="p-1 sm:p-2 px-2 sm:px-4 text-[9px] sm:text-[11px] font-bold text-slate-500 uppercase">{displayVal || '-'}</td>;
                                }
                                return <td key={col.id} className="p-1 sm:p-2 px-2 sm:px-4 text-[9px] sm:text-[11px] text-slate-800">{val || '-'}</td>;
                              })}

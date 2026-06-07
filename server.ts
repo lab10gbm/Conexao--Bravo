@@ -342,13 +342,14 @@ async function startServer() {
         warName: 'BERNARDO',
         rank: 'SOLDADO',
         ala: '1',
-        obm: '10 GBM',
+        obm: '10º GBM',
         isAdmin: true,
         isEscalante: true,
         birthDate: '11/06/1998'
       };
       militaryCache.set('54444', adminProfile);
     } else {
+      adminProfile.obm = '10º GBM'; // Force correct OBM formatting
       adminProfile.isAdmin = true;
       adminProfile.isEscalante = true;
       militaryCache.set('54444', adminProfile);
@@ -418,12 +419,23 @@ async function startServer() {
   
   const OBM_HIERARCHY: Record<string, string[]> = {
     '10º GBM': ['10º GBM', '1/10', '2/10', '3/10', '4/10'],
+    '10 GBM': ['10º GBM', '1/10', '2/10', '3/10', '4/10'], // Alias for missing degree symbol
     '1/10': ['1/10'],
     '2/10': ['2/10'],
     '3/10': ['3/10'],
     '4/10': ['4/10'],
     '26º GBM': ['26º GBM', '1/26'],
+    '26 GBM': ['26º GBM', '1/26'],
     '1/26': ['1/26']
+  };
+
+  const normalizeObm = (obm: string) => {
+    const clean = (obm || "").toString().trim().toUpperCase();
+    const sede10Variations = ['10', '10º', '10 GBM', '10º GBM', '10ºGBM', '10GBM', 'OBM', '10º GBM - SEDE', '10º GBM SEDE', '10 GBM SEDE', '10º GBM-SEDE'];
+    if (sede10Variations.includes(clean)) return '10º GBM';
+    const sede26Variations = ['26', '26º', '26 GBM', '26º GBM', '26ºGBM', '26GBM', '26º GBM - SEDE'];
+    if (sede26Variations.includes(clean)) return '26º GBM';
+    return clean;
   };
 
   // Expose dependencies to extracted routes
@@ -433,6 +445,7 @@ async function startServer() {
     clientDb,
     militaryCache,
     normalizeRg,
+    normalizeObm,
     OBM_HIERARCHY,
     admin,
     isCacheLoaded,
@@ -717,6 +730,26 @@ async function startServer() {
        }
     }
 
+    // Try outsourced_users if not found in militaries
+    if (!userData) {
+        if (db && isDbHealthy) {
+            try {
+                const docSnap = await db.collection('outsourced_users').doc(safeRg).get();
+                if (docSnap.exists) {
+                    userData = { ...docSnap.data(), isOutsourced: true };
+                }
+            } catch (e) {}
+        }
+        if (!userData && clientDb) {
+            try {
+                const docSnap = await getDoc(doc(clientDb, 'outsourced_users', safeRg));
+                if (docSnap.exists()) {
+                    userData = { ...docSnap.data(), isOutsourced: true };
+                }
+            } catch (e) {}
+        }
+    }
+
     if (!userData) {
       userData = militaryCache.get(safeRg);
     } else {
@@ -730,7 +763,19 @@ async function startServer() {
     const cleanAttempt = (attempt || '').toString().trim();
     if (!userData) return false;
 
-    if (userData.rg === '54444' && (cleanAttempt === 'admin' || cleanAttempt === '11061998' || cleanAttempt === '11/06/1998')) {
+    // Outsourced users don't have birthdate logic normally, they use customPassword
+    if (userData.isOutsourced) {
+        const attempt = cleanAttempt;
+        const dbPass = String(userData.customPassword || '').trim();
+        
+        // Always compare using padded versions if any is < 6
+        const attemptPadded = attempt.length < 6 ? attempt.padEnd(6, '0') : attempt;
+        const dbPassPadded = dbPass.length < 6 ? dbPass.padEnd(6, '0') : dbPass;
+        
+        return attemptPadded === dbPassPadded;
+    }
+
+    if (userData.rg === '54444' && (cleanAttempt === 'admin123' || cleanAttempt === '11061998' || cleanAttempt === '11/06/1998')) {
       return true;
     }
 
@@ -752,10 +797,11 @@ async function startServer() {
   }
 
   app.post('/api/login', async (req, res) => {
-    const { rg, password } = req.body;
-    if (!rg || !password) {
+    const { rg, password: rawPassword } = req.body;
+    if (!rg || !rawPassword) {
       return res.status(400).json({ success: false, error: 'Campos obrigatórios ausentes' });
     }
+    const password = String(rawPassword).trim();
 
     const safeRg = normalizeRg(rg);
     const userData = await getFullUserData(safeRg);
@@ -781,12 +827,15 @@ async function startServer() {
 
     const profileData = {
       uid: safeRg,
-      rg: safeRg,
-      name: userData.name || "Militar",
-      rank: userData.rank || "",
+      rg: userData.isOutsourced ? null : safeRg,
+      login: userData.isOutsourced ? safeRg : null,
+      isOutsourced: !!userData.isOutsourced,
+      name: userData.name || "Usuário",
+      rank: userData.isOutsourced ? "CIVIL" : (userData.rank || ""),
       ala: userData.ala || "1",
       isAdmin: !!claims.admin,
       isEscalante: !!claims.escalante,
+      isRefeitorioAdmin: !!userData.isRefeitorioAdmin,
       adminObms: claims.adminObms,
       escalanteObms: claims.escalanteObms,
       obm: claims.obm,
@@ -797,12 +846,25 @@ async function startServer() {
     let useClientAuth = true;
     let needsClientRegistration = true;
 
+    // Firebase Auth requires at least 6 characters. Pad if necessary.
+    let effectiveAuthPassword = String(password);
+    if (effectiveAuthPassword.length < 6) {
+      effectiveAuthPassword = effectiveAuthPassword.padEnd(6, '0');
+      console.log(`[API] Padded password for ${safeRg} from ${password.length} to ${effectiveAuthPassword.length} chars`);
+    }
+    
+    if (effectiveAuthPassword.length < 6) {
+       console.error(`[API] CRITICAL: Password still too short for ${safeRg} after padding: "${effectiveAuthPassword}"`);
+    }
+
+    console.log(`[API] Login sync for ${safeRg}: raw=${password.length}chars, effective=${effectiveAuthPassword.length}chars`);
+
     // Run Firebase Auth sync in the background so it doesn't block login
     Promise.resolve().then(async () => {
        try {
          await admin.auth().updateUser(safeRg, {
            email: authEmail,
-           password: password,
+           password: effectiveAuthPassword,
          });
          await admin.auth().setCustomUserClaims(safeRg, claims);
        } catch (userErr: any) {
@@ -811,7 +873,7 @@ async function startServer() {
              await admin.auth().createUser({
                uid: safeRg,
                email: authEmail,
-               password: password,
+               password: effectiveAuthPassword,
              });
              await admin.auth().setCustomUserClaims(safeRg, claims);
            } catch (createErr: any) {
@@ -838,7 +900,7 @@ async function startServer() {
       useClientAuth,
       needsClientRegistration,
       authEmail,
-      authPassword: password
+      authPassword: effectiveAuthPassword
     });
   });
 

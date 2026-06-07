@@ -134,7 +134,6 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
     
     const obm = obmContext || user.obm || '10º GBM';
     const normalizedObm = obm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-    const rawRg = String(user.rg).trim();
     
     const currentYear = new Date().getFullYear();
     const unsubscribes: (() => void)[] = [];
@@ -174,7 +173,7 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
                     return updated;
                 });
             }
-        });
+        }, (err) => console.warn(`Expediente fetch error for ${monthKey}:`, err));
         unsubscribes.push(unsub);
 
         // Also fetch GRD configs
@@ -193,12 +192,12 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
                     return updated;
                 });
             }
-        });
+        }, (err) => console.warn(`GRD config fetch error for ${monthKey}:`, err));
         unsubscribes.push(unsubGrd);
     }
     
     return () => unsubscribes.forEach(u => u());
-  }, [user.rg, user.obm, obmContext]);
+  }, [user?.rg, user?.obm, obmContext]);
 
   const { servicosRestantes, totalServicos, folgasRestantes, totalFolgas, allYearServices } = useMemo(() => {
     let servicosTotais = 0;
@@ -213,7 +212,7 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
     const allYearServices: Date[] = [];
     
     days.forEach(day => {
-      let isMyAla = user.ala && getAlaForDate(day).toString() === user.ala.toString();
+      let isMyAla = (user?.ala) && getAlaForDate(day).toString() === user.ala.toString();
       
       userPermutas.forEach(p => {
         if (isSameDay(p.date, day)) {
@@ -308,7 +307,7 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
       >
         <div className="p-4 sm:p-6 bg-slate-50 flex flex-col gap-6">
           
-          <MuralAvisos isAdminOrEscalante={!!(user.isAdmin || user.isEscalante)} userName={user.name} />
+          <MuralAvisos isAdminOrEscalante={!!(user?.isAdmin || user?.isEscalante)} userName={user?.name || 'Militar'} />
 
           {/* Resumo Operacional (Bento Grid) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-b border-slate-200 pb-6">
@@ -336,7 +335,7 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
             </div>
           </div>
 
-          {/* Seção de Controles Extras (Afastamentos e Lembretes) */}
+{/* 
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col xl:flex-row gap-4 items-center justify-between">
              <div className="flex items-center gap-3">
                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
@@ -366,6 +365,7 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
                  </button>
              </div>
           </div>
+          */}
 
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 py-2 border-b border-slate-100">
              <div className="bg-slate-800 text-white rounded-xl p-3 flex items-center gap-3 shadow-md w-full md:w-auto">
@@ -438,6 +438,7 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
                                                   mockLembretes={personalTodos}
                                                   mockPermutas={userPermutas}
                                                   expedienteDays={expedienteDays}
+                                                  grdDays={grdDays}
                                                   institutionalEvents={institutionalEvents}
                                                   isOpenMonth={isOpen}
                                                   showOnlyMyServices={showOnlyMyServices}
@@ -472,6 +473,7 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
                                     mockLembretes={personalTodos}
                                     mockPermutas={userPermutas}
                                     expedienteDays={expedienteDays}
+                                    grdDays={grdDays}
                                     institutionalEvents={institutionalEvents}
                                     isOpenMonth={isOpen}
                                     showOnlyMyServices={showOnlyMyServices}
@@ -501,7 +503,7 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
          isOpen={selectedDay !== null}
          onClose={() => setSelectedDay(null)}
          date={selectedDay}
-         userRg={user.rg}
+         userRg={user?.rg || ''}
          isWorkingDay={selectedDayIsWorking}
          onPermutaClick={(d) => {
             if (onDateSelect) {
@@ -516,7 +518,7 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
 
       <RequestPermuta
         user={user}
-        obmContext={obmContext || user.obm || '10º GBM'}
+        obmContext={obmContext || user?.obm || '10º GBM'}
         isOpen={isPermutaModalOpen}
         setIsOpen={setIsPermutaModalOpen}
         initialDate={selectedPermutaDate}
@@ -536,13 +538,14 @@ interface MonthGridProps {
   mockLembretes: any[];
   mockPermutas: any[];
   expedienteDays?: Record<string, 'SV' | 'EXP'>;
+  grdDays?: Record<string, boolean>;
   institutionalEvents?: { date: Date, title: string }[];
   isOpenMonth?: boolean;
   showOnlyMyServices?: boolean;
   onAgendarClick?: (date?: Date) => void;
 }
 
-const MonthGrid = memo(function MonthGrid({ month, userAla, onDateSelect, mockAfastamentos, mockLembretes, mockPermutas, expedienteDays = {}, institutionalEvents = [], isOpenMonth, showOnlyMyServices, onAgendarClick }: MonthGridProps) {
+const MonthGrid = memo(function MonthGrid({ month, userAla, onDateSelect, mockAfastamentos, mockLembretes, mockPermutas, expedienteDays = {}, grdDays = {}, institutionalEvents = [], isOpenMonth, showOnlyMyServices, onAgendarClick }: MonthGridProps) {
   const isPast = isBefore(endOfMonth(month), new Date());
   const [isCollapsed, setIsCollapsed] = useState(isPast); // Start collapsed if the month is past
 

@@ -23,6 +23,22 @@
       },
       "required": ["rg", "name"]
     },
+    "OutsourcedUser": {
+      "title": "OutsourcedUser",
+      "description": "Non-military personnel (civilians) with platform access for specialized administration (e.g. kitchen)",
+      "type": "object",
+      "properties": {
+        "login": { "type": "string" },
+        "name": { "type": "string" },
+        "customPassword": { "type": "string" },
+        "isRefeitorioAdmin": { "type": "boolean" },
+        "isAdmin": { "type": "boolean" },
+        "isEscalante": { "type": "boolean" },
+        "obm": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["login", "name"]
+    },
     "RefeitorioData": {
       "title": "RefeitorioData",
       "description": "Configuration data, catalog, and menu details for the mess/refeitorio",
@@ -67,6 +83,10 @@
     "/militaries/{rg}": {
       "schema": "Military",
       "description": "Collection storing military personnel records"
+    },
+    "/outsourced_users/{login}": {
+      "schema": "OutsourcedUser",
+      "description": "Collection storing non-military (civilian) user records"
     },
     "/refeitorio/{id}": {
       "schema": "RefeitorioData",

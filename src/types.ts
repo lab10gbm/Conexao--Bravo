@@ -16,6 +16,8 @@ export interface UserProfile {
   email2?: string;
   photoURL?: string;
   rg?: string;
+  login?: string;
+  isOutsourced?: boolean;
   isAdmin?: boolean;
   adminObms?: string[];
   isEscalante?: boolean;

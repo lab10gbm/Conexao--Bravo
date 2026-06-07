@@ -19,6 +19,8 @@ export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBac
   const [role, setRole] = useState<'rancho' | 'expediente'>('rancho');
   const [saving, setSaving] = useState(false);
 
+  const [deleteData, setDeleteData] = useState<{ id: string; name: string } | null>(null);
+
   useEffect(() => {
     fetchTerceirizados();
   }, []);
@@ -26,7 +28,7 @@ export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBac
   const fetchTerceirizados = async () => {
     setLoading(true);
     try {
-      const q = query(collection(db, 'militaries'), where('isTerceirizado', '==', true));
+      const q = collection(db, 'outsourced_users');
       const snap = await getDocs(q);
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setTerceirizados(data);
@@ -42,21 +44,19 @@ export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBac
     if (!name || !login) return;
     
     setSaving(true);
-    const safeRg = login.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const safeLogin = login.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
     
     try {
-      await setDoc(doc(db, 'militaries', safeRg), cleanUndefined({
-              rg: safeRg,
+      await setDoc(doc(db, 'outsourced_users', safeLogin), cleanUndefined({
+              login: safeLogin,
               name: name.toUpperCase(),
-              rank: 'CIVIL',
-              customPassword: '0000',
-              isTerceirizado: true,
+              customPassword: '000000',
+              isOutsourced: true,
               obm: obm,
               // Configurações de acordo com o papel
               isRefeitorioAdmin: role === 'rancho',
               isAdmin: role === 'expediente',
               isEscalante: role === 'expediente',
-              ala: role === 'expediente' ? 'EXP' : '1',
               updatedAt: serverTimestamp()
             }), { merge: true });
 
@@ -72,11 +72,12 @@ export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBac
     }
   };
 
-  const handleDelete = async (id: string, userName: string) => {
-    if (!window.confirm(`Tem certeza que deseja remover o acesso de ${userName}?`)) return;
+  const handleDelete = async () => {
+    if (!deleteData) return;
     
     try {
-      await deleteDoc(doc(db, 'militaries', id));
+      await deleteDoc(doc(db, 'outsourced_users', deleteData.id));
+      setDeleteData(null);
       fetchTerceirizados();
     } catch (e) {
       console.error(e);
@@ -121,8 +122,8 @@ export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBac
             {terceirizados.map(t => (
               <div key={t.id} className="border-2 border-slate-100 rounded-2xl p-5 relative group hover:border-fuchsia-100 transition-colors">
                  <button 
-                   onClick={() => handleDelete(t.id, t.name)}
-                   className="absolute top-4 right-4 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                   onClick={() => setDeleteData({ id: t.id, name: t.name })}
+                   className="absolute top-4 right-4 p-2 text-slate-300 hover:text-red-500 hover:bg-red-100 rounded-xl transition-all opacity-0 group-hover:opacity-100"
                    title="Remover Acesso"
                  >
                    <Trash2 className="w-4 h-4" />
@@ -134,7 +135,7 @@ export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBac
                    </div>
                    <div>
                      <h3 className="font-black text-slate-800 uppercase tracking-tight text-sm leading-tight">{t.name}</h3>
-                     <p className="text-[10px] text-fuchsia-500 font-bold uppercase tracking-widest">Login: {t.rg} {t.obm ? `• ${t.obm}` : ''}</p>
+                     <p className="text-[10px] text-fuchsia-500 font-bold uppercase tracking-widest">Login: {t.login} {t.obm ? `• ${t.obm}` : ''}</p>
                    </div>
                  </div>
                  
@@ -166,7 +167,7 @@ export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBac
             >
               <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-2">Criar Perfil Terceirizado</h3>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-6 border-l-2 border-fuchsia-300 pl-3">
-                A senha padrão inicial para novos perfis será "0000".
+                A senha padrão inicial para novos perfis será "000000".
               </p>
               
               <form onSubmit={handleCreate} className="space-y-5">
@@ -256,6 +257,40 @@ export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBac
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+
+        {deleteData && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl text-center"
+            >
+              <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-2">Confirmar Exclusão</h3>
+              <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-8 leading-relaxed">
+                Tem certeza que deseja remover o acesso de <span className="text-red-600 underline">{deleteData.name}</span>? Esta ação não pode ser desfeita.
+              </p>
+              
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setDeleteData(null)}
+                  className="flex-1 px-4 py-3 bg-slate-100 text-slate-500 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-slate-200 transition"
+                >
+                  Manter
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-red-700 transition shadow-md shadow-red-200"
+                >
+                  Sim, Excluir
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

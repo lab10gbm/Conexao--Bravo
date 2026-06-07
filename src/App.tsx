@@ -39,6 +39,7 @@ import {
   setGlobalAlaConfig,
   getAlaForDate,
   GLOBAL_REF_YEAR,
+  normalizeObm,
 } from "./lib/utils";
 import { PlatformLogo } from "./components/PlatformLogo";
 import { RankInsignia } from "./components/RankInsignia";
@@ -271,9 +272,9 @@ export default function App() {
     ? ["GLOBAL", ...allObms]
     : Array.from(
         new Set([
-          profile?.obm ? profile.obm.trim() : "10º GBM",
-          ...(profile?.adminObms || []),
-          ...(profile?.escalanteObms || []),
+          normalizeObm(profile?.obm),
+          ...(profile?.adminObms || []).map(o => normalizeObm(o)),
+          ...(profile?.escalanteObms || []).map(o => normalizeObm(o)),
         ]),
       );
 
@@ -498,25 +499,7 @@ export default function App() {
     );
   }
 
-  // Force RANCHO users directly into the kitchen module
-  if (profile.rg?.startsWith("RANCHO")) {
-    return (
-      <div className="min-h-screen bg-[var(--color-bg-main)] text-[#1D1D1D] font-sans selection:bg-red-100 selection:text-red-900 overflow-y-auto w-full">
-        <div className="mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 transition-all max-w-[2000px] 2xl:max-w-none">
-          <React.Suspense
-            fallback={
-              <div className="min-h-screen flex items-center justify-center bg-slate-50">
-                <Loader2 className="w-8 h-8 text-rose-500 animate-spin" />
-              </div>
-            }
-          >
-            <RefeitorioModule user={effectiveProfile!} onBack={() => {}} />
-          </React.Suspense>
-        </div>
-      </div>
-    );
-  }
-
+  // Render Main Layout and Routes
   return (
     <MainLayout
       profile={profile!}

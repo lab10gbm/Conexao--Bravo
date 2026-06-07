@@ -398,13 +398,13 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
                         type="button" 
                         onClick={() => setOfferType('pago')}
                         className={`w-6 h-6 rounded-full transition-all ${offerType === 'pago' ? 'ring-2 ring-offset-2 ring-[#8B4513]' : 'hover:scale-110 opacity-50'} bg-[#8B4513]`}
-                        title="Serviço Pago (Valor Tabelado)"
+                        title="Tabela Comum (Valor Tabelado)"
                       />
                       <button 
                         type="button" 
                         onClick={() => setOfferType('especial')}
                         className={`w-6 h-6 rounded-full transition-all ${offerType === 'especial' ? 'ring-2 ring-offset-2 ring-[#3B0764]' : 'hover:scale-110 opacity-50'} bg-[#3B0764]`}
-                        title="Serviço Pago (Valor Especial/Datas Festivas)"
+                        title="Tabela Especial (Valor Especial/Datas Festivas)"
                       />
                     </motion.div>
                   )}

@@ -537,8 +537,8 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
                        <th colSpan={7} className="p-0">
                          <div className="flex items-stretch w-full">
                            <div className={cn("border-r py-1 sm:py-1.5 flex flex-col items-center justify-center text-[11px] sm:text-sm flex-shrink-0 w-[50px] sm:w-[60px]", hasPendingForMe ? "border-amber-400" : "border-slate-900")}>
-                             <span className="font-black leading-none mb-0.5">{dayOfYear}</span>
-                             <span className="text-[9px] sm:text-[10px] font-bold leading-none tracking-widest">{format(dateObj, 'dd/MM')}</span>
+                             <span className="font-black leading-none mb-0.5">{format(dateObj, 'dd/MM')}</span>
+                             <span className="text-[9px] sm:text-[10px] font-bold leading-none tracking-widest opacity-80">{dayOfYear}</span>
                            </div>
                            <div className="border-r border-slate-900 py-1 sm:py-1.5 px-2 flex items-center justify-center text-[10px] sm:text-sm font-black uppercase tracking-widest flex-1 min-w-0">
                               <span className="truncate">{getAlaName(ala)}</span>
@@ -693,7 +693,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
                                       }`} />
                                       <span className="text-[10px] sm:text-[11px] font-black uppercase text-indigo-500 tracking-widest leading-none whitespace-nowrap opacity-75">
                                         {permuta.offerType === 'troca' && 'TROCA'}
-                                        {permuta.offerType === 'pago' && 'SERVIÇO PAGO'}
+                                        {permuta.offerType === 'pago' && 'TABELA COMUM'}
                                         {permuta.offerType === 'especial' && 'TABELA ESPECIAL'}
                                       </span>
                                     </div>
@@ -756,7 +756,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
                                       }`} />
                                       <span className="text-[10px] sm:text-[11px] font-black uppercase text-indigo-500 tracking-widest leading-none whitespace-nowrap opacity-75">
                                         {permuta.offerType === 'troca' && 'TROCA'}
-                                        {permuta.offerType === 'pago' && 'SERVIÇO PAGO'}
+                                        {permuta.offerType === 'pago' && 'TABELA COMUM'}
                                         {permuta.offerType === 'especial' && 'TABELA ESPECIAL'}
                                       </span>
                                     </div>

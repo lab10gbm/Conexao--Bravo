@@ -4,7 +4,7 @@ import { Users, UserPlus, Search, Save, X, Trash2, ArrowLeft, Plus, ChevronDown,
 import { useMilitars } from '../contexts/MilitarContext';
 import { db } from '../lib/firebase';
 import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import { cn, cleanUndefined } from '../lib/utils';
+import { cn, cleanUndefined, normalizeObm } from '../lib/utils';
 import { UserProfile } from '../types';
 
 export function GestaoEfetivoModeracaoModule({ user, onBack }: { user: UserProfile; onBack: () => void }) {
@@ -38,7 +38,7 @@ export function GestaoEfetivoModeracaoModule({ user, onBack }: { user: UserProfi
   const uniqueObms = useMemo(() => {
     const obms = new Set<string>();
     militars.forEach(m => {
-      if (m.obm) obms.add(m.obm.trim().toUpperCase());
+      obms.add(normalizeObm(m.obm));
     });
     // Add terceirizados if not there
     obms.add('TERCEIRIZADOS');
@@ -47,7 +47,8 @@ export function GestaoEfetivoModeracaoModule({ user, onBack }: { user: UserProfi
 
   const filteredMilitars = useMemo(() => {
     return militars.filter(m => {
-      const matchObm = selectedObmFilter === 'TODOS' || (m.obm || '').trim().toUpperCase() === selectedObmFilter;
+      const matchObm = selectedObmFilter === 'TODOS' || normalizeObm(m.obm) === selectedObmFilter;
+      
       const s = searchTerm.toLowerCase();
       const matchSearch = (m.name || '').toLowerCase().includes(s) || 
              (m.warName || '').toLowerCase().includes(s) || 

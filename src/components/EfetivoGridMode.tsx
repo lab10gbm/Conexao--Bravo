@@ -5,6 +5,8 @@ import { GROUPS } from '../constants';
 import { RankInsignia } from './RankInsignia';
 import { parseRank, isOfficer } from '../lib/rankUtils';
 
+import { normalizeObm } from '../lib/utils';
+
 interface EfetivoGridModeProps {
   currentGroups: any[];
   search: string;
@@ -24,7 +26,7 @@ export function EfetivoGridMode({ currentGroups, search, filters, expandedGroup,
     const matchesSearch = (m.name?.toLowerCase().includes(term) || m.warName?.toLowerCase().includes(term) || m.rg?.includes(term));
     const matchesPosto = filters.filterPostoGrad.length === 0 || filters.filterPostoGrad.includes(m.rank || '');
     const matchesQuadro = filters.filterQuadro.length === 0 || filters.filterQuadro.includes(m.quadro || '');
-    const matchesObm = filters.filterObm.length === 0 || filters.filterObm.includes(m.obm ? m.obm : '10º GBM');
+    const matchesObm = filters.filterObm.length === 0 || filters.filterObm.includes(normalizeObm(m.obm));
     const matchesAla = filters.filterAla.length === 0 || filters.filterAla.includes(m.ala?.toString() || '');
     const matchesCidade = filters.filterCidade.length === 0 || filters.filterCidade.includes(m.cidade || '');
     const matchesSituacao = filters.filterSituacao.length === 0 || filters.filterSituacao.includes(m.situacao || '');

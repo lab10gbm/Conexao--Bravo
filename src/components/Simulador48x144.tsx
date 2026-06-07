@@ -43,7 +43,7 @@ export function Simulador48x144({ user, isOpen, onClose }: SimuladorProps) {
   }, [isOpen]);
 
   const partner = React.useMemo(() => militaries.find(m => m.rg === partnerRg), [militaries, partnerRg]);
-  const isPartnerValid = partner && availableAlas.includes(parseInt(partner.ala.toString()));
+  const isPartnerValid = partner && partner.ala && availableAlas.includes(parseInt(partner.ala.toString()));
 
   // Generate simulation days
   let simulationDays: { date: Date, ala: number, workingIds: string[] }[] = [];
