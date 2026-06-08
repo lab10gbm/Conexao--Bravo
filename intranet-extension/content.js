@@ -140,7 +140,7 @@ async function executarBuscaFluida(rgs) {
 
 async function enviarParaPlanilha(finalData) {
   // A Extensão agora envia diretamente para a SUA PLATAFORMA (AI Studio App), eliminando planilhas!
-  const webAppUrl = "https://ais-dev-zrzalylqdof6lo5c3vm2nd-725468355119.us-east1.run.app/api/admin/vacation/bulk-sync";
+  const webAppUrl = "https://ais-pre-zrzalylqdof6lo5c3vm2nd-725468355119.us-east1.run.app/api/admin/vacation/bulk-sync";
 
   try {
     // Transformar the data array into the format expected by the API

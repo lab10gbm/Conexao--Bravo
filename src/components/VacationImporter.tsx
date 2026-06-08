@@ -78,12 +78,13 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
   const tampermonkeyCode = `// ==UserScript==
 // @name         Sincronizar DGP - Elite
 // @namespace    http://tampermonkey.net/
-// @version      2.1
+// @version      2.2
 // @description  Bypass CORS e Sincronização Direta
 // @author       10º GBM
 // @match        *://cbmerj.rj.gov.br/*
 // @match        *://*.cbmerj.rj.gov.br/*
 // @grant        GM_xmlhttpRequest
+// @grant        unsafeWindow
 // @connect      ${appDomain}
 // @connect      ais-dev-zrzalylqdof6lo5c3vm2nd-725468355119.us-east1.run.app
 // @connect      ais-pre-zrzalylqdof6lo5c3vm2nd-725468355119.us-east1.run.app
@@ -93,8 +94,8 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
 (function() {
     'use strict';
 
-    window.over = window.over || "over";
-    window.out = window.out || "out";
+    try { unsafeWindow.over = "over"; unsafeWindow.out = "out"; } catch(e){}
+    try { const s = document.createElement('script'); s.textContent = 'window.over="over"; window.out="out";'; document.documentElement.appendChild(s); } catch(e){}
 
     const APP_URL = '${appUrl.replace(/\/$/, '')}';
 
@@ -223,8 +224,7 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
 
   const bookmarkletCode = `javascript:(function(){
     try {
-        window.over = window.over || "over";
-        window.out = window.out || "out";
+        const s = document.createElement('script'); s.textContent = 'window.over="over"; window.out="out";'; document.documentElement.appendChild(s);
         const getDoc = () => {
             const frames = ['corpo', 'main', 'frame_principal'];
             for (let fName of frames) {
@@ -337,8 +337,7 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
   })();`.replace(/\s+/g, ' ').trim();
 
   const scannerCode = `javascript:(async function(){
-    window.over = window.over || "over";
-    window.out = window.out || "out";
+    const s = document.createElement('script'); s.textContent = 'window.over="over"; window.out="out";'; document.documentElement.appendChild(s);
     const rgs = ${JSON.stringify(allMilitars.map(m => m.rg.replace(/\D/g, '')))};
     if (!confirm('Deseja iniciar a VARREDURA em massa de ' + rgs.length + ' militares? Isso pode levar algum tempo.')) return;
     
