@@ -290,10 +290,12 @@ export function VacationModule({ user, onBackToPortal, isSadMode = false }: Vaca
       for (const v of newVacations) {
         // Use RefYear + StartDate as a composite ID to avoid duplicates
         const docId = `${v.militarRg}_${v.anoRef}_${v.dataInicio.replace(/\//g, '')}`;
-        await setDoc(doc(db, 'vacations', docId), cleanUndefined({
-                  ...v,
-                  updatedAt: new Date().toISOString()
-                }), { merge: true });
+        const savedData = cleanUndefined({
+          ...v,
+          updatedAt: new Date().toISOString()
+        });
+        await setDoc(doc(db, 'vacations', docId), savedData, { merge: true });
+        await setDoc(doc(db, 'militaries', v.militarRg, 'ferias', docId), savedData, { merge: true });
       }
       setShowImporter(false);
       if (selectedMilitar) {
@@ -310,7 +312,9 @@ export function VacationModule({ user, onBackToPortal, isSadMode = false }: Vaca
    const deleteVacation = async (id: string) => {
     if (!confirm('Deseja realmente excluir este registro de férias do sistema?')) return;
     try {
+      const rg = id.split('_')[0];
       await deleteDoc(doc(db, 'vacations', id));
+      if (rg) await deleteDoc(doc(db, 'militaries', rg, 'ferias', id));
       if (selectedMilitar) fetchVacations(selectedMilitar.rg);
     } catch (e) {
       console.error('Error deleting vacation:', e);
