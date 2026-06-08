@@ -143,52 +143,14 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
              const doc = getTargetDoc();
              const bodyText = doc.body.innerText;
              
-             const findTable = () => {
-                const allTables = doc.querySelectorAll('table');
-                for (let t of allTables) {
-                    const txt = (t.innerText || "").toUpperCase();
-                    if ((txt.includes('ANO REF.') || txt.includes('DIAS GOZADOS')) && (txt.includes('DATA INÍCIO') || txt.includes('DATA INICIO') || txt.includes('BOL'))) return t;
-                }
-                const coloredRows = doc.querySelectorAll('tr[style*="background: #1E90FF"]');
-                if (coloredRows.length > 0) return coloredRows[0].closest('table');
-                return null;
-             };
-
-             const table = findTable();
-             if (!table) return alert('Tabela de férias não encontrada nesta página.\\nAbra: Afastamentos -> Férias.');
-
-             let rgMatch = bodyText.match(/RG[:\\s]*([\\d.]+)/i);
-             let rg = rgMatch ? rgMatch[1].replace(/\\D/g, '') : prompt("RG não localizado. Digite o RG:");
-             if (!rg) return;
-
-             const vacations = Array.from(table.rows).filter(r => r.cells.length >= 4 && (r.innerText.includes('/') || r.innerText.includes('202'))).map(r => {
-                  const c = Array.from(r.cells).map(td => td.innerText.trim());
-                  if (!c[0] || c[0].toUpperCase() === 'ATO' || (c[1] && c[1].toUpperCase().includes('ANO'))) return null;
-
-                  return {
-                      militarRg: rg, 
-                      ato: c[0]||'Concessão', 
-                      anoRef: c[1]||'',
-                      dataInicio: c[3]||'', 
-                      dataRetorno: c[4]||'',
-                      boletim: c[5]||'', 
-                      boletimOrigem: c[6]||'',
-                      diasGozados: parseInt(c[7])||0, 
-                      diasAGozar: parseInt(c[8])||0,
-                      status: (c[3]||'').includes('2026') ? 'marcado' : 'gozado'
-                  };
-             }).filter(v => v !== null);
-
-             if (vacations.length === 0) return alert('Nenhum registro de férias válido encontrado.');
-
              btn.disabled = true;
              btn.innerText = '⌛ SINCRONIZANDO...';
 
-             // USE GM_xmlhttpRequest TO BYPASS CORS
+             // USE GM_xmlhttpRequest TO BYPASS CORS - SEND RAW TEXT INSTEAD OF FRAGILE DOM PARSING
              GM_xmlhttpRequest({
                  method: "POST",
-                 url: APP_URL + "/api/admin/vacation/bulk-sync",
-                 data: JSON.stringify({ vacations }),
+                 url: APP_URL + "/api/admin/vacation/raw-sync",
+                 data: JSON.stringify({ rawText: bodyText }),
                  headers: { 
                     "Content-Type": "application/json",
                     "Accept": "application/json"
@@ -199,7 +161,7 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
                          try {
                             const result = JSON.parse(res.responseText);
                             if (result.success) {
-                               alert('🚀 Sincronizado com Sucesso! (' + (result.count || vacations.length) + ' registros)');
+                               alert('🚀 Sincronizado com Sucesso! (' + result.count + ' registros de férias para o RG ' + result.rg + ')');
                             } else {
                                alert('Falha na plataforma: ' + (result.error || 'Erro interno'));
                             }
@@ -207,14 +169,14 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
                             alert('Erro ao processar resposta: ' + e.message + '\\n\\n' + res.responseText.substring(0, 100));
                          }
                      } else {
-                         alert('Erro no Servidor: ' + res.status + '\\n\\nURL: ' + APP_URL + '/api/admin/vacation/bulk-sync' + '\\n\\nResposta: ' + res.responseText.substring(0, 200));
+                         alert('Erro no Servidor: ' + res.status + '\\n\\nURL: ' + APP_URL + '/api/admin/vacation/raw-sync' + '\\n\\nResposta: ' + res.responseText.substring(0, 200));
                      }
                      btn.disabled = false;
                      btn.innerText = '🚀 SINCRONIZAR DGP';
                  },
                  onerror: function(err) {
                      console.error('Erro GM_xmlhttpRequest:', err);
-                     alert('Erro de Conexão Fatal.\\nVerifique se o site das permutas está online: ' + APP_URL + '\\n\\nDetalhes: ' + JSON.stringify(err));
+                     alert('Erro de Conexão Fatal.\\nVerifique se o site das permutas está online e se sua intranet nao o bloqueia: ' + APP_URL + '\\n\\nDetalhes: ' + JSON.stringify(err));
                      btn.disabled = false;
                      btn.innerText = '🚀 SINCRONIZAR DGP';
                  }

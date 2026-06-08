@@ -82,6 +82,73 @@ syncRouter.post('/admin/vacation/bulk-sync/', bulkSyncHandler);
 syncRouter.post('/admin/vacations/bulk-sync', bulkSyncHandler);
 syncRouter.post('/sync/vacations', bulkSyncHandler);
 
+syncRouter.post('/admin/vacation/raw-sync', async (req, res) => {
+  const db = getAdminDb();
+  try {
+    const { rawText, html } = req.body;
+    if (!rawText) return res.status(400).json({ success: false, error: 'Sem texto' });
+
+    // Tenta encontrar RG
+    let rgMatch = rawText.match(/RG[:\s]*([\d.]+)/i);
+    let rg = rgMatch ? rgMatch[1].replace(/\D/g, '') : null;
+    
+    // Fallback pra qualquer número de 5 dígitos no começo se falhar
+    if (!rg) {
+        let possibleRg = rawText.match(/\b(\d{5})\b/);
+        if (possibleRg) rg = possibleRg[1];
+    }
+    
+    if (!rg) return res.status(400).json({ success: false, error: 'RG não encontrado no texto da página' });
+    
+    // Extract vacations line by line
+    // Concessão | 2026 | ... | 01/01/2026 | 30/01/2026
+    const lines = rawText.split('\n');
+    let vacations = [];
+    
+    for (let line of lines) {
+        if (!line.includes('/') && !line.includes('202')) continue;
+        
+        let cols = line.split('\t').map((s: string) => s.trim());
+        if (cols.length < 5) continue;
+        if (cols[0].toUpperCase() === 'ATO' || cols[1].toUpperCase().includes('ANO')) continue;
+        
+        let dtInicio = cols[3] || '';
+        if (dtInicio.match(/\d{2}\/\d{2}\/\d{4}/)) {
+           vacations.push({
+              militarRg: rg, 
+              ato: cols[0]||'Concessão', 
+              anoRef: cols[1]||'',
+              dataInicio: dtInicio, 
+              dataRetorno: cols[4]||'',
+              boletim: cols[5]||'', 
+              boletimOrigem: cols[6]||'',
+              diasGozados: parseInt(cols[7])||0, 
+              diasAGozar: parseInt(cols[8])||0,
+              status: dtInicio.includes('2026') || dtInicio.includes('2027') ? 'marcado' : 'gozado'
+           });
+        }
+    }
+    
+    if (vacations.length === 0) return res.status(400).json({ success: false, error: 'RG encontrado, mas Nenhuma férias localizada/parseada', rg });
+    
+    // Save to DB
+    const serverTimestampValue = admin.firestore.FieldValue.serverTimestamp();
+    let batch = db.batch();
+    for (const v of vacations) {
+        const docId = `${rg}_${v.anoRef || '0000'}_${(v.dataInicio || '').replace(/\//g, '')}`;
+        batch.set(db.collection('vacations').doc(docId), {
+            id: docId,
+            ...v,
+            updatedAt: serverTimestampValue
+        }, { merge: true });
+    }
+    await batch.commit();
+    return res.json({ success: true, count: vacations.length, rg });
+  } catch (e: any) {
+    return res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 syncRouter.post('/admin/militaries/bulk-sync', async (req, res) => {
   const db = getAdminDb();
   const { militaries } = req.body;
