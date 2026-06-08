@@ -16,12 +16,35 @@ async function executarBuscaFluida(rgs) {
       fd.append('rg_cons', rg);
       fd.append('Submit', 'Pesquisar');
       
-      // O link base do seu sistema (adapte caso tenha subpastas na URL real)
-      await fetch('consulta_mil.php', { method: 'POST', body: fd });
+      // Tenta achar qual é o script de pesquisa de RGs na página atual, caso não seja consulta_mil.php
+      let searchAction = 'consulta_mil.php';
+      const form = document.querySelector('form');
+      if (form && form.getAttribute('action')) {
+          searchAction = form.getAttribute('action');
+      }
+      
+      await fetch(searchAction, { method: 'POST', body: fd }).catch(e => {
+          console.warn(`Tentativa de POST para ${searchAction} falhou:`, e);
+      });
       
       // 2. Coleta a página de Férias do militar encontrado
-      const res = await fetch('afastamentos.php?opcao=ferias');
-      const text = await res.text();
+      let text = "";
+      try {
+          // Tenta carregar ferias.php primeiro, depois afastamentos.php
+          let res = await fetch('ferias.php').catch(() => null);
+          if (!res || res.status !== 200) {
+              res = await fetch('afastamentos.php?opcao=ferias').catch(() => null);
+          }
+          if (res && res.status === 200) {
+              text = await res.text();
+          } else {
+              // Se falhar em carregar do servidor, lê o HTML que já está aberto no navegador do usuário
+              text = document.body.innerHTML;
+          }
+      } catch (e) {
+          console.error("Erro ao buscar página de férias, usando documento local:", e);
+          text = document.body.innerHTML;
+      }
       
       // 3. Lê o HTML recebido
       const doc = new DOMParser().parseFromString(text, 'text/html');
@@ -32,7 +55,7 @@ async function executarBuscaFluida(rgs) {
         console.log(`Encontradas ${allTables.length} tabelas na página.`);
         
         for (let t of allTables) {
-          const content = (t.innerText || "").toUpperCase();
+          const content = (t.textContent || "").toUpperCase();
           // Detecta a tabela pelo cabeçalho esperado em Férias
           // Adaptado para ser mais flexível (pode ter "ANO REF." ou apenas "DIAS GOZADOS")
           if (
@@ -54,7 +77,7 @@ async function executarBuscaFluida(rgs) {
         let tituloMilitar = `Férias do Militar - RG: ${rg}`;
         
         // A página do DGP tem um texto como "Subten BM Q00/00 CARLA DE OLIVEIRA CLAUDINO SANTOS, RG 28.019"
-        const pageText = doc.body.innerText || "";
+        const pageText = doc.body.textContent || "";
         const lines = pageText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         
         // Busca linha que contém o RG formatado (ex: 28.019) ou puro
@@ -73,7 +96,7 @@ async function executarBuscaFluida(rgs) {
         let hasHeader = false;
         
         tabelaFerias.querySelectorAll('tr').forEach((row, index) => {
-           let cells = Array.from(row.querySelectorAll('th, td')).map(c => c.innerText.replace(/\s+/g, ' ').trim());
+           let cells = Array.from(row.querySelectorAll('th, td')).map(c => (c.textContent || "").replace(/\s+/g, ' ').trim());
            
            if (cells.length >= 4) { // Pelo menos as colunas básicas
                // Normaliza para o tamanho padrão da tabela (na imagem você tem 10 colunas)
@@ -117,7 +140,7 @@ async function executarBuscaFluida(rgs) {
 
 async function enviarParaPlanilha(finalData) {
   // A Extensão agora envia diretamente para a SUA PLATAFORMA (AI Studio App), eliminando planilhas!
-  const webAppUrl = "https://ais-pre-qs3aeezrypma6annfvycw7-725468355119.us-east1.run.app/api/admin/vacation/bulk-sync";
+  const webAppUrl = "https://ais-dev-zrzalylqdof6lo5c3vm2nd-725468355119.us-east1.run.app/api/admin/vacation/bulk-sync";
 
   try {
     // Transformar the data array into the format expected by the API

@@ -8,7 +8,9 @@
     "https://cbmerj.rj.gov.br/*",
     "http://cbmerj.rj.gov.br/*",
     "https://script.google.com/*",
-    "https://script.googleusercontent.com/*"
+    "https://script.googleusercontent.com/*",
+    "https://ais-dev-zrzalylqdof6lo5c3vm2nd-725468355119.us-east1.run.app/*",
+    "https://ais-pre-zrzalylqdof6lo5c3vm2nd-725468355119.us-east1.run.app/*"
   ],
   "action": {
     "default_popup": "popup.html"

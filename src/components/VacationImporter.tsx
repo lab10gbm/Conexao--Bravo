@@ -70,7 +70,7 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
     }
   };
 
-  const [urlType, setUrlType] = React.useState<'pre' | 'dev'>('pre');
+  const [urlType, setUrlType] = React.useState<'dev' | 'pre'>('dev');
   const rawAppUrl = window.location.origin;
   const appUrl = urlType === 'pre' ? rawAppUrl.replace('ais-dev-', 'ais-pre-') : rawAppUrl;
   const appDomain = new URL(appUrl).hostname;
@@ -85,16 +85,16 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
 // @match        *://*.cbmerj.rj.gov.br/*
 // @grant        GM_xmlhttpRequest
 // @connect      ${appDomain}
-// @connect      ais-dev-qs3aeezrypma6annfvycw7-725468355119.us-east1.run.app
-// @connect      ais-pre-qs3aeezrypma6annfvycw7-725468355119.us-east1.run.app
+// @connect      ais-dev-zrzalylqdof6lo5c3vm2nd-725468355119.us-east1.run.app
+// @connect      ais-pre-zrzalylqdof6lo5c3vm2nd-725468355119.us-east1.run.app
 // @connect      *
 // ==/UserScript==
 
 (function() {
     'use strict';
 
-    window.over = window.over || function(){};
-    window.out = window.out || function(){};
+    window.over = window.over || "over";
+    window.out = window.out || "out";
 
     const APP_URL = '${appUrl.replace(/\/$/, '')}';
 
@@ -223,8 +223,8 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
 
   const bookmarkletCode = `javascript:(function(){
     try {
-        window.over = window.over || function(){};
-        window.out = window.out || function(){};
+        window.over = window.over || "over";
+        window.out = window.out || "out";
         const getDoc = () => {
             const frames = ['corpo', 'main', 'frame_principal'];
             for (let fName of frames) {
@@ -299,8 +299,8 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
     let rg = rgMatch ? rgMatch[1].replace(/\\D/g, '') : prompt("RG não localizado. Digite o RG:");
     if (!rg) return;
 
-    const vacations = Array.from(table.rows).filter(r => r.cells.length >= 4 && (r.innerText.includes('/') || r.innerText.includes('202'))).map(r => {
-        const c = Array.from(r.cells).map(td => td.innerText.trim());
+    const vacations = Array.from(table.rows).filter(r => r.cells.length >= 4 && ((r.textContent || "").includes('/') || (r.textContent || "").includes('202'))).map(r => {
+        const c = Array.from(r.cells).map(td => (td.textContent || "").trim());
         if (c[0].toUpperCase() === 'ATO' || c[1].toUpperCase().includes('ANO')) return null;
 
         return {
@@ -337,8 +337,8 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
   })();`.replace(/\s+/g, ' ').trim();
 
   const scannerCode = `javascript:(async function(){
-    window.over = window.over || function(){};
-    window.out = window.out || function(){};
+    window.over = window.over || "over";
+    window.out = window.out || "out";
     const rgs = ${JSON.stringify(allMilitars.map(m => m.rg.replace(/\D/g, '')))};
     if (!confirm('Deseja iniciar a VARREDURA em massa de ' + rgs.length + ' militares? Isso pode levar algum tempo.')) return;
     
@@ -349,16 +349,32 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
             const fd = new FormData();
             fd.append('rg_cons', rg);
             fd.append('Submit', 'Pesquisar');
-            await fetch('consulta_mil.php', { method: 'POST', body: fd });
             
-            const res = await fetch('afastamentos.php?opcao=ferias');
-            const text = await res.text();
-            const doc = new DOMParser().parseFromString(text, 'text/html');
+            let searchAction = 'consulta_mil.php';
+            const f = document.querySelector('form');
+            if (f && f.getAttribute('action')) { searchAction = f.getAttribute('action'); }
+            await fetch(searchAction, { method: 'POST', body: fd }).catch(() => {});
+            
+            let htmlText = "";
+            try {
+                let res = await fetch('ferias.php').catch(() => null);
+                if (!res || res.status !== 200) {
+                    res = await fetch('afastamentos.php?opcao=ferias').catch(() => null);
+                }
+                if (res && res.status === 200) {
+                    htmlText = await res.text();
+                } else {
+                    htmlText = document.body.innerHTML;
+                }
+            } catch (e) {
+                htmlText = document.body.innerHTML;
+            }
+            const doc = new DOMParser().parseFromString(htmlText, 'text/html');
             
             const findTable = (d) => {
               const allTables = d.querySelectorAll('table');
               for (let t of allTables) {
-                const text = (t.innerText || "").toUpperCase();
+                const text = (t.textContent || "").toUpperCase();
                 if ((text.includes('ANO REF.') || text.includes('DIAS GOZADOS')) && (text.includes('DATA INÍCIO') || text.includes('DATA INICIO') || text.includes('BOL'))) return t;
               }
               return d.querySelector('table[bgcolor="#FFFFFF"]');
@@ -366,9 +382,9 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
 
             const table = findTable(doc);
             if (table) {
-                const rows = Array.from(table.rows).filter(r => r.cells.length >= 4 && (r.innerText.includes('/') || r.innerText.includes('202')));
+                const rows = Array.from(table.rows).filter(r => r.cells.length >= 4 && ((r.textContent || "").includes('/') || (r.textContent || "").includes('202')));
                 const vacations = rows.map(r => {
-                    const c = Array.from(r.cells).map(td => td.innerText.trim());
+                    const c = Array.from(r.cells).map(td => (td.textContent || "").trim());
                     if (c[0].toUpperCase() === 'ATO' || c[1].toUpperCase().includes('ANO')) return null;
 
                     return {
