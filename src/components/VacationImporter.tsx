@@ -193,12 +193,13 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
              // USE GM_xmlhttpRequest TO POST DIRECTLY TO FIRESTORE VIA REST API (BYPASS CORS, BYPASS RENDER)
              const projectId = 'ai-studio-applet-webapp-33cfe';
              const apiKey = 'AIzaSyB46AKE1I7nke459STRmIZ--bURelU3rNY';
+             const dbId = '(default)';
 
              let writes = vacations.map(v => {
                  let docId = v.militarRg + '_' + (v.anoRef || '0000') + '_' + (v.dataInicio || '').replace(/\\//g, '');
                  return {
                      update: {
-                         name: "projects/" + projectId + "/databases/(default)/documents/vacations/" + docId,
+                         name: "projects/" + projectId + "/databases/" + dbId + "/documents/vacations/" + docId,
                          fields: {
                               id: { stringValue: docId },
                               militarRg: { stringValue: v.militarRg },
@@ -219,7 +220,7 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
 
              GM_xmlhttpRequest({
                  method: "POST",
-                 url: 'https://firestore.googleapis.com/v1/projects/' + projectId + '/databases/(default)/documents:commit?key=' + apiKey,
+                 url: 'https://firestore.googleapis.com/v1/projects/' + projectId + '/databases/' + dbId + '/documents:commit?key=' + apiKey,
                  data: JSON.stringify({ writes: writes }),
                  headers: { 
                     "Content-Type": "application/json",
@@ -293,13 +294,14 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
             if (rowsData.length === 0) return alert('Nenhum dado de férias encontrado.');
         const projectId = 'ai-studio-applet-webapp-33cfe';
         const apiKey = 'AIzaSyB46AKE1I7nke459STRmIZ--bURelU3rNY';
+        const dbId = '(default)';
 
         let writes = rowsData.map(v => {
             let docId = v.militarRg + '_' + (v.anoRef || '0000') + '_' + (v.dataInicio || '').replace(/\\//g, '');
-            return { update: { name: "projects/" + projectId + "/databases/(default)/documents/vacations/" + docId, fields: { id: { stringValue: docId }, militarRg: { stringValue: v.militarRg }, ato: { stringValue: v.ato || 'Concessão' }, anoRef: { stringValue: v.anoRef || '' }, dataInicio: { stringValue: v.dataInicio || '' }, dataRetorno: { stringValue: v.dataRetorno || '' }, boletim: { stringValue: v.boletim || '' }, boletimOrigem: { stringValue: v.boletimOrigem || '' }, diasGozados: { integerValue: String(v.diasGozados || 0) }, diasAGozar: { integerValue: String(v.diasAGozar || 0) }, status: { stringValue: v.status || 'gozado' }, updatedAt: { timestampValue: new Date().toISOString() } } } };
+            return { update: { name: "projects/" + projectId + "/databases/" + dbId + "/documents/vacations/" + docId, fields: { id: { stringValue: docId }, militarRg: { stringValue: v.militarRg }, ato: { stringValue: v.ato || 'Concessão' }, anoRef: { stringValue: v.anoRef || '' }, dataInicio: { stringValue: v.dataInicio || '' }, dataRetorno: { stringValue: v.dataRetorno || '' }, boletim: { stringValue: v.boletim || '' }, boletimOrigem: { stringValue: v.boletimOrigem || '' }, diasGozados: { integerValue: String(v.diasGozados || 0) }, diasAGozar: { integerValue: String(v.diasAGozar || 0) }, status: { stringValue: v.status || 'gozado' }, updatedAt: { timestampValue: new Date().toISOString() } } } };
         });
 
-        fetch('https://firestore.googleapis.com/v1/projects/' + projectId + '/databases/(default)/documents:commit?key=' + apiKey, {
+        fetch('https://firestore.googleapis.com/v1/projects/' + projectId + '/databases/' + dbId + '/documents:commit?key=' + apiKey, {
             method: 'POST', 
             mode: 'cors', 
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -351,12 +353,13 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
     const checkSync = () => {
         const projectId = 'ai-studio-applet-webapp-33cfe';
         const apiKey = 'AIzaSyB46AKE1I7nke459STRmIZ--bURelU3rNY';
+        const dbId = '(default)';
         let writes = vacations.map(v => {
             let docId = v.militarRg + '_' + (v.anoRef || '0000') + '_' + (v.dataInicio || '').replace(/\\//g, '');
-            return { update: { name: "projects/" + projectId + "/databases/(default)/documents/vacations/" + docId, fields: { id: { stringValue: docId }, militarRg: { stringValue: v.militarRg }, ato: { stringValue: v.ato || 'Concessão' }, anoRef: { stringValue: v.anoRef || '' }, dataInicio: { stringValue: v.dataInicio || '' }, dataRetorno: { stringValue: v.dataRetorno || '' }, boletim: { stringValue: v.boletim || '' }, boletimOrigem: { stringValue: v.boletimOrigem || '' }, diasGozados: { integerValue: String(v.diasGozados || 0) }, diasAGozar: { integerValue: String(v.diasAGozar || 0) }, status: { stringValue: v.status || 'gozado' }, updatedAt: { timestampValue: new Date().toISOString() } } } };
+            return { update: { name: "projects/" + projectId + "/databases/" + dbId + "/documents/vacations/" + docId, fields: { id: { stringValue: docId }, militarRg: { stringValue: v.militarRg }, ato: { stringValue: v.ato || 'Concessão' }, anoRef: { stringValue: v.anoRef || '' }, dataInicio: { stringValue: v.dataInicio || '' }, dataRetorno: { stringValue: v.dataRetorno || '' }, boletim: { stringValue: v.boletim || '' }, boletimOrigem: { stringValue: v.boletimOrigem || '' }, diasGozados: { integerValue: String(v.diasGozados || 0) }, diasAGozar: { integerValue: String(v.diasAGozar || 0) }, status: { stringValue: v.status || 'gozado' }, updatedAt: { timestampValue: new Date().toISOString() } } } };
         });
 
-        fetch('https://firestore.googleapis.com/v1/projects/' + projectId + '/databases/(default)/documents:commit?key=' + apiKey, {
+        fetch('https://firestore.googleapis.com/v1/projects/' + projectId + '/databases/' + dbId + '/documents:commit?key=' + apiKey, {
             method: 'POST', 
             mode: 'cors', 
             headers: { 'Content-Type': 'application/json' },
@@ -434,12 +437,13 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
                 if (vacations.length > 0) {
                     const projectId = 'ai-studio-applet-webapp-33cfe';
                     const apiKey = 'AIzaSyB46AKE1I7nke459STRmIZ--bURelU3rNY';
+                    const dbId = '(default)';
                     let writes = vacations.map(v => {
                         let docId = v.militarRg + '_' + (v.anoRef || '0000') + '_' + (v.dataInicio || '').replace(/\\//g, '');
-                        return { update: { name: "projects/" + projectId + "/databases/(default)/documents/vacations/" + docId, fields: { id: { stringValue: docId }, militarRg: { stringValue: v.militarRg }, ato: { stringValue: v.ato || 'Concessão' }, anoRef: { stringValue: v.anoRef || '' }, dataInicio: { stringValue: v.dataInicio || '' }, dataRetorno: { stringValue: v.dataRetorno || '' }, boletim: { stringValue: v.boletim || '' }, boletimOrigem: { stringValue: v.boletimOrigem || '' }, diasGozados: { integerValue: String(v.diasGozados || 0) }, diasAGozar: { integerValue: String(v.diasAGozar || 0) }, status: { stringValue: v.status || 'gozado' }, updatedAt: { timestampValue: new Date().toISOString() } } } };
+                        return { update: { name: "projects/" + projectId + "/databases/" + dbId + "/documents/vacations/" + docId, fields: { id: { stringValue: docId }, militarRg: { stringValue: v.militarRg }, ato: { stringValue: v.ato || 'Concessão' }, anoRef: { stringValue: v.anoRef || '' }, dataInicio: { stringValue: v.dataInicio || '' }, dataRetorno: { stringValue: v.dataRetorno || '' }, boletim: { stringValue: v.boletim || '' }, boletimOrigem: { stringValue: v.boletimOrigem || '' }, diasGozados: { integerValue: String(v.diasGozados || 0) }, diasAGozar: { integerValue: String(v.diasAGozar || 0) }, status: { stringValue: v.status || 'gozado' }, updatedAt: { timestampValue: new Date().toISOString() } } } };
                     });
 
-                    await fetch('https://firestore.googleapis.com/v1/projects/' + projectId + '/databases/(default)/documents:commit?key=' + apiKey, {
+                    await fetch('https://firestore.googleapis.com/v1/projects/' + projectId + '/databases/' + dbId + '/documents:commit?key=' + apiKey, {
                         method: 'POST', 
                         mode: 'cors',
                         headers: { 'Content-Type': 'application/json' },
