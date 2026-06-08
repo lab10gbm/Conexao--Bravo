@@ -142,7 +142,8 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
           ? null
           : OBM_HIERARCHY[obmContext] || [obmContext];
       const matchesContext = allowedViews
-        ? allowedViews.includes(m.obm || "") || allowedViews.includes(m.lentTo!)
+        ? allowedViews.includes(normalizeObm(m.obm) || "") || 
+          allowedViews.includes(normalizeObm(m.lentTo!) || "")
         : true;
 
       const userCursos = m.cursos

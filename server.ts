@@ -63,6 +63,15 @@ const normalizeRg = (rg: string | number) => {
   return clean.replace(/^0+/, '') || clean;
 };
 
+const normalizeObm = (obm: string | null | undefined): string => {
+  const clean = (obm || "").toString().trim().toUpperCase();
+  const sede10Variations = ['10', '10º', '10 GBM', '10º GBM', '10ºGBM', '10GBM', 'OBM', '10º GBM - SEDE', '10º GBM SEDE', '10 GBM SEDE', '10º GBM-SEDE'];
+  if (sede10Variations.includes(clean)) return '10º GBM';
+  const sede26Variations = ['26', '26º', '26 GBM', '26º GBM', '26ºGBM', '26GBM', '26º GBM - SEDE'];
+  if (sede26Variations.includes(clean)) return '26º GBM';
+  return clean;
+};
+
 async function syncMilitariesFromSheetInternal() {
   try {
     const SHEET_URL = "https://docs.google.com/spreadsheets/d/1hfAOPnuqmLGxQCLxrQ4hzpp8ee81Pbgk4aCcYcSIqQs/export?format=csv&gid=1221046524";
@@ -131,6 +140,7 @@ async function syncMilitariesFromSheetInternal() {
         for (const row of records) {
           if (!row['RG']) continue;
           const safeRg = normalizeRg(row['RG']);
+          if (!safeRg || safeRg === 'RG') continue;
           const docRef = db.collection('militaries').doc(safeRg);
           
           const data: any = {
@@ -139,7 +149,7 @@ async function syncMilitariesFromSheetInternal() {
             warName: row['N.Guerra'] || row['N.Guerra'] || null,
             rank: row['Posto/Grad'] || row['POSTO/GRAD'] || null,
             ala: row['ALA'] || row['Ala'] || row['Ala/Horário'] || null,
-            obm: row['OBM'] || null,
+            obm: row['OBM'] ? normalizeObm(row['OBM']) : null,
             email: row['E-mail'] || row['EMAIL'] || null,
             cel: row['Cel'] || row['Celular'] || null,
             tel: row['Tel'] || row['Telefone'] || null,
@@ -186,6 +196,7 @@ async function syncMilitariesFromSheetInternal() {
       for (const row of records) {
         if (!row['RG']) continue;
         const safeRg = normalizeRg(row['RG']);
+        if (!safeRg || safeRg === 'RG') continue;
         const docRef = doc(clientDb, 'militaries', safeRg);
         
         const data: any = {
@@ -194,7 +205,7 @@ async function syncMilitariesFromSheetInternal() {
           warName: row['N.Guerra'] || row['N.Guerra'] || null,
           rank: row['Posto/Grad'] || row['POSTO/GRAD'] || null,
           ala: row['ALA'] || row['Ala'] || row['Ala/Horário'] || null,
-          obm: row['OBM'] || null,
+          obm: row['OBM'] ? normalizeObm(row['OBM']) : null,
           email: row['E-mail'] || row['EMAIL'] || null,
           cel: row['Cel'] || row['Celular'] || null,
           tel: row['Tel'] || row['Telefone'] || null,
@@ -548,15 +559,6 @@ async function startServer() {
     '26º GBM': ['26º GBM', '1/26'],
     '26 GBM': ['26º GBM', '1/26'],
     '1/26': ['1/26']
-  };
-
-  const normalizeObm = (obm: string) => {
-    const clean = (obm || "").toString().trim().toUpperCase();
-    const sede10Variations = ['10', '10º', '10 GBM', '10º GBM', '10ºGBM', '10GBM', 'OBM', '10º GBM - SEDE', '10º GBM SEDE', '10 GBM SEDE', '10º GBM-SEDE'];
-    if (sede10Variations.includes(clean)) return '10º GBM';
-    const sede26Variations = ['26', '26º', '26 GBM', '26º GBM', '26ºGBM', '26GBM', '26º GBM - SEDE'];
-    if (sede26Variations.includes(clean)) return '26º GBM';
-    return clean;
   };
 
   // Expose dependencies to extracted routes
