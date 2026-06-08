@@ -60,6 +60,16 @@ export function GestaoEfetivoModeracaoModule({ user, onBack }: { user: UserProfi
     });
   }, [militars, searchTerm, selectedObmFilter]);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 100;
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedObmFilter]);
+
+  const totalPages = Math.ceil(filteredMilitars.length / itemsPerPage);
+  const paginatedMilitars = filteredMilitars.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   const handleOpenNew = () => {
     setFormData({
       name: '',
@@ -231,13 +241,13 @@ export function GestaoEfetivoModeracaoModule({ user, onBack }: { user: UserProfi
                    </tr>
                  </thead>
                  <tbody className="divide-y divide-slate-100">
-                   {filteredMilitars.map((m: any, idx) => (
+                   {paginatedMilitars.map((m: any, idx) => (
                      <React.Fragment key={m.rg}>
                        <tr className={cn("hover:bg-indigo-50/50 transition-colors group cursor-pointer", expandedRow === m.rg && "bg-indigo-50/30")} onClick={() => setExpandedRow(expandedRow === m.rg ? null : (m.rg || null))}>
                          <td className="px-4 py-4 border-r border-slate-100 text-center text-slate-400">
                            {expandedRow === m.rg ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                          </td>
-                         <td className="px-4 py-4 border-r border-slate-100 text-center text-slate-400">{idx + 1}</td>
+                         <td className="px-4 py-4 border-r border-slate-100 text-center text-slate-400">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
                          <td className="px-4 py-4 border-r border-slate-100 text-slate-700 whitespace-nowrap">{m.rank}</td>
                          <td className="px-4 py-4 border-r border-slate-100 text-indigo-600 font-black">{m.rg}</td>
                          <td className="px-4 py-4 border-r border-slate-100 text-slate-800" title={m.name}>{m.name?.substring(0, 30)}{m.name?.length > 30 ? "..." : ""}</td>
@@ -286,7 +296,7 @@ export function GestaoEfetivoModeracaoModule({ user, onBack }: { user: UserProfi
                        )}
                      </React.Fragment>
                    ))}
-                   {filteredMilitars.length === 0 && (
+                   {paginatedMilitars.length === 0 && (
                      <tr>
                        <td colSpan={9} className="px-6 py-12 text-center text-slate-400">
                          <Users className="w-8 h-8 opacity-20 mx-auto mb-2" />
@@ -297,6 +307,13 @@ export function GestaoEfetivoModeracaoModule({ user, onBack }: { user: UserProfi
                  </tbody>
               </table>
             </div>
+            {totalPages > 1 && (
+               <div className="flex items-center justify-between px-6 py-3 border-t border-slate-200 bg-slate-50 mt-auto">
+                 <button onClick={() => setCurrentPage(c => Math.max(1, c - 1))} disabled={currentPage === 1} className="px-3 py-1 bg-white border border-slate-200 text-slate-700 rounded-lg text-xs font-bold disabled:opacity-50 hover:bg-slate-100 transition-colors">Anterior</button>
+                 <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Página {currentPage} de {totalPages}</span>
+                 <button onClick={() => setCurrentPage(c => Math.min(totalPages, c + 1))} disabled={currentPage === totalPages} className="px-3 py-1 bg-white border border-slate-200 text-slate-700 rounded-lg text-xs font-bold disabled:opacity-50 hover:bg-slate-100 transition-colors">Próxima</button>
+               </div>
+            )}
          </div>
       </div>
 

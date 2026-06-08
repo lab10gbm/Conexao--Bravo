@@ -366,14 +366,6 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       defaultGroups: ['ADMIN', 'ESCALANTE', 'OFICIAIS']
     },
     {
-       id: 'sop-medidas',
-       label: 'Gestão de Efetivo - SOP',
-       description: 'Controle de Carga Individual',
-       icon: BookOpen,
-       color: 'bg-emerald-600 shadow-emerald-200',
-       defaultGroups: ['ADMIN', 'ESCALANTE', 'OFICIAIS']
-    },
-    {
       id: 'escalante-gerenciar',
       label: 'Painel do Escalante',
       description: 'Gerenciar Escala',
@@ -401,14 +393,6 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
   ];
 
   const moderadorModulesDef = [
-    {
-      id: 'gestao-efetivo-moderacao',
-      label: 'Gestão de Efetivo',
-      description: 'Moderação e Cadastro',
-      icon: Users,
-      color: 'bg-emerald-700 shadow-emerald-200',
-      defaultGroups: ['ADMIN', 'ESCALANTE']
-    },
     {
       id: 'translado',
       label: 'Translado OBM',

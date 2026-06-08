@@ -330,6 +330,16 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
     });
   }, [merged, searchTerm, filterPostoGrad, filterQuadro, filterObm, filterAla, filterCidade, filterSituacao, filterCursos, filterMaterialField, filterMaterialStatus, manualRgs]);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterPostoGrad, filterQuadro, filterObm, filterAla, filterCidade, filterSituacao, filterCursos, filterMaterialField, filterMaterialStatus]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredMilitars.length / itemsPerPage));
+  const paginatedMilitars = filteredMilitars.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   const allFilteredSelected = filteredMilitars.length > 0 && filteredMilitars.every(m => selectedRgs.includes(m.rgStr));
 
   const toggleSelectAll = () => {
@@ -415,13 +425,19 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
            <Ruler className="w-32 h-32" />
         </div>
         <div className="flex gap-6 items-center">
-           <div className="w-20 h-20 rounded-3xl bg-indigo-600 flex items-center justify-center text-white shadow-2xl shadow-indigo-200 ring-8 ring-indigo-50">
-              <BookOpen className="w-10 h-10" />
-           </div>
-           <div>
-              <h2 className="text-3xl md:text-4xl font-black text-slate-800 uppercase tracking-tighter">Gestão do Efetivo - SOP</h2>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Carga Individual e Medidas Antropométricas</p>
-           </div>
+            <button 
+              onClick={onBack}
+              className="w-20 h-20 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-3xl flex items-center justify-center transition-colors"
+            >
+              <ArrowLeft className="w-10 h-10" />
+            </button>
+            <div className="w-20 h-20 rounded-3xl bg-indigo-600 flex items-center justify-center text-white shadow-2xl shadow-indigo-200 ring-8 ring-indigo-50">
+               <BookOpen className="w-10 h-10" />
+            </div>
+            <div>
+               <h2 className="text-3xl md:text-4xl font-black text-slate-800 uppercase tracking-tighter">Gestão do Efetivo - SOP</h2>
+               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Carga Individual e Medidas Antropométricas</p>
+            </div>
         </div>
 
         <div className="flex items-center gap-4 relative z-10">
@@ -786,7 +802,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
                          </div>
                        </td>
                     </tr>
-                 ) : filteredMilitars.length === 0 ? (
+                 ) : paginatedMilitars.length === 0 ? (
                     <tr>
                        <td colSpan={getColSpan()} className="p-20 text-center text-slate-400 font-bold uppercase tracking-widest bg-slate-50/30">
                          <div className="flex flex-col items-center gap-3">
@@ -798,7 +814,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
                        </td>
                     </tr>
                  ) : (
-                    filteredMilitars.map((item, i) => (
+                    paginatedMilitars.map((item, i) => (
                       <tr key={i} className={`hover:bg-slate-50 transition-colors ${selectedRgs.includes(item.rgStr) ? 'bg-emerald-50/40' : ''}`}>
                         <td className="p-4 border-r border-slate-100 text-center">
                           <input 
@@ -854,6 +870,13 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
                </tbody>
             </table>
           </div>
+          {totalPages > 1 && (
+             <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 bg-white rounded-b-3xl">
+               <button onClick={() => setCurrentPage(c => Math.max(1, c - 1))} disabled={currentPage === 1} className="px-4 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold disabled:opacity-50 hover:bg-slate-100 transition-colors">Anterior</button>
+               <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Página {currentPage} de {totalPages}</span>
+               <button onClick={() => setCurrentPage(c => Math.min(totalPages, c + 1))} disabled={currentPage === totalPages} className="px-4 py-2 bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold disabled:opacity-50 hover:bg-slate-100 transition-colors">Próxima</button>
+             </div>
+          )}
 
           {/* Floating Bulk Action Bar */}
       <AnimatePresence>

@@ -1,7 +1,7 @@
 import React from 'react';
-import { LayoutGrid, ListTree, List, Building2, BookOpen, Ruler } from 'lucide-react';
+import { LayoutGrid, ListTree, List, Building2, BookOpen } from 'lucide-react';
 
-export type ViewMode = 'cards' | 'table_obm' | 'table_unified' | 'summary' | 'plano_chamada' | 'medidas_sop';
+export type ViewMode = 'cards' | 'table_obm' | 'table_unified' | 'summary' | 'plano_chamada';
 
 interface EfetivoToolbarProps {
   viewMode: ViewMode;
@@ -48,13 +48,6 @@ export function EfetivoToolbar({ viewMode, setViewMode }: EfetivoToolbarProps) {
         title="Plano de Chamada"
       >
         <BookOpen size={18} />
-      </button>
-      <button
-        onClick={() => setViewMode('medidas_sop')}
-        className={getButtonClass('medidas_sop')}
-        title="Medidas e Carga Individual (SOP)"
-      >
-        <Ruler size={18} />
       </button>
     </div>
   );

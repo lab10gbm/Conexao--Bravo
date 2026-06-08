@@ -662,7 +662,7 @@ export default function App() {
                     <SopMedidasModule
                       user={effectiveProfile!}
                       militars={[]}
-                      onBack={() => navigate("/")}
+                      onBack={() => navigate("/efetivo")}
                     />
                   </motion.div>
                 }
@@ -1064,7 +1064,7 @@ export default function App() {
                   >
                     <GestaoEfetivoModeracaoModule
                       user={effectiveProfile!}
-                      onBack={() => navigate("/")}
+                      onBack={() => navigate("/efetivo")}
                     />
                   </motion.div>
                 }

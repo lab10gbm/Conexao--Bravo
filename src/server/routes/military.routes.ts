@@ -7,7 +7,24 @@ export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
     const requesterRg = req.query.rg as string;
     let usersData: any[] = [];
     
-    if (db && isDbHealthy) {
+    if (isCacheLoaded && militaryCache.size > 0) {
+      usersData = Array.from(militaryCache.values());
+      console.log(`[API] Served ${usersData.length} militaries from cache for ${requesterRg || 'anonymous'}`);
+      
+      if (requesterRg) {
+         const requester = militaryCache.get(normalizeRg(requesterRg));
+         if (requester && !requester.isAdmin) {
+             const userObm = requester.obm || '';
+             const allowedSetCount = new Set<string>();
+             (OBM_HIERARCHY[userObm] || [userObm]).forEach((o: string) => allowedSetCount.add(o));
+             if (requester.adminObms) requester.adminObms.forEach((o: string) => allowedSetCount.add(o));
+             if (requester.escalanteObms) requester.escalanteObms.forEach((o: string) => allowedSetCount.add(o));
+             
+             const allowedObmsNormalized = Array.from(allowedSetCount).map(o => normalizeObm(o));
+             usersData = usersData.filter(u => allowedObmsNormalized.includes(normalizeObm(u.obm)) || allowedObmsNormalized.includes(normalizeObm(u.lentTo)) || allowedObmsNormalized.length === 0);
+         }
+      }
+    } else if (db && isDbHealthy) {
       try {
         if (requesterRg) {
           const safeRg = normalizeRg(requesterRg);
@@ -56,15 +73,15 @@ export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
       }
     }
 
-    if (usersData.length === 0) {
-       // Fallback completely to cache if firestore unavailable
+    if (usersData.length === 0 && (!isCacheLoaded || militaryCache.size === 0)) {
+       // Fallback completely to cache if firestore unavailable and no results
        usersData = Array.from(militaryCache.values());
        if (requesterRg) {
           const requester = militaryCache.get(normalizeRg(requesterRg));
           if (requester && !requester.isAdmin) {
              const userObm = requester.obm || '';
              const allowedSetCount = new Set<string>();
-             (OBM_HIERARCHY[userObm] || [userObm]).forEach(o => allowedSetCount.add(o));
+             (OBM_HIERARCHY[userObm] || [userObm]).forEach((o: string) => allowedSetCount.add(o));
              if (requester.adminObms) requester.adminObms.forEach((o: string) => allowedSetCount.add(o));
              if (requester.escalanteObms) requester.escalanteObms.forEach((o: string) => allowedSetCount.add(o));
              

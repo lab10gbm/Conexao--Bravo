@@ -20,7 +20,9 @@ import {
   Ruler,
   Plus,
   FileText,
+  Settings,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { UserProfile } from "../types";
 import { db } from "../lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
@@ -33,7 +35,6 @@ import { EfetivoTableObmMode } from "./EfetivoTableObmMode";
 import { EfetivoUnifiedMode } from "./EfetivoUnifiedMode";
 import { EfetivoResumoTables } from "./EfetivoResumoTables";
 import { EfetivoPlanoChamada } from "./EfetivoPlanoChamada";
-import { SopMedidasModule } from "./SopMedidasModule";
 import { LendMilitarModal } from "./LendMilitarModal";
 import { ManualRgModal } from "./ManualRgModal";
 import { useMilitars } from "../contexts/MilitarContext";
@@ -55,6 +56,7 @@ interface EfetivoPanelProps {
 }
 
 export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
+  const navigate = useNavigate();
   const { militars, loading, refreshMilitars } = useMilitars();
   const [search, setSearch] = useState("");
   const [selectedLendGroup, setSelectedLendGroup] = useState("");
@@ -75,8 +77,7 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
     | "table_obm"
     | "table_unified"
     | "summary"
-    | "plano_chamada"
-    | "medidas_sop";
+    | "plano_chamada";
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const [showManualRgModal, setShowManualRgModal] = useState(false);
   const [orderedColumns, setOrderedColumns] = useState(INITIAL_COLUMNS);
@@ -411,6 +412,26 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          {(user.isAdmin || user.isEscalante) && (
+            <div className="flex items-center gap-2 mr-2 border-r border-slate-200 pr-4">
+              <button
+                onClick={() => navigate('/sop-medidas')}
+                title="Gestão SOP (Equipamentos de EPI)"
+                className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-[10px] uppercase font-black text-emerald-700 hover:bg-emerald-100 tracking-widest transition-colors h-[34px]"
+              >
+                <BookOpen size={14} />
+                <span className="hidden sm:inline">SOP / EPI</span>
+              </button>
+              <button
+                onClick={() => navigate('/gestao-efetivo-moderacao')}
+                title="Moderação e Cadastro"
+                className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[10px] uppercase font-black text-slate-700 hover:bg-slate-100 tracking-widest transition-colors h-[34px]"
+              >
+                <Settings size={14} />
+                <span className="hidden sm:inline">Moderação</span>
+              </button>
+            </div>
+          )}
           <EfetivoToolbar viewMode={viewMode} setViewMode={setViewMode} />
 
           <div className="flex items-center gap-2">
@@ -635,12 +656,6 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
         </div>
       ) : viewMode === "plano_chamada" ? (
         <EfetivoPlanoChamada militars={filteredMilitars} />
-      ) : viewMode === "medidas_sop" ? (
-        <SopMedidasModule
-          user={user}
-          militars={filteredMilitars}
-          onBack={() => setViewMode("cards")}
-        />
       ) : viewMode === "summary" ? (
         <div className="mt-6">
           <EfetivoResumoTables

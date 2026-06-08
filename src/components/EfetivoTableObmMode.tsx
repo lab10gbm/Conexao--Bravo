@@ -95,8 +95,9 @@ export function EfetivoTableObmMode({
                   </div>
                </div>
                {!isMinimized && (
-                 <div className="flex-1 overflow-x-auto no-scrollbar content-start max-h-[80vh] relative">
-                    <div className="sm:hidden sticky left-0 right-0 top-0 z-20 flex items-center gap-1.5 px-3 py-1 bg-slate-50 border-b border-slate-100">
+                 <>
+                   <div className="flex-1 overflow-x-auto no-scrollbar content-start max-h-[80vh] relative">
+                     <div className="sm:hidden sticky left-0 right-0 top-0 z-20 flex items-center gap-1.5 px-3 py-1 bg-slate-50 border-b border-slate-100">
                       <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping" />
                       <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Deslize para ver detalhes →</span>
                     </div>
@@ -110,7 +111,7 @@ export function EfetivoTableObmMode({
                         </tr>
                      </thead>
                      <tbody className="text-[11px] sm:text-sm divide-y divide-slate-100">
-                        {filteredMembers.map(m => (
+                        {(isExpanded ? filteredMembers : filteredMembers.slice(0, 30)).map(m => (
                            <tr key={m.rg} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => onRowClick(m)}>
                              {visibleColumnsList.map(col => {
                                if (col.id === 'insignia') {
@@ -165,6 +166,12 @@ export function EfetivoTableObmMode({
                      </tbody>
                    </table>
                  </div>
+                 {!isExpanded && filteredMembers.length > 30 && (
+                     <button onClick={() => setExpandedGroup(group.id)} className="w-full mt-2 py-2 bg-slate-50 hover:bg-indigo-50 border border-slate-200 text-slate-500 hover:text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors flex justify-center sticky bottom-0 z-20 shadow-[0_-10px_10px_rgba(255,255,255,0.8)]">
+                        Ver +{filteredMembers.length - 30}
+                     </button>
+                 )}
+               </>
                )}
             </div>
           );
