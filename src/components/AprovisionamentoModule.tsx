@@ -375,23 +375,29 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   const [materiais, setMateriais] = useState<Material[]>(() => {
     try {
       const cached = localStorage.getItem('aprovisionamento_dados_cache');
-      if (cached) return JSON.parse(cached).materiais || [];
+      if (cached) {
+         const parsed = JSON.parse(cached);
+         if (parsed.materiais && parsed.materiais.length > 0) return parsed.materiais;
+      }
     } catch(e) {}
-    return [];
+    return MOCK_MATERIAIS;
   });
   const [receitas, setReceitas] = useState<Receita[]>(() => {
     try {
       const cached = localStorage.getItem('aprovisionamento_dados_cache');
-      if (cached) return JSON.parse(cached).receitas || [];
+      if (cached) {
+         const parsed = JSON.parse(cached);
+         if (parsed.receitas && parsed.receitas.length > 0) return parsed.receitas;
+      }
     } catch(e) {}
-    return [];
+    return MOCK_RECEITAS;
   });
   const [cardapio, setCardapio] = useState<CardapioDia[]>(() => {
     try {
       const cached = localStorage.getItem('aprovisionamento_dados_cache');
-      if (cached) return JSON.parse(cached).cardapio || [];
+      if (cached && JSON.parse(cached).cardapio) return JSON.parse(cached).cardapio;
     } catch(e) {}
-    return [];
+    return MOCK_CARDAPIO;
   });
   const [listaCompras, setListaCompras] = useState<ItemListaCompras[]>(() => {
     try {
@@ -490,24 +496,48 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
         const snapDados = await getDoc(docRefDados);
         if (snapDados.exists()) {
           const data = snapDados.data();
-          if (data.materiais) setMateriais(data.materiais);
-          if (data.receitas) setReceitas(data.receitas);
-          if (data.cardapio) setCardapio(data.cardapio);
-          if (data.datasEstoque) setDatasEstoque(data.datasEstoque);
-          if (data.listaCompras) setListaCompras(data.listaCompras);
-          if (data.paxDefaults) setPaxDefaults(data.paxDefaults);
-          localStorage.setItem('aprovisionamento_dados_cache', JSON.stringify(data));
+          const loadedMateriais = data.materiais && data.materiais.length > 0 ? data.materiais : MOCK_MATERIAIS;
+          const loadedReceitas = data.receitas && data.receitas.length > 0 ? data.receitas : MOCK_RECEITAS;
+          
+          const loadedCardapio = data.cardapio || cardapio;
+          const loadedDatasEstoque = data.datasEstoque || datasEstoque;
+          const loadedListaCompras = data.listaCompras || listaCompras;
+          const loadedPaxDefaults = data.paxDefaults || paxDefaults;
+
+          setMateriais(loadedMateriais);
+          setReceitas(loadedReceitas);
+          setCardapio(loadedCardapio);
+          setDatasEstoque(loadedDatasEstoque);
+          setListaCompras(loadedListaCompras);
+          setPaxDefaults(loadedPaxDefaults);
+          
+          const fullDataToCache = {
+            ...data,
+            materiais: loadedMateriais,
+            receitas: loadedReceitas,
+            cardapio: loadedCardapio,
+            datasEstoque: loadedDatasEstoque,
+            listaCompras: loadedListaCompras,
+            paxDefaults: loadedPaxDefaults
+          };
+          localStorage.setItem('aprovisionamento_dados_cache', JSON.stringify(fullDataToCache));
+          
+          // Re-sync correct arrays back to db if we had to inject mocks or rescue local data
+          if (!data.materiais || data.materiais.length === 0 || !data.receitas || data.receitas.length === 0 || !data.cardapio || data.cardapio.length === 0) {
+             setDoc(docRefDados, cleanUndefined(fullDataToCache), { merge: true }).catch(console.error);
+          }
         } else {
-          // Initialize with MOCK data if doesn't exist at all
-          setMateriais(MOCK_MATERIAIS);
-          setReceitas(MOCK_RECEITAS);
-          setCardapio(MOCK_CARDAPIO);
-          
-          const initialData = { materiais: MOCK_MATERIAIS, receitas: MOCK_RECEITAS, cardapio: MOCK_CARDAPIO, datasEstoque: ['27/05'], listaCompras: [], paxDefaults: { cafe: 60, almoco: 60, jantar: 60 } };
-          localStorage.setItem('aprovisionamento_dados_cache', JSON.stringify(initialData));
-          
-          // Seed the database
-          setDoc(docRefDados, cleanUndefined(initialData));
+          // Document does not exist in Firestore yet.
+          // We sync the currently loaded local/mock data up to Firestore.
+          const initialData = { 
+            materiais, 
+            receitas, 
+            cardapio, 
+            datasEstoque, 
+            listaCompras, 
+            paxDefaults 
+          };
+          setDoc(docRefDados, cleanUndefined(initialData)).catch(e => console.warn('Could not seed initial db', e));
         }
       } catch (e) {
         console.error("Error fetching aprovisionamento dados:", e);

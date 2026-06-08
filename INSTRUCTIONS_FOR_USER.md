@@ -1,6 +1,6 @@
 # Manual de Configuração do Firebase para 10º GBM (Conexão Bravo)
 
-Para que o sistema de login e recuperação de senhas funcione corretamente, você precisa ativar o provedor de autenticação **E-mail/Senha** no console do Firebase para o projeto **endless-cosine-m3n78**.
+Para que o sistema de login e recuperação de senhas funcione corretamente, você precisa ativar o provedor de autenticação **E-mail/Senha** no console do Firebase para o projeto **ai-studio-applet-webapp-33cfe**.
 
 Se você encontrar o erro `auth/operation-not-allowed`, siga as etapas abaixo para ativá-lo:
 
@@ -8,7 +8,7 @@ Se você encontrar o erro `auth/operation-not-allowed`, siga as etapas abaixo pa
 
 ### Ativar o Provedor de E-mail/Senha:
 1. **Clique aqui para ir diretamente à página correspondente no painel do Firebase:**
-   👉 [Configurar Métodos de Login - endless-cosine-m3n78](https://console.firebase.google.com/project/endless-cosine-m3n78/authentication/providers)
+   👉 [Configurar Métodos de Login - ai-studio-applet-webapp-33cfe](https://console.firebase.google.com/project/ai-studio-applet-webapp-33cfe/authentication/providers)
 2. Clique no botão **"Adicionar novo provedor"** (ou "Add new provider").
 3. Selecione a opção **"E-mail/Senha"** (ou "Email/Password").
 4. Ative a primeira chave **"E-mail/Senha (Ativado)"** e deixe a de "Link do e-mail" desativada.

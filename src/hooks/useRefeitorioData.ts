@@ -209,7 +209,19 @@ export function useRefeitorioData() {
     const unsub = onSnapshot(doc(db, 'refeitorio', 'data'), async (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        let parsedMenus = data.menus || INITIAL_MENU_DATA;
+        let parsedMenus = data.menus;
+        if (!parsedMenus || parsedMenus.length === 0) {
+          try {
+             const cached = localStorage.getItem('refeitorio_menus_cache');
+             if (cached && JSON.parse(cached).length > 0) {
+                parsedMenus = JSON.parse(cached);
+                // Upload this rescued data
+                setDoc(doc(db, 'refeitorio', 'data'), { menus: parsedMenus }, { merge: true }).catch(console.error);
+             } else {
+                parsedMenus = INITIAL_MENU_DATA;
+             }
+          } catch(e) { parsedMenus = INITIAL_MENU_DATA; }
+        }
         
         parsedMenus = parsedMenus.map((m: any) => ({
           ...m,
@@ -223,13 +235,21 @@ export function useRefeitorioData() {
         setMenus(parsedMenus);
         localStorage.setItem('refeitorio_menus_cache', JSON.stringify(parsedMenus));
 
-        let loadedCatalog = data.catalog || {
-          proteinas: PROTEINAS,
-          acompanhamentos: ACOMPANHAMENTOS,
-          sobremesas: SOBREMESAS,
-          saladas: SALADAS,
-          ceia: CEIA
-        };
+        let loadedCatalog = data.catalog;
+        if (!loadedCatalog || !loadedCatalog.proteinas || loadedCatalog.proteinas.length === 0) {
+           try {
+              const cached = localStorage.getItem('refeitorio_catalog_cache');
+              if (cached && JSON.parse(cached).proteinas && JSON.parse(cached).proteinas.length > 0) {
+                 loadedCatalog = JSON.parse(cached);
+                 // Upload this rescued data
+                 setDoc(doc(db, 'refeitorio', 'data'), { catalog: loadedCatalog }, { merge: true }).catch(console.error);
+              } else {
+                 loadedCatalog = { proteinas: PROTEINAS, acompanhamentos: ACOMPANHAMENTOS, sobremesas: SOBREMESAS, saladas: SALADAS, ceia: CEIA };
+              }
+           } catch(e) { 
+              loadedCatalog = { proteinas: PROTEINAS, acompanhamentos: ACOMPANHAMENTOS, sobremesas: SOBREMESAS, saladas: SALADAS, ceia: CEIA }; 
+           }
+        }
 
         const defaultRefeicao = data.defaults || {
           almoco: { principal: "", acompanhamentos: "ARROZ, FEIJÃO", saladas: "SALADA TRADICIONAL", sobremesa: "" },
@@ -266,17 +286,38 @@ export function useRefeitorioData() {
         setCatalog(loadedCatalog);
         localStorage.setItem('refeitorio_catalog_cache', JSON.stringify(loadedCatalog));
       } else {
-        setMenus(INITIAL_MENU_DATA);
-        const defaults = {
+        let rescuedMenus = INITIAL_MENU_DATA;
+        try {
+           const cached = localStorage.getItem('refeitorio_menus_cache');
+           if (cached && JSON.parse(cached).length > 0) rescuedMenus = JSON.parse(cached);
+        } catch(e) {}
+        
+        let rescuedCatalog = {
           proteinas: PROTEINAS,
           acompanhamentos: ACOMPANHAMENTOS,
           sobremesas: SOBREMESAS,
           saladas: SALADAS,
           ceia: CEIA
         };
-        setCatalog(defaults);
-        localStorage.setItem('refeitorio_menus_cache', JSON.stringify(INITIAL_MENU_DATA));
-        localStorage.setItem('refeitorio_catalog_cache', JSON.stringify(defaults));
+        try {
+           const cachedCat = localStorage.getItem('refeitorio_catalog_cache');
+           if (cachedCat) {
+              const parsed = JSON.parse(cachedCat);
+              if (parsed.proteinas && parsed.proteinas.length > 0) rescuedCatalog = parsed;
+           }
+        } catch(e) {}
+        
+        setMenus(rescuedMenus);
+        setCatalog(rescuedCatalog);
+        localStorage.setItem('refeitorio_menus_cache', JSON.stringify(rescuedMenus));
+        localStorage.setItem('refeitorio_catalog_cache', JSON.stringify(rescuedCatalog));
+
+        // Sync back to db to populate the fresh doc
+        try {
+           await setDoc(doc(db, 'refeitorio', 'data'), cleanUndefined({ menus: rescuedMenus, catalog: rescuedCatalog }), { merge: true });
+        } catch (e) {
+           console.error("Error setting initial doc:", e);
+        }
       }
       setLoading(false);
     }, (error) => {
