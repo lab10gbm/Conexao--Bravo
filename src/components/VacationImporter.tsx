@@ -143,40 +143,100 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
              const doc = getTargetDoc();
              const bodyText = doc.body.innerText;
              
+             let rgMatch = bodyText.match(/RG[:\\s]*([\\d.]+)/i);
+             let rg = rgMatch ? rgMatch[1].replace(/\\D/g, '') : null;
+             
+             if (!rg) {
+                 let possibleRg = bodyText.match(/\\b(\\d{5})\\b/);
+                 if (possibleRg) rg = possibleRg[1];
+             }
+             
+             if (!rg) {
+                 rg = prompt("RG não localizado automaticamente. Digite o RG:");
+                 if (!rg) return;
+             }
+             
              btn.disabled = true;
              btn.innerText = '⌛ SINCRONIZANDO...';
 
-             // USE GM_xmlhttpRequest TO BYPASS CORS - SEND RAW TEXT INSTEAD OF FRAGILE DOM PARSING
+             let lines = bodyText.split('\\n');
+             let vacations = [];
+             for (let line of lines) {
+                if (!line.includes('/') && !line.includes('202')) continue;
+                let cols = line.split('\\t').map(s => s.trim());
+                if (cols.length < 5) continue;
+                if (cols[0].toUpperCase() === 'ATO' || cols[1].toUpperCase().includes('ANO')) continue;
+                
+                let dtInicio = cols[3] || '';
+                if (dtInicio.match(/\\d{2}\\/\\d{2}\\/\\d{4}/)) {
+                   vacations.push({
+                      militarRg: rg, 
+                      ato: cols[0]||'Concessão', 
+                      anoRef: cols[1]||'',
+                      dataInicio: dtInicio, 
+                      dataRetorno: cols[4]||'',
+                      boletim: cols[5]||'', 
+                      boletimOrigem: cols[6]||'',
+                      diasGozados: parseInt(cols[7])||0, 
+                      diasAGozar: parseInt(cols[8])||0,
+                      status: dtInicio.includes('2026') || dtInicio.includes('2027') ? 'marcado' : 'gozado'
+                   });
+                }
+             }
+             
+             if (vacations.length === 0) {
+                 alert('RG encontrado (' + rg + '), mas Nenhuma férias mapeada/parseada na página.');
+                 btn.disabled = false; btn.innerText = '🚀 SINCRONIZAR DGP';
+                 return;
+             }
+
+             // USE GM_xmlhttpRequest TO POST DIRECTLY TO FIRESTORE VIA REST API (BYPASS CORS, BYPASS RENDER)
+             const projectId = 'ai-studio-applet-webapp-33cfe';
+             const apiKey = 'AIzaSyB46AKE1I7nke459STRmIZ--bURelU3rNY';
+
+             let writes = vacations.map(v => {
+                 let docId = v.militarRg + '_' + (v.anoRef || '0000') + '_' + (v.dataInicio || '').replace(/\\//g, '');
+                 return {
+                     update: {
+                         name: "projects/" + projectId + "/databases/(default)/documents/vacations/" + docId,
+                         fields: {
+                              id: { stringValue: docId },
+                              militarRg: { stringValue: v.militarRg },
+                              ato: { stringValue: v.ato || 'Concessão' },
+                              anoRef: { stringValue: v.anoRef || '' },
+                              dataInicio: { stringValue: v.dataInicio || '' },
+                              dataRetorno: { stringValue: v.dataRetorno || '' },
+                              boletim: { stringValue: v.boletim || '' },
+                              boletimOrigem: { stringValue: v.boletimOrigem || '' },
+                              diasGozados: { integerValue: String(v.diasGozados || 0) },
+                              diasAGozar: { integerValue: String(v.diasAGozar || 0) },
+                              status: { stringValue: v.status || 'gozado' },
+                              updatedAt: { timestampValue: new Date().toISOString() }
+                         }
+                     }
+                 };
+             });
+
              GM_xmlhttpRequest({
                  method: "POST",
-                 url: APP_URL + "/api/admin/vacation/raw-sync",
-                 data: JSON.stringify({ rawText: bodyText }),
+                 url: 'https://firestore.googleapis.com/v1/projects/' + projectId + '/databases/(default)/documents:commit?key=' + apiKey,
+                 data: JSON.stringify({ writes: writes }),
                  headers: { 
                     "Content-Type": "application/json",
                     "Accept": "application/json"
                  },
                  onload: function(res) {
-                     console.log('Resposta do Servidor:', res);
                      if (res.status === 200) {
-                         try {
-                            const result = JSON.parse(res.responseText);
-                            if (result.success) {
-                               alert('🚀 Sincronizado com Sucesso! (' + result.count + ' registros de férias para o RG ' + result.rg + ')');
-                            } else {
-                               alert('Falha na plataforma: ' + (result.error || 'Erro interno'));
-                            }
-                         } catch(e) {
-                            alert('Erro ao processar resposta: ' + e.message + '\\n\\n' + res.responseText.substring(0, 100));
-                         }
+                         alert('🚀 Sincronizado com Sucesso Direto no Banco Firebase! (' + vacations.length + ' registros para o RG ' + rg + ')');
                      } else {
-                         alert('Erro no Servidor: ' + res.status + '\\n\\nURL: ' + APP_URL + '/api/admin/vacation/raw-sync' + '\\n\\nResposta: ' + res.responseText.substring(0, 200));
+                         alert('Erro no Servidor: ' + res.status + '\\n\\nResposta: ' + res.responseText.substring(0, 200));
                      }
                      btn.disabled = false;
                      btn.innerText = '🚀 SINCRONIZAR DGP';
                  },
                  onerror: function(err) {
                      console.error('Erro GM_xmlhttpRequest:', err);
-                     alert('Erro de Conexão Fatal.\\nVerifique se o site das permutas está online e se sua intranet nao o bloqueia: ' + APP_URL + '\\n\\nDetalhes: ' + JSON.stringify(err));
+                     alert('Erro de Conexão Fatal para o Firebase. Verifique sua intranet: ' + JSON.stringify(err));
                      btn.disabled = false;
                      btn.innerText = '🚀 SINCRONIZAR DGP';
                  }
@@ -231,21 +291,28 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
                 });
             });
             if (rowsData.length === 0) return alert('Nenhum dado de férias encontrado.');
-        fetch('${appUrl}/api/admin/vacation/bulk-sync', {
+        const projectId = 'ai-studio-applet-webapp-33cfe';
+        const apiKey = 'AIzaSyB46AKE1I7nke459STRmIZ--bURelU3rNY';
+
+        let writes = rowsData.map(v => {
+            let docId = v.militarRg + '_' + (v.anoRef || '0000') + '_' + (v.dataInicio || '').replace(/\\//g, '');
+            return { update: { name: "projects/" + projectId + "/databases/(default)/documents/vacations/" + docId, fields: { id: { stringValue: docId }, militarRg: { stringValue: v.militarRg }, ato: { stringValue: v.ato || 'Concessão' }, anoRef: { stringValue: v.anoRef || '' }, dataInicio: { stringValue: v.dataInicio || '' }, dataRetorno: { stringValue: v.dataRetorno || '' }, boletim: { stringValue: v.boletim || '' }, boletimOrigem: { stringValue: v.boletimOrigem || '' }, diasGozados: { integerValue: String(v.diasGozados || 0) }, diasAGozar: { integerValue: String(v.diasAGozar || 0) }, status: { stringValue: v.status || 'gozado' }, updatedAt: { timestampValue: new Date().toISOString() } } } };
+        });
+
+        fetch('https://firestore.googleapis.com/v1/projects/' + projectId + '/databases/(default)/documents:commit?key=' + apiKey, {
             method: 'POST', 
             mode: 'cors', 
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ vacations: rowsData })
+            body: JSON.stringify({ writes })
         }).then(async r => {
             if (r.ok) {
-                const res = await r.json();
-                alert('🚀 ' + (res.count || rowsData.length) + ' Militares Sincronizados!');
+                alert('🚀 ' + rowsData.length + ' Férias Sincronizadas Diretamente no Firebase!');
             } else {
                 const txt = await r.text();
-                alert('Erro: ' + r.status + ' - ' + txt.substring(0, 200));
+                alert('Erro Firebase: ' + r.status + ' - ' + txt.substring(0, 200));
             }
         }).catch(e => {
-            alert('Erro de Conexão: ' + e + '\\nVerifique se o sistema está online em: ${appUrl}');
+            alert('Erro de Conexão Direta: ' + e);
         });
         return;
     }
@@ -281,26 +348,29 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
 
     if (vacations.length === 0) return alert('Nenhuma férias válida encontrada.');
     
-    // Check health before trying to sync
     const checkSync = () => {
-      fetch('${appUrl}/api/admin/vacation/bulk-sync', {
-          method: 'POST', 
-          mode: 'cors', 
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ vacations })
-      }).then(async res => {
-          if (res.ok) alert('🚀 Sincronizado: ' + vacations.length + ' registros!');
-          else {
-              const data = await res.json().catch(() => ({}));
-              alert('Falha: ' + (data.error || res.status));
-          }
-      }).catch(e => alert('Erro de Conexão: ' + e));
+        const projectId = 'ai-studio-applet-webapp-33cfe';
+        const apiKey = 'AIzaSyB46AKE1I7nke459STRmIZ--bURelU3rNY';
+        let writes = vacations.map(v => {
+            let docId = v.militarRg + '_' + (v.anoRef || '0000') + '_' + (v.dataInicio || '').replace(/\\//g, '');
+            return { update: { name: "projects/" + projectId + "/databases/(default)/documents/vacations/" + docId, fields: { id: { stringValue: docId }, militarRg: { stringValue: v.militarRg }, ato: { stringValue: v.ato || 'Concessão' }, anoRef: { stringValue: v.anoRef || '' }, dataInicio: { stringValue: v.dataInicio || '' }, dataRetorno: { stringValue: v.dataRetorno || '' }, boletim: { stringValue: v.boletim || '' }, boletimOrigem: { stringValue: v.boletimOrigem || '' }, diasGozados: { integerValue: String(v.diasGozados || 0) }, diasAGozar: { integerValue: String(v.diasAGozar || 0) }, status: { stringValue: v.status || 'gozado' }, updatedAt: { timestampValue: new Date().toISOString() } } } };
+        });
+
+        fetch('https://firestore.googleapis.com/v1/projects/' + projectId + '/databases/(default)/documents:commit?key=' + apiKey, {
+            method: 'POST', 
+            mode: 'cors', 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ writes })
+        }).then(async res => {
+            if (res.ok) alert('🚀 Sincronizado Direto no Firebase: ' + vacations.length + ' registros!');
+            else {
+                const data = await res.text();
+                alert('Falha: ' + res.status + ' - ' + data.substring(0, 100));
+            }
+        }).catch(e => alert('Erro de Conexão: ' + e));
     };
 
-    fetch('${appUrl}/api/health').then(r => r.json()).then(d => {
-        if (d.status === 'ok') checkSync();
-        else alert('❌ ERRO: O servidor respondeu mas não está pronto. Tente clicar em "Share" no painel.');
-    }).catch(e => alert('❌ ERRO DE CONEXÃO: O servidor (PRE) não respondeu. Certifique-se de clicar no botão "Share" no topo da tela do AI Studio para ativar o link compartilhado.'));
+    checkSync();
   })();`.replace(/\s+/g, ' ').trim();
 
   const scannerCode = `javascript:(async function(){
@@ -362,12 +432,19 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
                     };
                 }).filter(v => v !== null);
                 if (vacations.length > 0) {
-                    await fetch('${appUrl}/api/admin/vacation/bulk-sync', {
+                    const projectId = 'ai-studio-applet-webapp-33cfe';
+                    const apiKey = 'AIzaSyB46AKE1I7nke459STRmIZ--bURelU3rNY';
+                    let writes = vacations.map(v => {
+                        let docId = v.militarRg + '_' + (v.anoRef || '0000') + '_' + (v.dataInicio || '').replace(/\\//g, '');
+                        return { update: { name: "projects/" + projectId + "/databases/(default)/documents/vacations/" + docId, fields: { id: { stringValue: docId }, militarRg: { stringValue: v.militarRg }, ato: { stringValue: v.ato || 'Concessão' }, anoRef: { stringValue: v.anoRef || '' }, dataInicio: { stringValue: v.dataInicio || '' }, dataRetorno: { stringValue: v.dataRetorno || '' }, boletim: { stringValue: v.boletim || '' }, boletimOrigem: { stringValue: v.boletimOrigem || '' }, diasGozados: { integerValue: String(v.diasGozados || 0) }, diasAGozar: { integerValue: String(v.diasAGozar || 0) }, status: { stringValue: v.status || 'gozado' }, updatedAt: { timestampValue: new Date().toISOString() } } } };
+                    });
+
+                    await fetch('https://firestore.googleapis.com/v1/projects/' + projectId + '/databases/(default)/documents:commit?key=' + apiKey, {
                         method: 'POST', 
                         mode: 'cors',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ vacations })
-                    }).catch(e => console.error('Erro no Lote:', e));
+                        body: JSON.stringify({ writes })
+                    }).catch(e => console.error('Erro no Lote (Firebase):', e));
                     total++;
                 }
             }
