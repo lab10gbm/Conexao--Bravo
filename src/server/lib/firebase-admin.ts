@@ -30,8 +30,15 @@ export function initFirebaseAdmin() {
     }
     
     const saJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+    const saFilePath = path.join(process.cwd(), 'service-account.json');
     if (saJson) {
       const sa = JSON.parse(saJson);
+      admin.initializeApp({
+        credential: admin.credential.cert(sa),
+        projectId: sa.project_id
+      });
+    } else if (fs.existsSync(saFilePath)) {
+      const sa = JSON.parse(fs.readFileSync(saFilePath, 'utf8'));
       admin.initializeApp({
         credential: admin.credential.cert(sa),
         projectId: sa.project_id
