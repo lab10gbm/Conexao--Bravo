@@ -94,8 +94,13 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
 (function() {
     'use strict';
 
-    try { unsafeWindow.over = "over"; unsafeWindow.out = "out"; } catch(e){}
-    try { const s = document.createElement('script'); s.textContent = 'window.over="over"; window.out="out";'; document.documentElement.appendChild(s); } catch(e){}
+    try {
+        const fixGlobals = (win) => { win.over="over"; win.out="out"; };
+        fixGlobals(window);
+        const script = document.createElement('script');
+        script.textContent = 'window.over="over"; window.out="out"; try{for(let i=0;i<window.frames.length;i++){window.frames[i].window.over="over"; window.frames[i].window.out="out";}}catch(e){}';
+        document.documentElement.appendChild(script);
+    } catch(e) {}
 
     const APP_URL = '${appUrl.replace(/\/$/, '')}';
 
@@ -224,7 +229,7 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
 
   const bookmarkletCode = `javascript:(function(){
     try {
-        const s = document.createElement('script'); s.textContent = 'window.over="over"; window.out="out";'; document.documentElement.appendChild(s);
+        const s = document.createElement('script'); s.textContent = 'window.over="over"; window.out="out"; try{for(let i=0;i<window.frames.length;i++){window.frames[i].window.over="over"; window.frames[i].window.out="out";}}catch(e){}'; document.documentElement.appendChild(s);
         const getDoc = () => {
             const frames = ['corpo', 'main', 'frame_principal'];
             for (let fName of frames) {
@@ -337,7 +342,7 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
   })();`.replace(/\s+/g, ' ').trim();
 
   const scannerCode = `javascript:(async function(){
-    const s = document.createElement('script'); s.textContent = 'window.over="over"; window.out="out";'; document.documentElement.appendChild(s);
+    const s = document.createElement('script'); s.textContent = 'window.over="over"; window.out="out"; try{for(let i=0;i<window.frames.length;i++){window.frames[i].window.over="over"; window.frames[i].window.out="out";}}catch(e){}'; document.documentElement.appendChild(s);
     const rgs = ${JSON.stringify(allMilitars.map(m => m.rg.replace(/\D/g, '')))};
     if (!confirm('Deseja iniciar a VARREDURA em massa de ' + rgs.length + ' militares? Isso pode levar algum tempo.')) return;
     
