@@ -183,6 +183,7 @@ export function ControlePermutasMobile({ user, obmContext }: ControlePermutasMob
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [queue, setQueue] = useState<PermutaRequest[]>([]);
   const [direction, setDirection] = useState<'left' | 'right' | null>(null);
+  const [selectedSubFunctions, setSelectedSubFunctions] = useState<string[]>([]);
   
   // Local state for 'facilitadas' mapping to structure the idea
   const [facilitadasIds, setFacilitadasIds] = useState<Set<string>>(new Set());
@@ -277,8 +278,12 @@ export function ControlePermutasMobile({ user, obmContext }: ControlePermutasMob
               status: newStatus,
               acceptedById: user.uid,
               acceptedByName: user.name,
+              substituteFunctions: action === 'deferir' ? selectedSubFunctions : [],
               updatedAt: Date.now()
             }));
+      
+      // Reset after defer/indef
+      setSelectedSubFunctions([]);
       // FireStore listener will naturally keep `permutas` updated 
     } catch (error) {
       console.error("Erro ao alterar permuta", error);
@@ -690,31 +695,79 @@ export function ControlePermutasMobile({ user, obmContext }: ControlePermutasMob
                          const fallbackRank = currentCard.substituteName?.split(' ')[0] || '-';
                          const fallbackName = currentCard.substituteName?.split(' ').slice(1).join(' ') || '-';
                          return (
-                           <div className="flex items-center gap-3 w-full mt-2">
-                             <div className="w-12 flex items-center justify-center shrink-0">
-                               <RankInsignia rankStr={m?.rank || fallbackRank} className="scale-[1.15] origin-center" />
-                             </div>
-                             <div className="flex flex-col text-left">
-                               <span className="text-[11px] font-bold text-slate-500 uppercase leading-none mb-1">
-                                 {m?.rank || fallbackRank}
-                               </span>
-                               <span className="text-sm font-black text-slate-800 uppercase tracking-wider leading-none">
-                                 {m?.warName || fallbackName}
-                               </span>
-                               <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                                 {(m?.rg || currentCard.substituteRg) && (
-                                   <span className="text-[10px] font-bold text-slate-400 font-mono">
-                                     RG: {m?.rg || currentCard.substituteRg}
-                                   </span>
-                                 )}
-                                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest bg-emerald-200/50 px-1.5 py-0.5 rounded">
-                                   {m?.quadro?.toUpperCase() || 'S/Q'}
-                                 </span>
-                                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest bg-emerald-200/50 px-1.5 py-0.5 rounded">
-                                   Ala {m?.ala || 'S/A'}
-                                 </span>
-                               </div>
-                             </div>
+                           <div className="flex flex-col gap-3">
+                            <div className="flex items-center gap-3 w-full mt-2">
+                              <div className="w-12 flex items-center justify-center shrink-0">
+                                <RankInsignia rankStr={m?.rank || fallbackRank} className="scale-[1.15] origin-center" />
+                              </div>
+                              <div className="flex flex-col text-left">
+                                <span className="text-[11px] font-bold text-slate-500 uppercase leading-none mb-1">
+                                  {m?.rank || fallbackRank}
+                                </span>
+                                <span className="text-sm font-black text-slate-800 uppercase tracking-wider leading-none">
+                                  {m?.warName || fallbackName}
+                                </span>
+                                <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                                  {(m?.rg || currentCard.substituteRg) && (
+                                    <span className="text-[10px] font-bold text-slate-400 font-mono">
+                                      RG: {m?.rg || currentCard.substituteRg}
+                                    </span>
+                                  )}
+                                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest bg-emerald-200/50 px-1.5 py-0.5 rounded">
+                                    {m?.quadro?.toUpperCase() || 'S/Q'}
+                                  </span>
+                                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest bg-emerald-200/50 px-1.5 py-0.5 rounded">
+                                    Ala {m?.ala || 'S/A'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Seletor de Funções Mobile */}
+                            <div className="mt-2 bg-white rounded-xl p-3 border border-emerald-100 shadow-sm">
+                              <h4 className="text-[9px] font-black text-emerald-800 uppercase tracking-widest mb-2 flex items-center gap-1">
+                                <Activity className="w-2.5 h-2.5" /> Funções para este serviço
+                              </h4>
+                              <div className="flex flex-wrap gap-1.5">
+                                {[
+                                  'ADJUNTO', 'CONDUTOR ABT', 'CONDUTOR ABSL', 'CONDUTOR AR', 'CONDUTOR ASE', 'CONDUTOR ARC',
+                                  'CHEFE ABT', 'CHEFE ABSL', 'AUXILIAR ABT', 'AUXILIAR ABSL', 'AUXILIAR ARC', 'AUXILIAR ASE',
+                                  'ENFERMEIRO', 'MESTRE AL', 'MESTRE BIA', 'OPERADOR AMA', 'GV AMA', 'SGT DIA', 'CMT GUARDA',
+                                  'CB GUARDA', 'CB DIA', 'COMUNICANTE', 'SENTINELA', 'AUX RANCHO', 'FAXINA'
+                                ].map(f => {
+                                  const isSelected = selectedSubFunctions.includes(f);
+                                  return (
+                                    <button
+                                      key={f}
+                                      onClick={() => {
+                                        setSelectedSubFunctions(prev => 
+                                          isSelected ? prev.filter(x => x !== f) : [...prev, f]
+                                        );
+                                      }}
+                                      className={cn(
+                                        "px-2 py-1 rounded text-[8px] font-black tracking-widest border transition-all",
+                                        isSelected 
+                                          ? "bg-emerald-600 text-white border-emerald-700 shadow-[0_2px_8px_-2px_rgba(5,150,105,0.4)]" 
+                                          : "bg-slate-50 text-slate-400 border-slate-200 hover:border-emerald-300"
+                                      )}
+                                    >
+                                      {f}
+                                    </button>
+                                  );
+                                })}
+                                <button
+                                  onClick={() => setSelectedSubFunctions([])}
+                                  className={cn(
+                                    "px-2 py-1 rounded text-[8px] font-black tracking-widest border transition-all",
+                                    selectedSubFunctions.length === 0
+                                      ? "bg-slate-800 text-white border-slate-900"
+                                      : "bg-slate-100 text-slate-500 border-slate-200"
+                                  )}
+                                >
+                                  DEFINIR DEPOIS
+                                </button>
+                              </div>
+                            </div>
                            </div>
                          );
                       })()}

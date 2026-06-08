@@ -22,6 +22,7 @@ import {
   ChevronRight,
   Settings2,
   AlertCircle,
+  Search,
   UtensilsCrossed,
   Radio,
   Bus,
@@ -287,6 +288,14 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
   ];
 
   const informativoModulesDef = [
+    {
+       id: 'buscar-militar',
+       label: 'Buscar Militar',
+       description: 'Diretório de Perfis',
+       icon: Search,
+       color: 'bg-blue-600 shadow-blue-200',
+       defaultGroups: ['TODOS']
+    },
     {
        id: 'atualizacao',
        label: 'Atualização Cadastral',

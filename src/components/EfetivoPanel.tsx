@@ -398,7 +398,7 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
   };
 
   return (
-    <div className="flex flex-col gap-6 font-sans">
+    <div className="flex flex-col gap-6 font-sans pt-10">
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
         <div>
           <h2 className="text-2xl sm:text-3xl font-black text-slate-800 uppercase tracking-tighter flex items-center gap-3">

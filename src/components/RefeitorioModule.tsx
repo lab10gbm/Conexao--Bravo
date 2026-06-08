@@ -420,7 +420,7 @@ export function RefeitorioModule({ user, onBack, initialTab = 'cardapio' }: Refe
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 pt-10">
       <div className="flex items-center justify-between mb-4">
         {!user.rg?.toString().toUpperCase().startsWith('RANCHO') ? (
           <button 

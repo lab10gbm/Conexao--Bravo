@@ -159,6 +159,7 @@ const RequestPermuta = React.lazy(() => import("./components/RequestPermuta").th
 const CalendarHighlights = React.lazy(() => import("./components/CalendarHighlights").then((m) => ({ default: m.CalendarHighlights })));
 const AdminPanel = React.lazy(() => import("./components/AdminPanel").then((m) => ({ default: m.AdminPanel })));
 const ExpedienteScheduler = React.lazy(() => import("./components/ExpedienteScheduler").then((m) => ({ default: m.ExpedienteScheduler })));
+const BuscarMilitarModule = React.lazy(() => import("./components/BuscarMilitarModule").then((m) => ({ default: m.BuscarMilitarModule })));
 const HomePortal = React.lazy(() => import("./components/HomePortal").then((m) => ({ default: m.HomePortal })));
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -597,6 +598,22 @@ export default function App() {
                 }
               />
               <Route
+                path="/buscar-militar"
+                element={
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.05 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <BuscarMilitarModule
+                      viewer={effectiveProfile!}
+                      onBack={() => navigate("/")}
+                    />
+                  </motion.div>
+                }
+              />
+              <Route
                 path="/patrimonio"
                 element={
                   <motion.div
@@ -676,10 +693,10 @@ export default function App() {
                     transition={{ duration: 0.3 }}
                   >
                     <div className="flex flex-col gap-6">
-                      <div className="mb-4">
+                      <div className="mb-4 pt-12">
                         <button
                           onClick={() => navigate("/")}
-                          className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors uppercase font-black text-[10px] tracking-[0.2em] group"
+                          className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors uppercase font-black text-[10px] tracking-[0.2em] group mt-6"
                         >
                           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                           Voltar ao Portal Principal
@@ -709,10 +726,10 @@ export default function App() {
                     transition={{ duration: 0.3 }}
                   >
                     <div className="flex flex-col gap-6">
-                      <div className="mb-4">
+                      <div className="mb-4 pt-12">
                         <button
                           onClick={() => navigate("/")}
-                          className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors uppercase font-black text-[10px] tracking-[0.2em] group"
+                          className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors uppercase font-black text-[10px] tracking-[0.2em] group mt-6"
                         >
                           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                           Voltar ao Portal Principal
@@ -752,10 +769,10 @@ export default function App() {
                     transition={{ duration: 0.3 }}
                   >
                     <div className="flex flex-col gap-6">
-                      <div className="mb-4">
+                      <div className="mb-4 pt-12">
                         <button
                           onClick={() => navigate("/")}
-                          className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors uppercase font-black text-[10px] tracking-[0.2em] group"
+                          className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors uppercase font-black text-[10px] tracking-[0.2em] group mt-6"
                         >
                           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                           Voltar ao Portal Principal
@@ -827,10 +844,10 @@ export default function App() {
                     transition={{ duration: 0.3 }}
                   >
                     <div className="flex flex-col gap-6">
-                      <div className="mb-4">
+                      <div className="mb-4 pt-12">
                         <button
                           onClick={() => navigate("/")}
-                          className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors uppercase font-black text-[10px] tracking-[0.2em] group"
+                          className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors uppercase font-black text-[10px] tracking-[0.2em] group mt-6"
                         >
                           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                           Voltar ao Portal Principal
@@ -920,10 +937,10 @@ export default function App() {
                       transition={{ duration: 0.4 }}
                       className="min-h-[60vh] flex flex-col"
                     >
-                      <div className="mb-8">
+                      <div className="mb-8 pt-12">
                         <button
                           onClick={() => setSelectedMonthView(null)}
-                          className="mb-8 flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors uppercase font-black text-[10px] tracking-widest"
+                          className="flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-colors uppercase font-black text-[10px] tracking-widest mt-6"
                         >
                           &larr; Voltar para Dashboard
                         </button>
@@ -987,10 +1004,10 @@ export default function App() {
                     transition={{ duration: 0.3 }}
                   >
                     <div className="flex flex-col gap-6">
-                      <div className="mb-4">
+                      <div className="mb-4 pt-12">
                         <button
                           onClick={() => navigate("/")}
-                          className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors uppercase font-black text-[10px] tracking-[0.2em] group"
+                          className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors uppercase font-black text-[10px] tracking-[0.2em] group mt-6"
                         >
                           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                           Voltar ao Portal Principal

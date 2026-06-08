@@ -218,7 +218,7 @@ export function ProfileUpdate({ user, onUpdate, onBack }: ProfileUpdateProps) {
   };
 
   return (
-    <div className="max-w-3xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="max-w-3xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-700 pt-10">
       <div className="flex items-center gap-3 mb-8">
         <UserCircle2 className="w-6 h-6 text-indigo-600" />
         <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Atualização Cadastral</h2>
@@ -525,95 +525,6 @@ export function ProfileUpdate({ user, onUpdate, onBack }: ProfileUpdateProps) {
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none"
                   />
                 </div>
-              </div>
-           </div>
-
-           {/* SECTION 5: FUNÇÕES E APTIDÕES (BOOLEANS) */}
-           <div className="space-y-6">
-              <h4 className="flex items-center gap-2 text-sm font-black text-slate-800 uppercase tracking-tighter border-b border-slate-100 pb-2">
-                <UserCheck className="w-4 h-4 text-indigo-600" /> Aptidões e Funções na Escala
-              </h4>
-              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest italic mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
-                Marque as funções que você está apto e autorizado a exercer. Estas informações serão validadas pelo Escalante para composição das escalas.
-              </p>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[
-                  { id: 'ativoCondutor', label: 'Condutor de Viatura' },
-                  { id: 'ativoEncarregado', label: 'Encarregado' },
-                  { id: 'ativoAbastecedor', label: 'Abastecedor' },
-                  { id: 'ativoChefeGua', label: 'Chefe de Guarnição' },
-                  { id: 'ativoMaritimo', label: 'Apto p/ Marítimo' },
-                  { id: 'ativoEnfermeiro', label: 'Enfermeiro/Téc. Enfermagem' },
-                  { id: 'ativoComunicante', label: 'Comunicante' },
-                  { id: 'ativoGraduado', label: 'Graduado de Dia' },
-                  { id: 'ativoCbsSds', label: 'Cb/Sd de Dia' },
-                  { id: 'adjunto', label: 'Adjunto' },
-                  { id: 'sgtDia', label: 'Sgt de Dia' },
-                  { id: 'cmtGuarda', label: 'Cmt da Guarda' },
-                  { id: 'cbGuarda', label: 'Cb da Guarda' },
-                  { id: 'cbDia', label: 'Cb de Dia' },
-                  { id: 'auxRancho', label: 'Auxiliar de Rancho' },
-                  { id: 'toqueDeFogo', label: 'Toque de Fogo' },
-                  { id: 'sentinela', label: 'Sentinela' },
-                  { id: 'marinheiros', label: 'Marinheiro' },
-                  { id: 'mestreAl', label: 'Mestre Alfa' },
-                  { id: 'mestreBia', label: 'Mestre Bravo' },
-                ].map((func) => (
-                  <label 
-                    key={func.id} 
-                    className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-100 rounded-2xl cursor-pointer hover:bg-indigo-50 hover:border-indigo-100 transition-all group"
-                  >
-                    <div className="relative flex items-center justify-center">
-                      <input
-                        type="checkbox"
-                        name={func.id}
-                        checked={!!(formData as any)[func.id]}
-                        onChange={handleChange}
-                        className="peer h-6 w-6 appearance-none rounded-lg border-2 border-slate-300 bg-white checked:bg-indigo-600 checked:border-indigo-600 transition-all cursor-pointer"
-                      />
-                      <Save className="absolute w-3.5 h-3.5 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
-                    </div>
-                    <span className="text-xs font-black uppercase tracking-tight text-slate-600 group-hover:text-indigo-900">
-                      {func.label}
-                    </span>
-                  </label>
-                ))}
-              </div>
-           </div>
-
-           {/* SECTION 6: HABILITAÇÃO EM VIATURAS */}
-           <div className="space-y-6">
-              <h4 className="flex items-center gap-2 text-sm font-black text-slate-800 uppercase tracking-tighter border-b border-slate-100 pb-2">
-                <Settings2 className="w-4 h-4 text-indigo-600" /> Habilitação em Viaturas (Operação)
-              </h4>
-              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest italic mb-4">
-                Selecione as viaturas que você está habilitado a operar (conforme curso de especialização de condutor).
-              </p>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
-                {['ABT', 'ABSL', 'ASE', 'AR', 'ARC'].map((vtr) => (
-                  <label 
-                    key={vtr} 
-                    className="flex flex-col items-center gap-3 p-4 bg-slate-50 border border-slate-100 rounded-2xl cursor-pointer hover:bg-indigo-50 hover:border-indigo-100 transition-all group text-center"
-                  >
-                    <div className="relative flex items-center justify-center">
-                      <input
-                        type="checkbox"
-                        checked={!!(formData.viaturas as any)?.[vtr]}
-                        onChange={(e) => {
-                          const newViaturas = { ...(formData.viaturas || {}), [vtr]: e.target.checked };
-                          setFormData({ ...formData, viaturas: newViaturas });
-                        }}
-                        className="peer h-8 w-8 appearance-none rounded-xl border-2 border-slate-300 bg-white checked:bg-indigo-600 checked:border-indigo-600 transition-all cursor-pointer"
-                      />
-                      <Save className="absolute w-4 h-4 text-white opacity-0 peer-checked:opacity-100 transition-opacity" />
-                    </div>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 group-hover:text-indigo-900">
-                      {vtr}
-                    </span>
-                  </label>
-                ))}
               </div>
            </div>
 

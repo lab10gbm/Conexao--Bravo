@@ -117,6 +117,7 @@ export interface PermutaRequest {
   date: string; // YYYY-MM-DD
   originalAla: string | number;
   targetMilitarId?: string;
+  substituteFunctions?: string[]; 
   status: PermutaStatus;
   acceptedById?: string;
   acceptedByName?: string;

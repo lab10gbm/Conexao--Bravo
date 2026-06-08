@@ -896,7 +896,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   });
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 py-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="w-full max-w-7xl mx-auto px-4 py-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pt-10">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-3">
           <div className="p-3 rounded-2xl bg-amber-50 text-amber-600 shadow-inner">

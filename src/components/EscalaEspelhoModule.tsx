@@ -263,6 +263,27 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
     return () => unsub();
   }, [selectedDate, obmContext]);
 
+  // Sincroniza funções pré-definidas nas permutas quando elas carregam
+  useEffect(() => {
+    if (permutas.length > 0) {
+      setSelectedFunctions(prev => {
+        const next = { ...prev };
+        let changed = false;
+        permutas.forEach(p => {
+          if (p.status === 'accepted' && p.substituteFunctions && p.substituteFunctions.length > 0 && p.requesterRg) {
+            // Só aplica se ainda não houver função definida manualmente para este RG nesta sessão ou se queremos que a permuta mande
+            // Como é um dashboard de triagem, faz sentido a permuta mandar no valor inicial
+            if (!next[p.requesterRg] || next[p.requesterRg].length === 0) {
+               next[p.requesterRg] = p.substituteFunctions;
+               changed = true;
+            }
+          }
+        });
+        return changed ? next : prev;
+      });
+    }
+  }, [permutas]);
+
   const handleStatusChange = async (permuta: PermutaRequest, newStatus: PermutaStatus) => {
     if (!permuta.id) return;
     try {
@@ -490,15 +511,16 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
                 <col className="w-[40px]" />
               </colgroup>
               <thead className="bg-[#1e293b] text-white">
-                <tr className="bg-[#ced6e3] text-slate-900 border-b border-slate-900 text-[10px] font-black italic">
-                   <th className="border-r border-slate-900 py-1.5 text-center px-0">✓</th>
-                   <th className="border-r border-slate-900 py-1.5 text-center px-1">SAI</th>
-                   <th className="border-r border-slate-900 py-1.5 text-center uppercase text-[12px] font-black px-0">X</th>
-                   <th className="border-r border-slate-900 py-1.5 text-center px-1">ENTRA</th>
-                   <th className="border-r border-slate-900 py-1.5 text-center px-0">✓</th>
-                   <th className="border-r border-slate-900 py-1.5 tracking-tighter text-center px-1">STATUS</th>
-                   <th className="py-1.5 text-center px-1">RESP.</th>
-                </tr>
+                 <tr className="bg-[#ced6e3] text-slate-900 border-b border-slate-900 text-[10px] font-black italic">
+                    <th className="border-r border-slate-900 py-1.5 text-center px-0">✓</th>
+                    <th className="border-r border-slate-900 py-1.5 text-center px-1">SAI</th>
+                    <th className="border-r border-slate-900 py-1.5 text-center uppercase text-[12px] font-black px-0">X</th>
+                    <th className="border-r border-slate-900 py-1.5 text-center px-1">ENTRA</th>
+                    <th className="border-r border-slate-900 py-1.5 text-center px-0">✓</th>
+                    <th className="border-r border-slate-900 py-1.5 text-center px-1">FUNÇÃO</th>
+                    <th className="border-r border-slate-900 py-1.5 tracking-tighter text-center px-1">STATUS</th>
+                    <th className="py-1.5 text-center px-1">RESP.</th>
+                 </tr>
               </thead>
               <tbody>
                 {permutas.filter(p => !p.isLookingForSubstitute || (p.requesterRg && p.substituteRg)).map((p) => {
@@ -621,6 +643,22 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
                             <div className="w-4 h-4 border-[1.5px] border-slate-300 rounded mx-auto" />
                           </div>
                         )}
+                      </td>
+                      <td className="border-r border-slate-300 p-1 px-1 text-center align-middle bg-white/50">
+                        <FuncoesMultiSelect 
+                           selected={p.substituteFunctions || []}
+                           onChange={async (newFuncs) => {
+                             if (!p.id) return;
+                             try {
+                               await updateDoc(doc(db, "permutas", p.id), {
+                                 substituteFunctions: newFuncs,
+                                 updatedAt: serverTimestamp()
+                               });
+                             } catch (err) {
+                               console.error("Update Permuta Functions Error:", err);
+                             }
+                           }}
+                        />
                       </td>
                       <td className="border-r border-slate-300 p-1 px-2 text-center align-middle">
                              <select 

@@ -5,7 +5,7 @@ import { UserProfile, PermutaStatus, PermutaRequest } from '../types';
 import { format, isBefore, addHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { getAlaForDate, getAlaName, calculateDeadline, cn } from '../lib/utils';
-import { Send, CalendarIcon, X } from 'lucide-react';
+import { Send, CalendarIcon, X, ArrowLeftRight, Equal, ArrowUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppConfig } from '../contexts/ConfigContext';
 import { useMilitars } from '../contexts/MilitarContext';
@@ -391,21 +391,27 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
                       <button 
                         type="button" 
                         onClick={() => setOfferType('troca')}
-                        className={`w-6 h-6 rounded-full transition-all ${offerType === 'troca' ? 'ring-2 ring-offset-2 ring-[#1E293B]' : 'hover:scale-110 opacity-50'} bg-[#1E293B]`}
+                        className={`w-8 h-8 rounded-full transition-all flex items-center justify-center text-white ${offerType === 'troca' ? 'ring-2 ring-offset-2 ring-[#1E293B]' : 'hover:scale-110 opacity-50'} bg-[#1E293B]`}
                         title="Troca de Serviço"
-                      />
+                      >
+                        <ArrowLeftRight className="w-4 h-4" />
+                      </button>
                       <button 
                         type="button" 
                         onClick={() => setOfferType('pago')}
-                        className={`w-6 h-6 rounded-full transition-all ${offerType === 'pago' ? 'ring-2 ring-offset-2 ring-[#8B4513]' : 'hover:scale-110 opacity-50'} bg-[#8B4513]`}
+                        className={`w-8 h-8 rounded-full transition-all flex items-center justify-center text-white ${offerType === 'pago' ? 'ring-2 ring-offset-2 ring-[#8B4513]' : 'hover:scale-110 opacity-50'} bg-[#8B4513]`}
                         title="Tabela Comum (Valor Tabelado)"
-                      />
+                      >
+                        <Equal className="w-4 h-4" />
+                      </button>
                       <button 
                         type="button" 
                         onClick={() => setOfferType('especial')}
-                        className={`w-6 h-6 rounded-full transition-all ${offerType === 'especial' ? 'ring-2 ring-offset-2 ring-[#3B0764]' : 'hover:scale-110 opacity-50'} bg-[#3B0764]`}
+                        className={`w-8 h-8 rounded-full transition-all flex items-center justify-center text-white ${offerType === 'especial' ? 'ring-2 ring-offset-2 ring-[#3B0764]' : 'hover:scale-110 opacity-50'} bg-[#3B0764]`}
                         title="Tabela Especial (Valor Especial/Datas Festivas)"
-                      />
+                      >
+                        <ArrowUp className="w-4 h-4" />
+                      </button>
                     </motion.div>
                   )}
                 </div>

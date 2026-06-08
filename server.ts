@@ -15,6 +15,7 @@ import { authRouter } from './src/server/routes/auth';
 import { syncRouter } from './src/server/routes/sync';
 import { setupMilitaryRoutes } from './src/server/routes/military.routes';
 import { setupServiceRoutes } from './src/server/routes/services.routes';
+import { importMilitariesFromLocal } from './src/server/lib/import-militaries';
 
 import { createRequire } from 'module';
 let requireLib: any;
@@ -69,6 +70,57 @@ async function syncMilitariesFromSheetInternal() {
     const response = await axios.get(SHEET_URL);
     const records = parse(response.data, { columns: true, skip_empty_lines: true, from_line: 3 }) as any[];
     console.log(`[Sync] Downloaded ${records.length} raw rows from spreadsheet.`);
+
+    // Inject requested militaries for 10º GBM Ala 3 and Ala 4
+    const injectedMilitaries = [
+      // Ala 3
+      { 'RG': "20955", 'Posto/Grad': "SUBTENENTE", 'NOME': "SUBTENENTE ALEX", 'N.Guerra': "ALEX", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "23518", 'Posto/Grad': "SUBTENENTE", 'NOME': "SUBTENENTE MAGALHAES", 'N.Guerra': "MAGALHAES", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "26029", 'Posto/Grad': "SUBTENENTE", 'NOME': "SUBTENENTE ALEXSANDRO", 'N.Guerra': "ALEXSANDRO", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "31610", 'Posto/Grad': "1º SARGENTO", 'NOME': "1º SARGENTO S JUNIOR", 'N.Guerra': "S JUNIOR", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "32102", 'Posto/Grad': "1º SARGENTO", 'NOME': "1º SARGENTO LUIS", 'N.Guerra': "LUIS", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "42998", 'Posto/Grad': "2º SARGENTO", 'NOME': "2º SARGENTO CLEBER", 'N.Guerra': "CLEBER", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "43427", 'Posto/Grad': "2º SARGENTO", 'NOME': "2º SARGENTO THIAGO AZEVEDO", 'N.Guerra': "THIAGO AZEVEDO", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "53754", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO STEINER", 'N.Guerra': "STEINER", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "53786", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO KROWN", 'N.Guerra': "KROWN", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "53819", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO GRANJA", 'N.Guerra': "GRANJA", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "54211", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO SALES", 'N.Guerra': "SALES", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "54309", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO L SOBRAL", 'N.Guerra': "L SOBRAL", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "54315", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO MACHADO", 'N.Guerra': "MACHADO", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "54316", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO JULIO CESAR", 'N.Guerra': "JULIO CESAR", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "54323", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO VALENTIM", 'N.Guerra': "VALENTIM", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "54325", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO L RODRIGUES", 'N.Guerra': "L RODRIGUES", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "54326", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO TAVARES", 'N.Guerra': "TAVARES", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "54364", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO THIAGO CARVALHO", 'N.Guerra': "THIAGO CARVALHO", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "54381", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO PATRICK", 'N.Guerra': "PATRICK", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "54991", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO MIERS", 'N.Guerra': "MIERS", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "61302", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO OLIVEIRA", 'N.Guerra': "OLIVEIRA", 'ALA': "3", 'OBM': "10º GBM" },
+      { 'RG': "61427", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO ELIAS", 'N.Guerra': "ELIAS", 'ALA': "3", 'OBM': "10º GBM" },
+      // Ala 4
+      { 'RG': "20936", 'Posto/Grad': "SUBTENENTE", 'NOME': "SUBTENENTE LUCIANO", 'N.Guerra': "LUCIANO", 'Quadro': "Q00/97", 'ALA': "4", 'OBM': "10º GBM" },
+      { 'RG': "20960", 'Posto/Grad': "SUBTENENTE", 'NOME': "SUBTENENTE GONCALVES", 'N.Guerra': "GONCALVES", 'Quadro': "Q02/97", 'ALA': "4", 'OBM': "10º GBM" },
+      { 'RG': "22333", 'Posto/Grad': "SUBTENENTE", 'NOME': "SUBTENENTE COUTO", 'N.Guerra': "COUTO", 'Quadro': "Q00/97", 'ALA': "4", 'OBM': "10º GBM" },
+      { 'RG': "27899", 'Posto/Grad': "SUBTENENTE", 'NOME': "SUBTENENTE S OLIVEIRA", 'N.Guerra': "S OLIVEIRA", 'Quadro': "Q00/00", 'ALA': "4", 'OBM': "10º GBM" },
+      { 'RG': "31607", 'Posto/Grad': "1º SARGENTO", 'NOME': "1º SARGENTO ROSARIO", 'N.Guerra': "ROSARIO", 'Quadro': "Q08/02", 'ALA': "4", 'OBM': "10º GBM" },
+      { 'RG': "42374", 'Posto/Grad': "2º SARGENTO", 'NOME': "2º SARGENTO SCRIVANO", 'N.Guerra': "SCRIVANO", 'ALA': "4", 'OBM': "10º GBM" },
+      { 'RG': "49628", 'Posto/Grad': "CABO", 'NOME': "CABO TEIXEIRA", 'N.Guerra': "TEIXEIRA", 'Quadro': "Q00/14", 'ALA': "4", 'OBM': "10º GBM" },
+      { 'RG': "53759", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO RIBEIRO", 'N.Guerra': "RIBEIRO", 'Quadro': "Q00/21", 'ALA': "4", 'OBM': "10º GBM" },
+      { 'RG': "54028", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO JOSEPH", 'N.Guerra': "JOSEPH", 'Quadro': "Q07/24", 'ALA': "4", 'OBM': "10º GBM" },
+      { 'RG': "54320", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO VICTOR HUGO", 'N.Guerra': "VICTOR HUGO", 'Quadro': "Q08/24", 'ALA': "4", 'OBM': "10º GBM" },
+      { 'RG': "54409", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO RENAN GOMES", 'N.Guerra': "RENAN GOMES", 'Quadro': "Q08/24", 'ALA': "4", 'OBM': "10º GBM" },
+      { 'RG': "54429", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO MOISES", 'N.Guerra': "MOISES", 'Quadro': "Q08/24", 'ALA': "4", 'OBM': "10º GBM" },
+      { 'RG': "54956", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO ARTHUR", 'N.Guerra': "ARTHUR", 'Quadro': "Q08/25", 'ALA': "4", 'OBM': "10º GBM" },
+      { 'RG': "61109", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO MATHEUS SANTOS", 'N.Guerra': "MATHEUS SANTOS", 'Quadro': "Q02/25", 'ALA': "4", 'OBM': "10º GBM" },
+      { 'RG': "61385", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO F LOPES", 'N.Guerra': "F LOPES", 'Quadro': "Q02/25", 'ALA': "4", 'OBM': "10º GBM" },
+      { 'RG': "61471", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO FERRAZ", 'N.Guerra': "FERRAZ", 'Quadro': "Q02/25", 'ALA': "4", 'OBM': "10º GBM" },
+      { 'RG': "2200839", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO EMMANUEL FERREIRA", 'N.Guerra': "EMMANUEL FERREIRA", 'Quadro': "TEMP/00/22", 'ALA': "4", 'OBM': "10º GBM" },
+      { 'RG': "2200848", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO GABRIEL", 'N.Guerra': "GABRIEL", 'Quadro': "TEMP/00/22", 'ALA': "4", 'OBM': "10º GBM" },
+      { 'RG': "2201179", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO NATÁLIA TAVARES", 'N.Guerra': "NATÁLIA TAVARES", 'Quadro': "TEMP/00/22", 'ALA': "4", 'OBM': "10º GBM" },
+      { 'RG': "2201188", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO YAGO VICTOR", 'N.Guerra': "YAGO VICTOR", 'Quadro': "TEMP/00/22", 'ALA': "4", 'OBM': "10º GBM" },
+      { 'RG': "61434", 'Posto/Grad': "SOLDADO", 'NOME': "SOLDADO CAIQUE", 'N.Guerra': "CAIQUE", 'Quadro': "Q08/25", 'ALA': "4", 'OBM': "10º GBM" }
+    ];
+
+    records.push(...injectedMilitaries);
 
     let count = 0;
     let adminSuccess = false;
@@ -286,6 +338,9 @@ async function startServer() {
 
   cachePromise = firebaseInitPromise.then(async () => {
     if (isDbHealthy && db) {
+      // Run local import if file exists
+      await importMilitariesFromLocal(db, clientDb, admin);
+      
       console.log('[Cache] Loading military cache from Firestore...');
       try {
         const snap = await db.collection('militaries').get();
@@ -310,6 +365,9 @@ async function startServer() {
         }
       }
     } else if (clientDb) {
+      // Run local import if file exists
+      await importMilitariesFromLocal(null, clientDb, null);
+
       console.log('[Cache] Admin SDK unhealthy or unavailable, loading military cache via Client SDK...');
       try {
         const snap = await getDocs(collection(clientDb, 'militaries'));
@@ -373,6 +431,69 @@ async function startServer() {
         console.error('[Cache] Failed promoting 54444 via Client SDK:', err.message);
       }
     }
+
+    // One-time injection of requested militaries
+    try {
+      const injected = [
+        // Ala 3
+        { rg: "20955", rank: "SUBTENENTE", name: "ALEX", ala: "3", obm: "10º GBM" },
+        { rg: "23518", rank: "SUBTENENTE", name: "MAGALHAES", ala: "3", obm: "10º GBM" },
+        { rg: "26029", rank: "SUBTENENTE", name: "ALEXSANDRO", ala: "3", obm: "10º GBM" },
+        { rg: "31610", rank: "1º SARGENTO", name: "S JUNIOR", ala: "3", obm: "10º GBM" },
+        { rg: "32102", rank: "1º SARGENTO", name: "LUIS", ala: "3", obm: "10º GBM" },
+        { rg: "42998", rank: "2º SARGENTO", name: "CLEBER", ala: "3", obm: "10º GBM" },
+        { rg: "43427", rank: "2º SARGENTO", name: "THIAGO AZEVEDO", ala: "3", obm: "10º GBM" },
+        { rg: "53754", rank: "SOLDADO", name: "STEINER", ala: "3", obm: "10º GBM" },
+        { rg: "53786", rank: "SOLDADO", name: "KROWN", ala: "3", obm: "10º GBM" },
+        { rg: "53819", rank: "SOLDADO", name: "GRANJA", ala: "3", obm: "10º GBM" },
+        { rg: "54211", rank: "SOLDADO", name: "SALES", ala: "3", obm: "10º GBM" },
+        { rg: "54309", rank: "SOLDADO", name: "L SOBRAL", ala: "3", obm: "10º GBM" },
+        { rg: "54315", rank: "SOLDADO", name: "MACHADO", ala: "3", obm: "10º GBM" },
+        { rg: "54316", rank: "SOLDADO", name: "JULIO CESAR", ala: "3", obm: "10º GBM" },
+        { rg: "54323", rank: "SOLDADO", name: "VALENTIM", ala: "3", obm: "10º GBM" },
+        { rg: "54325", rank: "SOLDADO", name: "L RODRIGUES", ala: "3", obm: "10º GBM" },
+        { rg: "54326", rank: "SOLDADO", name: "TAVARES", ala: "3", obm: "10º GBM" },
+        { rg: "54364", rank: "SOLDADO", name: "THIAGO CARVALHO", ala: "3", obm: "10º GBM" },
+        { rg: "54381", rank: "SOLDADO", name: "PATRICK", ala: "3", obm: "10º GBM" },
+        { rg: "54991", rank: "SOLDADO", name: "MIERS", ala: "3", obm: "10º GBM" },
+        { rg: "61302", rank: "SOLDADO", name: "OLIVEIRA", ala: "3", obm: "10º GBM" },
+        { rg: "61427", rank: "SOLDADO", name: "ELIAS", ala: "3", obm: "10º GBM" },
+        // Ala 4
+        { rg: "20936", rank: "SUBTENENTE", name: "LUCIANO", quadro: "Q00/97", ala: "4", obm: "10º GBM" },
+        { rg: "20960", rank: "SUBTENENTE", name: "GONCALVES", quadro: "Q02/97", ala: "4", obm: "10º GBM" },
+        { rg: "22333", rank: "SUBTENENTE", name: "COUTO", quadro: "Q00/97", ala: "4", obm: "10º GBM" },
+        { rg: "27899", rank: "SUBTENENTE", name: "S OLIVEIRA", quadro: "Q00/00", ala: "4", obm: "10º GBM" },
+        { rg: "31607", rank: "1º SARGENTO", name: "ROSARIO", quadro: "Q08/02", ala: "4", obm: "10º GBM" },
+        { rg: "42374", rank: "2º SARGENTO", name: "SCRIVANO", ala: "4", obm: "10º GBM" },
+        { rg: "49628", rank: "CABO", name: "TEIXEIRA", quadro: "Q00/14", ala: "4", obm: "10º GBM" },
+        { rg: "53759", rank: "SOLDADO", name: "RIBEIRO", quadro: "Q00/21", ala: "4", obm: "10º GBM" },
+        { rg: "54028", rank: "SOLDADO", name: "JOSEPH", quadro: "Q07/24", ala: "4", obm: "10º GBM" },
+        { rg: "54320", rank: "SOLDADO", name: "VICTOR HUGO", quadro: "Q08/24", ala: "4", obm: "10º GBM" },
+        { rg: "54409", rank: "SOLDADO", name: "RENAN GOMES", quadro: "Q08/24", ala: "4", obm: "10º GBM" },
+        { rg: "54429", rank: "SOLDADO", name: "MOISES", quadro: "Q08/24", ala: "4", obm: "10º GBM" },
+        { rg: "54956", rank: "SOLDADO", name: "ARTHUR", quadro: "Q08/25", ala: "4", obm: "10º GBM" },
+        { rg: "61109", rank: "SOLDADO", name: "MATHEUS SANTOS", quadro: "Q02/25", ala: "4", obm: "10º GBM" },
+        { rg: "61385", rank: "SOLDADO", name: "F LOPES", quadro: "Q02/25", ala: "4", obm: "10º GBM" },
+        { rg: "61471", rank: "SOLDADO", name: "FERRAZ", quadro: "Q02/25", ala: "4", obm: "10º GBM" },
+        { rg: "2200839", rank: "SOLDADO", name: "EMMANUEL FERREIRA", quadro: "TEMP/00/22", ala: "4", obm: "10º GBM" },
+        { rg: "2200848", rank: "SOLDADO", name: "GABRIEL", quadro: "TEMP/00/22", ala: "4", obm: "10º GBM" },
+        { rg: "2201179", rank: "SOLDADO", name: "NATÁLIA TAVARES", quadro: "TEMP/00/22", ala: "4", obm: "10º GBM" },
+        { rg: "2201188", rank: "SOLDADO", name: "YAGO VICTOR", quadro: "TEMP/00/22", ala: "4", obm: "10º GBM" },
+        { rg: "61434", rank: "SOLDADO", name: "CAIQUE", quadro: "Q08/25", ala: "4", obm: "10º GBM" }
+      ];
+
+      for (const m of injected) {
+        const safeRg = normalizeRg(m.rg);
+        const data = { ...m, rg: safeRg, warName: m.name, situacao: 'Ativo' };
+        if (!militaryCache.has(safeRg)) {
+          militaryCache.set(safeRg, data);
+          if (clientDb) {
+            setDoc(doc(clientDb, 'militaries', safeRg), data, { merge: true }).catch(() => {});
+          }
+        }
+      }
+      console.log('[Cache] Injected requested militaries into memory.');
+    } catch (e) {}
   });
 
   const app = express();

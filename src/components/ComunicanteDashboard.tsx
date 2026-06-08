@@ -116,7 +116,7 @@ export function ComunicanteDashboard({ user, onBack }: ComunicanteDashboardProps
   };
 
   return (
-    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pt-10">
       <div className="flex items-center justify-between">
         <button 
           onClick={onBack}

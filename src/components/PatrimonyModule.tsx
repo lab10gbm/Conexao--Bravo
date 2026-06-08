@@ -875,7 +875,7 @@ export function PatrimonyModule({
   }, [allSections, selectedObmFilter, searchTerm, customSectionItems]);
 
   return (
-    <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-7xl mx-auto w-full h-auto pb-12">
+    <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-7xl mx-auto w-full h-auto pb-12 pt-10">
       <div className="flex items-center justify-between mb-1 shrink-0">
         <div className="flex items-center gap-4">
           <button

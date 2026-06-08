@@ -163,20 +163,147 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   const [removeMemberRg, setRemoveMemberRg] = useState<string | null>(null);
   const [removeMemberAla, setRemoveMemberAla] = useState('');
 
-  const handleCopyTables = () => {
+  const handleCopyTables = async () => {
       const containerId = viewMode === 'table' ? 'table-view-container' : viewMode === 'escala_sv' ? 'escala-sv-container' : null;
       if (!containerId) return;
       const el = document.getElementById(containerId);
       if (!el) return;
       
       try {
-          const range = document.createRange();
-          range.selectNode(el);
-          const selection = window.getSelection();
-          selection?.removeAllRanges();
-          selection?.addRange(range);
-          document.execCommand('copy');
-          selection?.removeAllRanges();
+          // Criar uma versão limpa da tabela para copiar
+          const cleanHtml = (element: HTMLElement) => {
+            const clone = element.cloneNode(true) as HTMLElement;
+            
+            // Remover elementos indesejados (como o input de EXP/Sem)
+            const removeItems = clone.querySelectorAll('[data-no-copy="true"]');
+            removeItems.forEach(item => item.remove());
+
+            // Adicionar estilos inline para garantir que o LibreOffice/Word reconheça
+            if (viewMode === 'escala_sv') {
+                const tables = clone.querySelectorAll('table');
+                tables.forEach((table) => {
+                    (table as HTMLElement).style.borderCollapse = 'collapse';
+                    (table as HTMLElement).style.width = '100%';
+                    (table as HTMLElement).style.marginBottom = '30px';
+                    (table as HTMLElement).style.border = '1px solid #cbd5e1';
+
+                    // Headers
+                    const ths = table.querySelectorAll('th');
+                    ths.forEach(th => {
+                        (th as HTMLElement).style.border = '1px solid #cbd5e1';
+                        (th as HTMLElement).style.padding = '8px';
+                        (th as HTMLElement).style.backgroundColor = '#f1f5f9';
+                        (th as HTMLElement).style.fontSize = '10px';
+                        (th as HTMLElement).style.fontWeight = 'bold';
+                        (th as HTMLElement).style.textAlign = 'center';
+                    });
+
+                    // Rows and Cells
+                    const rows = table.querySelectorAll('tr');
+                    rows.forEach(row => {
+                        const tr = row as HTMLElement;
+                        const isWeekend = tr.classList.contains('bg-amber-100/40') || tr.className.includes('bg-amber-100');
+                        
+                        if (isWeekend) {
+                            tr.style.backgroundColor = '#fef3c7'; // cor de fim de semana
+                        }
+
+                        const tds = tr.querySelectorAll('td');
+                        tds.forEach((td, colIdx) => {
+                            const tce = td as HTMLElement;
+                            tce.style.border = '1px solid #cbd5e1';
+                            tce.style.padding = '6px';
+                            tce.style.fontSize = '10px';
+                            tce.style.textAlign = 'center';
+                            
+                            // Make first column (date) bold
+                            if (colIdx === 0) {
+                                tce.style.fontWeight = 'bold';
+                            }
+                            
+                            if (isWeekend) {
+                                tce.style.backgroundColor = '#fef3c7';
+                            }
+
+                            // Style "Sv." and "EXP."
+                            const spans = tce.querySelectorAll('span');
+                            spans.forEach(span => {
+                                const s = span as HTMLElement;
+                                if (s.textContent === 'SV.') {
+                                    s.style.color = 'red';
+                                    s.style.fontWeight = 'bold';
+                                    s.style.padding = '4px 8px';
+                                    s.style.border = 'none';
+                                    s.style.borderRadius = '4px';
+                                    s.style.backgroundColor = '#fef2f2'; // bg-red-50
+                                    s.style.display = 'inline-block';
+                                    s.style.whiteSpace = 'nowrap';
+                                    s.style.minWidth = '40px';
+                                    s.style.margin = '2px';
+                                } else if (s.textContent === 'EXP.') {
+                                    s.style.color = '#4f46e5'; // indigo-600
+                                    s.style.fontWeight = 'bold';
+                                    s.style.padding = '4px 8px';
+                                    s.style.border = 'none';
+                                    s.style.borderRadius = '4px';
+                                    s.style.backgroundColor = '#eef2ff'; // bg-indigo-50
+                                    s.style.display = 'inline-block';
+                                    s.style.whiteSpace = 'nowrap';
+                                    s.style.minWidth = '40px';
+                                    s.style.margin = '2px';
+                                }
+                            });
+                        });
+                    });
+                });
+
+                // Separar as tabelas radicalmente com quebras de linha se houver múltiplas
+                const tableWrappers = clone.querySelectorAll('.bg-white.rounded-xl');
+                tableWrappers.forEach((wrapper, idx) => {
+                    if (idx < tableWrappers.length - 1) {
+                        const spacer = document.createElement('div');
+                        spacer.style.height = '30px';
+                        spacer.innerHTML = '<br/>&nbsp;<br/>'; 
+                        wrapper.parentNode?.insertBefore(spacer, wrapper.nextSibling);
+                    }
+                    (wrapper as HTMLElement).style.marginBottom = '30px';
+                    (wrapper as HTMLElement).style.width = '100%';
+                    (wrapper as HTMLElement).style.display = 'block';
+                });
+            } else if (viewMode === 'table') {
+                // Formatting for the general table view if needed
+                const tables = clone.querySelectorAll('table');
+                tables.forEach(table => {
+                    (table as HTMLElement).style.borderCollapse = 'collapse';
+                    const cells = table.querySelectorAll('th, td');
+                    cells.forEach(c => {
+                        (c as HTMLElement).style.border = '1px solid #cbd5e1';
+                        (c as HTMLElement).style.padding = '4px';
+                    });
+                });
+            }
+
+            return clone.innerHTML;
+          };
+
+          const htmlContent = cleanHtml(el);
+          
+          // Tentar usar a API moderna de clipboard
+          if (navigator.clipboard && navigator.clipboard.write) {
+              const type = "text/html";
+              const blob = new Blob([htmlContent], { type });
+              const data = [new ClipboardItem({ [type]: blob, ["text/plain"]: new Blob([el.innerText], { type: "text/plain" }) })];
+              await navigator.clipboard.write(data);
+          } else {
+              // Fallback para document.execCommand
+              const range = document.createRange();
+              range.selectNode(el);
+              const selection = window.getSelection();
+              selection?.removeAllRanges();
+              selection?.addRange(range);
+              document.execCommand('copy');
+              selection?.removeAllRanges();
+          }
           
           setCopyStatus(true);
           setTimeout(() => setCopyStatus(false), 2000);
@@ -739,28 +866,29 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                   <ArrowUpDown className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Inverter</span>
                               </button>
                           )}
+                          {(viewMode === 'escala_sv' || viewMode === 'table') && (
+                              <button
+                                  onClick={handleCopyTables}
+                                  className="ml-2 px-3 py-1.5 rounded-lg border-2 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5 bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 shrink-0 cursor-pointer"
+                                  title="Copiar Tabelas"
+                              >
+                                  {copyStatus ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />} 
+                                  <span className="hidden sm:inline">{copyStatus ? 'Copiado' : 'Copiar'}</span>
+                              </button>
+                          )}
+
                           {(viewMode === 'escala_sv' || viewMode === 'table') && (isAdmin || user.isEscalante) && (
-                              <>
-                                  <button
-                                      onClick={handleAutoFillExp}
-                                      className={cn(
-                                          "ml-2 px-3 py-1.5 rounded-lg border-2 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer",
-                                          autoExpStatus ? "bg-green-50 border-green-200 text-green-700" : "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
-                                      )}
-                                      title="Preencher Dias de Expediente Automaticamente"
-                                  >
-                                      {autoExpStatus ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <CalendarRange className="w-3.5 h-3.5" />}
-                                      <span className="hidden sm:inline">{autoExpStatus ? 'Preenchido' : 'Auto EXP'}</span>
-                                  </button>
-                                  <button
-                                      onClick={handleCopyTables}
-                                      className="ml-2 px-3 py-1.5 rounded-lg border-2 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5 bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 shrink-0 cursor-pointer"
-                                      title="Copiar Tabelas"
-                                  >
-                                      {copyStatus ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />} 
-                                      <span className="hidden sm:inline">{copyStatus ? 'Copiado' : 'Copiar'}</span>
-                                  </button>
-                              </>
+                              <button
+                                  onClick={handleAutoFillExp}
+                                  className={cn(
+                                      "ml-2 px-3 py-1.5 rounded-lg border-2 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer",
+                                      autoExpStatus ? "bg-green-50 border-green-200 text-green-700" : "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
+                                  )}
+                                  title="Preencher Dias de Expediente Automaticamente"
+                              >
+                                  {autoExpStatus ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <CalendarRange className="w-3.5 h-3.5" />}
+                                  <span className="hidden sm:inline">{autoExpStatus ? 'Preenchido' : 'Auto EXP'}</span>
+                              </button>
                           )}
                       </div>
                   )}
@@ -1073,7 +1201,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                          )}
                                                          {isGrd && !isSelected && !isExp && (
                                                             <div className="absolute inset-0 flex items-center justify-center opacity-40 pointer-events-none group-hover:opacity-20 transition-opacity">
-                                                                <span className="text-[8px] font-black text-emerald-600 bg-emerald-100/50 px-1 rounded border border-emerald-200 shadow-sm">GRD</span>
+                                                                <span data-no-copy="true" className="text-[8px] font-black text-emerald-600 bg-emerald-100/50 px-1 rounded border border-emerald-200 shadow-sm">GRD</span>
                                                             </div>
                                                          )}
                                                          {!isSelected && !isExp && isSwapDay && (
@@ -1235,20 +1363,26 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                         {currentMonthDays.map(day => {
                             const dayStr = format(day, 'yyyy-MM-dd');
                             const dayNum = format(day, 'dd');
-                            const selectedUsers = expedienteUsers
-                                .filter(u => u.rg !== 'ESCALANTE_PREF' && safeArr(data.selections[u.rg || u.uid]).includes(dayStr))
-                                .map(u => {
-                                    const rg = u.rg || u.uid;
-                                    const isGrd = data.grdData?.[dayStr]?.includes(rg);
-                                    const name = formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name);
-                                    return isGrd ? `${name} (🛡️ GRD)` : name;
-                                })
-                                .join(' / ');
                                 
                             return (
                                 <div key={dayStr} className="flex min-h-[1.5rem]">
                                     <span className="w-8 shrink-0">{dayNum}-</span>
-                                    <span>{selectedUsers}</span>
+                                    <span>
+                                        {expedienteUsers
+                                            .filter(u => u.rg !== 'ESCALANTE_PREF' && safeArr(data.selections[u.rg || u.uid]).includes(dayStr))
+                                            .map((u, idx, arr) => {
+                                                const rg = u.rg || u.uid;
+                                                const isGrd = data.grdData?.[dayStr]?.includes(rg);
+                                                const name = formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name);
+                                                return (
+                                                    <span key={rg}>
+                                                        {name}
+                                                        {isGrd && <span data-no-copy="true"> (🛡️ GRD)</span>}
+                                                        {idx < arr.length - 1 && " / "}
+                                                    </span>
+                                                );
+                                            })}
+                                    </span>
                                 </div>
                             );
                         })}
@@ -1292,7 +1426,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                   <div className="flex flex-col items-center gap-1">
                                                       <span>{formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name)}</span>
                                                       {(isAdmin || user.isEscalante) && (
-                                                          <div className="flex items-center gap-1 justify-center mt-0.5" onClick={e => e.stopPropagation()}>
+                                                          <div data-no-copy="true" className="flex items-center gap-1 justify-center mt-0.5" onClick={e => e.stopPropagation()}>
                                                               <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">EXP/Sem:</span>
                                                               <input 
                                                                 type="number" 
@@ -1318,7 +1452,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                       const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                                       return (
                                           <tr key={dayStr} className={cn("border-b border-slate-200", isWeekend ? "bg-amber-100/40" : "bg-white")}>
-                                              <td className={cn("py-1.5 px-3 border-r-2 border-slate-200 text-[11px] font-bold whitespace-nowrap text-center", isWeekend ? "text-amber-900 border-amber-300/50" : "text-slate-700")}>
+                                              <td className={cn("py-1.5 px-3 border-r-2 border-slate-200 text-[11px] font-black whitespace-nowrap text-center", isWeekend ? "text-amber-900 border-amber-300/50" : "text-slate-700")}>
                                                   {format(day, "EEEE, d 'de' MMMM", { locale: ptBR })}
                                               </td>
                                               {paddedUsers.map((u, i) => {
@@ -1341,13 +1475,13 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                             isGrd && "bg-emerald-50 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.2)]"
                                                           )}
                                                       >
-                                                          {isSelected && <span className="text-slate-900 mx-0.5">SV.</span>}
-                                                          {isExp && <span className="text-indigo-600 bg-indigo-50 px-1 py-0.5 rounded mx-0.5 border border-indigo-200">EXP.</span>}
-                                                          {isGrd && (
-                                                            <span className="text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded mx-0.5 border border-emerald-200 shadow-sm text-[8px] font-black uppercase tracking-tighter flex items-center gap-0.5">
-                                                              <Shield className="w-2 h-2 fill-emerald-500" /> GRD
-                                                            </span>
-                                                          )}
+                                                          {isSelected && <span className="inline-flex items-center justify-center text-red-600 font-bold mx-1 bg-red-50 px-2 py-0.5 rounded whitespace-nowrap min-w-[38px]">SV.</span>}
+                                                          {isExp && <span className="inline-flex items-center justify-center text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded mx-1 whitespace-nowrap min-w-[38px]">EXP.</span>}
+                                                            {isGrd && (
+                                                              <span data-no-copy="true" className="text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded mx-0.5 border border-emerald-200 shadow-sm text-[8px] font-black uppercase tracking-tighter flex items-center gap-0.5">
+                                                                <Shield className="w-2 h-2 fill-emerald-500" /> GRD
+                                                              </span>
+                                                            )}
                                                       </td>
                                                   );
                                               })}
