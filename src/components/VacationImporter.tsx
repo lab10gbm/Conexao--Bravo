@@ -39,15 +39,16 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
            extracted.push({
              id: Math.random().toString(36).substr(2, 9),
              militarRg,
-             ato: parts[0] || 'Concessão',
-             anoRef: parts[1] || '',
+             ato: parts[1] || parts[0] || 'Concessão',
+             anoRef: parts[2] || parts[1] || '',
+             anoRetifi: parts[3] || '',
              dataInicio: potentialDates[0],
              dataRetorno: potentialDates[1],
-             boletim: parts[5] || parts[4] || '',
-             boletimOrigem: parts[6] || parts[5] || '',
-             diasGozados: parseInt(parts[7]) || parseInt(parts[8]) || 0,
-             diasAGozar: parseInt(parts[8]) || parseInt(parts[9]) || 0,
-             obs: parts[parts.length - 1] || '',
+             boletim: parts[6] || parts[5] || parts[4] || '',
+             diasGozados: parseInt(parts[7]) || parseInt(parts[6]) || 0,
+             diasAGozar: parseInt(parts[8]) || parseInt(parts[7]) || 0,
+             boletimOrigem: parts[9] || parts[8] || '',
+             obs: parts[10] || parts[parts.length - 1] || '',
              status
            });
         }
@@ -167,18 +168,20 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
                 if (cols.length < 5) continue;
                 if (cols[0].toUpperCase() === 'ATO' || cols[1].toUpperCase().includes('ANO')) continue;
                 
-                let dtInicio = cols[3] || '';
-                if (dtInicio.match(/\\d{2}\\/\\d{2}\\/\\d{4}/)) {
+                let dtInicio = cols[4] || '';
+                if (dtInicio.match(/\\d{2}\\/\\d{2}\\/\\d{4}/) || cols[1].toUpperCase().includes('ASSEGURADAS') || cols[1].toUpperCase().includes('PRESUMIDAS')) {
                    vacations.push({
                       militarRg: rg, 
-                      ato: cols[0]||'Concessão', 
-                      anoRef: cols[1]||'',
+                      ato: cols[1]||'Concessão', 
+                      anoRef: cols[2]||'',
+                      anoRetifi: cols[3]||'',
                       dataInicio: dtInicio, 
-                      dataRetorno: cols[4]||'',
-                      boletim: cols[5]||'', 
-                      boletimOrigem: cols[6]||'',
+                      dataRetorno: cols[5]||'',
+                      boletim: cols[6]||'', 
                       diasGozados: parseInt(cols[7])||0, 
                       diasAGozar: parseInt(cols[8])||0,
+                      boletimOrigem: cols[9]||'',
+                      obs: cols[10]||'',
                       status: dtInicio.includes('2026') || dtInicio.includes('2027') ? 'marcado' : 'gozado'
                    });
                 }
@@ -206,12 +209,14 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
                               militarRg: { stringValue: v.militarRg },
                               ato: { stringValue: v.ato || 'Concessão' },
                               anoRef: { stringValue: v.anoRef || '' },
+                              anoRetifi: { stringValue: v.anoRetifi || '' },
                               dataInicio: { stringValue: v.dataInicio || '' },
                               dataRetorno: { stringValue: v.dataRetorno || '' },
                               boletim: { stringValue: v.boletim || '' },
                               boletimOrigem: { stringValue: v.boletimOrigem || '' },
                               diasGozados: { integerValue: String(v.diasGozados || 0) },
                               diasAGozar: { integerValue: String(v.diasAGozar || 0) },
+                              obs: { stringValue: v.obs || '' },
                               status: { stringValue: v.status || 'gozado' },
                               updatedAt: { timestampValue: new Date().toISOString() }
                          }
@@ -300,7 +305,7 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
         let writes = rowsData.flatMap(v => {
             let docId = v.militarRg + '_' + (v.anoRef || '0000') + '_' + (v.dataInicio || '').replace(/\\//g, '');
             
-        const fieldsObj = { id: { stringValue: docId }, militarRg: { stringValue: v.militarRg }, ato: { stringValue: v.ato || 'Concessão' }, anoRef: { stringValue: v.anoRef || '' }, dataInicio: { stringValue: v.dataInicio || '' }, dataRetorno: { stringValue: v.dataRetorno || '' }, boletim: { stringValue: v.boletim || '' }, boletimOrigem: { stringValue: v.boletimOrigem || '' }, diasGozados: { integerValue: String(v.diasGozados || 0) }, diasAGozar: { integerValue: String(v.diasAGozar || 0) }, status: { stringValue: v.status || 'gozado' }, updatedAt: { timestampValue: new Date().toISOString() } };
+        const fieldsObj = { id: { stringValue: docId }, militarRg: { stringValue: v.militarRg }, ato: { stringValue: v.ato || 'Concessão' }, anoRef: { stringValue: v.anoRef || '' }, anoRetifi: { stringValue: v.anoRetifi || '' }, dataInicio: { stringValue: v.dataInicio || '' }, dataRetorno: { stringValue: v.dataRetorno || '' }, boletim: { stringValue: v.boletim || '' }, boletimOrigem: { stringValue: v.boletimOrigem || '' }, diasGozados: { integerValue: String(v.diasGozados || 0) }, diasAGozar: { integerValue: String(v.diasAGozar || 0) }, obs: { stringValue: v.obs || '' }, status: { stringValue: v.status || 'gozado' }, updatedAt: { timestampValue: new Date().toISOString() } };
         let write1 = { update: { name: "projects/" + projectId + "/databases/" + dbId + "/documents/vacations/" + docId, fields: fieldsObj } };
         let write2 = { update: { name: "projects/" + projectId + "/databases/" + dbId + "/documents/militaries/" + v.militarRg + "/ferias/" + docId, fields: fieldsObj } };
         return [write1, write2];
@@ -345,11 +350,11 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
         if (c[0].toUpperCase() === 'ATO' || c[1].toUpperCase().includes('ANO')) return null;
 
         return {
-            militarRg: rg, ato: c[0]||'Concessão', anoRef: c[1]||'',
-            dataInicio: c[3]||'', dataRetorno: c[4]||'',
-            boletim: c[5]||'', boletimOrigem: c[6]||'',
-            diasGozados: parseInt(c[7])||0, diasAGozar: parseInt(c[8])||0,
-            status: (c[3]||'').includes('2026') ? 'marcado' : 'gozado'
+            militarRg: rg, ato: c[1]||'Concessão', anoRef: c[2]||'', anoRetifi: c[3]||'',
+            dataInicio: c[4]||'', dataRetorno: c[5]||'',
+            boletim: c[6]||'', boletimOrigem: c[9]||'',
+            diasGozados: parseInt(c[7])||0, diasAGozar: parseInt(c[8])||0, obs: c[10]||'',
+            status: (c[4]||'').includes('2026') ? 'marcado' : 'gozado'
         };
     }).filter(v => v !== null);
 
@@ -363,7 +368,7 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
 
             let docId = v.militarRg + '_' + (v.anoRef || '0000') + '_' + (v.dataInicio || '').replace(/\\//g, '');
             
-        const fieldsObj = { id: { stringValue: docId }, militarRg: { stringValue: v.militarRg }, ato: { stringValue: v.ato || 'Concessão' }, anoRef: { stringValue: v.anoRef || '' }, dataInicio: { stringValue: v.dataInicio || '' }, dataRetorno: { stringValue: v.dataRetorno || '' }, boletim: { stringValue: v.boletim || '' }, boletimOrigem: { stringValue: v.boletimOrigem || '' }, diasGozados: { integerValue: String(v.diasGozados || 0) }, diasAGozar: { integerValue: String(v.diasAGozar || 0) }, status: { stringValue: v.status || 'gozado' }, updatedAt: { timestampValue: new Date().toISOString() } };
+        const fieldsObj = { id: { stringValue: docId }, militarRg: { stringValue: v.militarRg }, ato: { stringValue: v.ato || 'Concessão' }, anoRef: { stringValue: v.anoRef || '' }, anoRetifi: { stringValue: v.anoRetifi || '' }, dataInicio: { stringValue: v.dataInicio || '' }, dataRetorno: { stringValue: v.dataRetorno || '' }, boletim: { stringValue: v.boletim || '' }, boletimOrigem: { stringValue: v.boletimOrigem || '' }, diasGozados: { integerValue: String(v.diasGozados || 0) }, diasAGozar: { integerValue: String(v.diasAGozar || 0) }, obs: { stringValue: v.obs || '' }, status: { stringValue: v.status || 'gozado' }, updatedAt: { timestampValue: new Date().toISOString() } };
         let write1 = { update: { name: "projects/" + projectId + "/databases/" + dbId + "/documents/vacations/" + docId, fields: fieldsObj } };
         let write2 = { update: { name: "projects/" + projectId + "/databases/" + dbId + "/documents/militaries/" + v.militarRg + "/ferias/" + docId, fields: fieldsObj } };
         return [write1, write2];
@@ -437,11 +442,12 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
                     if (c[0].toUpperCase() === 'ATO' || c[1].toUpperCase().includes('ANO')) return null;
 
                     return {
-                        militarRg: rg, ato: c[0]||'Concessão', anoRef: c[1]||'',
-                        dataInicio: c[3]||'', dataRetorno: c[4]||'',
-                        boletim: c[5]||'', boletimOrigem: c[6]||'',
+                        militarRg: rg, ato: c[1]||'Concessão', anoRef: c[2]||'', anoRetifi: c[3]||'',
+                        dataInicio: c[4]||'', dataRetorno: c[5]||'',
+                        boletim: c[6]||'',
                         diasGozados: parseInt(c[7])||0, diasAGozar: parseInt(c[8])||0,
-                        status: (c[3]||'').includes('2026') ? 'marcado' : 'gozado'
+                        boletimOrigem: c[9]||'', obs: c[10]||'',
+                        status: (c[4]||'').includes('2026') ? 'marcado' : 'gozado'
                     };
                 }).filter(v => v !== null);
                 if (vacations.length > 0) {
@@ -452,7 +458,7 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
 
                         let docId = v.militarRg + '_' + (v.anoRef || '0000') + '_' + (v.dataInicio || '').replace(/\\//g, '');
                         
-        const fieldsObj = { id: { stringValue: docId }, militarRg: { stringValue: v.militarRg }, ato: { stringValue: v.ato || 'Concessão' }, anoRef: { stringValue: v.anoRef || '' }, dataInicio: { stringValue: v.dataInicio || '' }, dataRetorno: { stringValue: v.dataRetorno || '' }, boletim: { stringValue: v.boletim || '' }, boletimOrigem: { stringValue: v.boletimOrigem || '' }, diasGozados: { integerValue: String(v.diasGozados || 0) }, diasAGozar: { integerValue: String(v.diasAGozar || 0) }, status: { stringValue: v.status || 'gozado' }, updatedAt: { timestampValue: new Date().toISOString() } };
+        const fieldsObj = { id: { stringValue: docId }, militarRg: { stringValue: v.militarRg }, ato: { stringValue: v.ato || 'Concessão' }, anoRef: { stringValue: v.anoRef || '' }, anoRetifi: { stringValue: v.anoRetifi || '' }, dataInicio: { stringValue: v.dataInicio || '' }, dataRetorno: { stringValue: v.dataRetorno || '' }, boletim: { stringValue: v.boletim || '' }, boletimOrigem: { stringValue: v.boletimOrigem || '' }, diasGozados: { integerValue: String(v.diasGozados || 0) }, diasAGozar: { integerValue: String(v.diasAGozar || 0) }, obs: { stringValue: v.obs || '' }, status: { stringValue: v.status || 'gozado' }, updatedAt: { timestampValue: new Date().toISOString() } };
         let write1 = { update: { name: "projects/" + projectId + "/databases/" + dbId + "/documents/vacations/" + docId, fields: fieldsObj } };
         let write2 = { update: { name: "projects/" + projectId + "/databases/" + dbId + "/documents/militaries/" + v.militarRg + "/ferias/" + docId, fields: fieldsObj } };
         return [write1, write2];

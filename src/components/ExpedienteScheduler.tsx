@@ -1055,6 +1055,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                   let r = val;
                                                   if (val === "Outro") r = "";
                                                   
+                                                  const newGlobal: any = {};
+                                                  
                                                   // Auto-calculate required days based on selected regime
                                                   let autoReq = (typeof data.requirements?.[rg] === 'number' && !isNaN(data.requirements[rg])) ? data.requirements[rg] : undefined;
                                                   if (val === "3 Exped. e 2 serv. 24h") autoReq = 2;

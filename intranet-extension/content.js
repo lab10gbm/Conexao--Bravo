@@ -99,9 +99,9 @@ async function executarBuscaFluida(rgs) {
            let cells = Array.from(row.querySelectorAll('th, td')).map(c => (c.textContent || "").replace(/\s+/g, ' ').trim());
            
            if (cells.length >= 4) { // Pelo menos as colunas básicas
-               // Normaliza para o tamanho padrão da tabela (na imagem você tem 10 colunas)
-               while (cells.length < 10) { cells.push(""); }
-               if (cells.length > 10) { cells = cells.slice(0, 10); }
+               // Normaliza para o tamanho padrão da tabela (na imagem tem 11 colunas)
+               while (cells.length < 11) { cells.push(""); }
+               if (cells.length > 11) { cells = cells.slice(0, 11); }
                
                const rowText = cells.join(" ").toUpperCase();
                // Pula a linha se for apenas o cabeçalho "FÉRIAS" ou algo vazio
@@ -162,15 +162,17 @@ async function enviarParaPlanilha(finalData) {
         if (!currentRg) return;
         vacations.push({
             militarRg: currentRg,
-            ato: content[0] || 'Concessão',
-            anoRef: content[1] || '',
-            dataInicio: content[3] || '',
-            dataRetorno: content[4] || '',
-            boletim: content[5] || '',
-            boletimOrigem: content[6] || '',
+            ato: content[1] || 'Concessão',
+            anoRef: content[2] || '',
+            anoRetifi: content[3] || '',
+            dataInicio: content[4] || '',
+            dataRetorno: content[5] || '',
+            boletim: content[6] || '',
             diasGozados: parseInt(content[7]) || 0,
             diasAGozar: parseInt(content[8]) || 0,
-            status: (content[3] || '').includes('2026') ? 'marcado' : 'gozado'
+            boletimOrigem: content[9] || '',
+            obs: content[10] || '',
+            status: (content[4] || '').includes('2026') || (content[4] || '').includes('2027') ? 'marcado' : 'gozado'
         });
       }
     });

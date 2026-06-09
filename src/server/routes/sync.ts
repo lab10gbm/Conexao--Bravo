@@ -53,6 +53,7 @@ const bulkSyncHandler = async (req: any, res: any) => {
         diasGozados: Number(v.diasGozados || 0),
         diasAGozar: Number(v.diasAGozar || 0),
         ato: String(v.ato || 'Concessão'),
+        anoRetifi: String(v.anoRetifi || ''),
         obs: String(v.obs || ''),
         updatedAt: serverTimestampValue
       }, { merge: true });
@@ -112,18 +113,20 @@ syncRouter.post('/admin/vacation/raw-sync', async (req, res) => {
         if (cols.length < 5) continue;
         if (cols[0].toUpperCase() === 'ATO' || cols[1].toUpperCase().includes('ANO')) continue;
         
-        let dtInicio = cols[3] || '';
-        if (dtInicio.match(/\d{2}\/\d{2}\/\d{4}/)) {
+        let dtInicio = cols[4] || '';
+        if (dtInicio.match(/\d{2}\/\d{2}\/\d{4}/) || cols[1].toUpperCase().includes('ASSEGURADAS') || cols[1].toUpperCase().includes('PRESUMIDAS')) {
            vacations.push({
               militarRg: rg, 
-              ato: cols[0]||'Concessão', 
-              anoRef: cols[1]||'',
+              ato: cols[1]||'Concessão', 
+              anoRef: cols[2]||'',
+              anoRetifi: cols[3]||'',
               dataInicio: dtInicio, 
-              dataRetorno: cols[4]||'',
-              boletim: cols[5]||'', 
-              boletimOrigem: cols[6]||'',
+              dataRetorno: cols[5]||'',
+              boletim: cols[6]||'', 
               diasGozados: parseInt(cols[7])||0, 
               diasAGozar: parseInt(cols[8])||0,
+              boletimOrigem: cols[9]||'',
+              obs: cols[10]||'',
               status: dtInicio.includes('2026') || dtInicio.includes('2027') ? 'marcado' : 'gozado'
            });
         }

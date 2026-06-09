@@ -90,6 +90,7 @@ export interface Vacation {
   militarRg: string;
   ato: string;
   anoRef: string;
+  anoRetifi?: string;
   dataInicio: string;
   dataRetorno: string;
   boletim: string;
