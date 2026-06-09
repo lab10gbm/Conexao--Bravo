@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Plus, Trash2, Save, MoveUp, MoveDown, Layout, Type, Layers, Users, UserPlus, Search, Info } from 'lucide-react';
 import { db } from '../lib/firebase';
-import { doc, getDoc, setDoc, collection, getDocs, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, collection, onSnapshot, getDocs, deleteDoc } from 'firebase/firestore';
 import { DEFAULT_SOP_SCHEMA } from '../constants';
 import { UserProfile } from '../types';
 import { cleanUndefined } from "../lib/utils";
@@ -37,11 +37,12 @@ export function SopConfigModule({ user, onBack }: { user: UserProfile, onBack: (
   const [newMilitar, setNewMilitar] = useState({ rg: '', name: '', quadro: 'QBMP 1', rank: 'SD' });
 
   useEffect(() => {
-    async function loadAll() {
-      setLoading(true);
-      // Load Schema
-      const docRef = doc(db, 'config', 'sop_schema');
-      const snap = await getDoc(docRef);
+    setLoading(true);
+    let unsubConfig = () => {};
+    let unsubRoster = () => {};
+
+    // Load Schema with onSnapshot
+    unsubConfig = onSnapshot(doc(db, 'config', 'sop_schema'), (snap) => {
       if (snap.exists()) {
         const loadedConfig = snap.data() as SopConfig;
         // Merge fallback EPI if it doesn't exist
@@ -70,15 +71,19 @@ export function SopConfigModule({ user, onBack }: { user: UserProfile, onBack: (
       } else {
         setConfig(DEFAULT_SOP_SCHEMA);
       }
+      setLoading(false); // Can put loading false here conceptually
+    });
 
-      // Load Roster
-      const rosterSnap = await getDocs(collection(db, 'sop_roster'));
+    // Load Roster with onSnapshot
+    unsubRoster = onSnapshot(collection(db, 'sop_roster'), (rosterSnap) => {
       const rosterData = rosterSnap.docs.map(d => ({ ...d.data(), docId: d.id }));
       setRoster(rosterData);
+    });
 
-      setLoading(false);
-    }
-    loadAll();
+    return () => {
+      unsubConfig();
+      unsubRoster();
+    };
   }, []);
 
   const handleSaveConfig = async () => {

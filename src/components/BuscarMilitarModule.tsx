@@ -7,7 +7,7 @@ import { RankInsignia } from './RankInsignia';
 import { parseRank } from '../lib/rankUtils';
 import { cn } from '../lib/utils';
 import { db } from '../lib/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
 interface BuscarMilitarModuleProps {
   viewer: UserProfile;
@@ -52,24 +52,22 @@ export function BuscarMilitarModule({ viewer, onBack }: BuscarMilitarModuleProps
   const [loadingVacations, setLoadingVacations] = useState(false);
 
   useEffect(() => {
+    let unsub = () => {};
     if (selectedMilitar?.rg) {
-      const fetchVacations = async () => {
-        setLoadingVacations(true);
-        try {
-          const q = query(collection(db, 'vacations'), where('militarRg', '==', selectedMilitar.rg));
-          const snap = await getDocs(q);
-          const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vacation));
-          setVacations(data);
-        } catch (error) {
-          console.error("Error fetching vacations", error);
-        } finally {
-          setLoadingVacations(false);
-        }
-      };
-      fetchVacations();
+      setLoadingVacations(true);
+      const q = query(collection(db, 'vacations'), where('militarRg', '==', selectedMilitar.rg));
+      unsub = onSnapshot(q, (snap) => {
+        const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vacation));
+        setVacations(data);
+        setLoadingVacations(false);
+      }, (error) => {
+        console.error("Error fetching vacations", error);
+        setLoadingVacations(false);
+      });
     } else {
       setVacations([]);
     }
+    return () => unsub();
   }, [selectedMilitar?.rg]);
 
   const filteredMilitars = useMemo(() => {

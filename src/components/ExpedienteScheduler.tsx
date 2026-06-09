@@ -152,6 +152,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
 
   const [adminTargetRg, setAdminTargetRg] = useState<string | null>(null);
   const [addMemberRg, setAddMemberRg] = useState('');
+  const [memberSearchTerm, setMemberSearchTerm] = useState('');
+  const [showMemberDropdown, setShowMemberDropdown] = useState(false);
   const [isExpanded, setIsExpanded] = useState(forceExpanded || false);
   const [adminConfigMode, setAdminConfigMode] = useState(false);
   const [viewMode, setViewMode] = useState<'calendar' | 'table' | 'lista' | 'escala_sv' | 'necessidades'>('calendar');
@@ -416,6 +418,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
           }
           updateMilitarLocal(addMemberRg, { ala: 'EXP' });
           setAddMemberRg('');
+          setMemberSearchTerm('');
       } catch (e) {
           console.error(e);
           alert('Erro ao adicionar militar ao expediente.');
@@ -450,19 +453,29 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
           }
           updateMilitarLocal(rgToUpdate, { ala: alaValue });
 
-          const globalUpdates: any = {
-              requirements: { [rgToUpdate]: deleteField() },
-              userNames: { [rgToUpdate]: deleteField() },
-              sectors: { [rgToUpdate]: deleteField() },
-              regimes: { [rgToUpdate]: deleteField() }
-          };
-          await setDoc(globalDocRef, cleanUndefined(globalUpdates), { merge: true });
+          try {
+              const globalUpdates: any = {
+                  [`requirements.${rgToUpdate}`]: deleteField(),
+                  [`userNames.${rgToUpdate}`]: deleteField(),
+                  [`sectors.${rgToUpdate}`]: deleteField(),
+                  [`regimes.${rgToUpdate}`]: deleteField()
+              };
+              const { updateDoc } = await import('firebase/firestore');
+              await updateDoc(globalDocRef, globalUpdates);
+          } catch (e: any) {
+              if (e.code !== 'not-found') console.error('Global doc update error:', e);
+          }
           
-          const monthUpdates: any = {
-              selections: { [rgToUpdate]: deleteField() },
-              locked: { [rgToUpdate]: deleteField() }
-          };
-          await setDoc(monthDocRef, cleanUndefined(monthUpdates), { merge: true });
+          try {
+              const monthUpdates: any = {
+                  [`selections.${rgToUpdate}`]: deleteField(),
+                  [`locked.${rgToUpdate}`]: deleteField()
+              };
+              const { updateDoc } = await import('firebase/firestore');
+              await updateDoc(monthDocRef, monthUpdates);
+          } catch (e: any) {
+              if (e.code !== 'not-found') console.error('Month doc update error:', e);
+          }
 
           setRemoveMemberRg(null);
       } catch (e) {
@@ -488,11 +501,12 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
           }));
           
           await setDoc(monthDocRef, cleanUndefined({ 
-                        selections: { 'ESCALANTE_PREF': sels },
-                        preferencesDetails: {
-                            [dayStr]: deleteField()
-                        }
+                        selections: { 'ESCALANTE_PREF': sels }
                     }), { merge: true });
+          try {
+              const { updateDoc } = await import('firebase/firestore');
+              await updateDoc(monthDocRef, { [`preferencesDetails.${dayStr}`]: deleteField() });
+          } catch(e) {}
       } else {
           setData(prev => ({...prev, selections: {...prev.selections, 'ESCALANTE_PREF': sels}}));
           await setDoc(monthDocRef, cleanUndefined({ selections: { 'ESCALANTE_PREF': sels } }), { merge: true });
@@ -634,17 +648,23 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       
       if (qty <= 0) {
           delete localDayData[func];
-          (fbDayData as any)[func] = deleteField();
       } else {
           localDayData[func] = qty;
           fbDayData[func] = qty;
       }
       
       const newLocalPrefs = { ...(data.preferencesDetails || {}), [dayStr]: localDayData };
-      const newFbPrefs = { ...(data.preferencesDetails || {}), [dayStr]: fbDayData };
-      
       setData(prev => ({...prev, preferencesDetails: newLocalPrefs}));
-      await setDoc(monthDocRef, cleanUndefined({ preferencesDetails: newFbPrefs }), { merge: true });
+      
+      if (qty <= 0) {
+          try {
+              const { updateDoc } = await import('firebase/firestore');
+              await updateDoc(monthDocRef, { [`preferencesDetails.${dayStr}.${func}`]: deleteField() });
+          } catch(e) {}
+      } else {
+          const newFbPrefs = { ...(data.preferencesDetails || {}), [dayStr]: fbDayData };
+          await setDoc(monthDocRef, cleanUndefined({ preferencesDetails: newFbPrefs }), { merge: true });
+      }
   };
 
   const handleTargetedToggle = async (rgSelection: string, day: Date) => {
@@ -928,18 +948,59 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                      <div className="p-4 border-b-2 border-slate-200 bg-slate-50 flex items-center justify-between gap-4 flex-wrap sticky left-0 w-full min-w-max">
                          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full max-w-[800px]">
                              <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest leading-none whitespace-nowrap">Novo Membro:</span>
-                             <select
-                                  value={addMemberRg}
-                                  onChange={(e) => setAddMemberRg(e.target.value)}
-                                  className="flex-1 w-full text-[10px] font-bold p-2 px-3 border-2 border-slate-200 rounded-lg bg-white text-slate-700 hover:border-indigo-300 focus:border-indigo-500 outline-none transition-colors"
-                             >
-                                  <option value="">Selecione um militar...</option>
-                                  {militars.filter(m => !expedienteUsers.find(eu => (eu.rg || eu.uid) === (m.uid||m.rg))).sort((a,b) => (a.name||'').localeCompare(b.name||'')).map((m, i) => (
-                                      <option key={(m.uid||m.rg||`m-${i}`)} value={m.uid||m.rg}>
-                                          {m.rank} {formatMilitaryName(m.warName || m.name?.split(' ')[0] || '')} {m.obm ? `- ${m.obm}` : ''}
-                                      </option>
-                                  ))}
-                             </select>
+                             <div className="relative flex-1 w-full">
+                                <input
+                                     type="text"
+                                     value={memberSearchTerm}
+                                     onChange={(e) => {
+                                         setMemberSearchTerm(e.target.value);
+                                         setAddMemberRg('');
+                                         setShowMemberDropdown(true);
+                                     }}
+                                     onFocus={() => setShowMemberDropdown(true)}
+                                     onBlur={() => setTimeout(() => setShowMemberDropdown(false), 200)}
+                                     placeholder="Digite NOME ou RG para buscar..."
+                                     className="w-full text-[10px] font-bold p-2 px-3 border-2 border-slate-200 rounded-lg bg-white text-slate-700 hover:border-indigo-300 focus:border-indigo-500 outline-none transition-colors"
+                                />
+                                {showMemberDropdown && (
+                                   <div className="absolute z-[100] w-full mt-1 bg-white border-2 border-slate-200 rounded-lg shadow-xl max-h-64 overflow-y-auto">
+                                      {militars
+                                        .filter(m => !expedienteUsers.find(eu => (eu.rg || eu.uid) === (m.uid||m.rg)))
+                                        .filter(m => 
+                                           memberSearchTerm.length === 0 || 
+                                           m.name?.toLowerCase().includes(memberSearchTerm.toLowerCase()) || 
+                                           m.warName?.toLowerCase().includes(memberSearchTerm.toLowerCase()) || 
+                                           m.rg?.includes(memberSearchTerm)
+                                        )
+                                        .sort((a,b) => (a.name||'').localeCompare(b.name||''))
+                                        .map((m, i) => (
+                                          <button
+                                              key={(m.uid||m.rg||`m-${i}`)}
+                                              onClick={() => {
+                                                  setAddMemberRg(m.uid||m.rg);
+                                                  setMemberSearchTerm(`${m.rank} ${formatMilitaryName(m.warName || m.name?.split(' ')[0] || '')} - ${m.rg}`);
+                                                  setShowMemberDropdown(false);
+                                              }}
+                                              className="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-100 last:border-0 text-xs text-slate-700"
+                                          >
+                                              <div className="font-bold">{m.rank} {formatMilitaryName(m.warName || m.name?.split(' ')[0] || '')} {m.obm ? `- ${m.obm}` : ''}</div>
+                                              <div className="text-[10px] text-slate-400 mt-0.5">RG: {m.rg}</div>
+                                          </button>
+                                      ))}
+                                      {militars
+                                        .filter(m => !expedienteUsers.find(eu => (eu.rg || eu.uid) === (m.uid||m.rg)))
+                                        .filter(m => 
+                                           memberSearchTerm.length > 0 && (
+                                              m.name?.toLowerCase().includes(memberSearchTerm.toLowerCase()) || 
+                                              m.warName?.toLowerCase().includes(memberSearchTerm.toLowerCase()) || 
+                                              m.rg?.includes(memberSearchTerm)
+                                           )
+                                        ).length === 0 && memberSearchTerm.length > 0 && (
+                                          <div className="p-3 text-xs text-slate-500 text-center italic">Nenhum militar encontrado</div>
+                                      )}
+                                   </div>
+                                )}
+                             </div>
                              <button
                                   onClick={handleAddToExpediente}
                                   disabled={!addMemberRg}
@@ -1002,13 +1063,22 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                   else if (val === "4 Expedientes (Militar Readaptado)") autoReq = 0;
                                                   else if (val === "2 e 1/2 Expedientes (Militar com Redução de Carga Horária)") autoReq = 0;
 
-                                                  const newGlobal: any = {
-                                                      regimes: { [rg]: r || deleteField() },
-                                                      userNames: { [rg]: formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name) }
-                                                  };
+                                                  if (r === "") {
+                                                      const { updateDoc } = await import('firebase/firestore');
+                                                      updateDoc(globalDocRef, { [`regimes.${rg}`]: deleteField() }).catch(console.error);
+                                                  } else {
+                                                      newGlobal.regimes = { [rg]: r };
+                                                  }
+                                                  
+                                                  newGlobal.userNames = { [rg]: formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name) };
                                                   
                                                   if (autoReq !== undefined && autoReq !== data.requirements?.[rg]) {
-                                                      newGlobal.requirements = { [rg]: autoReq === 0 ? deleteField() : autoReq };
+                                                      if (autoReq === 0) {
+                                                          const { updateDoc } = await import('firebase/firestore');
+                                                          updateDoc(globalDocRef, { [`requirements.${rg}`]: deleteField() }).catch(console.error);
+                                                      } else {
+                                                          newGlobal.requirements = { [rg]: autoReq };
+                                                      }
                                                   }
                                                   
                                                   await setDoc(globalDocRef, cleanUndefined(newGlobal), { merge: true });
@@ -1050,9 +1120,14 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                 const req = parseInt(e.target.value) || 0;
                                                 if (req === reqAmount) return;
                                                 const newGlobal: any = {
-                                                    requirements: { [rg]: req <= 0 ? deleteField() : req },
                                                     userNames: { [rg]: formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name) }
                                                 };
+                                                if (req <= 0) {
+                                                    const { updateDoc } = await import('firebase/firestore');
+                                                    updateDoc(globalDocRef, { [`requirements.${rg}`]: deleteField() }).catch(console.error);
+                                                } else {
+                                                    newGlobal.requirements = { [rg]: req };
+                                                }
                                                 await setDoc(globalDocRef, cleanUndefined(newGlobal), { merge: true });
                                              }}
                                              className="w-16 p-2 text-center text-sm border-2 border-indigo-200 rounded-md bg-white font-black text-indigo-900 hover:border-indigo-400 focus:border-indigo-500 outline-none transition-colors mx-auto block"
@@ -1068,9 +1143,14 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                 const s = e.target.value;
                                                 if (s === sector) return;
                                                 const newGlobal: any = {
-                                                    sectors: { [rg]: s || deleteField() },
                                                     userNames: { [rg]: formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name) }
                                                 };
+                                                if (!s) {
+                                                    const { updateDoc } = await import('firebase/firestore');
+                                                    updateDoc(globalDocRef, { [`sectors.${rg}`]: deleteField() }).catch(console.error);
+                                                } else {
+                                                    newGlobal.sectors = { [rg]: s };
+                                                }
                                                 await setDoc(globalDocRef, cleanUndefined(newGlobal), { merge: true });
                                              }}
                                              className="w-full text-sm p-2 border-2 border-slate-200 rounded-md bg-white font-bold text-slate-700 hover:border-slate-300 focus:border-slate-500 outline-none transition-colors uppercase"

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
-import { collection, getDocs, doc, setDoc, deleteDoc, serverTimestamp, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { Users, Plus, ShieldCheck, Trash2, ArrowLeft, Loader2, UtensilsCrossed, Briefcase, MapPin } from 'lucide-react';
 import { UserProfile } from '../types';
@@ -22,21 +22,21 @@ export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBac
   const [deleteData, setDeleteData] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
-    fetchTerceirizados();
+    setLoading(true);
+    const q = collection(db, 'outsourced_users');
+    const unsub = onSnapshot(q, (snap) => {
+      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setTerceirizados(data);
+      setLoading(false);
+    }, (e) => {
+      console.error(e);
+      setLoading(false);
+    });
+    return () => unsub();
   }, []);
 
   const fetchTerceirizados = async () => {
-    setLoading(true);
-    try {
-      const q = collection(db, 'outsourced_users');
-      const snap = await getDocs(q);
-      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setTerceirizados(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
+    // Deprecated in favor of the real-time effect above
   };
 
   const handleCreate = async (e: React.FormEvent) => {

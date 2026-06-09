@@ -209,6 +209,40 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
       }
     }
 
+    try {
+      const qDup = query(
+        collection(db, 'permutas'),
+        where('date', '==', permuta.date),
+        where('obm', '==', String(obmContext || '10º GBM'))
+      );
+      const snapDup = await getDocs(qDup);
+      const isDuplicate = snapDup.docs.some(docSnap => {
+        const data = docSnap.data();
+        if (data.status === PermutaStatus.CANCELLED || data.status === PermutaStatus.REJECTED) return false;
+        
+        const normalizeRg = (rg: string | number) => {
+          const str = (rg || '').toString().trim().toUpperCase();
+          const clean = str.replace(/[^A-Z0-9]/g, '');
+          return clean.replace(/^0+/, '') || clean;
+        };
+
+        const uRg = normalizeRg(user.rg);
+        const dReq = normalizeRg(data.requesterRg || '');
+        const dSub = normalizeRg(data.substituteRg || '');
+        
+        if (uRg && (uRg === dReq || uRg === dSub)) return true;
+        
+        return false;
+      });
+
+      if (isDuplicate) {
+        alert('JÁ HÁ UMA SOLICITAÇÃO DE PERMUTA REALIZADA PARA ESTE DIA.');
+        return;
+      }
+    } catch (err) {
+      console.error("Erro ao checar duplicidade", err);
+    }
+
     if (!window.confirm('Deseja se inscrever nesta vaga?')) return;
 
     try {

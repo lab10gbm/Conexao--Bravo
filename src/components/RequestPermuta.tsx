@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, getDoc, query, where, getDocs } from 'firebase/firestore';
 import { UserProfile, PermutaStatus, PermutaRequest } from '../types';
 import { format, isBefore, addHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -185,6 +185,38 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
       } catch (err) {
         console.error("Erro ao verificar GRD:", err);
       }
+    }
+
+    // Validação de duplicidade: não permite solicitar mais de uma vez no mesmo dia
+    try {
+      const qDup = query(
+        collection(db, 'permutas'),
+        where('date', '==', String(date)),
+        where('obm', '==', String(obmContext || '10º GBM'))
+      );
+      const snapDup = await getDocs(qDup);
+      const isDuplicate = snapDup.docs.some(docSnap => {
+        const data = docSnap.data();
+        if (data.status === PermutaStatus.CANCELLED || data.status === PermutaStatus.REJECTED) return false;
+        
+        const cReq = normalizeRg(requesterRg);
+        const cSub = normalizeRg(substituteRg);
+        const dReq = normalizeRg(data.requesterRg || '');
+        const dSub = normalizeRg(data.substituteRg || '');
+        
+        if (cReq && !isRequesterMissing && (cReq === dReq || cReq === dSub)) return true;
+        if (cSub && !isSubstituteMissing && (cSub === dReq || cSub === dSub)) return true;
+        
+        return false;
+      });
+
+      if (isDuplicate) {
+        setError("JÁ HÁ UMA SOLICITAÇÃO DE PERMUTA REALIZADA PARA ESTE DIA.");
+        setLoading(false);
+        return;
+      }
+    } catch (err) {
+      console.error("Erro ao verificar duplicidade de permuta:", err);
     }
 
     // Validação de envolvimento: militar deve ser uma das partes

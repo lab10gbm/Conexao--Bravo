@@ -31,38 +31,33 @@ export function OfficerDashboard({ user, obmContext }: OfficerDashboardProps) {
   useEffect(() => {
     if (!obmContext) return;
     
-    // Fetch Officer Permutas (Type: Officer)
     const normalizedObm = obmContext.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-    
-    let isMounted = true;
-    
-    async function loadOfficerData() {
-       try {
-         const sixtyDaysAgo = format(subDays(new Date(), 60), 'yyyy-MM-dd');
-         const qPermutas = query(collection(db, 'permutas'), where('date', '>=', sixtyDaysAgo), orderBy('date', 'asc'));
-         const snapshot = await getDocs(qPermutas);
-         
-         if (!isMounted) return;
-         
-         const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as PermutaRequest[];
-         const officerData = data.filter(p => (p.obm === obmContext || p.obm === '10º GBM') && (p.isOfficer || true));
-         setOfficerPermutas(officerData);
-         
-         const ref = doc(db, `officer_scales_${normalizedObm}`, 'current');
-         const snap = await getDoc(ref);
-         if (snap.exists() && isMounted) {
-            setSobreavisoScales(snap.data().scales || []);
-         } else if (isMounted) {
-            setSobreavisoScales([]);
-         }
-       } catch (error) {
-         if (isMounted) console.error('Failed to load officer data:', error);
-       }
-    }
-    
-    loadOfficerData();
+    const sixtyDaysAgo = format(subDays(new Date(), 60), 'yyyy-MM-dd');
+    const qPermutas = query(collection(db, 'permutas'), where('date', '>=', sixtyDaysAgo), orderBy('date', 'asc'));
 
-    return () => { isMounted = false; };
+    const unsubPermutas = onSnapshot(qPermutas, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as PermutaRequest[];
+      const officerData = data.filter(p => (p.obm === obmContext || p.obm === '10º GBM') && (p.isOfficer || true));
+      setOfficerPermutas(officerData);
+    }, (error) => {
+      console.error('Failed to load officer permutas:', error);
+    });
+
+    const ref = doc(db, `officer_scales_${normalizedObm}`, 'current');
+    const unsubScales = onSnapshot(ref, (snap) => {
+      if (snap.exists()) {
+        setSobreavisoScales(snap.data().scales || []);
+      } else {
+        setSobreavisoScales([]);
+      }
+    }, (error) => {
+      console.error('Failed to load officer scales:', error);
+    });
+
+    return () => { 
+      unsubPermutas();
+      unsubScales();
+    };
   }, [obmContext]);
 
   return (

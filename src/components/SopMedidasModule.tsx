@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, BookOpen, Download, Edit2, Check, X, ChevronDown, Settings, Copy, Filter, Ruler, Search, Plus, AlertCircle } from 'lucide-react';
 import { UserProfile } from '../types';
 import { db } from '../lib/firebase';
-import { doc, setDoc, getDoc, collection, getDocs, query } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, getDoc, collection, getDocs, query } from 'firebase/firestore';
 const medidasDgp: Record<string, any> = {};
 const epiDgp: Record<string, any> = {};
 import { DEFAULT_SOP_SCHEMA } from '../constants';
@@ -67,12 +67,13 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
   }, [config]);
 
   useEffect(() => {
-    async function loadConfig() {
-      const docRef = doc(db, 'config', 'sop_schema');
-      const snap = await getDoc(docRef);
+    let unsubConfig = () => {};
+    let unsubRoster = () => {};
+
+    // Config Sync
+    unsubConfig = onSnapshot(doc(db, 'config', 'sop_schema'), (snap) => {
       if (snap.exists()) {
         const loadedConfig = snap.data() as any;
-        
         if (!loadedConfig.areas.some((a: any) => a.id === 'epi')) {
            loadedConfig.areas.push({
               id: 'epi',
@@ -96,30 +97,26 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
         }
         setConfig(loadedConfig as any);
       } else {
-        // Fallback to initial config if none exists
         setConfig(DEFAULT_SOP_SCHEMA as any);
       }
+    });
+
+    // Roster Sync
+    unsubRoster = onSnapshot(collection(db, 'sop_roster'), (rosterSnap) => {
+      const rosterData = rosterSnap.docs.map(d => ({ ...d.data(), docId: d.id })) as any[];
+      setSopRoster(rosterData as UserProfile[]);
+    });
+
+    if (militars && militars.length > 0) {
+      setAllMilitars(militars);
+    } else if (globalMilitars && globalMilitars.length > 0) {
+      setAllMilitars(globalMilitars);
     }
 
-    async function fetchMilitars() {
-      // Fetch custom roster from Firestore
-      try {
-        const rosterSnap = await getDocs(collection(db, 'sop_roster'));
-        const rosterData = rosterSnap.docs.map(d => ({ ...d.data(), docId: d.id })) as any[];
-        setSopRoster(rosterData as UserProfile[]);
-      } catch (e) {
-        console.error("Error fetching custom roster", e);
-      }
-
-      if (militars && militars.length > 0) {
-        setAllMilitars(militars);
-      } else if (globalMilitars && globalMilitars.length > 0) {
-        setAllMilitars(globalMilitars);
-      }
-    }
-
-    loadConfig();
-    fetchMilitars();
+    return () => {
+      unsubConfig();
+      unsubRoster();
+    };
   }, [militars, globalMilitars]);
 
   useEffect(() => {

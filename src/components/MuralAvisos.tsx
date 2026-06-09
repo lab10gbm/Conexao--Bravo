@@ -15,6 +15,7 @@ export function MuralAvisos({ isAdminOrEscalante, userName }: MuralAvisosProps) 
   const [isAdding, setIsAdding] = useState(false);
   const [novoAviso, setNovoAviso] = useState('');
   const [eventoData, setEventoData] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const handleAddAviso = useCallback(async () => {
     if (!novoAviso.trim()) return;
@@ -28,13 +29,25 @@ export function MuralAvisos({ isAdminOrEscalante, userName }: MuralAvisosProps) 
     }
   }, [novoAviso, eventoData, userName, addAviso]);
 
-  const handleDeleteAviso = useCallback(async (id: string) => {
-    if (!window.confirm('Excluir este aviso para todos?')) return;
+  const handleDeleteAviso = useCallback(async (id: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    if (confirmDeleteId !== id) {
+      setConfirmDeleteId(id);
+      setTimeout(() => setConfirmDeleteId(null), 3000);
+      return;
+    }
+
     const success = await deleteAviso(id);
-    if (!success) {
+    if (success) {
+      setConfirmDeleteId(null);
+    } else {
       alert('Erro ao excluir aviso.');
     }
-  }, [deleteAviso]);
+  }, [confirmDeleteId, deleteAviso]);
 
   return (
     <motion.div 
@@ -106,10 +119,10 @@ export function MuralAvisos({ isAdminOrEscalante, userName }: MuralAvisosProps) 
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ delay: i * 0.05 }}
-              className="flex gap-2 p-3 bg-white/50 rounded-lg border border-blue-100 group relative"
+              className="flex gap-3 p-3 bg-white/50 rounded-lg border border-blue-100 items-start"
             >
-            <span className="shrink-0 mt-1"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"></span></span>
-            <div className="flex-1 w-full overflow-hidden">
+            <span className="shrink-0 mt-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"></span></span>
+            <div className="flex-1 min-w-0">
                {aviso.eventDate && (
                  <span className="inline-block px-1.5 py-0.5 mb-1 bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-black uppercase tracking-widest rounded">
                     Evento: {(() => {
@@ -128,11 +141,11 @@ export function MuralAvisos({ isAdminOrEscalante, userName }: MuralAvisosProps) 
             </div>
             {isAdminOrEscalante && (
               <button 
-                onClick={() => handleDeleteAviso(aviso.id)}
-                className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-red-500 hover:bg-red-50 hover:text-red-700 rounded absolute right-2 top-2"
-                title="Excluir Aviso"
+                onClick={(e) => handleDeleteAviso(aviso.id, e)}
+                className={`shrink-0 p-2 rounded-lg transition-colors ${confirmDeleteId === aviso.id ? 'bg-red-500 text-white' : 'text-red-500 hover:bg-red-100 hover:text-red-700'}`}
+                title={confirmDeleteId === aviso.id ? "Clique novamente para confirmar" : "Excluir Aviso"}
               >
-                <Trash2 className="w-4 h-4" />
+                {confirmDeleteId === aviso.id ? <span className="text-[10px] font-bold px-1">CONFIRMAR</span> : <Trash2 className="w-4 h-4" />}
               </button>
             )}
             </motion.li>

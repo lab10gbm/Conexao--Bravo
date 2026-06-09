@@ -77,48 +77,26 @@ export function VacationModule({ user, onBackToPortal, isSadMode = false }: Vaca
   const [isNavMenuExpanded, setIsNavMenuExpanded] = useState(true);
 
   useEffect(() => {
+    let unsubAllPrefs = () => {};
     if (isPowerUser && viewMode === 'report') {
-      fetchAllPreferences();
+      setLoading(true);
+      unsubAllPrefs = onSnapshot(collection(db, 'vacation_preferences'), (snap) => {
+        const prefs: Record<string, any> = {};
+        snap.forEach(doc => {
+          prefs[normalizeRg(doc.id)] = doc.data();
+        });
+        setAllPreferences(prefs);
+        setLoading(false);
+      }, (e) => {
+        console.error('Error fetching all preferences:', e);
+        setLoading(false);
+      });
     }
-  }, [viewMode]);
+    return () => unsubAllPrefs();
+  }, [isPowerUser, viewMode]);
 
   const fetchAllPreferences = async () => {
-    setLoading(true);
-    const cacheKey = 'vacation_preferences_cache';
-    const cacheTimeKey = 'vacation_preferences_time';
-    const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
-
-    try {
-      const cachedStr = localStorage.getItem(cacheKey);
-      const timeStr = localStorage.getItem(cacheTimeKey);
-      if (cachedStr && timeStr) {
-         const age = Date.now() - parseInt(timeStr, 10);
-         if (age < CACHE_TTL_MS) {
-            setAllPreferences(JSON.parse(cachedStr));
-            setLoading(false);
-            return;
-         }
-      }
-    } catch(e) {}
-
-    try {
-      const snap = await getDocs(collection(db, 'vacation_preferences'));
-      const prefs: Record<string, any> = {};
-      snap.forEach(doc => {
-        prefs[normalizeRg(doc.id)] = doc.data();
-      });
-      setAllPreferences(prefs);
-      
-      try {
-         localStorage.setItem(cacheKey, JSON.stringify(prefs));
-         localStorage.setItem(cacheTimeKey, Date.now().toString());
-      } catch(e) {}
-
-    } catch (e) {
-      console.error('Error fetching all preferences:', e);
-    } finally {
-      setLoading(false);
-    }
+    // Deprecated in favor of the real-time effect above
   };
 
   useEffect(() => {
@@ -152,26 +130,30 @@ export function VacationModule({ user, onBackToPortal, isSadMode = false }: Vaca
   }, []);
 
   useEffect(() => {
-    if (selectedMilitar) {
-      fetchVacations(selectedMilitar.rg);
-      fetchUserPreferences(selectedMilitar.rg);
+    let unsubPrefs = () => {};
+    if (selectedMilitar?.rg) {
+      const cleanRg = normalizeRg(selectedMilitar.rg);
+      unsubPrefs = onSnapshot(doc(db, 'vacation_preferences', cleanRg), (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setUserPrefs(data.preferences?.[activeYear] || (activeYear === '2026' ? data.months : []) || []);
+          setIsSubmitted(data.submitted?.[activeYear] || false);
+        } else {
+          setUserPrefs([]);
+          setIsSubmitted(false);
+        }
+      }, (e) => {
+         console.error('Error fetching preferences:', e);
+      });
+    } else {
+      setUserPrefs([]);
+      setIsSubmitted(false);
     }
+    return () => unsubPrefs();
   }, [selectedMilitar?.rg, activeYear]);
 
   const fetchUserPreferences = async (rg: string) => {
-    try {
-      const snap = await getDoc(doc(db, 'vacation_preferences', normalizeRg(rg)));
-      if (snap.exists()) {
-        const data = snap.data();
-        setUserPrefs(data.preferences?.[activeYear] || (activeYear === '2026' ? data.months : []) || []);
-        setIsSubmitted(data.submitted?.[activeYear] || false);
-      } else {
-        setUserPrefs([]);
-        setIsSubmitted(false);
-      }
-    } catch (e) {
-      console.error('Error fetching preferences:', e);
-    }
+    // Deprecated in favor of the real-time effect above
   };
 
   const toggleMonthPreference = async (month: string) => {
@@ -266,22 +248,29 @@ export function VacationModule({ user, onBackToPortal, isSadMode = false }: Vaca
     }
   };
 
-  const fetchVacations = async (rg: string) => {
-    setLoading(true);
-    const cleanRg = normalizeRg(rg);
-    try {
-      const q = query(
-        collection(db, 'vacations'),
-        where('militarRg', '==', cleanRg)
-      );
-      const snapshot = await getDocs(q);
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vacation));
-      setVacations(data.sort((a, b) => (b.anoRef || '').localeCompare(a.anoRef || '')));
-    } catch (e) {
-      handleFirestoreError(e, OperationType.LIST, 'vacations', false);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    let unsub = () => {};
+    const rgToWatch = isPowerUser && viewMode === 'report' ? selectedMilitarRg : (user?.rg || '');
+    if (rgToWatch) {
+      setLoading(true);
+      const cleanRg = normalizeRg(rgToWatch);
+      const q = query(collection(db, 'vacations'), where('militarRg', '==', cleanRg));
+      unsub = onSnapshot(q, (snapshot) => {
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Vacation));
+        setVacations(data.sort((a, b) => (b.anoRef || '').localeCompare(a.anoRef || '')));
+        setLoading(false);
+      }, (e) => {
+        handleFirestoreError(e, OperationType.LIST, 'vacations', false);
+        setLoading(false);
+      });
+    } else {
+      setVacations([]);
     }
+    return () => unsub();
+  }, [isPowerUser, viewMode, selectedMilitarRg, user?.rg]);
+
+  const fetchVacations = async (rg: string) => {
+    // Deprecated in favor of the real-time effect above
   };
 
   const handleImport = async (newVacations: Vacation[]) => {
