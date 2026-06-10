@@ -30,7 +30,7 @@ import { RefeitorioModule } from './RefeitorioModule';
 import { AprovisionamentoCatalogo, GastoIngrediente } from './AprovisionamentoCatalogo';
 import { cleanUndefined } from '../lib/utils';
 import { db } from '../lib/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { useRefeitorioData } from '../hooks/useRefeitorioData';
 import { RefeitorioEditModal } from './RefeitorioEditModal';
 
@@ -422,6 +422,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   });
   const [cadastroFiltroMsg, setCadastroFiltroMsg] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState<CategoriaMaterial>('MERCADO');
+  const [filtroCategoriaPrevisao, setFiltroCategoriaPrevisao] = useState<CategoriaMaterial>('MERCADO');
   const [gastosCatalogo, setGastosCatalogo] = useState<Record<string, GastoIngrediente[]>>(() => {
     try {
       const cached = localStorage.getItem('aprovisionamento_gastos_cache');
@@ -429,8 +430,22 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
     } catch(e) {}
     return {};
   });
+  const [paxPratosCatalogo, setPaxPratosCatalogo] = useState<Record<string, { semana?: number, fds?: number, evento?: number }>>(() => {
+    try {
+      const cached = localStorage.getItem('aprovisionamento_pax_pratos_cache');
+      if (cached) return JSON.parse(cached);
+    } catch(e) {}
+    return {};
+  });
+
   
-  const [previsaoDiasOptions, setPrevisaoDiasOptions] = useState<number[]>([3, 5, 10]);
+  const [previsaoDiasOptions, setPrevisaoDiasOptions] = useState<number[]>(() => {
+    try {
+      const cached = localStorage.getItem('previsaoDiasOptions');
+      if (cached) return JSON.parse(cached);
+    } catch(e) {}
+    return [3, 5, 10];
+  });
   const [newPrevisaoDiaStr, setNewPrevisaoDiaStr] = useState<string>('');
   const [mostrarTodosPrevisao, setMostrarTodosPrevisao] = useState(false);
   const [showAddListaModal, setShowAddListaModal] = useState(false);
@@ -480,92 +495,106 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   useEffect(() => {
+    let unsubscribeGastos: (() => void) | undefined;
+    let unsubscribeDados: (() => void) | undefined;
+
     const fetchDados = async () => {
       try {
-        // Fetch Gastos
+        // Fetch Gastos via real-time listener so it syncs across module tabs instantly
         const docRefGastos = doc(db, 'aprovisionamento', 'gastos_catalogo');
-        const snapGastos = await getDoc(docRefGastos);
-        if (snapGastos.exists()) {
-          const gastos = snapGastos.data().gastos || {};
-          setGastosCatalogo(gastos);
-          localStorage.setItem('aprovisionamento_gastos_cache', JSON.stringify(gastos));
-        }
-
-        // Fetch Dados Principais
-        const docRefDados = doc(db, 'aprovisionamento', 'dados');
-        const snapDados = await getDoc(docRefDados);
-        if (snapDados.exists()) {
-          const data = snapDados.data();
-          const loadedMateriais = data.materiais && data.materiais.length > 0 ? data.materiais : MOCK_MATERIAIS;
-          const loadedReceitas = data.receitas && data.receitas.length > 0 ? data.receitas : MOCK_RECEITAS;
-          
-          const loadedCardapio = data.cardapio || cardapio;
-          const loadedDatasEstoque = data.datasEstoque || datasEstoque;
-          const loadedListaCompras = data.listaCompras || listaCompras;
-          const loadedPaxDefaults = data.paxDefaults || paxDefaults;
-
-          setMateriais(loadedMateriais);
-          setReceitas(loadedReceitas);
-          setCardapio(loadedCardapio);
-          setDatasEstoque(loadedDatasEstoque);
-          setListaCompras(loadedListaCompras);
-          setPaxDefaults(loadedPaxDefaults);
-          
-          const fullDataToCache = {
-            ...data,
-            materiais: loadedMateriais,
-            receitas: loadedReceitas,
-            cardapio: loadedCardapio,
-            datasEstoque: loadedDatasEstoque,
-            listaCompras: loadedListaCompras,
-            paxDefaults: loadedPaxDefaults
-          };
-          localStorage.setItem('aprovisionamento_dados_cache', JSON.stringify(fullDataToCache));
-          
-          // Re-sync correct arrays back to db if we had to inject mocks or rescue local data
-          if (!data.materiais || data.materiais.length === 0 || !data.receitas || data.receitas.length === 0 || !data.cardapio || data.cardapio.length === 0) {
-             setDoc(docRefDados, cleanUndefined(fullDataToCache), { merge: true }).catch(console.error);
+        unsubscribeGastos = onSnapshot(docRefGastos, (snapGastos) => {
+          if (snapGastos.exists()) {
+            const data = snapGastos.data();
+            const gastos = data.gastos || {};
+            const paxPratos = data.paxPratos || {};
+            setGastosCatalogo(gastos);
+            setPaxPratosCatalogo(paxPratos);
+            localStorage.setItem('aprovisionamento_gastos_cache', JSON.stringify(gastos));
+            localStorage.setItem('aprovisionamento_pax_pratos_cache', JSON.stringify(paxPratos));
           }
-        } else {
-          // Document does not exist in Firestore yet.
-          // We sync the currently loaded local/mock data up to Firestore.
-          const initialData = { 
-            materiais, 
-            receitas, 
-            cardapio, 
-            datasEstoque, 
-            listaCompras, 
-            paxDefaults 
-          };
-          setDoc(docRefDados, cleanUndefined(initialData)).catch(e => console.warn('Could not seed initial db', e));
-        }
+        });
+
+        // Fetch Dados Principais via real-time listener
+        const docRefDados = doc(db, 'aprovisionamento', 'dados');
+        unsubscribeDados = onSnapshot(docRefDados, (snapDados) => {
+          // If we are currently debouncing local saves, ignore the incoming snapshot
+          // to prevent jumpy UI. Our local save will resolve shortly.
+          if (pendingSaveRef.current) return;
+
+          if (snapDados.exists()) {
+            const data = snapDados.data();
+            const loadedMateriais = data.materiais && data.materiais.length > 0 ? data.materiais : MOCK_MATERIAIS;
+            const loadedReceitas = data.receitas && data.receitas.length > 0 ? data.receitas : MOCK_RECEITAS;
+            
+            const loadedCardapio = data.cardapio || cardapio;
+            const loadedDatasEstoque = data.datasEstoque || datasEstoque;
+            const loadedListaCompras = data.listaCompras || listaCompras;
+            const loadedPaxDefaults = data.paxDefaults || paxDefaults;
+            const loadedPrevisaoDias = data.previsaoDiasOptions || previsaoDiasOptions;
+
+            setMateriais(loadedMateriais);
+            setReceitas(loadedReceitas);
+            setCardapio(loadedCardapio);
+            setDatasEstoque(loadedDatasEstoque);
+            setListaCompras(loadedListaCompras);
+            setPaxDefaults(loadedPaxDefaults);
+            setPrevisaoDiasOptions(loadedPrevisaoDias);
+            
+            const fullDataToCache = {
+              ...data,
+              materiais: loadedMateriais,
+              receitas: loadedReceitas,
+              cardapio: loadedCardapio,
+              datasEstoque: loadedDatasEstoque,
+              listaCompras: loadedListaCompras,
+              paxDefaults: loadedPaxDefaults,
+              previsaoDiasOptions: loadedPrevisaoDias
+            };
+            dataRef.current = fullDataToCache;
+            localStorage.setItem('aprovisionamento_dados_cache', JSON.stringify(fullDataToCache));
+          } else {
+            // First time init
+            const initialData = { 
+              materiais, 
+              receitas, 
+              cardapio, 
+              datasEstoque, 
+              listaCompras, 
+              paxDefaults,
+              previsaoDiasOptions
+            };
+            setDoc(docRefDados, cleanUndefined(initialData)).catch(e => console.warn('Could not seed initial db', e));
+          }
+          setIsDataLoaded(true);
+        }, (err) => {
+          console.error("Error fetching aprovisionamento dados:", err);
+          setIsDataLoaded(true);
+        });
       } catch (e) {
-        console.error("Error fetching aprovisionamento dados:", e);
-      } finally {
+        console.error("Error setting up aprovisionamento listeners:", e);
         setIsDataLoaded(true);
       }
     };
     fetchDados();
+
+    return () => {
+      if (unsubscribeGastos) unsubscribeGastos();
+      if (unsubscribeDados) unsubscribeDados();
+    };
   }, []);
 
-  const handleAddToListaCompras = (material: Material, suggestedQty: number) => {
-    setListaCompras(prev => {
-      const existing = prev.find(i => i.materialId === material.id);
-      if (existing) return prev;
-      const qt = suggestedQty > 0 ? Math.ceil(suggestedQty) : 1;
-      const newItem: ItemListaCompras = {
-        id: Math.random().toString(36).substring(2, 9),
-        materialId: material.id,
-        nome: material.nome,
-        categoria: material.categoria,
-        undMedida: material.undMedida,
-        quantidade: qt,
-        concluido: false
-      };
-      const next = [...prev, newItem];
-      syncAndSave({ listaCompras: next });
-      return next;
+  const promptAddToListaCompras = (material: Material, suggestedQty: number) => {
+    const qt = suggestedQty > 0 ? Math.ceil(suggestedQty) : 1;
+    setManualItemForm({
+      nome: material.nome,
+      quantidade: qt,
+      undMedida: material.undMedida,
+      categoria: material.categoria,
+      materialId: material.id
     });
+    setManualItemSuggestions([]);
+    setShowSuggestions(false);
+    setShowAddListaModal(true);
   };
 
   const handleManualAddToLista = () => {
@@ -576,7 +605,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   };
 
   const handleManualItemNameChange = (val: string) => {
-    setManualItemForm(prev => ({ ...prev, nome: val }));
+    setManualItemForm(prev => ({ ...prev, nome: val, materialId: undefined }));
     if (val.trim().length >= 2) {
       const filtered = materiais.filter(m => 
         m.nome.toLowerCase().includes(val.toLowerCase())
@@ -647,7 +676,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   };
 
   const pendingSaveRef = useRef<NodeJS.Timeout | null>(null);
-  const dataRef = useRef({ materiais, receitas, cardapio, datasEstoque, listaCompras, paxDefaults });
+  const dataRef = useRef({ materiais, receitas, cardapio, datasEstoque, listaCompras, paxDefaults, previsaoDiasOptions });
 
   const syncAndSave = (newData: Partial<typeof dataRef.current>) => {
     dataRef.current = { ...dataRef.current, ...newData };
@@ -723,6 +752,19 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
     const hoje = new Date();
     hoje.setHours(0,0,0,0);
     
+    const latestEstoqueDataStr = datasEstoque[datasEstoque.length - 1]; // e.g. "09/06"
+    let latestEstoqueDate = new Date(hoje);
+    if (latestEstoqueDataStr) {
+       const [ed, em] = latestEstoqueDataStr.split('/').map(Number);
+       if (!isNaN(ed) && !isNaN(em)) {
+          let eYear = hoje.getFullYear();
+          if (hoje.getMonth() === 0 && em === 12) eYear--;
+          else if (hoje.getMonth() === 11 && em === 1) eYear++;
+          latestEstoqueDate = new Date(eYear, em - 1, ed);
+          latestEstoqueDate.setHours(0,0,0,0);
+       }
+    }
+    
     const needsByMaterialId: Record<string, { inDays: Record<number, number>, total: number }> = {};
     
     materiais.forEach(m => {
@@ -730,7 +772,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
       previsaoDiasOptions.forEach(opt => needsByMaterialId[m.id].inDays[opt] = 0);
     });
 
-    filteredMenus.forEach(menu => {
+    menus.forEach((menu: any) => {
       if (!menu.date) return;
       const parts = menu.date.split('/');
       if (parts.length < 2) return;
@@ -745,9 +787,9 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
       const cDate = new Date(year, mo - 1, d);
       cDate.setHours(0,0,0,0);
       
-      const isPast = cDate.getTime() < hoje.getTime();
-      const diffTime = cDate.getTime() - hoje.getTime(); // Not using absolute, so negative for past
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const isPast = cDate.getTime() <= latestEstoqueDate.getTime();
+      const diffTime = cDate.getTime() - hoje.getTime();
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
       
       const paxLocalCafe = menu.efetivoCafe || paxDefaults.cafe || 60;
       const paxLocalAlmoco = menu.efetivoAlmoco || paxDefaults.almoco || 60;
@@ -786,7 +828,8 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
       
       // Para cada prato, checamos se existe configuracao em gastos_catalogo
       itemsOfDay.forEach(item => {
-         const regrasGasto = gastosCatalogo[item.name];
+         const gastoKey = Object.keys(gastosCatalogo).find(k => k.toLowerCase() === item.name.toLowerCase());
+         const regrasGasto = gastoKey ? gastosCatalogo[gastoKey] : undefined;
          if (!regrasGasto) return;
          
          const dayOfWeek = cDate.getDay();
@@ -795,21 +838,25 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
          const paxForMeal = item.meal === 'CAFE' ? paxLocalCafe : item.meal === 'ALMOCO' ? paxLocalAlmoco : paxLocalJantar;
 
          regrasGasto.forEach(gasto => {
-            const mat = materiais.find(m => m.nome === gasto.nome);
+            const mat = materiais.find(m => m.nome.toLowerCase() === gasto.nome.toLowerCase());
             if (!mat || !needsByMaterialId[mat.id]) return;
 
             let qtdCost = 0;
-            const multiplier = menu.isEvento ? (gasto.quantidadeEvento || 0) : (isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana);
-            if (gasto.metodologia === 'por_dia') {
-              qtdCost = multiplier; // Fixed daily total for this dish
-            } else if (gasto.metodologia === 'por_prato') {
-              qtdCost = multiplier * paxForMeal; // Multiplied by pax for this meal
-            }
+            const isEvento = menu.isEvento;
+            const multiplier = isEvento ? (gasto.quantidadeEvento || 0) : (isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana);
+            
+            // Calculate proportional multiplier
+            const paxConfig = paxPratosCatalogo[gastoKey] || {};
+            const standardPax = isEvento 
+                ? (paxConfig.evento || paxDefaults.almoco || 60)
+                : (isFds ? (paxConfig.fds || paxDefaults.almoco || 60) : (paxConfig.semana || paxDefaults.almoco || 60));
+                
+            qtdCost = (multiplier / standardPax) * paxForMeal;
 
             if (qtdCost > 0 && !isPast) {
               needsByMaterialId[mat.id].total += qtdCost;
               previsaoDiasOptions.forEach(opt => {
-                if (diffDays >= 0 && diffDays < opt) {
+                if (diffDays < opt) {
                   needsByMaterialId[mat.id].inDays[opt] += qtdCost;
                 }
               });
@@ -826,32 +873,37 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
 
     const maxDays = previsaoDiasOptions.length > 0 ? Math.max(...previsaoDiasOptions) : 0;
     
-    // We want to simulate global daily expenses every day up to the maximum preview days.
-    // E.g., if checking up to 21 days, we loop 21 days.
-    for (let diffDays = 0; diffDays < maxDays; diffDays++) {
-      const cDate = new Date(hoje.getTime() + diffDays * 24 * 60 * 60 * 1000);
+    // We want to simulate global daily expenses every day from the day AFTER latestEstoqueDate
+    // up to (hoje + maxDays)
+    const maxDate = new Date(hoje.getTime() + maxDays * 24 * 60 * 60 * 1000);
+    let simDate = new Date(latestEstoqueDate.getTime() + 24 * 60 * 60 * 1000);
+    
+    // Safety check just in case inventory date is messed up
+    const failSafeDate = new Date(hoje.getTime() - 60 * 24 * 60 * 60 * 1000);
+    if (simDate < failSafeDate) simDate = failSafeDate;
+
+    while (simDate < maxDate) {
+      const cDate = new Date(simDate);
       const isFds = cDate.getDay() === 0 || cDate.getDay() === 6;
+      
+      const diffTime = cDate.getTime() - hoje.getTime();
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
       // For daily total calculation, we need to find what the likely pax is.
-      // We will try to find if there is a menu for this date to get specific pax, otherwise fallback to 60.
       const d = String(cDate.getDate()).padStart(2, '0');
       const m = String(cDate.getMonth() + 1).padStart(2, '0');
       const dateStr = `${d}/${m}`;
       
-      const findMenu = filteredMenus.find((menu: any) => menu.date === dateStr);
+      const findMenu = menus.find((menu: any) => menu.date === dateStr);
       const paxForDay = findMenu?.efetivoAlmoco || paxDefaults?.almoco || 60;
 
       currentGastosGlobais.forEach(gasto => {
-        const mat = materiais.find(m => m.nome === gasto.nome);
+        const mat = materiais.find(m => m.nome.toLowerCase() === gasto.nome.toLowerCase());
         if (!mat || !needsByMaterialId[mat.id]) return;
 
         let qtdCost = 0;
         const multiplier = findMenu?.isEvento ? (gasto.quantidadeEvento || 0) : (isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana);
-        if (gasto.metodologia === 'por_dia') {
-          qtdCost = multiplier;
-        } else if (gasto.metodologia === 'por_prato') {
-          qtdCost = multiplier * paxForDay;
-        }
+        qtdCost = multiplier;
 
         if (qtdCost > 0) {
           needsByMaterialId[mat.id].total += qtdCost; // Update Total Planejado as well (representing up to maxDays)
@@ -862,10 +914,12 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
           });
         }
       });
+      
+      simDate = new Date(simDate.getTime() + 24 * 60 * 60 * 1000);
     }
 
     return needsByMaterialId;
-  }, [filteredMenus, materiais, gastosCatalogo, previsaoDiasOptions]);
+  }, [menus, materiais, gastosCatalogo, previsaoDiasOptions, datasEstoque]);
 
   const updateMaterial = (id: string, updates: Partial<Material>) => {
     setMateriais(prev => {
@@ -1334,16 +1388,22 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                 // Calculate simulation needed for these dishes
                 const simulacaoRefeicoes: { nomeIngrediente: string; needed: number; und: string }[] = [];
                 itemsOfDay.forEach(item => {
-                   const regrasGasto = gastosCatalogo[item.name];
+                   const gastoKey = Object.keys(gastosCatalogo).find(k => k.toLowerCase() === item.name.toLowerCase());
+                   const regrasGasto = gastoKey ? gastosCatalogo[gastoKey] : undefined;
                    if (regrasGasto) {
                       const paxForMeal = item.meal === 'CAFE' ? paxLocalCafe : item.meal === 'ALMOCO' ? paxLocalAlmoco : paxLocalJantar;
                       regrasGasto.forEach(gasto => {
-                         const mat = materiais.find(m => m.nome === gasto.nome);
+                         const mat = materiais.find(m => m.nome.toLowerCase() === gasto.nome.toLowerCase());
                          if (mat) {
-                            const multiplier = menu.isEvento ? (gasto.quantidadeEvento || 0) : (isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana);
-                            let qtd = 0;
-                            if (gasto.metodologia === 'por_dia') qtd = multiplier;
-                            else if (gasto.metodologia === 'por_prato') qtd = multiplier * paxForMeal;
+                            const isEvento = menu.isEvento;
+                            const multiplier = isEvento ? (gasto.quantidadeEvento || 0) : (isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana);
+                            
+                            const paxConfig = paxPratosCatalogo[gastoKey] || {};
+                            const standardPax = isEvento 
+                                ? (paxConfig.evento || paxDefaults.almoco || 60)
+                                : (isFds ? (paxConfig.fds || paxDefaults.almoco || 60) : (paxConfig.semana || paxDefaults.almoco || 60));
+                                
+                            let qtd = (multiplier / standardPax) * paxForMeal;
                             
                             if (qtd > 0) {
                                const existing = simulacaoRefeicoes.find(s => s.nomeIngrediente === mat.nome);
@@ -1368,9 +1428,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                    const mat = materiais.find(m => m.nome === gasto.nome);
                    if (mat) {
                       const multiplier = menu.isEvento ? (gasto.quantidadeEvento || 0) : (isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana);
-                      let qtd = 0;
-                      if (gasto.metodologia === 'por_dia') qtd = multiplier;
-                      else if (gasto.metodologia === 'por_prato') qtd = multiplier * paxForDay;
+                      let qtd = multiplier;
                       if (qtd > 0) {
                          const existing = simulacaoDiaria.find(s => s.nomeIngrediente === mat.nome);
                          if (existing) {
@@ -1505,7 +1563,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                         </p>
                         <div className="flex flex-wrap gap-2 text-xs">
                           {currentGastos.map((gasto, idx) => {
-                            const mat = materiais.find(m => m.nome === gasto.nome);
+                            const mat = materiais.find(m => m.nome.toLowerCase() === gasto.nome.toLowerCase());
                             if (!mat) return null;
                             
                             let totalQtdCost = 0;
@@ -1529,11 +1587,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                               const paxForDay = findMenu?.efetivoAlmoco || paxDefaults?.almoco || 60;
                               const multiplier = findMenu?.isEvento ? (gasto.quantidadeEvento || 0) : (isFds ? gasto.quantidadeFDS : gasto.quantidadeSemana);
                               
-                              if (gasto.metodologia === 'por_dia') {
-                                totalQtdCost += multiplier;
-                              } else if (gasto.metodologia === 'por_prato') {
-                                totalQtdCost += multiplier * paxForDay;
-                              }
+                              totalQtdCost += multiplier;
                             });
 
                             if (totalQtdCost <= 0) return null;
@@ -1566,7 +1620,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
              <div>
                 <h2 className="text-lg font-black text-slate-800 tracking-tight uppercase">Ordens de Compra & Previsão</h2>
                 <p className="text-xs font-semibold text-slate-500 mb-4">
-                  Subtração lógica do Estoque atual contra a necessidade extraída dos próximos dias no Cardápio.
+                  Subtração lógica do Estoque atual contra a necessidade extraída dos próximos dias no Cardápio. A matemática desconta o que já foi utilizado, começando as projeções a partir do dia seguinte ao estoque lançado.
                 </p>
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                   <div className="flex flex-wrap items-center gap-3">
@@ -1577,7 +1631,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                           <button onClick={() => {
                              const n = previsaoDiasOptions.filter(o => o !== opt);
                              setPrevisaoDiasOptions(n);
-                             localStorage.setItem('previsaoDiasOptions', JSON.stringify(n));
+                             syncAndSave({ previsaoDiasOptions: n });
                           }} className="text-slate-400 hover:text-red-500 transition-colors"><X className="w-3 h-3" /></button>
                        </div>
                     ))}
@@ -1588,7 +1642,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                           if (!isNaN(val) && val > 0 && !previsaoDiasOptions.includes(val)) {
                              const n = [...previsaoDiasOptions, val].sort((a,b) => a-b);
                              setPrevisaoDiasOptions(n);
-                             localStorage.setItem('previsaoDiasOptions', JSON.stringify(n));
+                             syncAndSave({ previsaoDiasOptions: n });
                              setNewPrevisaoDiaStr('');
                           }
                        }} className="flex items-center gap-2">
@@ -1611,7 +1665,27 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                 </div>
               </div>
 
-              {['MERCADO', 'PROTEINA', 'SACOLAO', 'LIMPEZA'].map(cat => {
+              <div className="flex rounded-xl bg-slate-100 p-1 mb-6 inline-flex">
+                {(['MERCADO', 'PROTEINA', 'SACOLAO', 'LIMPEZA'] as CategoriaMaterial[]).map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setFiltroCategoriaPrevisao(cat)}
+                    className={cn(
+                      "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors",
+                      filtroCategoriaPrevisao === cat ? `${
+                        cat === 'MERCADO' ? 'bg-[#2A2B4C] text-white' :
+                        cat === 'PROTEINA' ? 'bg-[#821D21] text-white' :
+                        cat === 'SACOLAO' ? 'bg-[#315629] text-white' :
+                        'bg-[#5C3224] text-white'
+                      } shadow-sm` : "text-slate-500 hover:text-slate-700 hover:bg-slate-200"
+                    )}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {[filtroCategoriaPrevisao].map(cat => {
               const catItems = [...materiais]
                 .filter(m => m.categoria === cat)
                 .filter(m => mostrarTodosPrevisao || calculoPrevisao[m.id]?.total > 0 || m.estoque < 5 || m.favorito)
@@ -1635,7 +1709,10 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                         <tr className="bg-slate-800 uppercase text-[10px] tracking-wider text-white">
                           <th className="py-3 px-4 font-black">Material</th>
                           <th className="py-3 px-4 font-black text-center">Unidade</th>
-                          <th className="py-3 px-4 font-black text-right">Estoque Atual</th>
+                          <th className="py-3 px-4 font-black text-right leading-tight">
+                            Estoque Atual
+                            {datasEstoque.length > 0 && <div className="text-[9px] text-slate-300 font-medium tracking-normal mt-0.5">({datasEstoque[datasEstoque.length - 1]})</div>}
+                          </th>
                           {previsaoDiasOptions.map(opt => (
                             <th key={opt} className="py-3 px-4 font-black text-right border-l border-slate-700 bg-slate-700/50">Prev. {opt} Dias</th>
                           ))}
@@ -1687,7 +1764,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                               </td>
                               <td className="py-2.5 px-4 text-center border-l border-slate-100">
                                  <button 
-                                   onClick={() => handleAddToListaCompras(m, isDeficit ? Math.abs(saldo) : 1)}
+                                   onClick={() => promptAddToListaCompras(m, isDeficit ? Math.abs(saldo) : 1)}
                                    disabled={listaCompras.some(lc => lc.materialId === m.id)}
                                    className={cn(
                                      "p-2 rounded-lg transition-colors inline-flex mb-0",
@@ -1824,8 +1901,12 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
               <div className="p-6 border-b border-slate-100 bg-slate-50">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Novo Item</h3>
-                    <p className="text-xs font-semibold text-slate-500">Adicione um item manual na lista de compras.</p>
+                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">
+                      {manualItemForm.materialId ? "Adicionar à Lista" : "Novo Item"}
+                    </h3>
+                    <p className="text-xs font-semibold text-slate-500">
+                      {manualItemForm.materialId ? "Confirme a quantidade e a unidade desejada." : "Adicione um item manual na lista de compras."}
+                    </p>
                   </div>
                   <button onClick={() => setShowAddListaModal(false)} className="p-2 hover:bg-slate-200 rounded-xl transition-colors">
                     <X className="w-5 h-5 text-slate-400" />
