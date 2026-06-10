@@ -36,8 +36,9 @@ function initFirestore() {
   try {
     // Initialize default db with cache
     return initializeFirestore(app, settings);
-  } catch(e) {
+  } catch(e: any) {
     // Fallback if initializeFirestore has issues (e.g. called twice)
+    console.warn('[Firebase] initializeFirestore failed, using getFirestore:', e);
     return getFirestore(app);
   }
 }

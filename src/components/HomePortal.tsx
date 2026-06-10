@@ -50,12 +50,13 @@ interface ModuleIconProps {
   description?: string;
   disabled?: boolean;
   comingSoon?: boolean;
+  alertText?: string;
   inDevelopment?: boolean;
   onMoveLeft?: (e: React.MouseEvent) => void;
   onMoveRight?: (e: React.MouseEvent) => void;
 }
 
-const ModuleIcon: React.FC<ModuleIconProps> = ({ label, icon: Icon, color, onClick, description, disabled, comingSoon, inDevelopment, onMoveLeft, onMoveRight }) => {
+const ModuleIcon: React.FC<ModuleIconProps> = ({ label, icon: Icon, color, onClick, description, disabled, comingSoon, alertText, inDevelopment, onMoveLeft, onMoveRight }) => {
   return (
     <motion.button
       whileHover={disabled ? {} : { y: -5, scale: 1.02 }}
@@ -86,6 +87,11 @@ const ModuleIcon: React.FC<ModuleIconProps> = ({ label, icon: Icon, color, onCli
       {comingSoon && (
         <div className="absolute top-2 sm:top-3 right-[-35px] sm:right-[-30px] bg-amber-500 text-white text-[7px] sm:text-[8px] font-black py-1 px-10 rotate-45 uppercase tracking-widest shadow-sm z-10">
           Breve
+        </div>
+      )}
+
+      {alertText && (
+        <div className="absolute top-4 right-4 bg-rose-500 w-3 h-3 border-2 border-white rounded-full flex items-center justify-center shadow-md animate-pulse z-20" title={alertText}>
         </div>
       )}
 
@@ -152,53 +158,68 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
   });
   const [adminTab, setAdminTab] = useState<'apps' | 'roles'>('apps');
   const [epiRequestActive, setEpiRequestActive] = useState(false);
+  const [epiRequestMessage, setEpiRequestMessage] = useState('');
   const [showMural, setShowMural] = useState(true);
 
   useEffect(() => {
     if (!user?.rg || !db) return;
     
-    // Check global EPI request config
-    const checkEpiRequest = async () => {
-      // Ensure auth is ready before fetching to avoid permission errors
-      const auth = getAuth();
-      if (!auth.currentUser) {
-         // wait briefly and retry if auth isn't ready
-         setTimeout(checkEpiRequest, 1000);
-         return;
-      }
-      try {
-        const snap = await getDoc(doc(db, 'config', 'epi_request'));
-        if (snap.exists()) {
-          const data = snap.data();
-          if (data.isActive && data.requestedAt) {
-            // Check user's missing info
-            const userRgStr = user.rg.toString().padStart(5, '0');
-            const userSopDoc = await getDoc(doc(db, 'medidasAntropometricas', userRgStr));
-            
-            let needsUpdate = true;
-            if (userSopDoc.exists()) {
-              const userData = userSopDoc.data();
-              if (userData.updatedAt) {
-                const reqDate = new Date(data.requestedAt).getTime();
-                const updateDate = new Date(userData.updatedAt).getTime();
-                if (updateDate >= reqDate) {
-                  needsUpdate = false;
-                }
-              }
-            }
-            
-            setEpiRequestActive(needsUpdate);
-          } else {
-            setEpiRequestActive(false);
+    const userRgStr = user.rg.toString().padStart(5, '0');
+    let unsubscribeConfig: () => void;
+    let unsubscribeUser: () => void;
+
+    let currentReqData: any = null;
+    let currentUserData: any = null;
+
+    const handleUpdate = () => {
+      if (currentReqData && currentReqData.isActive && currentReqData.requestedAt) {
+        let needsUpdate = true;
+        if (currentUserData && currentUserData.updatedAt) {
+          const reqDate = new Date(currentReqData.requestedAt).getTime();
+          const updateDate = new Date(currentUserData.updatedAt).getTime();
+          if (updateDate >= reqDate) {
+            needsUpdate = false;
           }
-        } else {
-          setEpiRequestActive(false);
         }
-      } catch (error) {
-        console.error("Error checking epi_request:", error);
+        setEpiRequestActive(needsUpdate);
+        if (currentReqData.message) {
+          setEpiRequestMessage(currentReqData.message);
+        } else {
+          setEpiRequestMessage('Por favor, revise e confirme seus dados no sistema.');
+        }
+      } else {
+        setEpiRequestActive(false);
       }
     };
-    checkEpiRequest();
+
+    const setupListeners = () => {
+      const auth = getAuth();
+      if (!auth.currentUser) {
+         setTimeout(setupListeners, 1000);
+         return;
+      }
+      
+      try {
+        unsubscribeConfig = onSnapshot(doc(db, 'config', 'epi_request'), (snap) => {
+          currentReqData = snap.exists() ? snap.data() : null;
+          handleUpdate();
+        }, (err) => console.error("Error epi config:", err));
+        
+        unsubscribeUser = onSnapshot(doc(db, 'medidasAntropometricas', userRgStr), (snap) => {
+          currentUserData = snap.exists() ? snap.data() : null;
+          handleUpdate();
+        }, (err) => console.error("Error epi user:", err));
+      } catch (err) {
+        console.error("Setup error:", err);
+      }
+    };
+
+    setupListeners();
+
+    return () => {
+      if (unsubscribeConfig) unsubscribeConfig();
+      if (unsubscribeUser) unsubscribeUser();
+    };
   }, [user?.rg]);
 
   const userRgStr = user.rg?.toString().trim().toUpperCase() || '';
@@ -481,29 +502,6 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
 
   return (
     <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
-      {epiRequestActive && (
-        <div className="mb-8 p-6 sm:p-8 bg-gradient-to-r from-rose-500 to-amber-500 rounded-[2.5rem] shadow-xl text-white flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/20 blur-3xl -translate-y-1/2 translate-x-1/4 rounded-full pointer-events-none"></div>
-          <div className="relative z-10 flex items-center gap-6 text-center md:text-left">
-            <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center shrink-0 backdrop-blur-sm shadow-inner">
-              <AlertCircle className="w-8 h-8 text-white" />
-            </div>
-            <div>
-              <h3 className="text-xl sm:text-2xl font-black uppercase tracking-tight">Aviso Obrigatório: Atualização de EPI</h3>
-              <p className="text-sm font-semibold opacity-90 mt-1 max-w-xl">
-                O administrador solicitou que todos os militares revisem e confirmem imediatamente seus dados de carga e fardamento (EPI) no sistema. Essa confirmação é necessária.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => onLaunchModule('medidas')}
-            className="relative z-10 whitespace-nowrap bg-white text-rose-600 hover:bg-rose-50 px-8 py-5 rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-2xl active:scale-95 transition-all"
-          >
-            Atualizar Agora
-          </button>
-        </div>
-      )}
-
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-3">
           <LayoutGrid className="w-5 h-5 text-indigo-600" />
@@ -589,6 +587,7 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
                   disabled={(mod as any).disabled}
                   comingSoon={(mod as any).comingSoon}
                   inDevelopment={(mod as any).inDevelopment}
+                  alertText={mod.id === 'medidas' && epiRequestActive ? epiRequestMessage : undefined}
                   onClick={() => !isEditMode && onLaunchModule(mod.id)}
                   onMoveLeft={isEditMode && index > 0 ? (e) => { e.stopPropagation(); moveItem(visibleOperacionalModules, mod.id, -1, 'operacional'); } : undefined}
                   onMoveRight={isEditMode && index < visibleOperacionalModules.length - 1 ? (e) => { e.stopPropagation(); moveItem(visibleOperacionalModules, mod.id, 1, 'operacional'); } : undefined}
@@ -623,6 +622,7 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
                   disabled={(mod as any).disabled}
                   comingSoon={(mod as any).comingSoon}
                   inDevelopment={(mod as any).inDevelopment}
+                  alertText={mod.id === 'medidas' && epiRequestActive ? epiRequestMessage : undefined}
                   onClick={() => !isEditMode && onLaunchModule(mod.id)}
                   onMoveLeft={isEditMode && index > 0 ? (e) => { e.stopPropagation(); moveItem(visibleInformativoModules, mod.id, -1, 'informativo'); } : undefined}
                   onMoveRight={isEditMode && index < visibleInformativoModules.length - 1 ? (e) => { e.stopPropagation(); moveItem(visibleInformativoModules, mod.id, 1, 'informativo'); } : undefined}
@@ -650,6 +650,7 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
                   disabled={(mod as any).disabled}
                   comingSoon={(mod as any).comingSoon}
                   inDevelopment={(mod as any).inDevelopment}
+                  alertText={mod.id === 'medidas' && epiRequestActive ? epiRequestMessage : undefined}
                   onClick={() => !isEditMode && onLaunchModule(mod.id)}
                   onMoveLeft={isEditMode && index > 0 ? (e) => { e.stopPropagation(); moveItem(visibleEscalanteModules, mod.id, -1, 'escalante'); } : undefined}
                   onMoveRight={isEditMode && index < visibleEscalanteModules.length - 1 ? (e) => { e.stopPropagation(); moveItem(visibleEscalanteModules, mod.id, 1, 'escalante'); } : undefined}
@@ -677,6 +678,7 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
                   disabled={(mod as any).disabled}
                   comingSoon={(mod as any).comingSoon}
                   inDevelopment={(mod as any).inDevelopment}
+                  alertText={mod.id === 'medidas' && epiRequestActive ? epiRequestMessage : undefined}
                   onClick={() => !isEditMode && onLaunchModule(mod.id)}
                   onMoveLeft={isEditMode && index > 0 ? (e) => { e.stopPropagation(); moveItem(visibleModeradorModules, mod.id, -1, 'moderador'); } : undefined}
                   onMoveRight={isEditMode && index < visibleModeradorModules.length - 1 ? (e) => { e.stopPropagation(); moveItem(visibleModeradorModules, mod.id, 1, 'moderador'); } : undefined}

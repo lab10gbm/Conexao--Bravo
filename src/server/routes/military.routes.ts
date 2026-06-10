@@ -1,5 +1,5 @@
 import express from 'express';
-import { collection, getDocs, getDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, getDoc, doc, setDoc } from 'firebase/firestore';
 
 export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
   app.get('/api/militar', async (req, res) => {
@@ -335,6 +335,76 @@ app.post('/api/militar/emprestar', async (req, res) => {
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.post('/api/vacation-settings', async (req, res) => {
+    try {
+      const { clientDb } = getDeps();
+      const data = req.body;
+      if (!clientDb) return res.status(500).json({ success: false, error: 'DB not connected' });
+      await setDoc(doc(clientDb, 'config', 'vacation_settings'), data, { merge: true });
+      return res.json({ success: true });
+    } catch (e: any) {
+      console.error('[API] Error saving vacation settings:', e.message);
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.post('/api/vacation-preferences', async (req, res) => {
+    try {
+      const { clientDb, normalizeRg } = getDeps();
+      const { rg, data } = req.body;
+      if (!clientDb) return res.status(500).json({ success: false, error: 'DB not connected' });
+      if (!rg || !data) return res.status(400).json({ success: false, error: 'Missing rg or data' });
+      const safeRg = normalizeRg(rg);
+      await setDoc(doc(clientDb, 'vacation_preferences', safeRg), data, { merge: true });
+      return res.json({ success: true });
+    } catch (e: any) {
+      console.error('[API] Error saving vacation preferences:', e.message);
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.get('/api/vacation-settings', async (req, res) => {
+    try {
+      const { clientDb } = getDeps();
+      if (!clientDb) return res.status(500).json({ success: false, error: 'DB not connected' });
+      const d = await getDoc(doc(clientDb, 'config', 'vacation_settings'));
+      if (d.exists()) return res.json({ success: true, data: d.data() });
+      return res.json({ success: true, data: {} });
+    } catch (e: any) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.get('/api/vacation-preferences/:rg', async (req, res) => {
+    try {
+      const { clientDb, normalizeRg } = getDeps();
+      const rg = req.params.rg;
+      if (!clientDb) return res.status(500).json({ success: false, error: 'DB not connected' });
+      if (!rg) return res.status(400).json({ success: false, error: 'Missing rg' });
+      const safeRg = normalizeRg(rg);
+      const d = await getDoc(doc(clientDb, 'vacation_preferences', safeRg));
+      if (d.exists()) return res.json({ success: true, data: d.data() });
+      return res.json({ success: true, data: {} });
+    } catch (e: any) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.get('/api/all-vacation-preferences', async (req, res) => {
+    try {
+      const { clientDb } = getDeps();
+      if (!clientDb) return res.status(500).json({ success: false, error: 'DB not connected' });
+      const snapshot = await getDocs(collection(clientDb, 'vacation_preferences'));
+      const data: Record<string, any> = {};
+      snapshot.forEach((d: any) => {
+        data[d.id] = d.data();
+      });
+      return res.json({ success: true, data });
+    } catch (e: any) {
+      return res.status(500).json({ success: false, error: e.message });
     }
   });
 

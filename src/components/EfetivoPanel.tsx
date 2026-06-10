@@ -21,6 +21,7 @@ import {
   Plus,
   FileText,
   Settings,
+  Rows3,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { UserProfile } from "../types";
@@ -79,6 +80,8 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
     | "summary"
     | "plano_chamada";
   const [viewMode, setViewMode] = useState<ViewMode>("cards");
+  const [groupBy, setGroupBy] = useState<"obm" | "ala" | "quadro" | "rank">("obm");
+  const [layoutMode, setLayoutMode] = useState<"grid" | "stack">("grid");
   const [showManualRgModal, setShowManualRgModal] = useState(false);
   const [orderedColumns, setOrderedColumns] = useState(INITIAL_COLUMNS);
   const [visibleColumns, setVisibleColumns] = useState<string[]>(
@@ -283,40 +286,108 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
     setViewMode("table_unified");
   };
 
-  const currentGroups = React.useMemo(
-    () =>
-      GROUPS.map((g) => {
-        const defaultObm = (m: UserProfile) => {
-          return m.obm || "";
-        };
+  const currentGroups = React.useMemo(() => {
+    if (groupBy === "ala" || groupBy === "quadro" || groupBy === "rank") {
+      const groupsMap: Record<string, UserProfile[]> = {};
+      militars.forEach((m) => {
+        let baseName = "";
+        if (groupBy === "ala") {
+          baseName = (m.ala?.toString() || "").trim().toUpperCase();
+          if (!baseName || baseName === "ALA") baseName = "SEM ALA";
+        } else if (groupBy === "quadro") {
+          baseName = (m.quadro?.toString() || "").trim().toUpperCase().split('/')[0].trim();
+          if (!baseName) baseName = "SEM QUADRO";
+        } else if (groupBy === "rank") {
+          baseName = (m.rank?.toString() || "").trim().toUpperCase();
+          if (!baseName) baseName = "SEM GRADUAÇÃO";
+        }
 
-        const membersAtGroup = militars.filter((m) => {
-          const currentObm = m.lentTo ? m.lentTo : defaultObm(m);
-          return currentObm === g.id;
-        });
+        const obmName = normalizeObm(m.obm || "");
+        let groupName = baseName;
+        
+        if (obmName && !baseName.startsWith("SEM ")) {
+          groupName = `${baseName} - ${obmName}`;
+        } else if (obmName && baseName.startsWith("SEM ")) {
+          groupName = `${baseName} - ${obmName}`;
+        }
 
-        const membersOriginallyAtGroup = militars.filter(
-          (m) => defaultObm(m) === g.id,
-        );
+        if (!groupsMap[groupName]) {
+          groupsMap[groupName] = [];
+        }
+        groupsMap[groupName].push(m);
+      });
 
-        const lentIn = membersAtGroup.filter(
-          (m) => defaultObm(m) !== g.id,
-        ).length;
-        const lentOut = membersOriginallyAtGroup.filter(
-          (m) => m.lentTo && m.lentTo !== g.id,
-        ).length;
-
+      const result = Object.entries(groupsMap).map(([name, members]) => {
+        let displayName = name;
+        if (groupBy === "ala") {
+          displayName = name.startsWith("SEM ALA") 
+            ? name.replace("SEM ALA", "(Sem Ala)") 
+            : name.includes("ALA") ? name : `ALA ${name}`;
+        } else if (groupBy === "quadro") {
+          displayName = name.startsWith("SEM QUADRO")
+            ? name.replace("SEM QUADRO", "(Sem Quadro)")
+            : name.includes("QUADRO") ? name : `QUADRO ${name}`;
+        } else if (groupBy === "rank") {
+          displayName = name.startsWith("SEM GRADUAÇÃO")
+            ? name.replace("SEM GRADUAÇÃO", "(Sem Graduação)")
+            : name;
+        }
+          
         return {
-          id: g.id,
-          name: g.label,
-          members: membersAtGroup,
-          totalOriginal: membersOriginallyAtGroup.length,
-          lentIn,
-          lentOut,
+          id: name,
+          name: displayName,
+          members: members,
+          totalOriginal: members.length,
+          lentIn: 0,
+          lentOut: 0,
         };
-      }),
-    [militars],
-  );
+      });
+
+      result.sort((a, b) => {
+        const aIsSemPlaceholder = a.name.startsWith("(Sem ");
+        const bIsSemPlaceholder = b.name.startsWith("(Sem ");
+        
+        if (aIsSemPlaceholder && !bIsSemPlaceholder) return 1;
+        if (!aIsSemPlaceholder && bIsSemPlaceholder) return -1;
+        
+        // For rank, we might want to sort by rank logic, but natural sort is a fallback
+        return a.name.localeCompare(b.name);
+      });
+
+      return result;
+    }
+
+    return GROUPS.map((g) => {
+      const defaultObm = (m: UserProfile) => {
+        return m.obm || "";
+      };
+
+      const membersAtGroup = militars.filter((m) => {
+        const currentObm = m.lentTo ? m.lentTo : defaultObm(m);
+        return currentObm === g.id;
+      });
+
+      const membersOriginallyAtGroup = militars.filter(
+        (m) => defaultObm(m) === g.id,
+      );
+
+      const lentIn = membersAtGroup.filter(
+        (m) => defaultObm(m) !== g.id,
+      ).length;
+      const lentOut = membersOriginallyAtGroup.filter(
+        (m) => m.lentTo && m.lentTo !== g.id,
+      ).length;
+
+      return {
+        id: g.id,
+        name: g.label,
+        members: membersAtGroup,
+        totalOriginal: membersOriginallyAtGroup.length,
+        lentIn,
+        lentOut,
+      };
+    });
+  }, [militars, groupBy]);
 
   const {
     uniqueRanks,
@@ -433,6 +504,53 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
             </div>
           )}
           <EfetivoToolbar viewMode={viewMode} setViewMode={setViewMode} />
+
+          {(viewMode === "cards" || viewMode === "table_obm") && (
+            <div className="flex gap-2 items-center">
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                <button
+                  onClick={() => setLayoutMode("grid")}
+                  className={`px-2 py-1.5 rounded transition-colors h-[26px] flex items-center justify-center ${layoutMode === "grid" ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:bg-slate-200"}`}
+                  title="Grade"
+                >
+                  <LayoutGrid size={14} />
+                </button>
+                <button
+                  onClick={() => setLayoutMode("stack")}
+                  className={`px-2 py-1.5 rounded transition-colors h-[26px] flex items-center justify-center ${layoutMode === "stack" ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:bg-slate-200"}`}
+                  title="Lista"
+                >
+                  <Rows3 size={14} />
+                </button>
+              </div>
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                <button
+                  onClick={() => setGroupBy("obm")}
+                  className={`px-3 py-1.5 rounded text-[10px] uppercase font-black tracking-widest transition-colors h-[26px] flex items-center justify-center ${groupBy === "obm" ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:bg-slate-200"}`}
+                >
+                  OBM
+                </button>
+                <button
+                  onClick={() => setGroupBy("ala")}
+                  className={`px-3 py-1.5 rounded text-[10px] uppercase font-black tracking-widest transition-colors h-[26px] flex items-center justify-center ${groupBy === "ala" ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:bg-slate-200"}`}
+                >
+                  ALA
+                </button>
+                <button
+                  onClick={() => setGroupBy("quadro")}
+                  className={`px-3 py-1.5 rounded text-[10px] uppercase font-black tracking-widest transition-colors h-[26px] flex items-center justify-center ${groupBy === "quadro" ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:bg-slate-200"}`}
+                >
+                  QUADRO
+                </button>
+                <button
+                  onClick={() => setGroupBy("rank")}
+                  className={`px-3 py-1.5 rounded text-[10px] uppercase font-black tracking-widest transition-colors h-[26px] flex items-center justify-center ${groupBy === "rank" ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:bg-slate-200"}`}
+                >
+                  GRADUAÇÃO
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center gap-2">
             <button
@@ -674,6 +792,7 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
         />
       ) : viewMode === "table_obm" ? (
         <EfetivoTableObmMode
+          layoutMode={layoutMode}
           currentGroups={currentGroups}
           search={search}
           filters={filters}
@@ -687,6 +806,7 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
         />
       ) : (
         <EfetivoGridMode
+          layoutMode={layoutMode}
           currentGroups={currentGroups}
           search={search}
           filters={filters}

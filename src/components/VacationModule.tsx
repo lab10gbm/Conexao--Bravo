@@ -86,9 +86,29 @@ export function VacationModule({
   const [selectedMilitar, setSelectedMilitar] = useState<UserProfile | null>(
     isPowerUser && isSadMode ? null : user,
   );
-  const [viewMode, setViewMode] = useState<"individual" | "report">(
-    "individual",
-  );
+  const [viewMode, setViewMode] = useState<
+    "individual" | "report" | "panorama"
+  >("individual");
+  const [allVacations, setAllVacations] = useState<Vacation[]>([]);
+  const [loadingPanorama, setLoadingPanorama] = useState(false);
+
+  useEffect(() => {
+    if (viewMode === "panorama") {
+      setLoadingPanorama(true);
+      getDocs(collection(db, "vacations"))
+        .then((snapshot) => {
+          const data = snapshot.docs.map(
+            (doc) => ({ id: doc.id, ...doc.data() }) as Vacation,
+          );
+          setAllVacations(data);
+          setLoadingPanorama(false);
+        })
+        .catch((e) => {
+          console.error(e);
+          setLoadingPanorama(false);
+        });
+    }
+  }, [viewMode]);
 
   const [activeYear, setActiveYear] = useState("2026");
   const [reportYear, setReportYear] = useState("2026");
@@ -111,25 +131,58 @@ export function VacationModule({
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [allPreferences, setAllPreferences] = useState<Record<string, any>>({});
   const [savingPrefs, setSavingPrefs] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isNavMenuExpanded, setIsNavMenuExpanded] = useState(true);
 
   useEffect(() => {
     let unsubAllPrefs = () => {};
     if (isPowerUser && viewMode === "report") {
       setLoading(true);
+
+      const fetchAllFallback = async () => {
+        try {
+          const res = await fetch('/api/all-vacation-preferences');
+          const json = await res.json();
+          if (json.success && json.data) {
+             const prefs: Record<string, any> = {};
+             Object.entries(json.data).forEach(([key, val]) => {
+                prefs[normalizeRg(key)] = val;
+             });
+             setAllPreferences(prefs);
+             setLoading(false);
+          }
+        } catch(e) {
+          console.error("All prefs fallback failed: ", e);
+        }
+      };
+
+      fetchAllFallback();
+
       unsubAllPrefs = onSnapshot(
         collection(db, "vacation_preferences"),
         (snap) => {
+          if (snap.metadata.fromCache && snap.empty) {
+            console.log("Ignoring empty offline cache for preferences.");
+            return;
+          }
           const prefs: Record<string, any> = {};
           snap.forEach((doc) => {
             prefs[normalizeRg(doc.id)] = doc.data();
           });
-          setAllPreferences(prefs);
+          
+          setAllPreferences((prev) => {
+             // Only update if we actually have data, or if we didn't have data before
+             if (Object.keys(prefs).length > 0 || Object.keys(prev).length === 0) {
+               return prefs;
+             }
+             return prev;
+          });
           setLoading(false);
         },
         (e) => {
           console.error("Error fetching all preferences:", e);
           setLoading(false);
+          fetchAllFallback();
         },
       );
     }
@@ -141,51 +194,78 @@ export function VacationModule({
   };
 
   useEffect(() => {
-    const checkAuthAndListen = () => {
-      if (!db || !auth.currentUser) return null;
+    if (!db) return;
 
-      const unsubConfig = onSnapshot(
-        doc(db, "config", "vacation_settings"),
-        (snap) => {
-          if (snap.exists()) {
-            const data = snap.data();
-            setPreferencesEnabled(data.preferencesEnabled || false);
-            setActiveYear(data.activeYear || "2026");
-          }
-        },
-        (error) => {
-          handleFirestoreError(
-            error,
-            OperationType.GET,
-            "config/vacation_settings",
-            false,
-          );
-        },
-      );
-      return unsubConfig;
+    const fetchConfigFallback = async () => {
+      try {
+        const res = await fetch('/api/vacation-settings');
+        const json = await res.json();
+        if (json.success && json.data) {
+          setPreferencesEnabled(json.data.preferencesEnabled || false);
+          if (json.data.activeYear) setActiveYear(json.data.activeYear);
+        }
+      } catch (err) {
+        console.error("Config API fallback failed", err);
+      }
     };
 
-    let unsub: any = checkAuthAndListen();
+    // Try initial fetch via API to bypass potential adblock
+    fetchConfigFallback();
 
-    // Auth state might change, so we might need to re-run
-    const unsubAuth = auth.onAuthStateChanged(() => {
-      if (unsub) unsub();
-      unsub = checkAuthAndListen();
-    });
+    const unsubConfig = onSnapshot(
+      doc(db, "config", "vacation_settings"),
+      (snap) => {
+        if (snap.metadata.fromCache && !snap.exists()) {
+          console.log("Ignoring empty offline cache for settings.");
+          return;
+        }
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.preferencesEnabled !== undefined) setPreferencesEnabled(data.preferencesEnabled);
+          if (data.activeYear) setActiveYear(data.activeYear);
+        }
+      },
+      (error) => {
+        console.error("Error listening to config:", error);
+        fetchConfigFallback();
+      },
+    );
 
-    return () => {
-      if (unsub) unsub();
-      unsubAuth();
-    };
+    return () => unsubConfig();
   }, []);
 
   useEffect(() => {
     let unsubPrefs = () => {};
     if (selectedMilitar?.rg) {
       const cleanRg = normalizeRg(selectedMilitar.rg);
+      
+      const fetchPrefsFallback = async () => {
+         try {
+           const res = await fetch(`/api/vacation-preferences/${cleanRg}`);
+           const json = await res.json();
+           if (json.success && json.data) {
+             const data = json.data;
+             setUserPrefs(
+               data.preferences?.[activeYear] ||
+                 (activeYear === "2026" ? data.months : []) ||
+                 [],
+             );
+             setIsSubmitted(data.submitted?.[activeYear] || false);
+           }
+         } catch (e) {
+           console.error("Prefs API fallback failed", e);
+         }
+      };
+
+      fetchPrefsFallback();
+
       unsubPrefs = onSnapshot(
         doc(db, "vacation_preferences", cleanRg),
         (snap) => {
+          if (snap.metadata.fromCache && !snap.exists()) {
+             console.log("Ignoring empty offline cache for single preference.");
+             return;
+          }
           if (snap.exists()) {
             const data = snap.data();
             setUserPrefs(
@@ -194,13 +274,11 @@ export function VacationModule({
                 [],
             );
             setIsSubmitted(data.submitted?.[activeYear] || false);
-          } else {
-            setUserPrefs([]);
-            setIsSubmitted(false);
           }
         },
         (e) => {
           console.error("Error fetching preferences:", e);
+          fetchPrefsFallback();
         },
       );
     } else {
@@ -222,8 +300,7 @@ export function VacationModule({
       newPrefs = newPrefs.filter((m) => m !== month);
     } else {
       if (newPrefs.length >= 3) {
-        alert("Você só pode escolher até 3 meses de preferência.");
-        return;
+        return; // Exceeded limit
       }
       newPrefs.push(month);
     }
@@ -233,16 +310,18 @@ export function VacationModule({
     try {
       const updateData: any = {
         rg: normalizeRg(selectedMilitar.rg),
-        [`preferences.${activeYear}`]: newPrefs,
-        updatedAt: serverTimestamp(),
+        preferences: {
+          [activeYear]: newPrefs
+        }
       };
       if (activeYear === "2026") {
         updateData.months = newPrefs;
       }
+      
       await setDoc(
         doc(db, "vacation_preferences", normalizeRg(selectedMilitar.rg)),
-        cleanUndefined(updateData),
-        { merge: true },
+        { ...updateData, updatedAt: serverTimestamp() },
+        { merge: true }
       );
     } catch (e) {
       handleFirestoreError(
@@ -256,28 +335,30 @@ export function VacationModule({
     }
   };
 
+  const handleInitiateSubmit = () => {
+    if (userPrefs.length !== 3) return;
+    setShowConfirmDialog(true);
+  };
+
   const handleSubmitPreferences = async () => {
+    setShowConfirmDialog(false);
     if (!selectedMilitar) return;
     if (userPrefs.length !== 3) {
-      alert("Selecione exatamente 3 meses antes de enviar.");
       return;
     }
-    if (
-      !confirm(
-        "Após enviar, não será possível alterar suas opções. Deseja continuar?",
-      )
-    ) {
-      return;
-    }
+    
     setSavingPrefs(true);
     try {
+      const updateData = {
+          submitted: {
+            [activeYear]: true
+          }
+      };
+      
       await setDoc(
         doc(db, "vacation_preferences", normalizeRg(selectedMilitar.rg)),
-        cleanUndefined({
-          [`submitted.${activeYear}`]: true,
-          updatedAt: serverTimestamp(),
-        }),
-        { merge: true },
+        { ...updateData, updatedAt: serverTimestamp() },
+        { merge: true }
       );
       setIsSubmitted(true);
     } catch (e) {
@@ -298,7 +379,9 @@ export function VacationModule({
       await setDoc(
         doc(db, "vacation_preferences", normalizeRg(rg)),
         cleanUndefined({
-          [`granted.${reportYear}`]: month,
+          granted: {
+            [reportYear]: month
+          },
           updatedAt: serverTimestamp(),
         }),
         { merge: true },
@@ -322,15 +405,13 @@ export function VacationModule({
   const toggleGlobalPreferences = async () => {
     if (!isPowerUser) return;
     try {
-      await setDoc(
-        doc(db, "config", "vacation_settings"),
-        cleanUndefined({
-          preferencesEnabled: !preferencesEnabled,
-          updatedBy: user.name,
-          updatedAt: serverTimestamp(),
-        }),
-        { merge: true },
-      );
+      const dbDocInfo = {
+        preferencesEnabled: !preferencesEnabled,
+        updatedBy: user.name || "Admin",
+      };
+      
+      await setDoc(doc(db, "config", "vacation_settings"), { ...dbDocInfo, updatedAt: serverTimestamp() }, { merge: true });
+      console.log("Successfully saved config/vacation_settings");
     } catch (e) {
       console.error("Error updating global config:", e);
     }
@@ -638,6 +719,96 @@ export function VacationModule({
     reportYear,
   ]);
 
+  const panoramaData = React.useMemo(() => {
+    if (viewMode !== "panorama" || allVacations.length === 0) return [];
+
+    const currentYear = new Date().getFullYear();
+    const vacsByRg: Record<string, Vacation[]> = {};
+    allVacations.forEach((v) => {
+      if (!vacsByRg[v.militarRg]) vacsByRg[v.militarRg] = [];
+      vacsByRg[v.militarRg].push(v);
+    });
+
+    const panoramaRows = [];
+
+    for (const m of filteredMilitarsReport) {
+      const cleanRg = normalizeRg(m.rg);
+      const mVacations = vacsByRg[cleanRg] || [];
+      if (mVacations.length === 0) continue;
+
+      let sYear = currentYear;
+      const validYears = mVacations
+        .map((v) => parseInt(v.anoRef))
+        .filter((n) => !isNaN(n) && n > 1900);
+      if (validYears.length > 0) sYear = Math.min(...validYears);
+
+      const statsByYear: Record<
+        number,
+        {
+          totalGozados: number;
+          pending: number;
+          temConcessoes: boolean;
+          temAsseguradas: boolean;
+        }
+      > = {};
+      for (let y = sYear; y <= currentYear; y++) {
+        statsByYear[y] = {
+          totalGozados: 0,
+          pending: 30,
+          temConcessoes: false,
+          temAsseguradas: false,
+        };
+      }
+
+      mVacations.forEach((v) => {
+        const y = parseInt(v.anoRef);
+        if (!isNaN(y) && statsByYear[y]) {
+          if (v.ato?.toUpperCase().includes("CONCESS")) {
+            statsByYear[y].totalGozados += v.diasGozados || 0;
+            statsByYear[y].pending = Math.max(
+              0,
+              30 - statsByYear[y].totalGozados,
+            );
+            statsByYear[y].temConcessoes = true;
+          }
+          if (v.ato?.toUpperCase().includes("ASSEGURADAS")) {
+            statsByYear[y].temAsseguradas = true;
+          }
+        }
+      });
+
+      const missing = [];
+      const pending = [];
+      for (let y = sYear; y <= currentYear; y++) {
+        if (!statsByYear[y].temConcessoes && !statsByYear[y].temAsseguradas) {
+          missing.push(y);
+        } else if (statsByYear[y].pending > 0 && statsByYear[y].temConcessoes) {
+          pending.push({ year: y, days: statsByYear[y].pending });
+        } else if (
+          !statsByYear[y].temConcessoes &&
+          statsByYear[y].temAsseguradas
+        ) {
+          pending.push({ year: y, days: 30 });
+        }
+      }
+
+      const totalPendingDays =
+        pending.reduce((acc, p) => acc + p.days, 0) + missing.length * 30;
+
+      if (totalPendingDays > 0) {
+        panoramaRows.push({
+          militar: m,
+          startYear: sYear,
+          missingYears: missing,
+          pendingBalances: pending,
+          totalPendingDays,
+        });
+      }
+    }
+
+    return panoramaRows.sort((a, b) => b.totalPendingDays - a.totalPendingDays);
+  }, [allVacations, filteredMilitarsReport, viewMode]);
+
   return (
     <div className="flex flex-col gap-8 font-sans">
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
@@ -661,21 +832,26 @@ export function VacationModule({
 
         <div className="flex flex-wrap items-center gap-3">
           {isPowerUser && (
-            <button
-              onClick={() =>
-                setViewMode(viewMode === "individual" ? "report" : "individual")
-              }
-              className={`px-4 py-3 border-2 rounded-2xl transition-all font-black text-[10px] uppercase tracking-widest flex items-center gap-2 ${
-                viewMode === "report"
-                  ? "bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100"
-                  : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300"
-              }`}
-            >
-              <TableIcon className="w-4 h-4" />{" "}
-              {viewMode === "report"
-                ? "Ver Individual"
-                : "Relatório Consolidado"}
-            </button>
+            <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-inner">
+              <button
+                onClick={() => setViewMode("individual")}
+                className={`px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest ${viewMode === "individual" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+              >
+                Individual
+              </button>
+              <button
+                onClick={() => setViewMode("report")}
+                className={`px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5 ${viewMode === "report" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+              >
+                <TableIcon className="w-3.5 h-3.5" /> Preferências
+              </button>
+              <button
+                onClick={() => setViewMode("panorama")}
+                className={`px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5 ${viewMode === "panorama" ? "bg-white text-orange-600 shadow-sm border border-orange-100" : "text-slate-500 hover:text-slate-800"}`}
+              >
+                <History className="w-3.5 h-3.5" /> Panorama Global
+              </button>
+            </div>
           )}
           {isPowerUser && isSadMode && viewMode === "individual" && (
             <div className="relative w-full sm:w-auto">
@@ -748,38 +924,54 @@ export function VacationModule({
             <span className="sm:hidden">Sincronizar</span>
           </button>
           {isPowerUser && (
-            <div className="flex items-center gap-2 bg-white px-3 py-2 border-2 border-slate-200 rounded-2xl">
-              <span className="hidden sm:inline text-[9px] font-black uppercase text-slate-400">
+            <div className="flex items-center gap-2 bg-gradient-to-r from-indigo-50 to-white px-3 py-2 border border-indigo-100 shadow-sm rounded-2xl ring-1 ring-white/50 transition-all hover:border-indigo-200 group">
+              <span className="hidden sm:flex items-center gap-1.5 text-[9px] font-black uppercase text-indigo-900 tracking-[0.1em]">
+                <Calendar className="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-600 transition-colors" />
                 Coleta SAD:
               </span>
               <select
                 value={activeYear}
                 onChange={async (e) => {
                   const newYear = e.target.value;
-                  await setDoc(
-                    doc(db, "config", "vacation_settings"),
-                    cleanUndefined({ activeYear: newYear }),
-                    { merge: true },
-                  );
+                  setActiveYear(newYear); // Optimistic UI update
+                  try {
+                    await setDoc(
+                      doc(db, "config", "vacation_settings"),
+                      { activeYear: newYear },
+                      { merge: true },
+                    );
+                  } catch (err) {
+                    console.error("Failed to update active year:", err);
+                  }
                 }}
-                className="text-[10px] font-black text-indigo-600 bg-transparent outline-none cursor-pointer tracking-widest"
+                className="text-[10px] bg-white font-black text-indigo-700 outline-none cursor-pointer tracking-widest px-2 py-1 rounded-lg border border-indigo-100/50 shadow-inner hover:bg-slate-50 transition-colors"
               >
                 <option value="2026">2026</option>
                 <option value="2027">2027</option>
                 <option value="2028">2028</option>
                 <option value="2029">2029</option>
               </select>
-              <div className="w-px h-6 bg-slate-200 mx-1"></div>
+              <div className="w-px h-6 bg-indigo-100 mx-1"></div>
               <button
                 onClick={toggleGlobalPreferences}
-                className={`px-3 py-1.5 rounded-xl transition-all font-black text-[9px] uppercase tracking-widest flex items-center gap-1 ${
+                className={`relative overflow-hidden px-4 py-1.5 rounded-xl transition-all duration-300 font-black text-[10px] uppercase tracking-[0.2em] flex items-center gap-2 shadow-sm ${
                   preferencesEnabled
-                    ? "bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100"
-                    : "bg-slate-50 text-slate-400 border border-slate-200 hover:bg-slate-100"
+                    ? "bg-emerald-500 text-white border-transparent shadow-emerald-200/50 hover:bg-emerald-600 hover:scale-[1.02]"
+                    : "bg-white text-slate-400 border-slate-200 hover:bg-slate-50 hover:text-slate-600 hover:scale-[1.02]"
                 }`}
               >
-                <Clock className="w-3 h-3" />{" "}
-                {preferencesEnabled ? "ON" : "OFF"}
+                <Clock
+                  className={cn(
+                    "w-3.5 h-3.5 transition-transform duration-500",
+                    preferencesEnabled ? "animate-pulse" : "",
+                  )}
+                />
+                <span className="relative z-10">
+                  {preferencesEnabled ? "ON" : "OFF"}
+                </span>
+                {preferencesEnabled && (
+                  <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                )}
               </button>
             </div>
           )}
@@ -1116,6 +1308,203 @@ export function VacationModule({
             </div>
           </div>
         </div>
+      ) : viewMode === "panorama" ? (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {loadingPanorama ? (
+            <div className="py-24 text-center">
+              <Loader2 className="w-12 h-12 text-orange-400 mx-auto animate-spin mb-4" />
+              <div className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">
+                Sintetizando Histórico de Férias Global
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-50 shadow-sm flex flex-col justify-center">
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                    Total de Dias Pendentes (Geral)
+                  </h3>
+                  <div className="text-5xl font-black text-red-500 tracking-tighter">
+                    {panoramaData
+                      .reduce((acc, row) => acc + row.totalPendingDays, 0)
+                      .toLocaleString()}
+                  </div>
+                </div>
+                <div className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-50 shadow-sm flex flex-col justify-center">
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                    Militares c/ Alta Pendência (&gt;60 dias)
+                  </h3>
+                  <div className="text-5xl font-black text-orange-500 tracking-tighter">
+                    {panoramaData.filter((r) => r.totalPendingDays > 60).length}
+                  </div>
+                </div>
+                <div className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-50 shadow-sm flex flex-col justify-center">
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                    Anos de Lapsos Totais Registrados
+                  </h3>
+                  <div className="text-5xl font-black text-indigo-500 tracking-tighter">
+                    {panoramaData.reduce(
+                      (acc, row) => acc + row.missingYears.length,
+                      0,
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-[2.5rem] border-2 border-slate-50 shadow-sm overflow-hidden flex flex-col">
+                <div className="p-6 sm:p-8 border-b border-slate-50 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">
+                      Panorama Global SAD
+                    </h3>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                      Visão geral sobre férias atrasadas, organizadas pelas
+                      maiores pendências (antes da aposentadoria)
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const exportData = panoramaData.map((row) => ({
+                        Militar: `${row.militar.rank} ${row.militar.name}`,
+                        RG: row.militar.rg,
+                        "Admissão Estimada": row.startYear,
+                        "Lapsos (Anos Sem Registro)":
+                          row.missingYears.join(", "),
+                        "Saldos Parciais": row.pendingBalances
+                          .map((p) => `${p.year} (${p.days}d)`)
+                          .join("; "),
+                        "Total Dias Pendentes": row.totalPendingDays,
+                      }));
+                      exportToExcel(
+                        exportData,
+                        "Panorama_Global_SAD",
+                        "PanoramaGlobalSAD",
+                      );
+                    }}
+                    className="px-6 py-3 bg-indigo-600 text-white rounded-2xl hover:bg-indigo-700 transition-all font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-indigo-100"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" /> Exportar Planilha
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50/20">
+                        <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
+                          Militar
+                        </th>
+                        <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 text-center">
+                          Carreira (Est.)
+                        </th>
+                        <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
+                          Lapsos de Registro (0 dias)
+                        </th>
+                        <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
+                          Saldos Parciais Pendentes
+                        </th>
+                        <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 text-center">
+                          Dias a Cumprir
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {panoramaData.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            className="p-16 text-center text-[10px] font-black text-slate-400 uppercase"
+                          >
+                            Nenhuma pendência encontrada.
+                          </td>
+                        </tr>
+                      ) : (
+                        panoramaData.map((row, i) => (
+                          <tr
+                            key={row.militar.rg}
+                            className="hover:bg-slate-50/50 transition-colors"
+                          >
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="shrink-0 w-8 flex justify-center">
+                                  <RankInsignia rankStr={row.militar.rank} />
+                                </div>
+                                <div>
+                                  <div className="text-xs font-black text-slate-800 uppercase">
+                                    {row.militar.warName || row.militar.name}
+                                  </div>
+                                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                    RG: {row.militar.rg} • {row.militar.obm}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <span className="text-[9px] font-black px-2 py-1 bg-slate-100 text-slate-500 rounded uppercase">
+                                {new Date().getFullYear() - row.startYear} anos
+                                ({row.startYear})
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              {row.missingYears.length > 0 ? (
+                                <div className="flex flex-wrap gap-1 max-w-[200px]">
+                                  {row.missingYears.map((y) => (
+                                    <span
+                                      key={y}
+                                      className="text-[8px] font-black bg-red-50 text-red-600 px-1.5 py-0.5 rounded border border-red-100"
+                                    >
+                                      {y}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-slate-300">
+                                  -
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4">
+                              {row.pendingBalances.length > 0 ? (
+                                <div className="flex flex-wrap gap-1 max-w-[200px]">
+                                  {row.pendingBalances.map((p) => (
+                                    <span
+                                      key={p.year}
+                                      className="text-[8px] font-black bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100"
+                                    >
+                                      {p.year} ({p.days}d)
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-slate-300">
+                                  -
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <span
+                                className={cn(
+                                  "text-sm font-black px-3 py-1 rounded-lg border inline-block min-w-[3rem]",
+                                  row.totalPendingDays > 100
+                                    ? "bg-red-50 text-red-600 border-red-200"
+                                    : row.totalPendingDays > 50
+                                      ? "bg-orange-50 text-orange-600 border-orange-200"
+                                      : "bg-indigo-50 text-indigo-600 border-indigo-200",
+                                )}
+                              >
+                                {row.totalPendingDays}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       ) : selectedMilitar ? (
         <div className="bg-white p-6 rounded-3xl border-2 border-slate-50 shadow-sm flex flex-col md:flex-row md:items-center gap-6 animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center gap-6 flex-1">
@@ -1316,9 +1705,9 @@ export function VacationModule({
                 {preferencesEnabled &&
                   !isSubmitted &&
                   userPrefs.length === 3 && (
-                    <div className="mt-6 flex justify-end">
+                    <div className="mt-6 flex flex-col items-end">
                       <button
-                        onClick={handleSubmitPreferences}
+                        onClick={handleInitiateSubmit}
                         disabled={savingPrefs}
                         className="px-6 py-3 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 transition-all font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-emerald-100 disabled:opacity-50"
                       >
@@ -1329,6 +1718,30 @@ export function VacationModule({
                         )}
                         Confirmar e Enviar Opções
                       </button>
+                      
+                      {showConfirmDialog && (
+                        <div className="fixed z-50 inset-0 flex items-center justify-center p-4">
+                          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowConfirmDialog(false)} />
+                          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full relative z-10 shadow-2xl border-2 border-indigo-50 animate-in fade-in zoom-in-95 duration-200">
+                             <h3 className="text-xl md:text-2xl font-black text-slate-800 mb-2 uppercase tracking-tighter">Confirmar Envio</h3>
+                             <p className="text-sm text-slate-500 mb-6 leading-relaxed font-medium">Após enviar, será necessário solicitar ao administrador caso queira alterar as suas opções. Deseja continuar?</p>
+                             <div className="flex items-center gap-3 w-full">
+                               <button 
+                                 onClick={() => setShowConfirmDialog(false)}
+                                 className="flex-1 py-3 px-4 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-colors"
+                               >
+                                 Cancelar
+                               </button>
+                               <button 
+                                 onClick={handleSubmitPreferences}
+                                 className="flex-1 py-3 px-4 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100"
+                               >
+                                 Sim, Enviar
+                               </button>
+                             </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 {isSubmitted && (
@@ -1493,7 +1906,7 @@ export function VacationModule({
                         const isExpanded = expandedYears[group.anoRef];
                         const v = group.items[0]; // display newest info for the main row.
                         const dateParts = (v.dataInicio || "").split("/");
-                        let displayStatus = v.status;
+                        let displayStatus: string = v.status;
                         if (dateParts.length === 3) {
                           const d = new Date(
                             parseInt(dateParts[2]),
@@ -1626,7 +2039,7 @@ export function VacationModule({
                                 const sdParts = (subV.dataInicio || "").split(
                                   "/",
                                 );
-                                let subStatus = subV.status;
+                                let subStatus: string = subV.status;
                                 if (sdParts.length === 3) {
                                   const d = new Date(
                                     parseInt(sdParts[2]),

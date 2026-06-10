@@ -129,6 +129,7 @@ export function MedidasModule({ user, onBack }: MedidasModuleProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [savedData, setSavedData] = useState(false);
   const [source, setSource] = useState<'DGP' | 'PLATAFORMA'>('DGP');
+  const [highlightAreas, setHighlightAreas] = useState<string[]>([]);
 
   useEffect(() => {
     async function fetchData() {
@@ -226,7 +227,38 @@ export function MedidasModule({ user, onBack }: MedidasModuleProps) {
               setFormData({...initialData});
               setSource('DGP');
             }
-            setIsLoading(false);
+            
+            // Check EPI request
+            getDoc(doc(db, 'config', 'epi_request')).then((epiMap) => {
+              if (epiMap.exists()) {
+                const reqData = epiMap.data();
+                if (reqData.isActive && reqData.requestedAt) {
+                  let needsUpdate = true;
+                  if (docSnap.exists()) {
+                    const userData = docSnap.data();
+                    if (userData.updatedAt) {
+                       const reqDate = new Date(reqData.requestedAt).getTime();
+                       const updateDate = new Date(userData.updatedAt).getTime();
+                       if (updateDate >= reqDate) {
+                         needsUpdate = false;
+                       }
+                    }
+                  }
+                  if (needsUpdate && reqData.targetAreas && Array.isArray(reqData.targetAreas)) {
+                    setHighlightAreas(reqData.targetAreas);
+                    // Optionally set active tab to the first highlighted area
+                    if (reqData.targetAreas.length > 0) {
+                      setActiveTab(reqData.targetAreas[0]);
+                    }
+                  } else {
+                    setHighlightAreas([]);
+                  }
+                }
+              }
+            }).catch(console.error).finally(() => {
+              setIsLoading(false);
+            });
+            
           }, (error) => {
             console.error("Error fetching realtime medidas:", error);
             setIsLoading(false);
@@ -269,6 +301,7 @@ export function MedidasModule({ user, onBack }: MedidasModuleProps) {
       await setDoc(docRef, cleanUndefined(dataToSave), { merge: true });
       setSource('PLATAFORMA');
       setSavedData(true);
+      setHighlightAreas([]);
       setTimeout(() => setSavedData(false), 3000);
     } catch (error) {
       console.error("Error saving medidas:", error);
@@ -388,8 +421,11 @@ export function MedidasModule({ user, onBack }: MedidasModuleProps) {
                   <button
                     key={area.id}
                     onClick={() => setActiveTab(area.id)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === area.id ? 'bg-white shadow-sm text-cyan-700' : 'text-slate-500 hover:text-slate-700'}`}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap relative ${activeTab === area.id ? 'bg-white shadow-sm text-cyan-700' : 'text-slate-500 hover:text-slate-700'}`}
                   >
+                    {highlightAreas.includes(area.id) && (
+                       <span className="absolute -top-1 -right-1 w-3 h-3 bg-rose-500 rounded-full animate-pulse border-2 border-slate-100"></span>
+                    )}
                     {area.id === 'epi' ? <Shield className="w-4 h-4" /> : <Layout className="w-4 h-4" />}
                     {area.label}
                   </button>

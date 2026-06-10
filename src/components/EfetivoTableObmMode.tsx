@@ -1,6 +1,6 @@
 import React from 'react';
 import { UserProfile } from '../types';
-import { Building2, Maximize2, Minimize2, Shield } from 'lucide-react';
+import { Building2, Users, Maximize2, Minimize2, Shield } from 'lucide-react';
 import { RankInsignia } from './RankInsignia';
 import { normalizeObm } from '../lib/utils';
 
@@ -15,6 +15,7 @@ interface EfetivoTableObmModeProps {
   visibleColumns: string[];
   isAdmin: boolean;
   onLendRequested: (m: UserProfile) => void;
+  layoutMode?: "grid" | "stack";
 }
 
 export function EfetivoTableObmMode({ 
@@ -27,7 +28,8 @@ export function EfetivoTableObmMode({
   orderedColumns,
   visibleColumns,
   isAdmin,
-  onLendRequested
+  onLendRequested,
+  layoutMode = "grid"
 }: EfetivoTableObmModeProps) {
 
   const applyFilters = (m: UserProfile) => {
@@ -55,7 +57,7 @@ export function EfetivoTableObmMode({
   }, [orderedColumns, visibleColumns]);
 
   return (
-    <div className={`grid gap-6 ${expandedGroup ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+    <div className={`grid gap-6 ${expandedGroup || layoutMode === 'stack' ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
        {currentGroups.map(group => {
           const filteredMembers = group.members.filter(applyFilters);
 
@@ -68,7 +70,11 @@ export function EfetivoTableObmMode({
             <div key={group.name} className={`bg-white border-2 border-slate-200 rounded-2xl overflow-hidden shadow-sm flex flex-col transition-all ${isExpanded ? 'ring-2 ring-indigo-500 shadow-lg' : ''}`}>
                <div className="bg-slate-50 border-b-2 border-slate-200 p-3 sm:p-4 flex items-center justify-between">
                   <h3 className="font-black text-slate-800 text-sm sm:text-base flex items-center gap-2">
-                     <Building2 className="w-4 h-4 sm:w-5 h-5 text-indigo-600" />
+                     {group.name.toUpperCase().includes('ALA') ? (
+                       <Users className="w-4 h-4 sm:w-5 h-5 text-indigo-600" />
+                     ) : (
+                       <Building2 className="w-4 h-4 sm:w-5 h-5 text-indigo-600" />
+                     )}
                      {group.name}
                   </h3>
                   <div className="flex items-center gap-2">

@@ -41,6 +41,9 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
   const [visibleCols, setVisibleCols] = useState<string[]>([]);
   const [manualRgs, setManualRgs] = useState<string[]>([]);
   const [showManualRgModal, setShowManualRgModal] = useState(false);
+  const [showEpiRequestModal, setShowEpiRequestModal] = useState(false);
+  const [epiRequestFields, setEpiRequestFields] = useState<string[]>([]);
+  const [epiRequestMessage, setEpiRequestMessage] = useState('');
 
   // Filters State
   const [filterPostoGrad, setFilterPostoGrad] = useState<string[]>([]);
@@ -441,25 +444,16 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
           {isModerator && (
             <>
               <button
-                onClick={async () => {
-                  if (confirm("Você quer disparar um alerta obrigatório para TODO o efetivo atualizar o EPI? Todos receberão esse alerta ao entrar no sistema imediatamente.")) {
-                    try {
-                      await setDoc(doc(db, 'config', 'epi_request'), cleanUndefined({
-                                              isActive: true,
-                                              requestedAt: new Date().toISOString()
-                                            }));
-                      alert("Alerta disparado! Todos os usuários verão o aviso sobre a atualização obrigatória no painel.");
-                    } catch (e) {
-                      console.error(e);
-                      alert("Erro ao disparar alerta.");
-                    }
-                  }
+                onClick={() => {
+                  setEpiRequestMessage('O administrador solicitou que todos os militares revisem e confirmem imediatamente seus dados no sistema. Essa confirmação é necessária.');
+                  setEpiRequestFields([]);
+                  setShowEpiRequestModal(true);
                 }}
-                className="flex items-center justify-center gap-3 bg-amber-500 hover:bg-amber-600 text-white px-6 py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all shadow-xl shadow-amber-200 active:scale-95"
+                className="flex items-center justify-center gap-3 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-6 py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all shadow-sm active:scale-95"
                 title="Sinalizar que todo o efetivo deve atualizar EPI"
               >
-                <AlertCircle className="w-5 h-5 font-black" />
-                <span className="hidden md:inline">Requerer Atualização (EPI)</span>
+                <AlertCircle className="w-5 h-5 text-indigo-500" />
+                <span className="hidden md:inline">Sinalizar Revisão (EPI)</span>
               </button>
               <button 
                 onClick={() => setShowManualRgModal(true)}
@@ -947,6 +941,128 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
                 </button>
               </div>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showEpiRequestModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl p-6 md:p-8 w-full max-w-lg shadow-2xl relative"
+            >
+              <button 
+                onClick={() => setShowEpiRequestModal(false)}
+                className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center text-amber-600">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-slate-800">Requerer Atualização</h3>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Configurar aviso ao efetivo</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Mensagem do Alerta</label>
+                  <textarea 
+                    value={epiRequestMessage}
+                    onChange={(e) => setEpiRequestMessage(e.target.value)}
+                    className="w-full h-24 bg-slate-100 rounded-xl p-4 text-sm font-medium text-slate-800 outline-none focus:ring-2 focus:ring-amber-500/20 focus:bg-white transition-all border border-transparent focus:border-amber-300 resize-none"
+                    placeholder="Digite a mensagem que o usuário verá no painel..."
+                  />
+                </div>
+
+                <div>
+                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Áreas de Atenção (Opcional)</label>
+                   <p className="text-xs text-slate-400 mb-3 font-medium">Selecione áreas específicas que deseja que os militares foquem durante a atualização.</p>
+                   <div className="flex flex-wrap gap-2 max-h-[200px] overflow-y-auto p-1">
+                      {config?.areas.map(area => (
+                        <button
+                          key={area.id}
+                          onClick={() => {
+                            if (epiRequestFields.includes(area.id)) {
+                              setEpiRequestFields(epiRequestFields.filter(id => id !== area.id));
+                            } else {
+                              setEpiRequestFields([...epiRequestFields, area.id]);
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${epiRequestFields.includes(area.id) ? 'bg-amber-500 text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                        >
+                          {area.label}
+                        </button>
+                      ))}
+                   </div>
+                </div>
+
+                <div className="flex items-center gap-3 pt-4">
+                   <button
+                      onClick={async () => {
+                         try {
+                           setSaving(true);
+                           await setDoc(doc(db, 'config', 'epi_request'), cleanUndefined({
+                              isActive: true,
+                              requestedAt: new Date().toISOString(),
+                              message: epiRequestMessage,
+                              targetAreas: epiRequestFields.length > 0 ? epiRequestFields : null
+                           }));
+                           alert("Alerta disparado com sucesso!");
+                           setShowEpiRequestModal(false);
+                         } catch(e) {
+                           console.error(e);
+                           alert("Erro ao disparar alerta.");
+                         } finally {
+                           setSaving(false);
+                         }
+                      }}
+                      disabled={saving}
+                      className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 shadow-xl shadow-amber-200"
+                   >
+                     {saving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Check className="w-4 h-4" /> Disparar Alerta</>}
+                   </button>
+                   
+                   <button
+                      onClick={async () => {
+                         try {
+                           setSaving(true);
+                           await setDoc(doc(db, 'config', 'epi_request'), cleanUndefined({
+                              isActive: false,
+                              requestedAt: null,
+                              message: null,
+                              targetAreas: null
+                           }));
+                           alert("Alerta cancelado.");
+                           setShowEpiRequestModal(false);
+                         } catch(e) {
+                           console.error(e);
+                           alert("Erro ao cancelar alerta.");
+                         } finally {
+                           setSaving(false);
+                         }
+                      }}
+                      disabled={saving}
+                      className="px-6 py-4 bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 rounded-xl transition-all"
+                      title="Cancelar Alerta Ativo"
+                   >
+                     Desativar Alerta
+                   </button>
+                </div>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

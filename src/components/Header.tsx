@@ -57,6 +57,8 @@ export function Header({
   const [isExpanded, setIsExpanded] = useState(false);
   const [activePermutas, setActivePermutas] = useState<PermutaRequest[]>([]);
   const [notifications, setNotifications] = useState<PermutaRequest[]>([]);
+  const [epiRequestActive, setEpiRequestActive] = useState(false);
+  const [epiRequestMessage, setEpiRequestMessage] = useState("");
 
   const [dismissedNotifs, setDismissedNotifs] = useState<string[]>(() => {
     try {
@@ -87,6 +89,64 @@ export function Header({
   }, [ctxActiveMonths]);
 
   useEffect(() => {
+    if (!profile.rg || !db) return;
+
+    const userRgStr = profile.rg.toString().padStart(5, "0");
+    let unsubscribeConfig: () => void;
+    let unsubscribeUser: () => void;
+    let currentReqData: any = null;
+    let currentUserData: any = null;
+
+    const handleUpdate = () => {
+      if (
+        currentReqData &&
+        currentReqData.isActive &&
+        currentReqData.requestedAt
+      ) {
+        let needsUpdate = true;
+        if (currentUserData && currentUserData.updatedAt) {
+          const reqDate = new Date(currentReqData.requestedAt).getTime();
+          const updateDate = new Date(currentUserData.updatedAt).getTime();
+          if (updateDate >= reqDate) {
+            needsUpdate = false;
+          }
+        }
+        setEpiRequestActive(needsUpdate);
+        setEpiRequestMessage(
+          currentReqData.message ||
+            "Por favor, revise e confirme seus dados de EPI no sistema.",
+        );
+      } else {
+        setEpiRequestActive(false);
+      }
+    };
+
+    const setupListeners = () => {
+      try {
+        unsubscribeConfig = onSnapshot(
+          doc(db, "config", "epi_request"),
+          (snap) => {
+            currentReqData = snap.exists() ? snap.data() : null;
+            handleUpdate();
+          },
+        );
+        unsubscribeUser = onSnapshot(
+          doc(db, "medidasAntropometricas", userRgStr),
+          (snap) => {
+            currentUserData = snap.exists() ? snap.data() : null;
+            handleUpdate();
+          },
+        );
+      } catch (err) {}
+    };
+    setupListeners();
+    return () => {
+      if (unsubscribeConfig) unsubscribeConfig();
+      if (unsubscribeUser) unsubscribeUser();
+    };
+  }, [profile.rg]);
+
+  useEffect(() => {
     if (!profile.rg) return;
 
     let isMounted = true;
@@ -98,21 +158,30 @@ export function Header({
         const q = query(
           collection(db, "permutas"),
           where("date", ">=", sixtyDaysAgo),
-          orderBy("date", "asc")
+          orderBy("date", "asc"),
         );
-        
-        unsubSnapshot = onSnapshot(q, (snapshot) => {
-          if (!isMounted) return;
-          const data = snapshot.docs.map((doc) => ({
-            ...doc.data(),
-            id: doc.id,
-          })) as PermutaRequest[];
-          processPermutasData(data);
-        }, (error) => {
-          if (isMounted) {
-            handleFirestoreError(error, OperationType.LIST, "permutas", false);
-          }
-        });
+
+        unsubSnapshot = onSnapshot(
+          q,
+          (snapshot) => {
+            if (!isMounted) return;
+            const data = snapshot.docs.map((doc) => ({
+              ...doc.data(),
+              id: doc.id,
+            })) as PermutaRequest[];
+            processPermutasData(data);
+          },
+          (error) => {
+            if (isMounted) {
+              handleFirestoreError(
+                error,
+                OperationType.LIST,
+                "permutas",
+                false,
+              );
+            }
+          },
+        );
       } catch (error) {
         handleFirestoreError(error, OperationType.LIST, "permutas", false);
       }
@@ -461,7 +530,7 @@ export function Header({
                   onClick={() => setIsExpanded(!isExpanded)}
                   className={cn(
                     "px-2 py-1.5 rounded flex items-center gap-2 transition-colors relative shadow-sm",
-                    notifications.length > 0
+                    notifications.length > 0 || epiRequestActive
                       ? "text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200"
                       : "text-[var(--color-brand-red)] bg-red-50 hover:bg-red-100 border border-red-100",
                   )}
@@ -469,7 +538,7 @@ export function Header({
                 >
                   <div className="relative">
                     <Bell className="w-5 h-5" />
-                    {notifications.length > 0 && (
+                    {(notifications.length > 0 || epiRequestActive) && (
                       <motion.span
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
@@ -505,10 +574,13 @@ export function Header({
                   </h2>
                   {(() => {
                     const actualProfile = realProfile || profile;
-                    const hasAdminPrivilege = actualProfile?.isAdmin || (actualProfile?.adminObms && actualProfile.adminObms.length > 0);
-                    
+                    const hasAdminPrivilege =
+                      actualProfile?.isAdmin ||
+                      (actualProfile?.adminObms &&
+                        actualProfile.adminObms.length > 0);
+
                     if (!hasAdminPrivilege) return null;
-                    
+
                     if (onToggleAdminMode) {
                       return (
                         <button
@@ -517,7 +589,7 @@ export function Header({
                             "text-[8px] sm:text-[10px] font-black px-2.5 py-1 rounded-xl flex items-center gap-1.5 border transition-all shadow-sm active:scale-95 cursor-pointer",
                             adminModeActive
                               ? "bg-indigo-600 text-white border-indigo-700 shadow-indigo-100/50 hover:bg-indigo-700"
-                              : "bg-slate-100 text-slate-500 border-slate-300 hover:bg-slate-200"
+                              : "bg-slate-100 text-slate-500 border-slate-300 hover:bg-slate-200",
                           )}
                           title="Habilitar/Desabilitar Modo Moderador"
                         >
@@ -525,7 +597,7 @@ export function Header({
                         </button>
                       );
                     }
-                    
+
                     return (
                       <span className="bg-amber-100 text-amber-700 text-[8px] sm:text-[10px] font-black px-2 py-1 rounded flex items-center gap-1 border border-amber-200">
                         MODERADOR
@@ -982,14 +1054,32 @@ export function Header({
                   )}
                 >
                   <Bell className="w-4 h-4" /> Notificações
-                  {notifications.length > 0 && (
+                  {(notifications.length > 0 || epiRequestActive) && (
                     <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded ml-auto">
-                      {notifications.length} nova(s)
+                      {notifications.length + (epiRequestActive ? 1 : 0)}{" "}
+                      nova(s)
                     </span>
                   )}
                 </h4>
-                {notifications.length > 0 ? (
+                {notifications.length > 0 || epiRequestActive ? (
                   <div className="flex flex-col max-h-[240px] overflow-y-auto pr-1 custom-scrollbar border rounded shadow-sm bg-white overflow-hidden">
+                    {epiRequestActive && (
+                      <div className="p-3 relative group transition-colors bg-amber-50 hover:bg-amber-100 border-b last:border-b-0 border-amber-200">
+                        <div className="flex gap-3">
+                          <div className="mt-0.5">
+                            <AlertCircle className="w-5 h-5 text-amber-500 animate-pulse" />
+                          </div>
+                          <div className="flex-1 pr-4">
+                            <div className="text-xs text-amber-900 leading-relaxed font-bold">
+                              {epiRequestMessage}
+                            </div>
+                            <div className="text-[10px] text-amber-700 mt-1 uppercase font-black tracking-widest">
+                              Medidas e Fardamento (Ir para o Início)
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {notifications.map((n) => {
                       const isRequester = n.requesterRg === profile.rg;
                       const otherName = isRequester

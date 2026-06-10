@@ -84,7 +84,7 @@ export function VacationStats({ militars, allPreferences, reportYear }: Vacation
       <div className="bg-white p-6 rounded-[2rem] border-2 border-slate-50 shadow-sm flex flex-col items-center justify-center">
          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Adesão ao Escalonamento</h4>
          <div className="w-full h-40">
-           <ResponsiveContainer width="100%" height="100%">
+           <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
              <PieChart>
                <Pie
                  data={stats.statusData}
@@ -125,7 +125,7 @@ export function VacationStats({ militars, allPreferences, reportYear }: Vacation
           </h4>
         </div>
         <div className="w-full flex-1 min-h-[160px]">
-           <ResponsiveContainer width="100%" height="100%">
+           <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
              <BarChart data={stats.monthChartData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 'bold' }} />
