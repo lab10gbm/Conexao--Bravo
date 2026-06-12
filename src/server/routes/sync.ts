@@ -16,7 +16,6 @@ const apiKeyMiddleware = (req: express.Request, res: express.Response, next: exp
   next();
 };
 
-syncRouter.use(apiKeyMiddleware);
 
 // Helper to normalize RGs for consistency - Removes leading zeros and non-alphanumeric
 const normalizeRg = (rg: string | number) => {
@@ -92,12 +91,12 @@ const bulkSyncHandler = async (req: any, res: any) => {
   }
 };
 
-syncRouter.post('/admin/vacation/bulk-sync', bulkSyncHandler);
-syncRouter.post('/admin/vacation/bulk-sync/', bulkSyncHandler);
-syncRouter.post('/admin/vacations/bulk-sync', bulkSyncHandler);
-syncRouter.post('/sync/vacations', bulkSyncHandler);
+syncRouter.post('/admin/vacation/bulk-sync', apiKeyMiddleware, bulkSyncHandler);
+syncRouter.post('/admin/vacation/bulk-sync/', apiKeyMiddleware, bulkSyncHandler);
+syncRouter.post('/admin/vacations/bulk-sync', apiKeyMiddleware, bulkSyncHandler);
+syncRouter.post('/sync/vacations', apiKeyMiddleware, bulkSyncHandler);
 
-syncRouter.post('/admin/vacation/raw-sync', async (req, res) => {
+syncRouter.post('/admin/vacation/raw-sync', apiKeyMiddleware, async (req, res) => {
   const db = getAdminDb();
   try {
     const { rawText, html } = req.body;
@@ -166,7 +165,7 @@ syncRouter.post('/admin/vacation/raw-sync', async (req, res) => {
   }
 });
 
-syncRouter.post('/admin/militaries/bulk-sync', async (req, res) => {
+syncRouter.post('/admin/militaries/bulk-sync', apiKeyMiddleware, async (req, res) => {
   const db = getAdminDb();
   const { militaries } = req.body;
   
