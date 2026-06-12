@@ -28,7 +28,8 @@ import {
   Bus,
   ShoppingCart,
   Megaphone,
-  ChevronDown
+  ChevronDown,
+  BriefcaseBusiness
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { db } from '../lib/firebase';
@@ -310,17 +311,9 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
 
   const informativoModulesDef = [
     {
-       id: 'buscar-militar',
-       label: 'Buscar Militar',
-       description: 'Diretório de Perfis',
-       icon: Search,
-       color: 'bg-blue-600 shadow-blue-200',
-       defaultGroups: ['TODOS']
-    },
-    {
-       id: 'atualizacao',
-       label: 'Atualização Cadastral',
-       description: 'Seus Dados',
+       id: 'painel-militar',
+       label: 'Painel do Militar',
+       description: 'Seus Dados e Medidas',
        icon: Settings,
        color: 'bg-teal-600 shadow-teal-200',
        defaultGroups: ['TODOS']
@@ -335,14 +328,6 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
        defaultGroups: ['TODOS']
     },
     {
-       id: 'medidas',
-       label: 'Medidas Antropométricas',
-       description: 'Tamanhos e Fardamento',
-       icon: Ruler,
-       color: 'bg-indigo-600 shadow-indigo-200',
-       defaultGroups: ['TODOS']
-    },
-    {
       id: 'refeitorio',
       label: 'Refeitório',
       description: 'Cardápio do Dia',
@@ -353,6 +338,14 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
   ];
 
   const escalanteModulesDef = [
+    {
+       id: 'buscar-militar',
+       label: 'Buscar Militar',
+       description: 'Diretório de Perfis',
+       icon: Search,
+       color: 'bg-blue-600 shadow-blue-200',
+       defaultGroups: ['ADMIN', 'ESCALANTE', 'OFICIAIS']
+    },
     {
       id: 'aprovisionamento',
       label: 'Aprovisionamento',
@@ -396,20 +389,12 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       inDevelopment: true
     },
     {
-      id: 'terceirizados',
-      label: 'Terceirizados',
-      description: 'Gestão de Civis',
-      icon: Users,
-      color: 'bg-fuchsia-600 shadow-fuchsia-200',
-      defaultGroups: ['ADMIN']
-    },
-    {
-      id: 'oficiais-config',
-      label: 'Configurar Oficiais',
-      description: 'OBM e Promoções',
-      icon: Settings2,
-      color: 'bg-slate-800 shadow-slate-300',
-      defaultGroups: ['ADMIN', 'ESCALANTE', 'OFICIAIS']
+      id: 'gestao-sad',
+      label: 'Gestão SAD',
+      description: 'Oficiais, Terceirizados, Férias...',
+      icon: BriefcaseBusiness,
+      color: 'bg-emerald-800 shadow-emerald-200',
+      defaultGroups: ['ADMIN', 'ESCALANTE']
     }
   ];
 
@@ -428,15 +413,6 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       description: 'Seu Escalonamento Anual',
       icon: Library,
       color: 'bg-orange-600 shadow-orange-200',
-      inDevelopment: true,
-      defaultGroups: ['ADMIN', 'ESCALANTE']
-    },
-    {
-      id: 'ferias-sad',
-      label: 'Controle Férias SAD',
-      description: 'Gestão Geral de Férias',
-      icon: CalendarOff,
-      color: 'bg-sky-600 shadow-sky-200',
       inDevelopment: true,
       defaultGroups: ['ADMIN', 'ESCALANTE']
     },

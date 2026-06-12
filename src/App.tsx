@@ -83,6 +83,8 @@ const EscalanteDashboard = React.lazy(() =>
   })),
 );
 const GestaoEfetivoModeracaoModule = React.lazy(() => import("./components/GestaoEfetivoModeracaoModule").then((m) => ({ default: m.GestaoEfetivoModeracaoModule })));
+const GestaoSadDashboard = React.lazy(() => import("./components/GestaoSadDashboard").then((m) => ({ default: m.GestaoSadDashboard })));
+const PainelMilitarDashboard = React.lazy(() => import("./components/PainelMilitarDashboard").then((m) => ({ default: m.PainelMilitarDashboard })));
 const MedidasModule = React.lazy(() =>
   import("./components/MedidasModule").then((m) => ({
     default: m.MedidasModule,
@@ -1065,6 +1067,36 @@ export default function App() {
                     <GestaoEfetivoModeracaoModule
                       user={effectiveProfile!}
                       onBack={() => navigate("/efetivo")}
+                    />
+                  </motion.div>
+                }
+              />
+              <Route
+                path="/gestao-sad"
+                element={
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.05 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <GestaoSadDashboard
+                      user={effectiveProfile!}
+                    />
+                  </motion.div>
+                }
+              />
+              <Route
+                path="/painel-militar"
+                element={
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.05 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <PainelMilitarDashboard
+                      user={effectiveProfile!}
                     />
                   </motion.div>
                 }

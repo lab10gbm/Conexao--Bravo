@@ -141,6 +141,8 @@ async function executarBuscaFluida(rgs) {
 async function enviarParaPlanilha(finalData) {
   // A Extensão agora envia diretamente para a SUA PLATAFORMA (AI Studio App), eliminando planilhas!
   const webAppUrl = "https://ais-pre-zrzalylqdof6lo5c3vm2nd-725468355119.us-east1.run.app/api/admin/vacation/bulk-sync";
+  // IMPORTANTE: Insira a mesma chave que você configurou no servidor (SYNC_API_KEY) aqui.
+  const API_KEY = "MINHA_CHAVE_SECRETA_SUPER_SEGURA_123";
 
   try {
     // Transformar the data array into the format expected by the API
@@ -187,7 +189,8 @@ async function enviarParaPlanilha(finalData) {
       mode: "cors", 
       headers: { 
         "Content-Type": "application/json",
-        "Accept": "application/json"
+        "Accept": "application/json",
+        "x-api-key": API_KEY
       }, 
       body: JSON.stringify({ vacations: vacations })
     });

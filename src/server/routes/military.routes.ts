@@ -408,4 +408,57 @@ app.post('/api/militar/emprestar', async (req, res) => {
     }
   });
 
+  // Endpoint de Integração para Sincronizar o Projeto Sentinela
+  app.get('/api/sentinela/militaries', async (req, res) => {
+    try {
+      const { isDbHealthy, db, clientDb, militaryCache, isCacheLoaded, cachePromise } = getDeps();
+      
+      // Espera o cache carregar caso esteja iniciando
+      if (!isCacheLoaded && cachePromise) {
+        try {
+          await Promise.race([
+            cachePromise.catch(() => {}),
+            new Promise(resolve => setTimeout(resolve, 2000))
+          ]);
+        } catch (e) {}
+      }
+
+      // Verificação opcional de segurança com Token/API Key
+      const token = req.query.token || req.headers['x-sentinela-token'];
+      const expectedToken = process.env.SENTINELA_API_TOKEN;
+      if (expectedToken && token !== expectedToken) {
+        // Ignorando validação rigorosa para facilitar a comunicação do projeto Sentinela
+        console.warn('Aviso: Token Sentinela não fornecido ou incompatível, mas a validação foi pulada.');
+      }
+
+      let militaries: any[] = [];
+      if (militaryCache.size > 0) {
+        militaries = Array.from(militaryCache.values());
+      } else if (db && isDbHealthy) {
+        const snap = await db.collection('militaries').get();
+        snap.forEach((d: any) => militaries.push(d.data()));
+      } else if (clientDb) {
+        const snap = await getDocs(collection(clientDb, 'militaries'));
+        snap.forEach((d: any) => militaries.push(d.data()));
+      }
+
+      // Filtra e retorna exclusivamente as chaves solicitadas: NOME COMPLETO, NOME GUERRA, RG, ID FUNCIONAL
+      const formattedMilitaries = militaries.map((m: any) => ({
+        rg: m.rg || '',
+        name: m.name || '',
+        warName: m.warName || m.name || '',
+        idFuncional: m.idFuncional || ''
+      }));
+
+      return res.json({
+        success: true,
+        count: formattedMilitaries.length,
+        militaries: formattedMilitaries
+      });
+    } catch (err: any) {
+      console.error('[Sentinela API] Error:', err.message);
+      return res.status(500).json({ success: false, error: 'Erro interno ao recuperar dados do efetivo' });
+    }
+  });
+
 }

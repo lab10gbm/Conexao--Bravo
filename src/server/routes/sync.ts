@@ -4,6 +4,20 @@ import { getAdminDb } from "../lib/firebase-admin";
 
 export const syncRouter = express.Router();
 
+const apiKeyMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  const apiKey = process.env.SYNC_API_KEY || "MINHA_CHAVE_SECRETA_SUPER_SEGURA_123";
+  if (!apiKey) {
+    return res.status(500).json({ success: false, error: 'Configuração do Servidor Incompleta: SYNC_API_KEY ausente' });
+  }
+  const provided = req.headers['x-api-key'] || req.headers.authorization?.replace('Bearer ', '');
+  if (provided !== apiKey) {
+    return res.status(401).json({ success: false, error: 'Acesso Negado: Chave de API inválida ou ausente' });
+  }
+  next();
+};
+
+syncRouter.use(apiKeyMiddleware);
+
 // Helper to normalize RGs for consistency - Removes leading zeros and non-alphanumeric
 const normalizeRg = (rg: string | number) => {
   const str = (rg || '').toString().trim().toUpperCase();

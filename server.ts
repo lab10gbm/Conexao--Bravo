@@ -682,6 +682,10 @@ async function startServer() {
   });
 
   app.get('/api/militar-sync', async (req, res) => {
+    const apiKey = process.env.SYNC_API_KEY || "MINHA_CHAVE_SECRETA_SUPER_SEGURA_123";
+    const provided = req.headers['x-api-key'] || req.query.key;
+    if (!apiKey || provided !== apiKey) return res.status(401).json({ error: 'Acesso Negado' });
+
     try {
       isSyncing = true;
       syncProgress = { current: 0, total: 0 };
@@ -695,6 +699,10 @@ async function startServer() {
   });
 
   app.post('/api/admin/sync', async (req, res) => {
+    const apiKey = process.env.SYNC_API_KEY || "MINHA_CHAVE_SECRETA_SUPER_SEGURA_123";
+    const provided = req.headers['x-api-key'] || req.headers.authorization?.replace('Bearer ', '');
+    if (!apiKey || provided !== apiKey) return res.status(401).json({ error: 'Acesso Negado' });
+
     if (isSyncing) {
       return res.status(409).json({ error: 'Sync already in progress' });
     }
@@ -711,6 +719,10 @@ async function startServer() {
   });
 
   app.post('/api/admin/militaries/bulk-sync', async (req, res) => {
+    const apiKey = process.env.SYNC_API_KEY || "MINHA_CHAVE_SECRETA_SUPER_SEGURA_123";
+    const provided = req.headers['x-api-key'] || req.headers.authorization?.replace('Bearer ', '');
+    if (!apiKey || provided !== apiKey) return res.status(401).json({ error: 'Acesso Negado' });
+
     try {
       const { militaries } = req.body;
       if (!Array.isArray(militaries)) {

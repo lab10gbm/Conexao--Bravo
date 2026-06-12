@@ -10,18 +10,18 @@ import { CapacitorUpdater } from '@capgo/capacitor-updater';
 import { Capacitor } from '@capacitor/core';
 
 // Intercept fetch calls to redirect /api to the live server when running on a native device
-const originalFetch = window.fetch;
-window.fetch = async (...args) => {
-  let [resource, config] = args;
-  
-  if (Capacitor.isNativePlatform()) {
+if (Capacitor.isNativePlatform()) {
+  const originalFetch = window.fetch;
+  window.fetch = async (...args) => {
+    let [resource, config] = args;
+    
     if (typeof resource === 'string' && resource.startsWith('/api/')) {
       resource = `https://conexao-bravo.onrender.com${resource}`;
     }
-  }
-  
-  return originalFetch(resource, config);
-};
+    
+    return originalFetch(resource, config);
+  };
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
