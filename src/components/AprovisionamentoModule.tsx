@@ -631,16 +631,12 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
      return unarchived.length > 0 ? unarchived[0].id : null;
   };
 
-  const currentListaAddId = useRef<string | null>(null);
+  const [selectedListaId, setSelectedListaId] = useState<string | null>(null);
 
   const promptAddToListaCompras = (material: Material, suggestedQty: number) => {
     const listId = getActiveListaId();
-    if (!listId) {
-      alert("Crie uma lista de compras primeiro na aba 'Lista de Compras'!");
-      return;
-    }
-    currentListaAddId.current = listId;
-
+    setSelectedListaId(listId);
+    
     const qt = suggestedQty > 0 ? Math.ceil(suggestedQty) : 1;
     setManualItemForm({
       nome: material.nome,
@@ -655,7 +651,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   };
 
   const handleManualAddToLista = (listaId: string) => {
-    currentListaAddId.current = listaId;
+    setSelectedListaId(listaId);
     setManualItemForm({ nome: '', quantidade: 1, undMedida: 'UN', categoria: 'OUTROS', materialId: undefined });
     setManualItemSuggestions([]);
     setShowSuggestions(false);
@@ -689,7 +685,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   };
 
   const handleSaveManualItem = () => {
-    if (!manualItemForm.nome.trim() || !currentListaAddId.current) return;
+    if (!manualItemForm.nome.trim() || !selectedListaId) return;
 
     const newItem: ItemListaCompras = {
       id: Math.random().toString(36).substring(2, 9),
@@ -703,7 +699,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
 
     setListasDeCompras(prev => {
       const next = prev.map(l => {
-         if (l.id === currentListaAddId.current) {
+         if (l.id === selectedListaId) {
             return { ...l, itens: [...l.itens, newItem] };
          }
          return l;
@@ -743,6 +739,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
        syncAndSave({ listasDeCompras: next });
        return next;
     });
+    setSelectedListaId(novaLista.id);
     setShowNovaListaModal(false);
     setArchiveForm({
        nome: '',
@@ -2120,6 +2117,32 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
               </div>
 
               <div className="p-6 space-y-6">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Lista de Destino</label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <select 
+                        className="w-full appearance-none bg-indigo-50 border border-indigo-100 rounded-2xl p-4 pr-10 text-sm font-bold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        value={selectedListaId || ''}
+                        onChange={e => setSelectedListaId(e.target.value)}
+                      >
+                         <option value="" disabled>Selecione uma lista...</option>
+                         {listasDeCompras.filter(l => !l.arquivada).map(lista => (
+                           <option key={lista.id} value={lista.id}>{lista.nome}</option>
+                         ))}
+                      </select>
+                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 pointer-events-none" />
+                    </div>
+                    <button 
+                      onClick={() => setShowNovaListaModal(true)} 
+                      className="px-4 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-2xl transition-colors shrink-0 flex items-center justify-center font-bold text-xs uppercase tracking-widest shadow-sm" 
+                      title="Criar Nova Lista"
+                    >
+                       <Plus className="w-4 h-4" /> Nova
+                    </button>
+                  </div>
+                </div>
+
                 <div className="relative">
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Descrição do Item</label>
                   <input 
@@ -2206,7 +2229,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
         )}
 
         {showNovaListaModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
