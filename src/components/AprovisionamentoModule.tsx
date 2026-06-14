@@ -21,7 +21,12 @@ import {
   Utensils,
   Sunset,
   Edit2,
-  Trash2
+  Trash2,
+  Calendar,
+  Store,
+  MapPin,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -45,7 +50,18 @@ interface ItemListaCompras {
   categoria: CategoriaMaterial | 'OUTROS' | string;
   undMedida: string;
   quantidade: number;
+  valorPago?: number;
   concluido: boolean;
+}
+
+interface ListaDeCompras {
+  id: string;
+  nome: string;
+  estabelecimento: string;
+  local: string;
+  dataCriacao: string;
+  arquivada: boolean;
+  itens: ItemListaCompras[];
 }
 
 interface Material {
@@ -399,10 +415,27 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
     } catch(e) {}
     return MOCK_CARDAPIO;
   });
-  const [listaCompras, setListaCompras] = useState<ItemListaCompras[]>(() => {
+  const [listasDeCompras, setListasDeCompras] = useState<ListaDeCompras[]>(() => {
     try {
       const cached = localStorage.getItem('aprovisionamento_dados_cache');
-      if (cached && JSON.parse(cached).listaCompras) return JSON.parse(cached).listaCompras;
+      if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed.listasDeCompras) return parsed.listasDeCompras;
+          let migrated: ListaDeCompras[] = [];
+          if (parsed.historicoListas) migrated = [...parsed.historicoListas].map(h => ({ ...h, arquivada: h.arquivada ?? true }));
+          if (parsed.listaCompras && parsed.listaCompras.length > 0) {
+             migrated.push({
+                id: `lista_migrada_${Date.now()}`,
+                nome: 'Lista Salva Anterior',
+                estabelecimento: '',
+                local: '',
+                dataCriacao: new Date().toISOString(),
+                arquivada: false,
+                itens: parsed.listaCompras
+             });
+          }
+          if (migrated.length > 0) return migrated;
+      }
     } catch(e) {}
     return [];
   });
@@ -458,6 +491,16 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   });
   const [manualItemSuggestions, setManualItemSuggestions] = useState<Material[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  
+  const [showNovaListaModal, setShowNovaListaModal] = useState(false);
+  const [expandedListaId, setExpandedListaId] = useState<string | null>(null);
+  const [archiveForm, setArchiveForm] = useState({
+     nome: '',
+     dataCriacao: new Date().toISOString().split('T')[0],
+     estabelecimento: '',
+     local: '',
+     valorPago: 0
+  });
 
   const { menus } = useRefeitorioData();
 
@@ -528,7 +571,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
             
             const loadedCardapio = data.cardapio || cardapio;
             const loadedDatasEstoque = data.datasEstoque || datasEstoque;
-            const loadedListaCompras = data.listaCompras || listaCompras;
+            const loadedListasDeCompras = data.listasDeCompras || listasDeCompras;
             const loadedPaxDefaults = data.paxDefaults || paxDefaults;
             const loadedPrevisaoDias = data.previsaoDiasOptions || previsaoDiasOptions;
 
@@ -536,7 +579,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
             setReceitas(loadedReceitas);
             setCardapio(loadedCardapio);
             setDatasEstoque(loadedDatasEstoque);
-            setListaCompras(loadedListaCompras);
+            setListasDeCompras(loadedListasDeCompras);
             setPaxDefaults(loadedPaxDefaults);
             setPrevisaoDiasOptions(loadedPrevisaoDias);
             
@@ -546,7 +589,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
               receitas: loadedReceitas,
               cardapio: loadedCardapio,
               datasEstoque: loadedDatasEstoque,
-              listaCompras: loadedListaCompras,
+              listasDeCompras: loadedListasDeCompras,
               paxDefaults: loadedPaxDefaults,
               previsaoDiasOptions: loadedPrevisaoDias
             };
@@ -559,7 +602,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
               receitas, 
               cardapio, 
               datasEstoque, 
-              listaCompras, 
+              listasDeCompras,
               paxDefaults,
               previsaoDiasOptions
             };
@@ -583,7 +626,21 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
     };
   }, []);
 
+  const getActiveListaId = () => {
+     const unarchived = listasDeCompras.filter(l => !l.arquivada);
+     return unarchived.length > 0 ? unarchived[0].id : null;
+  };
+
+  const currentListaAddId = useRef<string | null>(null);
+
   const promptAddToListaCompras = (material: Material, suggestedQty: number) => {
+    const listId = getActiveListaId();
+    if (!listId) {
+      alert("Crie uma lista de compras primeiro na aba 'Lista de Compras'!");
+      return;
+    }
+    currentListaAddId.current = listId;
+
     const qt = suggestedQty > 0 ? Math.ceil(suggestedQty) : 1;
     setManualItemForm({
       nome: material.nome,
@@ -597,7 +654,8 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
     setShowAddListaModal(true);
   };
 
-  const handleManualAddToLista = () => {
+  const handleManualAddToLista = (listaId: string) => {
+    currentListaAddId.current = listaId;
     setManualItemForm({ nome: '', quantidade: 1, undMedida: 'UN', categoria: 'OUTROS', materialId: undefined });
     setManualItemSuggestions([]);
     setShowSuggestions(false);
@@ -631,7 +689,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   };
 
   const handleSaveManualItem = () => {
-    if (!manualItemForm.nome.trim()) return;
+    if (!manualItemForm.nome.trim() || !currentListaAddId.current) return;
 
     const newItem: ItemListaCompras = {
       id: Math.random().toString(36).substring(2, 9),
@@ -643,40 +701,99 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
       concluido: false
     };
 
-    setListaCompras(prev => {
-      const next = [...prev, newItem];
-      syncAndSave({ listaCompras: next });
+    setListasDeCompras(prev => {
+      const next = prev.map(l => {
+         if (l.id === currentListaAddId.current) {
+            return { ...l, itens: [...l.itens, newItem] };
+         }
+         return l;
+      });
+      syncAndSave({ listasDeCompras: next });
       return next;
     });
     setShowAddListaModal(false);
   };
 
-  const handleRemoveFromListaCompras = (id: string) => {
-    setListaCompras(prev => {
-      const next = prev.filter(i => i.id !== id);
-      syncAndSave({ listaCompras: next });
+  const handleRemoveFromListaCompras = (listaId: string, itemId: string) => {
+    setListasDeCompras(prev => {
+      const next = prev.map(l => {
+         if (l.id === listaId) {
+            return { ...l, itens: l.itens.filter(i => i.id !== itemId) };
+         }
+         return l;
+      });
+      syncAndSave({ listasDeCompras: next });
       return next;
     });
   };
 
-  const handleToggleConcluidoListaCompras = (id: string) => {
-    setListaCompras(prev => {
-      const next = prev.map(i => i.id === id ? { ...i, concluido: !i.concluido } : i);
-      syncAndSave({ listaCompras: next });
+  const handleNovaListaCompras = () => {
+    const novaLista: ListaDeCompras = {
+       id: `lista_${Date.now()}_${Math.random().toString(36).substring(2,9)}`,
+       nome: archiveForm.nome.trim() || `Lista de Compras`,
+       estabelecimento: archiveForm.estabelecimento.trim(),
+       local: archiveForm.local.trim(),
+       dataCriacao: archiveForm.dataCriacao,
+       arquivada: false,
+       itens: []
+    };
+    
+    setListasDeCompras(prev => {
+       const next = [novaLista, ...prev];
+       syncAndSave({ listasDeCompras: next });
+       return next;
+    });
+    setShowNovaListaModal(false);
+    setArchiveForm({
+       nome: '',
+       dataCriacao: new Date().toISOString().split('T')[0],
+       estabelecimento: '',
+       local: '',
+       valorPago: 0
+    });
+  };
+
+  const handleToggleConcluidoListaCompras = (listaId: string, itemId: string) => {
+    setListasDeCompras(prev => {
+      const next = prev.map(l => {
+         if (l.id === listaId) {
+            return { ...l, itens: l.itens.map(i => i.id === itemId ? { ...i, concluido: !i.concluido } : i) };
+         }
+         return l;
+      });
+      syncAndSave({ listasDeCompras: next });
       return next;
     });
   };
 
-  const handleChangeQuantidadeListaCompras = (id: string, qty: number) => {
-    setListaCompras(prev => {
-      const next = prev.map(i => i.id === id ? { ...i, quantidade: qty } : i);
-      syncAndSave({ listaCompras: next });
+  const handleChangeQuantidadeListaCompras = (listaId: string, itemId: string, qty: number) => {
+    setListasDeCompras(prev => {
+      const next = prev.map(l => {
+         if (l.id === listaId) {
+            return { ...l, itens: l.itens.map(i => i.id === itemId ? { ...i, quantidade: qty } : i) };
+         }
+         return l;
+      });
+      syncAndSave({ listasDeCompras: next });
+      return next;
+    });
+  };
+
+  const handleChangeValorPagoListaCompras = (listaId: string, itemId: string, val: number) => {
+    setListasDeCompras(prev => {
+      const next = prev.map(l => {
+         if (l.id === listaId) {
+            return { ...l, itens: l.itens.map(i => i.id === itemId ? { ...i, valorPago: val } : i) }
+         }
+         return l;
+      });
+      syncAndSave({ listasDeCompras: next });
       return next;
     });
   };
 
   const pendingSaveRef = useRef<NodeJS.Timeout | null>(null);
-  const dataRef = useRef({ materiais, receitas, cardapio, datasEstoque, listaCompras, paxDefaults, previsaoDiasOptions });
+  const dataRef = useRef({ materiais, receitas, cardapio, datasEstoque, listasDeCompras, paxDefaults, previsaoDiasOptions });
 
   const syncAndSave = (newData: Partial<typeof dataRef.current>) => {
     dataRef.current = { ...dataRef.current, ...newData };
@@ -1765,14 +1882,14 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                               <td className="py-2.5 px-4 text-center border-l border-slate-100">
                                  <button 
                                    onClick={() => promptAddToListaCompras(m, isDeficit ? Math.abs(saldo) : 1)}
-                                   disabled={listaCompras.some(lc => lc.materialId === m.id)}
+                                   disabled={listasDeCompras.some(l => !l.arquivada && l.itens.some(lc => lc.materialId === m.id))}
                                    className={cn(
                                      "p-2 rounded-lg transition-colors inline-flex mb-0",
-                                     listaCompras.some(lc => lc.materialId === m.id) 
+                                     listasDeCompras.some(l => !l.arquivada && l.itens.some(lc => lc.materialId === m.id)) 
                                        ? "bg-slate-100 text-slate-400 cursor-not-allowed" 
                                        : "bg-amber-100 text-amber-600 hover:bg-amber-200"
                                    )}
-                                   title={listaCompras.some(lc => lc.materialId === m.id) ? 'Já na Lista' : 'Adicionar à Lista'}
+                                   title={listasDeCompras.some(l => !l.arquivada && l.itens.some(lc => lc.materialId === m.id)) ? 'Já na Listas Ativas' : 'Adicionar à Lista'}
                                  >
                                    <ShoppingBag className="w-4 h-4" />
                                  </button>
@@ -1798,90 +1915,178 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
         {activeTab === 'LISTA_COMPRAS' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
              <div>
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                   <div>
-                    <h2 className="text-lg font-black text-slate-800 tracking-tight uppercase">Lista de Compras</h2>
-                    <p className="text-xs font-semibold text-slate-500 mb-4">
-                      Lista consolidada para realizar as próximas aquisições.
+                    <h2 className="text-lg font-black text-slate-800 tracking-tight uppercase">Listas de Compras</h2>
+                    <p className="text-xs font-semibold text-slate-500">
+                      Gerencie suas listas de compras para os diferentes estabelecimentos.
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={handleManualAddToLista}
-                      className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white hover:bg-indigo-700 rounded-lg text-xs font-bold uppercase transition-colors tracking-widest shadow-sm"
-                    >
-                      <Plus className="w-4 h-4" /> Adicionar Item
-                    </button>
-                    {listaCompras.length > 0 && (
-                       <button onClick={() => {
-                          if(window.confirm('Limpar toda a lista?')) {
-                             setListaCompras([]);
-                             syncAndSave({ listaCompras: [] });
-                          }
-                       }} className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold uppercase transition-colors tracking-widest border border-red-100">
-                          Limpar Lista
-                       </button>
-                    )}
-                  </div>
+                  <button onClick={() => setShowNovaListaModal(true)} className="px-5 py-2.5 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl text-xs font-bold uppercase transition-all tracking-widest shadow-md hover:shadow-lg flex items-center gap-2">
+                     <Plus className="w-4 h-4" /> Criar Nova Lista
+                  </button>
                 </div>
               </div>
 
-              {listaCompras.length === 0 ? (
+              {listasDeCompras.length === 0 ? (
                  <div className="py-16 flex flex-col items-center justify-center bg-slate-50 rounded-3xl border border-slate-200 border-dashed">
                     <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-100 mb-4 text-slate-300">
                        <ShoppingBag className="w-8 h-8" />
                     </div>
-                    <p className="text-sm font-black text-slate-400 uppercase tracking-widest mb-1">Sua lista está vazia</p>
-                    <p className="text-xs font-semibold text-slate-400">Adicione itens navegando pela aba "Listas e Previsão".</p>
+                    <p className="text-sm font-black text-slate-400 uppercase tracking-widest mb-1">Nenhuma lista encontrada</p>
+                    <p className="text-xs font-semibold text-slate-400">Crie sua primeira lista para organizar as compras.</p>
                  </div>
               ) : (
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {listaCompras.map(item => (
-                       <div key={item.id} className={cn(
-                          "p-4 rounded-2xl border transition-all", 
-                          item.concluido ? "bg-slate-50 border-slate-200 opacity-60 grayscale-[0.8]" : "bg-white border-slate-200 shadow-sm hover:border-amber-400 hover:shadow-md"
-                       )}>
-                          <div className="flex justify-between items-start mb-3 gap-3">
-                             <div className="flex items-start gap-4">
-                                <button 
-                                   onClick={() => handleToggleConcluidoListaCompras(item.id)} 
-                                   className={cn(
-                                      "w-6 h-6 rounded flex items-center justify-center border mt-0.5 transition-colors cursor-pointer", 
-                                      item.concluido ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300 bg-slate-50 hover:border-emerald-500"
-                                   )}
-                                >
-                                   {item.concluido && <div className="w-2.5 h-2.5 bg-white rounded-[2px]" />}
-                                </button>
-                                <div>
-                                   <div className={cn("text-sm font-bold text-slate-800", item.concluido && "line-through text-slate-500")}>
-                                      {item.nome}
+                 <div className="space-y-4">
+                    {listasDeCompras.map(lista => {
+                       const isExpanded = expandedListaId === lista.id;
+                       const totalValue = lista.itens.reduce((acc, item) => acc + (item.valorPago || 0), 0);
+                       const completedCount = lista.itens.filter(i => i.concluido).length;
+                       
+                       return (
+                          <div key={lista.id} className={cn("bg-white border transition-all overflow-hidden relative", isExpanded ? "border-indigo-200 shadow-md rounded-2xl" : "border-slate-200 hover:border-slate-300 rounded-2xl", lista.arquivada && !isExpanded && "opacity-70 bg-slate-50")}>
+                             {lista.arquivada && <div className="absolute top-0 left-0 w-1 h-full bg-slate-300"></div>}
+                             {!lista.arquivada && <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>}
+                             
+                             <div 
+                                onClick={() => setExpandedListaId(isExpanded ? null : lista.id)}
+                                className="p-5 cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-4 select-none"
+                             >
+                                <div className="flex-1">
+                                   <div className="flex items-center gap-3 mb-2">
+                                     <h3 className="text-base font-black text-slate-800 tracking-tight uppercase leading-tight">{lista.nome}</h3>
+                                     {lista.arquivada ? (
+                                        <span className="text-[9px] px-2 py-0.5 bg-slate-200 text-slate-500 font-bold uppercase rounded tracking-widest">Arquivada</span>
+                                     ) : (
+                                        <span className="text-[9px] px-2 py-0.5 bg-emerald-100 text-emerald-700 font-bold uppercase rounded tracking-widest">Ativa</span>
+                                     )}
                                    </div>
-                                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                                      {item.categoria}
+                                   <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-semibold text-slate-500">
+                                      <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-slate-400"/> {new Date(lista.dataCriacao).toLocaleDateString('pt-BR')}</span>
+                                      {lista.estabelecimento && <span className="flex items-center gap-1.5"><Store className="w-3.5 h-3.5 text-slate-400"/> {lista.estabelecimento}</span>}
+                                      {lista.local && <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-slate-400"/> {lista.local}</span>}
+                                   </div>
+                                </div>
+                                <div className="flex items-center gap-8 md:gap-12">
+                                   <div className="text-right">
+                                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Itens</div>
+                                      <div className="text-sm font-black text-slate-700">{completedCount} <span className="text-slate-400 font-semibold">/ {lista.itens.length}</span></div>
+                                   </div>
+                                   <div className="text-right">
+                                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Salvo</div>
+                                      <div className="text-lg font-black text-emerald-600">
+                                         {totalValue > 0 ? `R$ ${totalValue.toFixed(2).replace('.', ',')}` : '-'}
+                                      </div>
+                                   </div>
+                                   <div className="text-slate-400">
+                                      {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                                    </div>
                                 </div>
                              </div>
-                             <button onClick={() => handleRemoveFromListaCompras(item.id)} className="text-slate-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors flex-shrink-0">
-                                <X className="w-4 h-4" />
-                             </button>
+
+                             <AnimatePresence>
+                                {isExpanded && (
+                                   <motion.div 
+                                     initial={{ height: 0, opacity: 0 }}
+                                     animate={{ height: "auto", opacity: 1 }}
+                                     exit={{ height: 0, opacity: 0 }}
+                                     className="border-t border-slate-100 bg-slate-50 border-dashed"
+                                   >
+                                      <div className="p-5">
+                                         <div className="flex justify-between items-center mb-6">
+                                            <h4 className="text-sm font-bold text-slate-800 uppercase tracking-tight">Itens da Lista</h4>
+                                            {!lista.arquivada && (
+                                               <div className="flex gap-2">
+                                                  <button onClick={(e) => { e.stopPropagation(); setListasDeCompras(prev => { const next = prev.map(l => l.id === lista.id ? { ...l, arquivada: true } : l); syncAndSave({ listasDeCompras: next }); return next; }) }} className="px-3 py-1.5 bg-slate-200 text-slate-700 hover:bg-slate-300 rounded-lg text-[10px] font-bold uppercase transition-colors tracking-widest">
+                                                     Arquivar Lista
+                                                  </button>
+                                                  <button onClick={(e) => { e.stopPropagation(); handleManualAddToLista(lista.id); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded-lg text-[10px] font-bold uppercase transition-colors tracking-widest">
+                                                     <Plus className="w-3.5 h-3.5" /> Incluir Item
+                                                  </button>
+                                               </div>
+                                            )}
+                                         </div>
+
+                                         {lista.itens.length === 0 ? (
+                                            <div className="py-8 text-center text-slate-400 font-bold text-xs uppercase tracking-widest">Sem itens nesta lista ainda.</div>
+                                         ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                               {lista.itens.map(item => (
+                                                  <div key={item.id} className={cn(
+                                                     "p-4 rounded-xl border transition-all", 
+                                                     item.concluido ? "bg-white/40 border-slate-200 opacity-70 grayscale-[0.5]" : "bg-white border-slate-200 shadow-sm hover:border-indigo-300"
+                                                  )}>
+                                                     <div className="flex justify-between items-start mb-3 gap-3">
+                                                        <div className="flex items-start gap-3">
+                                                           <button 
+                                                              onClick={() => handleToggleConcluidoListaCompras(lista.id, item.id)} 
+                                                              className={cn(
+                                                                 "w-6 h-6 rounded flex items-center justify-center border mt-0.5 transition-colors cursor-pointer shrink-0", 
+                                                                 item.concluido ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300 bg-slate-50 hover:border-emerald-500"
+                                                              )}
+                                                           >
+                                                              {item.concluido && <div className="w-2.5 h-2.5 bg-white rounded-[2px]" />}
+                                                           </button>
+                                                           <div>
+                                                              <div className={cn("text-xs font-bold text-slate-800 leading-tight", item.concluido && "line-through text-slate-500")}>
+                                                                 {item.nome}
+                                                              </div>
+                                                              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                                                                 {item.categoria}
+                                                              </div>
+                                                           </div>
+                                                        </div>
+                                                        {!lista.arquivada && (
+                                                           <button onClick={() => handleRemoveFromListaCompras(lista.id, item.id)} className="text-slate-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors shrink-0">
+                                                              <X className="w-4 h-4" />
+                                                           </button>
+                                                        )}
+                                                     </div>
+                                                     
+                                                     <div className="flex flex-col gap-2 border-t border-slate-100/50 pt-3 mt-3">
+                                                        <div className="flex items-center justify-between">
+                                                           <div className="text-[10px] font-bold text-slate-500 tracking-wider">QUANTIDADE:</div>
+                                                           <div className="flex items-center gap-1.5">
+                                                              <input 
+                                                                type="number"
+                                                                min="0"
+                                                                step="any"
+                                                                disabled={lista.arquivada}
+                                                                value={item.quantidade}
+                                                                onChange={e => handleChangeQuantidadeListaCompras(lista.id, item.id, parseFloat(e.target.value) || 0)}
+                                                                className={cn("w-20 text-right rounded-lg text-sm font-black py-1 px-2 outline-none focus:ring-2 disabled:bg-transparent", lista.arquivada ? "bg-transparent text-slate-500 border-none" : "bg-slate-50 border border-slate-200 text-slate-700 focus:border-indigo-500 focus:ring-indigo-500/20")}
+                                                              />
+                                                              <span className="text-[10px] font-bold text-slate-400 w-6">{item.undMedida}</span>
+                                                           </div>
+                                                        </div>
+                                                        <div className="flex items-center justify-between">
+                                                           <div className="text-[10px] font-bold text-slate-500 tracking-wider">VALOR (R$):</div>
+                                                           <div className="flex items-center gap-1.5">
+                                                              <span className="text-[10px] font-bold text-slate-400">R$</span>
+                                                              <input 
+                                                                type="number"
+                                                                min="0"
+                                                                step="0.01"
+                                                                placeholder="0,00"
+                                                                disabled={lista.arquivada}
+                                                                value={item.valorPago || ''}
+                                                                onChange={e => handleChangeValorPagoListaCompras(lista.id, item.id, parseFloat(e.target.value) || 0)}
+                                                                className={cn("w-24 text-right rounded-lg text-sm font-black py-1 px-2 outline-none focus:ring-2 disabled:bg-transparent placeholder:text-slate-300", lista.arquivada ? "bg-transparent text-slate-500 border-none px-0" : "bg-emerald-50/50 border border-emerald-200/50 text-emerald-700 focus:border-emerald-500 focus:ring-emerald-500/20")}
+                                                              />
+                                                           </div>
+                                                        </div>
+                                                     </div>
+                                                  </div>
+                                               ))}
+                                            </div>
+                                         )}
+                                      </div>
+                                   </motion.div>
+                                )}
+                             </AnimatePresence>
                           </div>
-                          
-                          <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-4">
-                             <div className="text-xs font-bold text-slate-500 tracking-wider">QUANTIDADE:</div>
-                             <div className="flex items-center gap-1.5">
-                                <input 
-                                  type="number"
-                                  min="0"
-                                  step="1"
-                                  value={item.quantidade}
-                                  onChange={e => handleChangeQuantidadeListaCompras(item.id, parseFloat(e.target.value) || 0)}
-                                  className="w-24 text-right bg-slate-50 border border-slate-200 rounded-lg text-sm font-black py-1.5 px-3 text-slate-700 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
-                                />
-                                <span className="text-xs font-bold text-slate-400 w-8">{item.undMedida}</span>
-                             </div>
-                          </div>
-                       </div>
-                    ))}
+                       );
+                    })}
                  </div>
               )}
           </motion.div>
@@ -1994,6 +2199,85 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                 >
                   <Save className="w-4 h-4" />
                   Salvar Item
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {showNovaListaModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200"
+            >
+              <div className="p-6 border-b border-slate-100 bg-slate-50">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Criar Nova Lista</h3>
+                    <p className="text-xs font-semibold text-slate-500">Adicione as informações para a nova lista.</p>
+                  </div>
+                  <button onClick={() => setShowNovaListaModal(false)} className="p-2 hover:bg-slate-200 rounded-xl transition-colors">
+                    <X className="w-5 h-5 text-slate-400" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Data da Referência</label>
+                  <input 
+                    type="date"
+                    className="w-full bg-slate-100 border-none rounded-2xl p-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    value={archiveForm.dataCriacao}
+                    onChange={e => setArchiveForm(prev => ({ ...prev, dataCriacao: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Nome / Título da Lista</label>
+                  <input 
+                    autoFocus
+                    placeholder="Ex: Compras da Semana"
+                    className="w-full bg-slate-100 border-none rounded-2xl p-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    value={archiveForm.nome}
+                    onChange={e => setArchiveForm(prev => ({ ...prev, nome: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Estabelecimento</label>
+                  <input 
+                    placeholder="Ex: Dom Atacadista"
+                    className="w-full bg-slate-100 border-none rounded-2xl p-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    value={archiveForm.estabelecimento}
+                    onChange={e => setArchiveForm(prev => ({ ...prev, estabelecimento: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Local / Filial</label>
+                  <input 
+                    placeholder="Ex: Balneário"
+                    className="w-full bg-slate-100 border-none rounded-2xl p-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    value={archiveForm.local}
+                    onChange={e => setArchiveForm(prev => ({ ...prev, local: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
+                <button 
+                  onClick={() => setShowNovaListaModal(false)}
+                  className="flex-1 py-3 px-4 rounded-2xl text-sm font-bold text-slate-500 hover:bg-slate-200 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleNovaListaCompras}
+                  className="flex-1 py-3 px-4 rounded-2xl bg-indigo-600 text-white text-sm font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Criar
                 </button>
               </div>
             </motion.div>
