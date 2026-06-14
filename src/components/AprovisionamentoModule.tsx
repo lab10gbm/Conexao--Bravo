@@ -861,7 +861,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   };
 
   // Cálculos de Previsão
-  const calculoPrevisao = useMemo(() => {
+  const previsaoContext = useMemo(() => {
     // Dias a considerar: usando as datas escolhidas nas opções
     const hoje = new Date();
     hoje.setHours(0,0,0,0);
@@ -879,10 +879,10 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
        }
     }
     
-    const needsByMaterialId: Record<string, { inDays: Record<number, number>, total: number }> = {};
+    const needsByMaterialId: Record<string, { inDays: Record<number, number>, hoje: number, total: number }> = {};
     
     materiais.forEach(m => {
-      needsByMaterialId[m.id] = { inDays: {}, total: 0 };
+      needsByMaterialId[m.id] = { inDays: {}, hoje: 0, total: 0 };
       previsaoDiasOptions.forEach(opt => needsByMaterialId[m.id].inDays[opt] = 0);
     });
 
@@ -902,8 +902,11 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
       cDate.setHours(0,0,0,0);
       
       const isPast = cDate.getTime() <= latestEstoqueDate.getTime();
-      const diffTime = cDate.getTime() - hoje.getTime();
+      const diffTime = cDate.getTime() - latestEstoqueDate.getTime();
       const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+      
+      const diffTimeHoje = cDate.getTime() - hoje.getTime();
+      const diffDaysHoje = Math.round(diffTimeHoje / (1000 * 60 * 60 * 24));
       
       const paxLocalCafe = menu.efetivoCafe || paxDefaults.cafe || 60;
       const paxLocalAlmoco = menu.efetivoAlmoco || paxDefaults.almoco || 60;
@@ -969,8 +972,9 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
 
             if (qtdCost > 0 && !isPast) {
               needsByMaterialId[mat.id].total += qtdCost;
+              if (diffDaysHoje <= 0) needsByMaterialId[mat.id].hoje += qtdCost;
               previsaoDiasOptions.forEach(opt => {
-                if (diffDays < opt) {
+                if (diffDays <= opt) {
                   needsByMaterialId[mat.id].inDays[opt] += qtdCost;
                 }
               });
@@ -988,20 +992,23 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
     const maxDays = previsaoDiasOptions.length > 0 ? Math.max(...previsaoDiasOptions) : 0;
     
     // We want to simulate global daily expenses every day from the day AFTER latestEstoqueDate
-    // up to (hoje + maxDays)
-    const maxDate = new Date(hoje.getTime() + maxDays * 24 * 60 * 60 * 1000);
+    // up to (latestEstoqueDate + maxDays)
+    const maxDate = new Date(latestEstoqueDate.getTime() + maxDays * 24 * 60 * 60 * 1000);
     let simDate = new Date(latestEstoqueDate.getTime() + 24 * 60 * 60 * 1000);
     
     // Safety check just in case inventory date is messed up
     const failSafeDate = new Date(hoje.getTime() - 60 * 24 * 60 * 60 * 1000);
     if (simDate < failSafeDate) simDate = failSafeDate;
 
-    while (simDate < maxDate) {
+    while (simDate <= maxDate) {
       const cDate = new Date(simDate);
       const isFds = cDate.getDay() === 0 || cDate.getDay() === 6;
       
-      const diffTime = cDate.getTime() - hoje.getTime();
+      const diffTime = cDate.getTime() - latestEstoqueDate.getTime();
       const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+      const diffTimeHoje = cDate.getTime() - hoje.getTime();
+      const diffDaysHoje = Math.round(diffTimeHoje / (1000 * 60 * 60 * 24));
 
       // For daily total calculation, we need to find what the likely pax is.
       const d = String(cDate.getDate()).padStart(2, '0');
@@ -1021,8 +1028,9 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
 
         if (qtdCost > 0) {
           needsByMaterialId[mat.id].total += qtdCost; // Update Total Planejado as well (representing up to maxDays)
+          if (diffDaysHoje <= 0) needsByMaterialId[mat.id].hoje += qtdCost;
           previsaoDiasOptions.forEach(opt => {
-            if (diffDays < opt) {
+            if (diffDays <= opt) {
               needsByMaterialId[mat.id].inDays[opt] += qtdCost;
             }
           });
@@ -1032,8 +1040,11 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
       simDate = new Date(simDate.getTime() + 24 * 60 * 60 * 1000);
     }
 
-    return needsByMaterialId;
+    return { needsByMaterialId, latestEstoqueDate };
   }, [menus, materiais, gastosCatalogo, previsaoDiasOptions, datasEstoque]);
+
+  const calculoPrevisao = previsaoContext.needsByMaterialId;
+  const latestEstoqueDate = previsaoContext.latestEstoqueDate;
 
   const updateMaterial = (id: string, updates: Partial<Material>) => {
     setMateriais(prev => {
@@ -1827,9 +1838,23 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                             Estoque Atual
                             {datasEstoque.length > 0 && <div className="text-[9px] text-slate-300 font-medium tracking-normal mt-0.5">({datasEstoque[datasEstoque.length - 1]})</div>}
                           </th>
-                          {previsaoDiasOptions.map(opt => (
-                            <th key={opt} className="py-3 px-4 font-black text-right border-l border-slate-700 bg-slate-700/50">Prev. {opt} Dias</th>
-                          ))}
+                          {previsaoDiasOptions.map(opt => {
+                            const date = new Date(latestEstoqueDate);
+                            date.setDate(date.getDate() + opt);
+                            const optDateStr = date.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
+                            return (
+                              <th key={opt} className="py-3 px-4 font-black text-right border-l border-slate-700 bg-slate-700/50 leading-tight">
+                                Prev. {opt} Dias
+                                <div className="text-[9px] text-slate-300 font-medium tracking-normal mt-0.5">({optDateStr})</div>
+                              </th>
+                            )
+                          })}
+                          <th className="py-3 px-4 font-black text-right border-l border-slate-700 bg-indigo-900/40 text-indigo-200 leading-tight">
+                            Prev. Hoje
+                            <div className="text-[9px] text-indigo-300 font-medium tracking-normal mt-0.5">
+                               ({Math.round((new Date().getTime() - latestEstoqueDate.getTime()) / (1000 * 60 * 60 * 24))} Dias) - {new Date().toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})}
+                            </div>
+                          </th>
                           <th className="py-3 px-4 font-black text-right border-l border-slate-700 bg-slate-700/10">Total Planejado</th>
                           <th className="py-3 px-4 font-black text-right bg-amber-600/20 text-amber-200">Saldo/Déficit</th>
                           <th className="py-3 px-4 font-black text-center border-l border-slate-700 bg-slate-700/50">Ações</th>
@@ -1837,7 +1862,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                       </thead>
                       <tbody className="text-sm font-semibold text-slate-700 divide-y divide-slate-100">
                         {catItems.map(m => {
-                          const needs = calculoPrevisao[m.id] || { inDays: {}, total: 0 };
+                          const needs = calculoPrevisao[m.id] || { inDays: {}, hoje: 0, total: 0 };
                           const saldo = m.estoque - needs.total;
                           const isDeficit = saldo < 0;
 
@@ -1864,6 +1889,9 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                                    </td>
                                  );
                               })}
+                              <td className="py-2.5 px-4 text-right bg-indigo-50/50 font-mono font-semibold text-indigo-900 border-l border-indigo-100/50">
+                                {needs.hoje > 0 ? needs.hoje.toFixed(2) : '-'}
+                              </td>
                               <td className="py-2.5 px-4 text-right bg-slate-50 font-mono font-bold text-slate-800 border-l border-slate-100">
                                 {needs.total > 0 ? needs.total.toFixed(2) : '-'}
                               </td>
