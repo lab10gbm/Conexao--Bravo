@@ -27,6 +27,23 @@ export const RANKS_PRACAS = ['SUBTEN', '1º SGT', '2º SGT', '3º SGT', 'CABO', 
 export const isOfficer = (r: string) => COLS_OFICIAIS.includes(parseRank(r));
 export const isPraca = (r: string) => RANKS_PRACAS.includes(parseRank(r));
 
+export const sortAllBySeniority = (a: any, b: any) => {
+  const allRanks = [...COLS_OFICIAIS, ...RANKS_PRACAS];
+  const rankA = allRanks.indexOf(parseRank(a.rank));
+  const rankB = allRanks.indexOf(parseRank(b.rank));
+  const rA = rankA >= 0 ? rankA : 99;
+  const rB = rankB >= 0 ? rankB : 99;
+  if (rA !== rB) return rA - rB;
+  
+  if (a.promotionDate && b.promotionDate) {
+    const timeA = new Date(a.promotionDate).getTime();
+    const timeB = new Date(b.promotionDate).getTime();
+    if (timeA !== timeB) return timeA - timeB;
+  }
+  
+  return parseInt((a.rg || '').replace(/\D/g,'') || '0') - parseInt((b.rg || '').replace(/\D/g,'') || '0');
+};
+
 export const sortOfficersBySeniority = (a: any, b: any) => {
   const rankA = COLS_OFICIAIS.indexOf(parseRank(a.rank));
   const rankB = COLS_OFICIAIS.indexOf(parseRank(b.rank));

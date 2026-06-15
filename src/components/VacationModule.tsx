@@ -46,6 +46,7 @@ import { useMilitars } from "../contexts/MilitarContext";
 import { exportToExcel } from "../lib/exportUtils";
 import { VacationStats } from "./VacationStats";
 import { cleanUndefined } from "../lib/utils";
+import { isOfficer, sortAllBySeniority } from "../lib/rankUtils";
 
 interface VacationModuleProps {
   user: UserProfile;
@@ -91,24 +92,10 @@ export function VacationModule({
   >("individual");
   const [allVacations, setAllVacations] = useState<Vacation[]>([]);
   const [loadingPanorama, setLoadingPanorama] = useState(false);
-
-  useEffect(() => {
-    if (viewMode === "panorama") {
-      setLoadingPanorama(true);
-      getDocs(collection(db, "vacations"))
-        .then((snapshot) => {
-          const data = snapshot.docs.map(
-            (doc) => ({ id: doc.id, ...doc.data() }) as Vacation,
-          );
-          setAllVacations(data);
-          setLoadingPanorama(false);
-        })
-        .catch((e) => {
-          console.error(e);
-          setLoadingPanorama(false);
-        });
-    }
-  }, [viewMode]);
+  const [panoramaSearch, setPanoramaSearch] = useState("");
+  const [panoramaObmFilter, setPanoramaObmFilter] = useState("TODAS");
+  const [panoramaStatusFilter, setPanoramaStatusFilter] = useState<"PENDENTES" | "REGULARIZADOS" | "VALIDADOS">("PENDENTES");
+  const [panoramaSortMode, setPanoramaSortMode] = useState<"dias" | "graduacao">("dias");
 
   const [activeYear, setActiveYear] = useState("2026");
   const [reportYear, setReportYear] = useState("2026");
@@ -133,6 +120,42 @@ export function VacationModule({
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isNavMenuExpanded, setIsNavMenuExpanded] = useState(true);
+
+  const [panoramaValidations, setPanoramaValidations] = useState<Record<string, any>>({});
+  const [validationModalOpen, setValidationModalOpen] = useState(false);
+  const [validationTargetRg, setValidationTargetRg] = useState("");
+  const [validationTargetName, setValidationTargetName] = useState("");
+  const [validationPassword, setValidationPassword] = useState("");
+  const [validating, setValidating] = useState(false);
+  const [validationError, setValidationError] = useState("");
+
+  useEffect(() => {
+    if (viewMode === "panorama") {
+      setLoadingPanorama(true);
+      Promise.all([
+        getDocs(collection(db, "vacations")),
+        getDocs(collection(db, "vacation_validations"))
+      ])
+        .then(([vacSnapshot, valSnapshot]) => {
+          const data = vacSnapshot.docs.map(
+            (doc) => ({ id: doc.id, ...doc.data() }) as Vacation,
+          );
+          setAllVacations(data);
+          
+          const vals: Record<string, any> = {};
+          valSnapshot.forEach(doc => {
+            vals[normalizeRg(doc.data().targetRg)] = doc.data();
+          });
+          setPanoramaValidations(vals);
+          
+          setLoadingPanorama(false);
+        })
+        .catch((e) => {
+          console.error(e);
+          setLoadingPanorama(false);
+        });
+    }
+  }, [viewMode]);
 
   useEffect(() => {
     let unsubAllPrefs = () => {};
@@ -483,6 +506,48 @@ export function VacationModule({
     }
   };
 
+  const handleConfirmValidation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setValidating(true);
+    setValidationError("");
+    try {
+      // Very basic password check hitting the login endpoint
+      const response = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rg: user.rg, password: validationPassword }),
+      });
+      const data = await response.json();
+      
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Senha incorreta.");
+      }
+      
+      // If valid, save the validation in Firestore
+      const targetRgNorm = normalizeRg(validationTargetRg);
+      const docId = `${targetRgNorm}_${user.rg}_${Date.now()}`;
+      const payload = {
+        targetRg: targetRgNorm,
+        targetName: validationTargetName,
+        validatorRg: user.rg,
+        validatorName: `${user.rank || ""} ${user.warName || user.name.split(" ")[0]}`.trim(),
+        validatedAt: new Date().toISOString()
+      };
+      
+      await setDoc(doc(db, "vacation_validations", docId), payload);
+      
+      // Update local state so it reflects immediately
+      setPanoramaValidations(prev => ({ ...prev, [targetRgNorm]: payload }));
+      setValidationModalOpen(false);
+      setValidationPassword("");
+      
+    } catch(err: any) {
+       setValidationError(err.message || "Erro ao validar");
+    } finally {
+       setValidating(false);
+    }
+  };
+
   const deleteVacation = async (id: string) => {
     if (
       !confirm("Deseja realmente excluir este registro de férias do sistema?")
@@ -707,7 +772,7 @@ export function VacationModule({
         matchesAla &&
         matchesStatus
       );
-    });
+    }).sort(sortAllBySeniority);
   }, [
     militars,
     reportSearch,
@@ -719,8 +784,44 @@ export function VacationModule({
     reportYear,
   ]);
 
+  const filteredMilitarsPanorama = React.useMemo(() => {
+    return militars.filter((m) => {
+      const term = panoramaSearch.toLowerCase();
+      const matchesSearch =
+        !term ||
+        m.name?.toLowerCase().includes(term) ||
+        m.warName?.toLowerCase().includes(term) ||
+        m.rg?.includes(term);
+
+      // OBM normalization
+      const mObm = (m.obm || "10º GBM").trim().toUpperCase();
+      const filterStr = panoramaObmFilter.trim().toUpperCase();
+
+      let matchesObm = true;
+      if (filterStr !== "TODAS") {
+        if (filterStr === "10º GBM") {
+          matchesObm = mObm === "10º GBM" || mObm === "10ºGBM" || mObm === "10 GBM";
+        } else if (filterStr === "2/10") {
+          matchesObm = mObm === "2/10" || mObm === "2/10º" || mObm === "2/10º GBM" || mObm === "2º/10º" || mObm === "2º/10º GBM";
+        } else if (filterStr === "3/10") {
+          matchesObm = mObm === "3/10" || mObm === "3/10º" || mObm === "3/10º GBM" || mObm === "3º/10º" || mObm === "3º/10º GBM";
+        } else if (filterStr === "4/10") {
+          matchesObm = mObm === "4/10" || mObm === "4/10º" || mObm === "4/10º GBM" || mObm === "4º/10º" || mObm === "4º/10º GBM";
+        } else if (filterStr === "1/26") {
+          matchesObm = mObm === "1/26" || mObm === "1/26º" || mObm === "1/26º GBM" || mObm === "1º/26º" || mObm === "1º/26º GBM";
+        } else if (filterStr === "26º GBM") {
+          matchesObm = mObm === "26º GBM" || mObm === "26ºGBM" || mObm === "26 GBM";
+        } else {
+          matchesObm = mObm === filterStr;
+        }
+      }
+
+      return matchesSearch && matchesObm;
+    });
+  }, [militars, panoramaSearch, panoramaObmFilter]);
+
   const panoramaData = React.useMemo(() => {
-    if (viewMode !== "panorama" || allVacations.length === 0) return [];
+    if (viewMode !== "panorama" || allVacations.length === 0) return { oficiais: [], pracas: [], regularizadosOficiais: [], regularizadosPracas: [], validadosOficiais: [], validadosPracas: [] };
 
     const currentYear = new Date().getFullYear();
     const vacsByRg: Record<string, Vacation[]> = {};
@@ -729,12 +830,18 @@ export function VacationModule({
       vacsByRg[v.militarRg].push(v);
     });
 
-    const panoramaRows = [];
+    const oficiais: any[] = [];
+    const pracas: any[] = [];
+    const regularizadosOficiais: any[] = [];
+    const regularizadosPracas: any[] = [];
+    const validadosOficiais: any[] = [];
+    const validadosPracas: any[] = [];
 
-    for (const m of filteredMilitarsReport) {
+    for (const m of filteredMilitarsPanorama) {
       const cleanRg = normalizeRg(m.rg);
       const mVacations = vacsByRg[cleanRg] || [];
-      if (mVacations.length === 0) continue;
+      const isVal = panoramaValidations[cleanRg];
+      if (mVacations.length === 0 && !isVal) continue;
 
       let sYear = currentYear;
       const validYears = mVacations
@@ -795,19 +902,192 @@ export function VacationModule({
       const totalPendingDays =
         pending.reduce((acc, p) => acc + p.days, 0) + missing.length * 30;
 
-      if (totalPendingDays > 0) {
-        panoramaRows.push({
-          militar: m,
-          startYear: sYear,
-          missingYears: missing,
-          pendingBalances: pending,
-          totalPendingDays,
-        });
+      const row = {
+        militar: m,
+        startYear: sYear,
+        missingYears: missing,
+        pendingBalances: pending,
+        totalPendingDays,
+        isVal,
+      };
+
+      if (isOfficer(m.rank || "")) {
+        if (isVal) validadosOficiais.push(row);
+        else if (totalPendingDays > 0) oficiais.push(row);
+        else regularizadosOficiais.push(row);
+      } else {
+        if (isVal) validadosPracas.push(row);
+        else if (totalPendingDays > 0) pracas.push(row);
+        else regularizadosPracas.push(row);
       }
     }
 
-    return panoramaRows.sort((a, b) => b.totalPendingDays - a.totalPendingDays);
-  }, [allVacations, filteredMilitarsReport, viewMode]);
+    const sortFn = (a: any, b: any) => {
+      if (panoramaSortMode === "dias") {
+        return b.totalPendingDays - a.totalPendingDays;
+      } else {
+        return sortAllBySeniority(a.militar, b.militar);
+      }
+    };
+
+    return {
+      oficiais: oficiais.sort(sortFn),
+      pracas: pracas.sort(sortFn),
+      regularizadosOficiais: regularizadosOficiais.sort((a,b) => sortAllBySeniority(a.militar, b.militar)),
+      regularizadosPracas: regularizadosPracas.sort((a,b) => sortAllBySeniority(a.militar, b.militar)),
+      validadosOficiais: validadosOficiais.sort((a,b) => sortAllBySeniority(a.militar, b.militar)),
+      validadosPracas: validadosPracas.sort((a,b) => sortAllBySeniority(a.militar, b.militar)),
+    };
+  }, [allVacations, filteredMilitarsPanorama, viewMode, panoramaSortMode, panoramaValidations]);
+
+  const renderPanoramaTable = (rows: any[], typeLabel: string) => {
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-slate-50/20">
+              <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
+                Militar
+              </th>
+              <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 text-center">
+                Carreira (Est.)
+              </th>
+              <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
+                Lapsos de Registro (0 dias)
+              </th>
+              <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
+                Saldos Parciais Pendentes
+              </th>
+              <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 text-center">
+                Dias a Cumprir
+              </th>
+              <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 text-center">
+                Validação
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={6}
+                  className="p-16 text-center text-[10px] font-black text-slate-400 uppercase"
+                >
+                  Nenhuma pendência para {typeLabel}.
+                </td>
+              </tr>
+            ) : (
+              rows.map((row) => {
+                const isVal = panoramaValidations[normalizeRg(row.militar.rg)];
+                return (
+                <tr
+                  key={row.militar.rg}
+                  className="hover:bg-slate-50/50 transition-colors"
+                  id={`panorama-row-${row.militar.rg}`}
+                >
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="shrink-0 w-8 flex justify-center">
+                        <RankInsignia rankStr={row.militar.rank} />
+                      </div>
+                      <div>
+                        {/* Rank on top of Name */}
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
+                          {row.militar.rank}
+                        </div>
+                        <div className="text-xs font-black text-slate-800 uppercase leading-none">
+                          {row.militar.warName || row.militar.name}
+                        </div>
+                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                          RG: {row.militar.rg} • {row.militar.obm}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <span className="text-[9px] font-black px-2 py-1 bg-slate-100 text-slate-500 rounded uppercase">
+                      {new Date().getFullYear() - row.startYear} anos
+                      ({row.startYear})
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    {row.missingYears.length > 0 ? (
+                      <div className="flex flex-wrap gap-1 max-w-[200px]">
+                        {row.missingYears.map((y: any) => (
+                          <span
+                            key={y}
+                            className="text-[8px] font-black bg-red-50 text-red-600 px-1.5 py-0.5 rounded border border-red-100"
+                          >
+                            {y}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-slate-300">-</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4">
+                    {row.pendingBalances.length > 0 ? (
+                      <div className="flex flex-wrap gap-1 max-w-[200px]">
+                        {row.pendingBalances.map((p: any) => (
+                          <span
+                            key={p.year}
+                            className="text-[8px] font-black bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100"
+                          >
+                            {p.year} ({p.days}d)
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-slate-300">-</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <span
+                      className={cn(
+                        "text-sm font-black px-3 py-1 rounded-lg border inline-block min-w-[3rem]",
+                        row.totalPendingDays > 100
+                          ? "bg-red-50 text-red-600 border-red-200"
+                          : row.totalPendingDays > 50
+                            ? "bg-orange-50 text-orange-600 border-orange-200"
+                            : "bg-indigo-50 text-indigo-600 border-indigo-200",
+                      )}
+                    >
+                      {row.totalPendingDays}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                     {isVal ? (
+                        <div className="flex flex-col items-center">
+                           <CheckCircle2 className="w-4 h-4 text-emerald-500 mb-0.5" />
+                           <span className="text-[8px] font-black uppercase text-emerald-600 leading-tight">
+                             Validado<br />
+                             {isVal.validatorName || isVal.validatorRg}
+                           </span>
+                        </div>
+                     ) : (
+                        <button
+                          onClick={() => {
+                             setValidationTargetRg(row.militar.rg);
+                             setValidationTargetName(row.militar.warName || row.militar.name);
+                             setValidationPassword("");
+                             setValidationError("");
+                             setValidationModalOpen(true);
+                          }}
+                          className="px-3 py-1 text-[9px] font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded uppercase tracking-wider transition-colors"
+                        >
+                           Validar
+                        </button>
+                     )}
+                  </td>
+                </tr>
+              );
+            }))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
   return (
     <div className="flex flex-col gap-8 font-sans">
@@ -1149,9 +1429,6 @@ export function VacationModule({
                     </tr>
                   ) : (
                     filteredMilitarsReport
-                      .sort((a, b) =>
-                        (a.name || "").localeCompare(b.name || ""),
-                      )
                       .map((m) => {
                         const rg = normalizeRg(m.rg);
                         const data: any = allPreferences[rg] || {};
@@ -1325,9 +1602,10 @@ export function VacationModule({
                     Total de Dias Pendentes (Geral)
                   </h3>
                   <div className="text-5xl font-black text-red-500 tracking-tighter">
-                    {panoramaData
-                      .reduce((acc, row) => acc + row.totalPendingDays, 0)
-                      .toLocaleString()}
+                    {(
+                      panoramaData.oficiais.reduce((acc, row) => acc + row.totalPendingDays, 0) +
+                      panoramaData.pracas.reduce((acc, row) => acc + row.totalPendingDays, 0)
+                    ).toLocaleString()}
                   </div>
                 </div>
                 <div className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-50 shadow-sm flex flex-col justify-center">
@@ -1335,7 +1613,10 @@ export function VacationModule({
                     Militares c/ Alta Pendência (&gt;60 dias)
                   </h3>
                   <div className="text-5xl font-black text-orange-500 tracking-tighter">
-                    {panoramaData.filter((r) => r.totalPendingDays > 60).length}
+                    {
+                      panoramaData.oficiais.filter((r) => r.totalPendingDays > 60).length +
+                      panoramaData.pracas.filter((r) => r.totalPendingDays > 60).length
+                    }
                   </div>
                 </div>
                 <div className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-50 shadow-sm flex flex-col justify-center">
@@ -1343,10 +1624,10 @@ export function VacationModule({
                     Anos de Lapsos Totais Registrados
                   </h3>
                   <div className="text-5xl font-black text-indigo-500 tracking-tighter">
-                    {panoramaData.reduce(
-                      (acc, row) => acc + row.missingYears.length,
-                      0,
-                    )}
+                    {
+                      panoramaData.oficiais.reduce((acc, row) => acc + row.missingYears.length, 0) +
+                      panoramaData.pracas.reduce((acc, row) => acc + row.missingYears.length, 0)
+                    }
                   </div>
                 </div>
               </div>
@@ -1358,13 +1639,13 @@ export function VacationModule({
                       Panorama Global SAD
                     </h3>
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                      Visão geral sobre férias atrasadas, organizadas pelas
-                      maiores pendências (antes da aposentadoria)
+                      Visão geral sobre férias atrasadas, organizadas pelas maiores pendências
                     </p>
                   </div>
                   <button
                     onClick={() => {
-                      const exportData = panoramaData.map((row) => ({
+                      const combined = [...panoramaData.oficiais, ...panoramaData.pracas].sort((a,b) => b.totalPendingDays - a.totalPendingDays);
+                      const exportData = combined.map((row) => ({
                         Militar: `${row.militar.rank} ${row.militar.name}`,
                         RG: row.militar.rg,
                         "Admissão Estimada": row.startYear,
@@ -1387,120 +1668,130 @@ export function VacationModule({
                   </button>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50/20">
-                        <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                          Militar
-                        </th>
-                        <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 text-center">
-                          Carreira (Est.)
-                        </th>
-                        <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                          Lapsos de Registro (0 dias)
-                        </th>
-                        <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                          Saldos Parciais Pendentes
-                        </th>
-                        <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 text-center">
-                          Dias a Cumprir
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {panoramaData.length === 0 ? (
-                        <tr>
-                          <td
-                            colSpan={5}
-                            className="p-16 text-center text-[10px] font-black text-slate-400 uppercase"
-                          >
-                            Nenhuma pendência encontrada.
-                          </td>
-                        </tr>
-                      ) : (
-                        panoramaData.map((row, i) => (
-                          <tr
-                            key={row.militar.rg}
-                            className="hover:bg-slate-50/50 transition-colors"
-                          >
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-3">
-                                <div className="shrink-0 w-8 flex justify-center">
-                                  <RankInsignia rankStr={row.militar.rank} />
-                                </div>
-                                <div>
-                                  <div className="text-xs font-black text-slate-800 uppercase">
-                                    {row.militar.warName || row.militar.name}
-                                  </div>
-                                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                                    RG: {row.militar.rg} • {row.militar.obm}
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                              <span className="text-[9px] font-black px-2 py-1 bg-slate-100 text-slate-500 rounded uppercase">
-                                {new Date().getFullYear() - row.startYear} anos
-                                ({row.startYear})
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">
-                              {row.missingYears.length > 0 ? (
-                                <div className="flex flex-wrap gap-1 max-w-[200px]">
-                                  {row.missingYears.map((y) => (
-                                    <span
-                                      key={y}
-                                      className="text-[8px] font-black bg-red-50 text-red-600 px-1.5 py-0.5 rounded border border-red-100"
-                                    >
-                                      {y}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span className="text-[10px] text-slate-300">
-                                  -
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4">
-                              {row.pendingBalances.length > 0 ? (
-                                <div className="flex flex-wrap gap-1 max-w-[200px]">
-                                  {row.pendingBalances.map((p) => (
-                                    <span
-                                      key={p.year}
-                                      className="text-[8px] font-black bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100"
-                                    >
-                                      {p.year} ({p.days}d)
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span className="text-[10px] text-slate-300">
-                                  -
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                              <span
-                                className={cn(
-                                  "text-sm font-black px-3 py-1 rounded-lg border inline-block min-w-[3rem]",
-                                  row.totalPendingDays > 100
-                                    ? "bg-red-50 text-red-600 border-red-200"
-                                    : row.totalPendingDays > 50
-                                      ? "bg-orange-50 text-orange-600 border-orange-200"
-                                      : "bg-indigo-50 text-indigo-600 border-indigo-200",
-                                )}
-                              >
-                                {row.totalPendingDays}
-                              </span>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
+                {/* Filters Row */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 sm:px-8 bg-slate-50 border-b border-slate-100">
+                  <div className="flex flex-col gap-2 flex-1">
+                    <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Filtrar por OBM:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {["TODAS", "10º GBM", "2/10", "3/10", "4/10", "1/26", "26º GBM"].map((obm) => (
+                        <button
+                          key={obm}
+                          onClick={() => setPanoramaObmFilter(obm)}
+                          className={cn(
+                            "px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border",
+                            panoramaObmFilter === obm
+                              ? "bg-orange-600 border-orange-600 text-white shadow-md shadow-orange-200/50 scale-[1.02]"
+                              : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                          )}
+                        >
+                          {obm}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="relative w-full md:w-64">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Buscar por nome ou RG..."
+                      value={panoramaSearch}
+                      onChange={(e) => setPanoramaSearch(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold uppercase tracking-widest text-slate-700 outline-none focus:border-orange-400 transition-all shadow-sm"
+                    />
+                  </div>
                 </div>
+
+                <div className="p-4 sm:px-8 bg-white border-b border-slate-100 flex flex-wrap gap-4 justify-between items-center">
+                  <div className="flex gap-2">
+                     <button
+                       onClick={() => setPanoramaStatusFilter("PENDENTES")}
+                       className={cn(
+                         "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border",
+                         panoramaStatusFilter === "PENDENTES" ? "bg-amber-100 border-amber-200 text-amber-800 shadow-sm" : "bg-white text-slate-500 hover:bg-slate-50"
+                       )}
+                     >
+                       Pendentes
+                     </button>
+                     <button
+                       onClick={() => setPanoramaStatusFilter("REGULARIZADOS")}
+                       className={cn(
+                         "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border",
+                         panoramaStatusFilter === "REGULARIZADOS" ? "bg-emerald-100 border-emerald-200 text-emerald-800 shadow-sm" : "bg-white text-slate-500 hover:bg-slate-50"
+                       )}
+                     >
+                       Regularizados
+                     </button>
+                     <button
+                       onClick={() => setPanoramaStatusFilter("VALIDADOS")}
+                       className={cn(
+                         "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border",
+                         panoramaStatusFilter === "VALIDADOS" ? "bg-blue-100 border-blue-200 text-blue-800 shadow-sm" : "bg-white text-slate-500 hover:bg-slate-50"
+                       )}
+                     >
+                       Validados
+                     </button>
+                  </div>
+                  
+                  {panoramaStatusFilter === "PENDENTES" && (
+                     <div className="flex gap-2 items-center">
+                        <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Ordenar por:</span>
+                        <button
+                          onClick={() => setPanoramaSortMode("dias")}
+                          className={cn(
+                            "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border",
+                            panoramaSortMode === "dias" ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "bg-white text-slate-500 hover:bg-slate-50"
+                          )}
+                        >
+                          Maior Pendência
+                        </button>
+                        <button
+                          onClick={() => setPanoramaSortMode("graduacao")}
+                          className={cn(
+                            "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border",
+                            panoramaSortMode === "graduacao" ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "bg-white text-slate-500 hover:bg-slate-50"
+                          )}
+                        >
+                          Graduação
+                        </button>
+                     </div>
+                  )}
+                </div>
+
+                {(() => {
+                  const displayOficiais = panoramaStatusFilter === "PENDENTES" ? panoramaData.oficiais : panoramaStatusFilter === "REGULARIZADOS" ? panoramaData.regularizadosOficiais : panoramaData.validadosOficiais;
+                  const displayPracas = panoramaStatusFilter === "PENDENTES" ? panoramaData.pracas : panoramaStatusFilter === "REGULARIZADOS" ? panoramaData.regularizadosPracas : panoramaData.validadosPracas;
+
+                  return (
+                    <>
+                      {/* OFICIAIS Section */}
+                      <div className="border-b-4 border-slate-100">
+                        <div className="p-6 sm:p-8 bg-slate-50/30 border-b border-slate-100 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-2.5 h-6 bg-orange-600 rounded-full"></div>
+                            <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">
+                              OFICIAIS ({displayOficiais.length})
+                            </h4>
+                          </div>
+                        </div>
+                        {renderPanoramaTable(displayOficiais, "Oficiais")}
+                      </div>
+
+                      {/* PRAÇAS Section */}
+                      <div>
+                        <div className="p-6 sm:p-8 bg-slate-50/30 border-b border-slate-100 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-2.5 h-6 bg-indigo-600 rounded-full"></div>
+                            <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">
+                              PRAÇAS ({displayPracas.length})
+                            </h4>
+                          </div>
+                        </div>
+                        {renderPanoramaTable(displayPracas, "Praças")}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </>
           )}
@@ -2149,6 +2440,62 @@ export function VacationModule({
             onClose={() => setShowImporter(false)}
             onImport={handleImport}
           />
+        )}
+        
+        {validationModalOpen && (
+           <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
+           >
+              <div className="bg-white rounded-3xl p-6 sm:p-8 w-full max-w-sm shadow-2xl relative">
+                 <button
+                    onClick={() => setValidationModalOpen(false)}
+                    className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+                 >
+                    <X className="w-5 h-5" />
+                 </button>
+                 
+                 <div className="text-center mb-6">
+                    <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                       <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tighter">Validar Férias</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                       Militar: {validationTargetName}
+                    </p>
+                 </div>
+                 
+                 <form onSubmit={handleConfirmValidation} className="space-y-4">
+                    {validationError && (
+                       <div className="p-3 bg-red-50 text-red-600 text-[10px] font-bold uppercase tracking-wider rounded-xl text-center border border-red-100">
+                          {validationError}
+                       </div>
+                    )}
+                    
+                    <div>
+                       <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Sua Senha</label>
+                       <input
+                          type="password"
+                          required
+                          value={validationPassword}
+                          onChange={(e) => setValidationPassword(e.target.value)}
+                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-400 focus:ring-0 transition-all font-mono text-xs text-slate-700"
+                          placeholder="Mínimo 6 caracteres"
+                       />
+                    </div>
+                    
+                    <button
+                       type="submit"
+                       disabled={validating}
+                       className="w-full py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center shadow-lg shadow-indigo-100 transition-all hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                       {validating ? "Validando..." : "Confirmar Validação"}
+                    </button>
+                 </form>
+              </div>
+           </motion.div>
         )}
       </AnimatePresence>
     </div>

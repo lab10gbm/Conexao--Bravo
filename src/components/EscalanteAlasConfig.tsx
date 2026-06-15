@@ -3,6 +3,7 @@ import { useMilitars } from '../contexts/MilitarContext';
 import { Search, Loader2, Plus, X, ArrowRight, Users } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { UserProfile } from '../types';
+import { AfastamentosAlaModule } from './AfastamentosAlaModule';
 
 function normalizeRg(rg: string | number | undefined) {
   if (!rg) return '';
@@ -83,6 +84,8 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
 
   return (
     <div className="p-6">
+      <AfastamentosAlaModule obmContext={obmContext} type="atuais" />
+
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Distribuição do Efetivo ({obmContext})</h3>
         <div className="relative">
@@ -189,6 +192,10 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
             </div>
           );
         })}
+      </div>
+
+      <div className="mt-8">
+        <AfastamentosAlaModule obmContext={obmContext} type="anual" />
       </div>
     </div>
   );
