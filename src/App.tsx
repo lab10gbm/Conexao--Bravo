@@ -84,6 +84,7 @@ const EscalanteDashboard = React.lazy(() =>
 );
 const GestaoEfetivoModeracaoModule = React.lazy(() => import("./components/GestaoEfetivoModeracaoModule").then((m) => ({ default: m.GestaoEfetivoModeracaoModule })));
 const GestaoSadDashboard = React.lazy(() => import("./components/GestaoSadDashboard").then((m) => ({ default: m.GestaoSadDashboard })));
+const AtualizacaoCadastralModule = React.lazy(() => import("./components/AtualizacaoCadastralModule").then((m) => ({ default: m.AtualizacaoCadastralModule })));
 const PainelMilitarDashboard = React.lazy(() => import("./components/PainelMilitarDashboard").then((m) => ({ default: m.PainelMilitarDashboard })));
 const MedidasModule = React.lazy(() =>
   import("./components/MedidasModule").then((m) => ({
@@ -1082,6 +1083,22 @@ export default function App() {
                   >
                     <GestaoSadDashboard
                       user={effectiveProfile!}
+                    />
+                  </motion.div>
+                }
+              />
+              <Route
+                path="/atualizacao-cadastral"
+                element={
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.05 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <AtualizacaoCadastralModule
+                      user={effectiveProfile!}
+                      onBack={() => navigate("/gestao-sad")}
                     />
                   </motion.div>
                 }

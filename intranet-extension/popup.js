@@ -1,4 +1,12 @@
 document.getElementById('btnVarrer').addEventListener('click', async () => {
+  iniciar("iniciar_varredura");
+});
+
+document.getElementById('btnVarrerPessoais').addEventListener('click', async () => {
+  iniciar("iniciar_varredura_pessoais");
+});
+
+async function iniciar(acao) {
   const textarea = document.getElementById('listaRGs');
   const rgsRaw = textarea.value.split('\n');
   
@@ -22,7 +30,7 @@ document.getElementById('btnVarrer').addEventListener('click', async () => {
   try {
     // Notifica o content script na página atual para começar a buscar silenciosamente
     await chrome.tabs.sendMessage(tab.id, { 
-      acao: "iniciar_varredura", 
+      acao: acao, 
       lista: rgs 
     });
   } catch (err) {
@@ -33,4 +41,4 @@ document.getElementById('btnVarrer').addEventListener('click', async () => {
       alert("Ocorreu um erro ao comunicar com a página: " + err.message);
     }
   }
-});
+}

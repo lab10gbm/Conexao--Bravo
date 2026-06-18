@@ -34,6 +34,13 @@ export function GestaoSadDashboard({ user }: GestaoSadDashboardProps) {
       icon: CalendarOff,
       color: 'bg-sky-600 shadow-sky-200',
       inDevelopment: true
+    },
+    {
+      id: 'atualizacao-cadastral',
+      label: 'Atualização Cadastral',
+      description: 'Sincronizar Dados DGP',
+      icon: Users,
+      color: 'bg-emerald-600 shadow-emerald-200'
     }
   ];
 

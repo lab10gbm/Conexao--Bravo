@@ -1,8 +1,153 @@
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.acao === "iniciar_varredura") {
     executarBuscaFluida(request.lista);
+  } else if (request.acao === "iniciar_varredura_pessoais") {
+    executarBuscaPessoais(request.lista);
   }
 });
+
+async function executarBuscaPessoais(rgs) {
+  let finalData = [];
+  
+  for (let rg of rgs) {
+    console.log(`Buscando dados pessoais do RG: ${rg}...`);
+    
+    try {
+      // 1. Pesquisa o militar na sessão atual
+      const fd = new FormData();
+      fd.append('rg_cons', rg);
+      fd.append('Submit', 'Pesquisar');
+      
+      let searchAction = 'consulta_mil.php';
+      const form = document.querySelector('form');
+      if (form && form.getAttribute('action')) {
+          searchAction = form.getAttribute('action');
+      }
+      
+      await fetch(searchAction, { method: 'POST', body: fd }).catch(e => {
+          console.warn(`Tentativa de POST para ${searchAction} falhou:`, e);
+      });
+      
+      // 2. Coleta a página de Dados Pessoais (geralmente corpo.php ou doc.body)
+      let text = "";
+      try {
+          let res = await fetch('corpo.php').catch(() => null);
+          if (res && res.status === 200) {
+              text = await res.text();
+          } else {
+              text = document.body.innerHTML;
+          }
+      } catch (e) {
+          text = document.body.innerHTML;
+      }
+      
+      const doc = new DOMParser().parseFromString(text, 'text/html');
+      const pageText = (doc.body.textContent || "").replace(/\s+/g, ' '); // normaliza os espaços
+      
+      // Vamos tentar extrair baseado nas labels que o DGP usa
+      const extractField = (str, fieldName, nextFieldName) => {
+         const regex = new RegExp(`${fieldName}:?\\s*(.*?)\\s*(?:${nextFieldName}|$)`, 'i');
+         const match = str.match(regex);
+         return match ? match[1].trim() : '';
+      };
+
+      // Extract specific identifiers
+      const rgFormat = rg.length > 3 ? rg.slice(0, -3) + '.' + rg.slice(-3) : rg;
+      const isCorrectMil = pageText.includes(rgFormat) || pageText.includes(`RG ${rg}`);
+      
+      if (!isCorrectMil) {
+         console.warn(`RG ${rg}: Militar não validado no texto da página, os dados podem ser inconsistentes.`);
+      }
+
+      const personalData = {
+         rg: rg,
+         pai: extractField(pageText, 'PAI', 'MAE:'),
+         mae: extractField(pageText, 'MAE', 'Nome de Guerra:'),
+         nomeGuerra: extractField(pageText, 'Nome de Guerra', 'Nascimento:'),
+         nascimento: extractField(pageText, 'Nascimento', 'CPF:'),
+         cpf: extractField(pageText, 'CPF', 'PASEP:'),
+         pasep: extractField(pageText, 'PASEP', 'CNH:'),
+         cnh: extractField(pageText, 'CNH', 'CAT:'),
+         cnhCat: extractField(pageText, 'CAT', 'Grau de Instru'),
+         grauInstrucao: extractField(pageText, 'Grau de Instrução', 'E-mail:'),
+         email: extractField(pageText, 'E-mail', 'Nacionalidade:'),
+         nacionalidade: extractField(pageText, 'Nacionalidade', 'Naturalidade:'),
+         naturalidade: extractField(pageText, 'Naturalidade', 'Estado Civil:'),
+         estadoCivil: extractField(pageText, 'Estado Civil', 'Sexo:'),
+         sexo: extractField(pageText, 'Sexo', 'Tipo Sang'),
+         tipoSanguineo: extractField(pageText, 'Tipo Sangüíneo', 'Cor dos Cabelos:'),
+         corCabelos: extractField(pageText, 'Cor dos Cabelos', 'Cor dos Olhos:'),
+         corOlhos: extractField(pageText, 'Cor dos Olhos', 'Cútis:'),
+         cutis: extractField(pageText, 'Cútis', 'Altura:'),
+         altura: extractField(pageText, 'Altura', 'Num Calçado:'),
+         numCalcado: extractField(pageText, 'Num Calçado', 'Num Quepe:'),
+         numQuepe: extractField(pageText, 'Num Quepe', 'Num camisa:'),
+         numCamisa: extractField(pageText, 'Num camisa', 'Num Calça:'),
+         numCalca: extractField(pageText, 'Num Calça', 'Endereco'),
+         telefoneCelular: extractField(pageText, 'Telefone Celular', 'WhatsApp:'),
+         whatsapp: extractField(pageText, 'WhatsApp', 'Telefone Funcional:'),
+         telefoneFuncional: extractField(pageText, 'Telefone Funcional', 'Telefone Residencial:'),
+         telefoneResidencial: extractField(pageText, 'Telefone Residencial', 'OBM Atual:'),
+         obmAtual: extractField(pageText, 'OBM Atual', 'Comportamento:'),
+         comportamento: extractField(pageText, 'Comportamento', 'Data Boletim'),
+         dataBoletim: extractField(pageText, 'Data Boletim', 'Ala:'),
+         ala: extractField(pageText, 'Ala', 'Atividade na Ala:'),
+         atividadeAla: extractField(pageText, 'Atividade na Ala', 'Função:'),
+         funcao: extractField(pageText, 'Função', 'Função Específica:'),
+         funcaoEspecifica: extractField(pageText, 'Função Específica', 'Detalhes:'),
+         detalhes: extractField(pageText, 'Detalhes', 'Atividade:'),
+         atividade: extractField(pageText, 'Atividade', 'RG Anterior:'),
+         identidadeCivil: extractField(pageText, 'Identidade Civil', 'Orgao Emissor'),
+         orgaoEmissor: extractField(pageText, 'Orgao Emissor', 'Estado Emissor')
+      };
+
+      finalData.push(personalData);
+      
+      await new Promise(r => setTimeout(r, 1000));
+      
+    } catch (err) {
+      console.error(`Erro ao processar RG ${rg}:`, err);
+    }
+  }
+  
+  if (finalData.length > 0) {
+      await enviarPessoaisParaPlanilha(finalData);
+  } else {
+      alert("Nenhum dado válido foi encontrado para os RGs informados.");
+  }
+}
+
+async function enviarPessoaisParaPlanilha(personalDataList) {
+  const webAppUrl = "https://ais-pre-zrzalylqdof6lo5c3vm2nd-725468355119.us-east1.run.app/api/admin/personal-data/bulk-sync";
+  const API_KEY = "MINHA_CHAVE_SECRETA_SUPER_SEGURA_123";
+
+  try {
+    const response = await fetch(webAppUrl, {
+      method: "POST",
+      mode: "cors", 
+      headers: { 
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "x-api-key": API_KEY
+      }, 
+      body: JSON.stringify({ personalDataList: personalDataList })
+    });
+    
+    if (response.status === 200) {
+      const result = await response.json();
+      if (result && result.success) {
+        alert(`SINCRONIZAÇÃO ENVIADA!\n${result.count || personalDataList.length} registros foram encaminhados para sua plataforma.`);
+      } else {
+        alert("A sincronização falhou: " + (result.error || 'Erro desconhecido'));
+      }
+    } else {
+      const errorText = await response.text();
+      alert(`Erro no Servidor: ${response.status}\nURL: ${webAppUrl}\n\nResposta: ${errorText.substring(0, 200)}`);
+    }
+  } catch(err) {
+    alert("Erro ao conectar com a Plataforma: " + err + "\nVerifique o link: " + webAppUrl);
+  }
+}
 
 async function executarBuscaFluida(rgs) {
   let finalData = [];

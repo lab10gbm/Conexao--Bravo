@@ -165,6 +165,68 @@ syncRouter.post('/admin/vacation/raw-sync', apiKeyMiddleware, async (req, res) =
   }
 });
 
+syncRouter.post('/admin/personal-data/bulk-sync', apiKeyMiddleware, async (req, res) => {
+  const db = getAdminDb();
+  try {
+    const { personalDataList } = req.body;
+    
+    if (!personalDataList || !Array.isArray(personalDataList)) {
+      return res.status(400).json({ success: false, error: 'Lista de dados pessoais vazia ou inválida' });
+    }
+
+    const timestamp = new Date().toISOString();
+    const serverTimestampValue = admin.firestore.FieldValue.serverTimestamp() || timestamp;
+
+    let batch = db.batch();
+    let count = 0;
+    let batchCount = 0;
+
+    for (const item of personalDataList) {
+      if (!item) continue;
+      const cleanRg = normalizeRg(item.rg);
+      if (!cleanRg) continue;
+      
+      const docRef = db.collection('personalData').doc(cleanRg);
+      const militaryRef = db.collection('militaries').doc(cleanRg);
+      
+      // Save full extracted personal data to a separate 'personalData' collection
+      batch.set(docRef, {
+        ...item,
+        rg: cleanRg,
+        updatedAt: serverTimestampValue
+      }, { merge: true });
+
+      // Optionally sync some fields back to 'militaries' for global app usage
+      const updatesToMilitary: any = { updatedAt: serverTimestampValue };
+      if (item.cpf) updatesToMilitary.cpf = item.cpf;
+      if (item.telefoneCelular) updatesToMilitary.cel = item.telefoneCelular;
+      if (item.telefoneResidencial) updatesToMilitary.tel = item.telefoneResidencial;
+      if (item.email) updatesToMilitary.email = item.email;
+      if (item.nascimento) updatesToMilitary.nascimento = item.nascimento;
+      if (item.idFuncional) updatesToMilitary.idFuncional = item.idFuncional;
+      if (item.nomeGuerra) updatesToMilitary.warName = item.nomeGuerra;
+
+      batch.set(militaryRef, updatesToMilitary, { merge: true });
+
+      count++;
+      batchCount++;
+
+      if (batchCount >= 200) {
+        await batch.commit();
+        batch = db.batch();
+        batchCount = 0;
+      }
+    }
+
+    if (batchCount > 0) {
+      await batch.commit();
+    }
+    
+    return res.json({ success: true, count });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
 syncRouter.post('/admin/militaries/bulk-sync', apiKeyMiddleware, async (req, res) => {
   const db = getAdminDb();
   const { militaries } = req.body;
