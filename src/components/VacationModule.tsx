@@ -1200,8 +1200,7 @@ export function VacationModule({
             )}
           >
             <Download className="w-4 h-4" />{" "}
-            <span className="hidden sm:inline">Sincronizar DGP</span>
-            <span className="sm:hidden">Sincronizar</span>
+            <span>Sincronizar DGP</span>
           </button>
           {isPowerUser && (
             <div className="flex items-center gap-2 bg-gradient-to-r from-indigo-50 to-white px-3 py-2 border border-indigo-100 shadow-sm rounded-2xl ring-1 ring-white/50 transition-all hover:border-indigo-200 group">

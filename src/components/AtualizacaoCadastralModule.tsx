@@ -38,6 +38,13 @@ export function AtualizacaoCadastralModule({ user, onBack }: AtualizacaoCadastra
 (function() {
     'use strict';
 
+    // Evita duplicatas limitando a injeção ao frame principal ou top window
+    if (window.top !== window.self) {
+        if (!['corpo', 'main', 'frame_principal'].includes(window.name)) return;
+    } else {
+        if (document.body && document.body.tagName.toLowerCase() === 'frameset') return;
+    }
+
     try {
         const fixGlobals = (win) => { win.over="over"; win.out="out"; };
         fixGlobals(window);

@@ -79,8 +79,8 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
   const tampermonkeyCode = `// ==UserScript==
 // @name         Sincronizar DGP - Elite
 // @namespace    http://tampermonkey.net/
-// @version      2.2
-// @description  Bypass CORS e Sincronização Direta
+// @version      2.3
+// @description  Bypass CORS e Sincronização Direta - FAB expansível e arrastável
 // @author       10º GBM
 // @match        *://cbmerj.rj.gov.br/*
 // @match        *://*.cbmerj.rj.gov.br/*
@@ -95,47 +95,134 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
 (function() {
     'use strict';
 
+    // Evita duplicatas limitando a injeção ao frame principal ou top window (se não for frameset)
+    if (window.top !== window.self) {
+        if (!['corpo', 'main', 'frame_principal'].includes(window.name)) return;
+    } else {
+        if (document.body && document.body.tagName.toLowerCase() === 'frameset') return;
+    }
+
     try {
         const fixGlobals = (win) => { win.over="over"; win.out="out"; };
         fixGlobals(window);
         const script = document.createElement('script');
         script.textContent = 'window.over="over"; window.out="out"; try{for(let i=0;i<window.frames.length;i++){window.frames[i].window.over="over"; window.frames[i].window.out="out";}}catch(e){}';
-        document.documentElement.appendChild(script);
+        if (document.documentElement) document.documentElement.appendChild(script);
     } catch(e) {}
 
     const APP_URL = '${appUrl.replace(/\/$/, '')}';
 
-    function createButton() {
-        if (document.getElementById('sync-dgp-btn-elite')) return;
+    function createUI() {
+        if (document.getElementById('sync-dgp-container-elite')) return;
+        if (!document.body) return; // Aguarda o body existir
         
-        const btn = document.createElement('button');
-        btn.id = 'sync-dgp-btn-elite';
-        btn.innerText = '🚀 SINCRONIZAR DGP';
-        btn.style.position = 'fixed';
-        btn.style.bottom = '20px';
-        btn.style.right = '20px';
-        btn.style.zIndex = '2147483647';
-        btn.style.padding = '12px 25px';
-        btn.style.backgroundColor = '#ea580c';
-        btn.style.color = '#fff';
-        btn.style.border = '3px solid #fff';
-        btn.style.borderRadius = '15px';
-        btn.style.fontWeight = '900';
-        btn.style.fontSize = '13px';
-        btn.style.cursor = 'pointer';
-        btn.style.boxShadow = '0 10px 30px rgba(0,0,0,0.6)';
-        btn.style.fontFamily = 'Arial, sans-serif';
-        btn.style.transition = 'all 0.2s';
-        
-        btn.onmouseover = () => btn.style.transform = 'scale(1.05)';
-        btn.onmouseout = () => btn.style.transform = 'scale(1)';
+        let container = document.createElement('div');
+        container.id = 'sync-dgp-container-elite';
+        container.style.position = 'fixed';
+        container.style.bottom = '20px';
+        container.style.right = '20px';
+        container.style.zIndex = '2147483647';
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.alignItems = 'flex-end';
+        container.style.gap = '10px';
+        container.style.fontFamily = 'Arial, sans-serif';
 
-        btn.onclick = async () => {
+        let menu = document.createElement('div');
+        menu.style.display = 'none';
+        menu.style.flexDirection = 'column';
+        menu.style.gap = '8px';
+        menu.style.backgroundColor = '#fff';
+        menu.style.padding = '10px';
+        menu.style.borderRadius = '12px';
+        menu.style.boxShadow = '0 5px 15px rgba(0,0,0,0.3)';
+        menu.style.border = '2px solid #ea580c';
+
+        let btnSync = document.createElement('button');
+        btnSync.innerText = '🚀 Sincronizar Férias';
+        btnSync.style.padding = '10px 15px';
+        btnSync.style.backgroundColor = '#ea580c';
+        btnSync.style.color = '#fff';
+        btnSync.style.border = 'none';
+        btnSync.style.borderRadius = '8px';
+        btnSync.style.fontWeight = 'bold';
+        btnSync.style.cursor = 'pointer';
+        btnSync.style.fontSize = '14px';
+        btnSync.style.transition = 'opacity 0.2s';
+        
+        btnSync.onmouseover = () => btnSync.style.opacity = '0.85';
+        btnSync.onmouseout = () => btnSync.style.opacity = '1';
+
+        let fab = document.createElement('div');
+        fab.innerHTML = '⚙️';
+        fab.title = 'Menu de Sincronização DGP';
+        fab.style.width = '60px';
+        fab.style.height = '60px';
+        fab.style.borderRadius = '30px';
+        fab.style.backgroundColor = '#ea580c';
+        fab.style.color = 'white';
+        fab.style.display = 'flex';
+        fab.style.alignItems = 'center';
+        fab.style.justifyContent = 'center';
+        fab.style.fontSize = '28px';
+        fab.style.cursor = 'grab';
+        fab.style.boxShadow = '0 6px 15px rgba(0,0,0,0.4)';
+        fab.style.userSelect = 'none';
+        fab.style.transition = 'transform 0.2s';
+
+        fab.onmouseover = () => { if (!isDragging) fab.style.transform = 'scale(1.05)'; };
+        fab.onmouseout = () => { if (!isDragging) fab.style.transform = 'scale(1)'; };
+
+        let isDragging = false;
+        let startX, startY, initialX, initialY;
+
+        fab.onmousedown = function(e) {
+            e.preventDefault();
+            startX = e.clientX;
+            startY = e.clientY;
+            initialX = container.offsetLeft;
+            initialY = container.offsetTop;
+            isDragging = false;
+            fab.style.cursor = 'grabbing';
+            fab.style.transform = 'scale(0.95)';
+            document.addEventListener('mousemove', mouseMove);
+            document.addEventListener('mouseup', mouseUp);
+        };
+
+        function mouseMove(e) {
+            let dx = e.clientX - startX;
+            let dy = e.clientY - startY;
+            if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+                isDragging = true;
+                menu.style.display = 'none';
+            }
+            container.style.right = 'auto'; 
+            container.style.bottom = 'auto';
+            container.style.left = (initialX + dx) + 'px';
+            container.style.top = (initialY + dy) + 'px';
+        }
+
+        function mouseUp() {
+            document.removeEventListener('mousemove', mouseMove);
+            document.removeEventListener('mouseup', mouseUp);
+            fab.style.cursor = 'grab';
+            fab.style.transform = 'scale(1)';
+            
+            if (!isDragging) {
+                menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
+            }
+            setTimeout(() => isDragging = false, 50);
+        }
+
+        btnSync.onclick = async () => {
+             menu.style.display = 'none';
+             
              const getTargetDoc = () => {
                 const frames = ['corpo', 'main', 'frame_principal'];
                 for (let fName of frames) {
                     try {
-                        if (window.frames[fName] && window.frames[fName].document) return window.frames[fName].document;
+                        let topFrames = window.top ? window.top.frames : window.frames;
+                        if (topFrames[fName] && topFrames[fName].document) return topFrames[fName].document;
                     } catch(e){}
                 }
                 return document;
@@ -157,8 +244,8 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
                  if (!rg) return;
              }
              
-             btn.disabled = true;
-             btn.innerText = '⌛ SINCRONIZANDO...';
+             btnSync.disabled = true;
+             btnSync.innerText = '⌛ SINCRONIZANDO...';
 
              let lines = bodyText.split('\\n');
              let vacations = [];
@@ -189,7 +276,7 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
              
              if (vacations.length === 0) {
                  alert('RG encontrado (' + rg + '), mas Nenhuma férias mapeada/parseada na página.');
-                 btn.disabled = false; btn.innerText = '🚀 SINCRONIZAR DGP';
+                 btnSync.disabled = false; btnSync.innerText = '🚀 Sincronizar Férias';
                  return;
              }
 
@@ -199,7 +286,6 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
              const dbId = 'ai-studio-4572982c-0772-4965-98e3-8ccd137a6b92';
 
              let writes = vacations.flatMap(v => {
-
                  let docId = v.militarRg + '_' + (v.anoRef || '0000') + '_' + (v.dataInicio || '').replace(/\\//g, '');
                  return {
                      update: {
@@ -238,22 +324,26 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
                      } else {
                          alert('Erro no Servidor: ' + res.status + '\\n\\nResposta: ' + res.responseText.substring(0, 200));
                      }
-                     btn.disabled = false;
-                     btn.innerText = '🚀 SINCRONIZAR DGP';
+                     btnSync.disabled = false;
+                     btnSync.innerText = '🚀 Sincronizar Férias';
                  },
                  onerror: function(err) {
                      console.error('Erro GM_xmlhttpRequest:', err);
                      alert('Erro de Conexão Fatal para o Firebase. Verifique sua intranet: ' + JSON.stringify(err));
-                     btn.disabled = false;
-                     btn.innerText = '🚀 SINCRONIZAR DGP';
+                     btnSync.disabled = false;
+                     btnSync.innerText = '🚀 Sincronizar Férias';
                  }
              });
         };
-        document.body.appendChild(btn);
+        
+        menu.appendChild(btnSync);
+        container.appendChild(menu);
+        container.appendChild(fab);
+        document.body.appendChild(container);
     }
 
-    createButton();
-    setInterval(createButton, 3000);
+    // Intervalo reduzido para checar existência
+    setInterval(createUI, 2000);
 })();`;
 
   const bookmarkletCode = `javascript:(function(){
