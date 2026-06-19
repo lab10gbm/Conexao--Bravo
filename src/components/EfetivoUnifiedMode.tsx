@@ -55,12 +55,13 @@ export function EfetivoUnifiedMode({ militars, isAdmin, onLendRequested, onRowCl
         }
       };
     });
-  }, []);
+  }, [orderedColumns, visibleColumns]);
 
   return (
     <SmartDataTable 
       data={militars}
       columns={columns}
+      hideColumnsMenu={true}
       onRowClick={onRowClick}
       searchPlaceholder="Buscar na tabela unificada..."
       onSearch={(m, term) => {

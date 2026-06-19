@@ -60,43 +60,82 @@ export function NucleoNauticoGrdModule({ user, obmContext, setObmContext, availa
   const [configTab, setConfigTab] = useState<'oficialDia' | 'sobreaviso'>('oficialDia');
   const [showConfig, setShowConfig] = useState(false);
 
+  const isGlobal = obmContext === 'GLOBAL';
   // Normalize OBM for doc ID
-  const obmId = obmContext.replace(/\//g, '_').replace(/\s/g, '_');
+  const obmId = isGlobal ? 'GLOBAL' : obmContext.replace(/\//g, '_').replace(/\s/g, '_');
   const docId = obmId;
 
   useEffect(() => {
     setLoading(true);
-    const unsubscribe = onSnapshot(doc(db, 'nautico_scales', docId), (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        setOfficerData(data.days || {});
-        const monthKey = format(currentDate, 'yyyy-MM');
-        if (data.lists && data.lists[monthKey]) {
-           const currentMonthLists = data.lists[monthKey];
-           if (Array.isArray(currentMonthLists)) {
-               setSelectedRgsOficialDia(currentMonthLists);
-               setSelectedRgsSobreaviso([]);
-           } else {
-               setSelectedRgsOficialDia(currentMonthLists.oficialDia || []);
-               setSelectedRgsSobreaviso(currentMonthLists.sobreaviso || []);
-           }
-        } else {
-           setSelectedRgsOficialDia([]);
-           setSelectedRgsSobreaviso([]);
-        }
-      } else {
-        setOfficerData({});
-        setSelectedRgsOficialDia([]);
-        setSelectedRgsSobreaviso([]);
-      }
-      setLoading(false);
-    }, (error) => {
-      console.error("Error loading Nautico scale:", error);
-      setLoading(false);
-    });
+    
+    if (isGlobal) {
+      let db10: Record<string, any> = {};
+      let db26: Record<string, any> = {};
+      
+      const updateMerged = () => {
+         const merged: Record<string, Record<string, string>> = {};
+         const allDates = new Set([...Object.keys(db10), ...Object.keys(db26)]);
+         allDates.forEach(date => {
+            merged[date] = {
+               '10º_GBM-oficialDia': db10[date]?.oficialDia || '',
+               '10º_GBM-sobreaviso': db10[date]?.sobreaviso || '',
+               '26º_GBM-oficialDia': db26[date]?.oficialDia || '',
+               '26º_GBM-sobreaviso': db26[date]?.sobreaviso || ''
+            };
+         });
+         setOfficerData(merged);
+      };
 
-    return () => unsubscribe();
-  }, [docId, currentDate]);
+      const unsub10 = onSnapshot(doc(db, 'nautico_scales', '10º_GBM'), (snap) => {
+          if (snap.exists()) db10 = snap.data().days || {};
+          else db10 = {};
+          updateMerged();
+      });
+      
+      const unsub26 = onSnapshot(doc(db, 'nautico_scales', '26º_GBM'), (snap) => {
+          if (snap.exists()) db26 = snap.data().days || {};
+          else db26 = {};
+          updateMerged();
+          setLoading(false);
+      });
+      
+      setSelectedRgsOficialDia([]);
+      setSelectedRgsSobreaviso([]);
+      
+      return () => { unsub10(); unsub26(); };
+    } else {
+      const unsubscribe = onSnapshot(doc(db, 'nautico_scales', docId), (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          setOfficerData(data.days || {});
+          const monthKey = format(currentDate, 'yyyy-MM');
+          if (data.lists && data.lists[monthKey]) {
+             const currentMonthLists = data.lists[monthKey];
+             if (Array.isArray(currentMonthLists)) {
+                 setSelectedRgsOficialDia(currentMonthLists);
+                 setSelectedRgsSobreaviso([]);
+             } else {
+                 setSelectedRgsOficialDia(currentMonthLists.oficialDia || []);
+                 setSelectedRgsSobreaviso(currentMonthLists.sobreaviso || []);
+             }
+          } else {
+             setSelectedRgsOficialDia([]);
+             setSelectedRgsSobreaviso([]);
+          }
+        } else {
+          setOfficerData({});
+          setSelectedRgsOficialDia([]);
+          setSelectedRgsSobreaviso([]);
+        }
+        setLoading(false);
+      }, (error) => {
+        console.error("Error loading Nautico scale:", error);
+        setLoading(false);
+      });
+
+      return () => unsubscribe();
+    }
+  }, [obmContext, currentDate]);
 
   const monthDaysOnly = useMemo(() => {
     return eachDayOfInterval({ 
@@ -299,13 +338,27 @@ export function NucleoNauticoGrdModule({ user, obmContext, setObmContext, availa
     
     setSaving(true);
     try {
-      await setDoc(doc(db, 'nautico_scales', docId), cleanUndefined({
-        days: {
-          [dateStr]: {
-            [field]: value
-          }
-        }
-      }), { merge: true });
+      if (isGlobal) {
+         const is10 = field.startsWith('10º_GBM');
+         const realField = field.split('-')[1];
+         const targetId = is10 ? '10º_GBM' : '26º_GBM';
+         
+         await setDoc(doc(db, 'nautico_scales', targetId), cleanUndefined({
+            days: {
+              [dateStr]: {
+                [realField]: value
+              }
+            }
+          }), { merge: true });
+      } else {
+          await setDoc(doc(db, 'nautico_scales', docId), cleanUndefined({
+            days: {
+              [dateStr]: {
+                [field]: value
+              }
+            }
+          }), { merge: true });
+      }
     } catch (error) {
       console.error("Error saving Nautico scale:", error);
     } finally {
@@ -395,7 +448,7 @@ export function NucleoNauticoGrdModule({ user, obmContext, setObmContext, availa
               </div>
             </div>
 
-            {showConfig && (
+            {showConfig && !isGlobal && (
               <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-md">
                 <div className="flex gap-2 mb-4 border-b border-slate-200 pb-2">
                    <button 
@@ -466,15 +519,26 @@ export function NucleoNauticoGrdModule({ user, obmContext, setObmContext, availa
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-[#0e7490] border-b border-slate-400">
-                <th className="px-3 py-4 text-[11px] font-black uppercase tracking-widest text-white border-r border-[#164e63] w-32">
+                <th className="px-3 py-4 text-[11px] font-black uppercase tracking-widest text-white border-r border-[#164e63] w-32 shrink-0">
                   <div className="flex items-center gap-2">
                     <CalendarIcon className="w-4 h-4 opacity-50" />
                     DATA
                   </div>
                 </th>
-                <th className="px-3 py-4 text-[11px] font-black uppercase tracking-widest text-white border-r border-[#164e63] w-40">DIA</th>
-                <th className="px-3 py-4 text-[11px] font-black uppercase tracking-widest text-white border-r border-[#164e63]">OFICIAL DE DIA / CMT OP / SOBREAVISO 1 / GRD 1</th>
-                <th className="px-3 py-4 text-[11px] font-black uppercase tracking-widest text-white">SOBREAVISO 2 / GRD 2</th>
+                <th className="px-3 py-4 text-[11px] font-black uppercase tracking-widest text-white border-r border-[#164e63] w-40 shrink-0">DIA</th>
+                {isGlobal ? (
+                  <>
+                    <th className="px-3 py-4 text-[10px] font-black uppercase tracking-widest text-white border-r border-[#164e63] bg-[#0c6a85]">OF E CMT / G1 (10º GBM)</th>
+                    <th className="px-3 py-4 text-[10px] font-black uppercase tracking-widest text-white border-r border-[#164e63] bg-[#0c6a85]">OF E CMT / G1 (26º GBM)</th>
+                    <th className="px-3 py-4 text-[10px] font-black uppercase tracking-widest text-white border-r border-[#164e63]">SOBREAVISO / G2 (10º GBM)</th>
+                    <th className="px-3 py-4 text-[10px] font-black uppercase tracking-widest text-white">SOBREAVISO / G2 (26º GBM)</th>
+                  </>
+                ) : (
+                  <>
+                    <th className="px-3 py-4 text-[11px] font-black uppercase tracking-widest text-white border-r border-[#164e63]">OFICIAL DE DIA / CMT OP / SOBREAVISO 1 / GRD 1</th>
+                    <th className="px-3 py-4 text-[11px] font-black uppercase tracking-widest text-white">SOBREAVISO 2 / GRD 2</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -506,13 +570,16 @@ export function NucleoNauticoGrdModule({ user, obmContext, setObmContext, availa
                     <td className="px-4 py-2 border-r border-slate-200 text-[11px] font-black uppercase text-slate-500 italic">
                       {format(day, 'eeee', { locale: ptBR })}
                     </td>
-                    {['oficialDia', 'sobreaviso'].map((field) => {
+                    {(isGlobal ? ['10º_GBM-oficialDia', '26º_GBM-oficialDia', '10º_GBM-sobreaviso', '26º_GBM-sobreaviso'] : ['oficialDia', 'sobreaviso']).map((field) => {
                       const val = offDay[field as keyof typeof offDay] || '';
                       const isMe = val.includes(userDisplay) || (val.includes(user.rg || ''));
                       const isActiveSearch = activeSearchDay?.date === dateStr && activeSearchDay?.field === field;
+                      
+                      // For global, restrict search pool suggestion logic slightly if needed
+                      const targetFilterObm = isGlobal ? (field.startsWith('10º_GBM') ? '10º GBM' : '26º GBM') : null;
 
                       return (
-                        <td key={field} className="px-2 py-2 border-r border-slate-200 relative w-1/2">
+                        <td key={field} className={cn("px-2 py-2 border-r border-slate-200 relative", isGlobal ? "min-w-[150px]" : "w-1/2")}>
                           <button
                             onClick={() => {
                               setActiveSearchDay({ date: dateStr, field });
@@ -582,8 +649,8 @@ export function NucleoNauticoGrdModule({ user, obmContext, setObmContext, availa
                                     if (!m.name) return false;
                                     const rawMObm = m.obm ? m.obm : '10º GBM'; // Treat empty as 10º GBM
                                     const mObm = rawMObm.replace(/º/g, '°').trim().toUpperCase();
-                                    const ctxObm = (obmContext || '').replace(/º/g, '°').trim().toUpperCase();
-                                    if (ctxObm && ctxObm !== 'GLOBAL' && mObm !== ctxObm) return false;
+                                    const cObm = (targetFilterObm || '').replace(/º/g, '°').trim().toUpperCase();
+                                    if (cObm && cObm !== 'GLOBAL' && mObm !== cObm) return false;
                                     
                                     const sl = searchTerm.toLowerCase();
                                     const match = (m.name || '').toLowerCase().includes(sl) || (m.rg || '').includes(searchTerm);

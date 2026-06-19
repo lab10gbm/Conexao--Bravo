@@ -26,8 +26,9 @@ export function SmartDataTable<T>({
   onRowClick,
   renderActions,
   actionsLabel = 'Ações',
-  emptyMessage = 'Nenhum registro encontrado'
-}: SmartDataTableProps<T>) {
+  emptyMessage = 'Nenhum registro encontrado',
+  hideColumnsMenu = false
+}: SmartDataTableProps<T> & { hideColumnsMenu?: boolean }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [orderedColumnIds, setOrderedColumnIds] = useState(columns.map(c => c.id));
   const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(columns.map(c => c.id));
@@ -60,6 +61,8 @@ export function SmartDataTable<T>({
     return orderedColumns.filter(c => visibleColumnIds.includes(c.id));
   }, [orderedColumns, visibleColumnIds]);
 
+  const activeColumns = hideColumnsMenu ? columns : visibleColumns;
+
   return (
     <div className="flex flex-col h-full w-full gap-4">
       <div className="flex items-center justify-between gap-4">
@@ -77,14 +80,16 @@ export function SmartDataTable<T>({
         )}
 
         <div className="relative ml-auto">
-          <button 
-            onClick={() => setShowColumnsMenu(!showColumnsMenu)}
-            className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50"
-          >
-            <Columns size={16} /> Colunas
-          </button>
+          {!hideColumnsMenu && (
+            <button 
+              onClick={() => setShowColumnsMenu(!showColumnsMenu)}
+              className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50"
+            >
+              <Columns size={16} /> Colunas
+            </button>
+          )}
           
-          {showColumnsMenu && (
+          {showColumnsMenu && !hideColumnsMenu && (
             <div className="absolute right-0 top-full mt-2 bg-white border border-slate-200 rounded-lg shadow-xl p-3 z-50 w-56 flex flex-col gap-2">
               <div className="text-[10px] uppercase font-black tracking-widest text-slate-400 mb-1 border-b border-slate-100 pb-1">Colunas Visíveis</div>
               {orderedColumns.map((col, index) => (
@@ -134,7 +139,7 @@ export function SmartDataTable<T>({
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead className="bg-[#1e293b] text-white sticky top-0 z-10 text-[10px] uppercase font-black tracking-widest">
               <tr>
-                {visibleColumns.map(col => (
+                {activeColumns.map(col => (
                   <th key={col.id} className="p-3 border-b border-white/20 whitespace-nowrap">{col.label}</th>
                 ))}
                 {renderActions && <th className="p-3 border-b border-white/20 whitespace-nowrap">{actionsLabel}</th>}
@@ -147,7 +152,7 @@ export function SmartDataTable<T>({
                   className={`transition-colors ${onRowClick ? 'hover:bg-slate-50 cursor-pointer' : ''}`}
                   onClick={() => onRowClick?.(item)}
                 >
-                  {visibleColumns.map(col => (
+                  {activeColumns.map(col => (
                     <React.Fragment key={col.id}>
                       {col.render ? col.render(item) : (
                         <td className="p-3 text-xs text-slate-800">
@@ -165,7 +170,7 @@ export function SmartDataTable<T>({
               ))}
               {paginatedData.length === 0 && (
                 <tr>
-                  <td colSpan={visibleColumnIds.length + (renderActions ? 1 : 0)} className="p-8 text-center text-slate-500 font-bold uppercase tracking-widest text-xs">
+                  <td colSpan={activeColumns.length + (renderActions ? 1 : 0)} className="p-8 text-center text-slate-500 font-bold uppercase tracking-widest text-xs">
                     {emptyMessage}
                   </td>
                 </tr>

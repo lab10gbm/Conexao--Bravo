@@ -30,7 +30,7 @@ import { doc, setDoc } from "firebase/firestore";
 import { RankInsignia } from "./RankInsignia";
 import { MilitaryProfile } from "./MilitaryProfile";
 import { INITIAL_COLUMNS, GROUPS, OBM_HIERARCHY } from "../constants";
-import { parseRank, isOfficer } from "../lib/rankUtils";
+import { parseRank, isOfficer, sortAllBySeniority } from "../lib/rankUtils";
 import { EfetivoGridMode } from "./EfetivoGridMode";
 import { EfetivoTableObmMode } from "./EfetivoTableObmMode";
 import { EfetivoUnifiedMode } from "./EfetivoUnifiedMode";
@@ -189,9 +189,8 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
           return baseMatches && hasSelectedCurso;
         }
       }
-
       return baseMatches;
-    });
+    }).sort(sortAllBySeniority);
   }, [
     militars,
     search,
@@ -207,54 +206,54 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
     cursoFiltroAditivo,
   ]);
 
-  const handleExportExcel = () => {
-    const exportData = filteredMilitars.map((m) => ({
-      "Posto/Grad": m.rank || "",
-      Nome: m.name || "",
-      "Nome de Guerra": m.warName || m.name || "",
-      RG: m.rg || "",
-      Quadro: m.quadro || "",
-      OBM: m.obm || "",
-      Ala: m.ala || "",
-      Situação: m.situacao || "",
-      Cidade: m.cidade || "",
-      Contato: m.cel || m.tel || "",
-    }));
-    exportToExcel(exportData, "Efetivo", "Planilha_Efetivo");
-  };
-
-  const colKeyMap: Record<string, string> = {
-    rank: "rank",
-    quadro: "quadro",
-    warName: "warName",
-    rg: "rg",
-    idFuncional: "idFuncional",
-    ala: "ala",
-    obm: "obm",
-    name: "name",
-    cidade: "cidade",
-    cel: "cel",
-    tel: "tel",
-    email: "email",
-    situacao: "situacao",
-    cursos: "cursos",
-  };
-
-  const getExportColumns = () => {
+  const getPreparedExportData = () => {
     const cols = orderedColumns.filter(
       (c) => visibleColumns.includes(c.id) && c.id !== "insignia",
     );
+
+    const data = filteredMilitars.map((m) => {
+      const row: Record<string, string> = {};
+      cols.forEach((col) => {
+        let val = "";
+        if (col.id === "warName") {
+          val = m.warName || m.name || "";
+        } else if (col.id === "obm") {
+          val = normalizeObm(m.obm || "");
+        } else if (col.id === "contato" || col.id === "cel" || col.id === "tel") {
+           val = [m.cel, m.tel].filter(Boolean).join(" / ");
+        } else {
+          val = String(m[col.id as keyof typeof m] || "");
+        }
+        row[col.id] = val;
+      });
+      return row;
+    });
+
     return {
       headers: cols.map((c) => c.label),
-      keys: cols.map((c) => colKeyMap[c.id] || c.id),
+      keys: cols.map((c) => c.id),
+      data,
     };
+  };
+
+  const handleExportExcel = () => {
+    const { data, headers, keys } = getPreparedExportData();
+    // Excel needs the keys to be the actual headers
+    const excelData = data.map((row) => {
+      const excelRow: Record<string, string> = {};
+      keys.forEach((key, i) => {
+        excelRow[headers[i]] = row[key] as string;
+      });
+      return excelRow;
+    });
+    exportToExcel(excelData, "Efetivo", "Planilha_Efetivo");
   };
 
   const [copiedWord, setCopiedWord] = useState(false);
 
   const handleCopyClipboard = async () => {
-    const { headers, keys } = getExportColumns();
-    const success = await copyTableToClipboard(filteredMilitars, headers, keys);
+    const { headers, keys, data } = getPreparedExportData();
+    const success = await copyTableToClipboard(data, headers, keys);
     if (success) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -262,9 +261,9 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
   };
 
   const handleCopyClipboardWord = async () => {
-    const { headers, keys } = getExportColumns();
+    const { headers, keys, data } = getPreparedExportData();
     const success = await copyTableToClipboardWord(
-      filteredMilitars,
+      data,
       headers,
       keys,
       "Relatório de Efetivo",
@@ -336,7 +335,7 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
         return {
           id: name,
           name: displayName,
-          members: members,
+          members: [...members].sort(sortAllBySeniority),
           totalOriginal: members.length,
           lentIn: 0,
           lentOut: 0,
@@ -605,8 +604,24 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
                 </button>
                 {showColumnsMenu && (
                   <div className="absolute right-0 top-full mt-2 bg-white border border-slate-200 rounded-lg shadow-xl p-3 z-50 w-56 flex flex-col gap-2">
-                    <div className="text-[10px] uppercase font-black tracking-widest text-slate-400 mb-1 border-b border-slate-100 pb-1">
-                      Colunas Visíveis
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                      <div className="text-[10px] uppercase font-black tracking-widest text-slate-400">
+                        Colunas Visíveis
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setVisibleColumns(orderedColumns.map((c) => c.id))}
+                          className="text-[9px] uppercase font-black text-indigo-500 hover:text-indigo-600 tracking-widest"
+                        >
+                          Todas
+                        </button>
+                        <button
+                          onClick={() => setVisibleColumns([])}
+                          className="text-[9px] uppercase font-black text-slate-400 hover:text-slate-500 tracking-widest"
+                        >
+                          Nenhuma
+                        </button>
+                      </div>
                     </div>
                     {orderedColumns.map((col, index) => (
                       <div

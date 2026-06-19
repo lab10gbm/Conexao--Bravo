@@ -65,7 +65,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
   useEffect(() => {
     if (config && visibleCols.length === 0) {
       const allIds = config.areas.flatMap(a => a.fields.map(f => f.id));
-      setVisibleCols(['idFuncional', ...allIds]);
+      setVisibleCols(['nome', 'status', 'qbmp', 'posto', 'rg', 'idFuncional', ...allIds]);
     }
   }, [config]);
 
@@ -363,8 +363,14 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
   const isModerator = user.isAdmin || user.isEscalante;
 
   const getColSpan = () => {
-    let base = 6; // Checkbox, QBMP, Posto, Nome, RG, Status
-    if (visibleCols.includes('idFuncional')) base += 1;
+    let base = 1; // Checkbox
+    if (visibleCols.includes('qbmp')) base++;
+    if (visibleCols.includes('posto')) base++;
+    if (visibleCols.includes('nome')) base++;
+    if (visibleCols.includes('rg')) base++;
+    if (visibleCols.includes('idFuncional')) base++;
+    if (visibleCols.includes('status')) base++;
+
     if (!config) return base;
     
     config.areas.forEach(area => {
@@ -378,9 +384,13 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
 
   const copyTableToClipboard = () => {
     if (!config) return;
-    const headers = ["QBMP", "Posto", "Nome", "RG"];
+    const headers = [];
+    if (visibleCols.includes('qbmp')) headers.push("QBMP");
+    if (visibleCols.includes('posto')) headers.push("Posto / Grad");
+    if (visibleCols.includes('nome')) headers.push("Nome Completo");
+    if (visibleCols.includes('rg')) headers.push("RG");
     if (visibleCols.includes('idFuncional')) headers.push("ID Func.");
-    headers.push("Status");
+    if (visibleCols.includes('status')) headers.push("Status");
     
     config.areas.forEach(area => {
       if (displayMode === 'tudo' || displayMode === area.id) {
@@ -391,9 +401,13 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
     });
 
     const rows = filteredMilitars.map(m => {
-      const row = [m.quadro, m.rank, m.warName || m.name, m.rg];
+      const row = [];
+      if (visibleCols.includes('qbmp')) row.push(m.quadro || '');
+      if (visibleCols.includes('posto')) row.push(m.rank || '');
+      if (visibleCols.includes('nome')) row.push(m.warName || m.name || '');
+      if (visibleCols.includes('rg')) row.push(m.rg || '');
       if (visibleCols.includes('idFuncional')) row.push((m as any).idFuncional || '');
-      row.push(m.hasDbData ? 'FIXADO' : 'DGP');
+      if (visibleCols.includes('status')) row.push(m.hasDbData ? 'FIXADO' : 'DGP');
       
       config.areas.forEach(area => {
         if (displayMode === 'tudo' || displayMode === area.id) {
@@ -642,7 +656,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
                              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Configure os itens do efetivo exibidos na tabela</p>
                            </div>
                            <div className="flex items-center gap-4">
-                             <button onClick={() => setVisibleCols(['idFuncional', ...(config?.areas.flatMap(a => a.fields.map(f => f.id)) || [])])} className="px-5 py-3 text-[10px] font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-xl uppercase tracking-widest transition-colors">
+                             <button onClick={() => setVisibleCols(['qbmp', 'posto', 'nome', 'rg', 'idFuncional', 'status', ...(config?.areas.flatMap(a => a.fields.map(f => f.id)) || [])])} className="px-5 py-3 text-[10px] font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-xl uppercase tracking-widest transition-colors">
                                Ativar Tudo
                              </button>
                              <button onClick={() => setVisibleCols([])} className="px-5 py-3 text-[10px] font-black text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl uppercase tracking-widest transition-colors">
@@ -661,22 +675,31 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
                                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-900">Dados Funcionais</p>
                              </div>
                              <div className="grid grid-cols-1 gap-2">
-                               <label className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all border ${visibleCols.includes('idFuncional') ? 'bg-indigo-50 border-indigo-100' : 'bg-white border-slate-100 hover:border-slate-300'}`}>
-                                 <div className="flex items-center gap-4">
-                                   <input 
-                                     type="checkbox" 
-                                     checked={visibleCols.includes('idFuncional')}
-                                     onChange={(e) => {
-                                       if (e.target.checked) setVisibleCols([...visibleCols, 'idFuncional']);
-                                       else setVisibleCols(visibleCols.filter(c => c !== 'idFuncional'));
-                                     }}
-                                     className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 transition-all cursor-pointer"
-                                   />
-                                   <span className={`text-[11px] font-bold uppercase transition-colors ${visibleCols.includes('idFuncional') ? 'text-indigo-900' : 'text-slate-600'}`}>
-                                     ID Funcional
-                                   </span>
-                                 </div>
-                               </label>
+                               {[
+                                 { id: 'qbmp', label: 'QBMP' },
+                                 { id: 'posto', label: 'Posto / Grad' },
+                                 { id: 'nome', label: 'Nome Completo' },
+                                 { id: 'rg', label: 'RG' },
+                                 { id: 'status', label: 'Status' },
+                                 { id: 'idFuncional', label: 'ID Funcional' }
+                               ].map(col => (
+                                 <label key={col.id} className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all border ${visibleCols.includes(col.id) ? 'bg-indigo-50 border-indigo-100' : 'bg-white border-slate-100 hover:border-slate-300'}`}>
+                                   <div className="flex items-center gap-4">
+                                     <input 
+                                       type="checkbox" 
+                                       checked={visibleCols.includes(col.id)}
+                                       onChange={(e) => {
+                                         if (e.target.checked) setVisibleCols([...visibleCols, col.id]);
+                                         else setVisibleCols(visibleCols.filter(c => c !== col.id));
+                                       }}
+                                       className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 transition-all cursor-pointer"
+                                     />
+                                     <span className={`text-[11px] font-bold uppercase transition-colors ${visibleCols.includes(col.id) ? 'text-indigo-900' : 'text-slate-600'}`}>
+                                       {col.label}
+                                     </span>
+                                   </div>
+                                 </label>
+                               ))}
                              </div>
                            </div>
 
@@ -726,15 +749,22 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
                <button 
                 onClick={() => {
                   const exportData = filteredMilitars.map(m => {
-                    const row: any = {
-                      'Posto': m.rank || '',
-                      'Nome': m.warName || m.name || '',
-                      'RG': m.rgStr || ''
-                    };
+                    const row: any = {};
+                    if (visibleCols.includes('qbmp')) row['QBMP'] = m.quadro || '';
+                    if (visibleCols.includes('posto')) row['Posto'] = m.rank || '';
+                    if (visibleCols.includes('nome')) row['Nome Completo'] = m.warName || m.name || '';
+                    if (visibleCols.includes('rg')) row['RG'] = (m as any).rgStr || m.rg || '';
+                    if (visibleCols.includes('idFuncional')) row['ID Func.'] = (m as any).idFuncional || '';
+                    if (visibleCols.includes('status')) row['Status'] = m.hasDbData ? 'FIXADO' : 'DGP';
+
                     config?.areas.forEach(area => {
-                      area.fields.forEach(f => {
-                        row[f.label] = (m as any)[f.id] || '-';
-                      });
+                      if (displayMode === 'tudo' || displayMode === area.id) {
+                        area.fields.forEach(f => {
+                          if (visibleCols.includes(f.id)) {
+                            row[f.label] = (m as any)[f.id] || '-';
+                          }
+                        });
+                      }
                     });
                     return row;
                   });
@@ -761,14 +791,24 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
                         className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                       />
                     </th>
-                    <th className="p-4 border-r border-slate-100 whitespace-nowrap">QBMP</th>
-                    <th className="p-4 border-r border-slate-100 whitespace-nowrap">Posto / Grad</th>
-                    <th className="p-4 border-r border-slate-100 whitespace-nowrap">Nome de Guerra</th>
-                    <th className="p-4 border-r border-slate-100 whitespace-nowrap">RG</th>
+                    {visibleCols.includes('qbmp') && (
+                      <th className="p-4 border-r border-slate-100 whitespace-nowrap">QBMP</th>
+                    )}
+                    {visibleCols.includes('posto') && (
+                      <th className="p-4 border-r border-slate-100 whitespace-nowrap">Posto / Grad</th>
+                    )}
+                    {visibleCols.includes('nome') && (
+                      <th className="p-4 border-r border-slate-100 whitespace-nowrap">Nome de Guerra</th>
+                    )}
+                    {visibleCols.includes('rg') && (
+                      <th className="p-4 border-r border-slate-100 whitespace-nowrap">RG</th>
+                    )}
                     {visibleCols.includes('idFuncional') && (
                       <th className="p-4 border-r border-slate-100 whitespace-nowrap">ID Func.</th>
                     )}
-                    <th className="p-4 border-r border-slate-100 whitespace-nowrap text-center">Status</th>
+                    {visibleCols.includes('status') && (
+                      <th className="p-4 border-r border-slate-100 whitespace-nowrap text-center">Status</th>
+                    )}
 
                     {config?.areas.map(area => (
                       (displayMode === 'tudo' || displayMode === area.id) && (
@@ -815,20 +855,30 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
                             className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                           />
                         </td>
-                        <td className="p-4 border-r border-slate-100">{item.quadro || '-'}</td>
-                        <td className="p-4 border-r border-slate-100 uppercase font-black text-slate-600">{item.rank}</td>
-                        <td className="p-4 border-r border-slate-100 uppercase font-black">{item.warName || item.name}</td>
-                        <td className="p-4 border-r border-slate-100 text-slate-500 font-mono tracking-wider">{item.rg}</td>
+                        {visibleCols.includes('qbmp') && (
+                          <td className="p-4 border-r border-slate-100">{item.quadro || '-'}</td>
+                        )}
+                        {visibleCols.includes('posto') && (
+                          <td className="p-4 border-r border-slate-100 uppercase font-black text-slate-600">{item.rank}</td>
+                        )}
+                        {visibleCols.includes('nome') && (
+                          <td className="p-4 border-r border-slate-100 uppercase font-black">{item.warName || item.name}</td>
+                        )}
+                        {visibleCols.includes('rg') && (
+                          <td className="p-4 border-r border-slate-100 text-slate-500 font-mono tracking-wider">{item.rg}</td>
+                        )}
                         {visibleCols.includes('idFuncional') && (
                           <td className="p-4 border-r border-slate-100 text-slate-500 font-mono tracking-wider">{item.idFuncional || '-'}</td>
                         )}
-                        <td className="p-4 border-r border-slate-100 text-center">
-                           {item.hasDbData ? (
-                             <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[8px] font-black uppercase tracking-widest whitespace-nowrap">FIXADO</span>
-                           ) : (
-                             <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-black uppercase tracking-widest whitespace-nowrap">DGP</span>
-                           )}
-                        </td>
+                        {visibleCols.includes('status') && (
+                          <td className="p-4 border-r border-slate-100 text-center">
+                             {item.hasDbData ? (
+                               <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[8px] font-black uppercase tracking-widest whitespace-nowrap">FIXADO</span>
+                             ) : (
+                               <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-black uppercase tracking-widest whitespace-nowrap">DGP</span>
+                             )}
+                          </td>
+                        )}
 
                         {config?.areas.map(area => (
                           (displayMode === 'tudo' || displayMode === area.id) && (

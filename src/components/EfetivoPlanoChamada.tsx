@@ -3,7 +3,7 @@ import { UserProfile } from '../types';
 import { motion } from 'motion/react';
 import { BookOpen, FileText, LayoutTemplate } from 'lucide-react';
 import { RankInsignia } from './RankInsignia';
-import { parseRank, isOfficer, sortOfficersBySeniority } from '../lib/rankUtils';
+import { parseRank, isOfficer, sortAllBySeniority } from '../lib/rankUtils';
 
 interface EfetivoPlanoChamadaProps {
   militars: UserProfile[];
@@ -145,9 +145,7 @@ export function EfetivoPlanoChamada({ militars }: EfetivoPlanoChamadaProps) {
              let list = groupedData[obm][ala];
              if (!list || list.length === 0) return null;
 
-             if (ala === 'OFICIAIS' || ala === 'OFICIAIS MÉDICOS') {
-                list = [...list].sort(sortOfficersBySeniority);
-             }
+             list = [...list].sort(sortAllBySeniority);
 
              const title = ala === 'EXPEDIENTE' ? 'Expediente' : 
                            ala === 'OFICIAIS' ? 'Oficiais' :
