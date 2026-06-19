@@ -16,6 +16,9 @@ interface MainLayoutProps {
   simulatedVersion: string;
   setSimulatedVersion: (val: string) => void;
   GLOBAL_REF_YEAR: number;
+  obmContext?: string;
+  setObmContext?: (obm: string) => void;
+  availableObms?: string[];
 }
 
 export function MainLayout({
@@ -31,6 +34,9 @@ export function MainLayout({
   simulatedVersion,
   setSimulatedVersion,
   GLOBAL_REF_YEAR,
+  obmContext,
+  setObmContext,
+  availableObms = [],
 }: MainLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -116,7 +122,7 @@ export function MainLayout({
                 CONEXÃO BRAVO
               </div>
               <div className="text-[9px] min-[400px]:text-[10px] xl:text-sm font-black opacity-80 uppercase tracking-widest truncate">
-                {effectiveProfile?.obm || "CBA VII"} - COSTA VERDE
+                {obmContext || effectiveProfile?.obm || "CBA VII"} - COSTA VERDE
               </div>
             </div>
           </div>

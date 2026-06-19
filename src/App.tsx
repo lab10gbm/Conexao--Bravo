@@ -277,7 +277,7 @@ export default function App() {
   const [obmContext, setObmContext] = useState<string>("");
   const allObms = Object.keys(OBM_HIERARCHY);
 
-  const availableObms = profile?.isAdmin
+  const availableObms = (profile?.isAdmin || profile?.isEscalante)
     ? ["GLOBAL", ...allObms]
     : Array.from(
         new Set([
@@ -285,7 +285,7 @@ export default function App() {
           ...(profile?.adminObms || []).map(o => normalizeObm(o)),
           ...(profile?.escalanteObms || []).map(o => normalizeObm(o)),
         ]),
-      );
+      ).filter(Boolean);
 
   usePresence(effectiveProfile);
   const { activeAlert, dismissAlert } = useViaturaAlerts(effectiveProfile);
@@ -522,6 +522,9 @@ export default function App() {
       simulatedVersion={simulatedVersion}
       setSimulatedVersion={setSimulatedVersion}
       GLOBAL_REF_YEAR={GLOBAL_REF_YEAR}
+      obmContext={obmContext}
+      setObmContext={setObmContext}
+      availableObms={availableObms}
     >
         <React.Suspense
           fallback={
@@ -712,6 +715,8 @@ export default function App() {
                       </div>
                       <GrdModule
                         obmContext={obmContext}
+                        setObmContext={setObmContext}
+                        availableObms={availableObms}
                         readonly={
                           !(
                             effectiveProfile?.isAdmin ||
@@ -746,6 +751,8 @@ export default function App() {
                       <OfficerGrdModule
                         user={effectiveProfile!}
                         obmContext={obmContext}
+                        setObmContext={setObmContext}
+                        availableObms={availableObms}
                       />
                     </div>
                   </motion.div>
@@ -773,6 +780,8 @@ export default function App() {
                       <NucleoNauticoGrdModule
                         user={effectiveProfile!}
                         obmContext={obmContext}
+                        setObmContext={setObmContext}
+                        availableObms={availableObms}
                       />
                     </div>
                   </motion.div>

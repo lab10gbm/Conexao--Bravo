@@ -42,6 +42,8 @@ import { cleanUndefined } from "../lib/utils";
 
 interface GrdModuleProps {
   obmContext: string;
+  setObmContext?: (obm: string) => void;
+  availableObms?: string[];
   readonly?: boolean;
   user?: UserProfile | null;
 }
@@ -50,9 +52,15 @@ interface DayGrd {
   rgs: string[];
 }
 
-export function GrdModule({ obmContext, readonly = false, user = null }: GrdModuleProps) {
+export function GrdModule({ obmContext, setObmContext, availableObms = [], readonly = false, user = null }: GrdModuleProps) {
   const { militars, refreshMilitars } = useMilitars();
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(() => {
+    const today = new Date();
+    if (today.getDate() >= 20) {
+      return addMonths(today, 1);
+    }
+    return today;
+  });
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [viewMode, setViewMode] = useState<'calendar' | 'spreadsheet'>('calendar');
   const [mainTab, setMainTab] = useState<'grd' | 'officers'>('grd');
@@ -425,9 +433,27 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
         <div className="p-4 sm:p-6 border-b bg-white flex flex-col sm:flex-row items-center justify-between shadow-sm gap-4">
           <div className="flex flex-col gap-4 w-full sm:w-auto">
             <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Shield className="w-6 h-6 text-cyan-600 shrink-0" />
-                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter shrink-0">Gestão de Escalas</h2>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-6 h-6 text-cyan-600 shrink-0" />
+                  <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter shrink-0">Gestão de Escalas</h2>
+                </div>
+                <div className="flex items-center gap-2 mt-0.5 ml-8">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Unidade: {obmContext}</span>
+                  {availableObms.length > 1 && setObmContext && (
+                    <select
+                      value={obmContext}
+                      onChange={(e) => setObmContext(e.target.value)}
+                      className="bg-slate-100 border border-slate-200 text-slate-500 text-[10px] uppercase font-black tracking-widest rounded px-1.5 py-0.5 outline-none focus:border-cyan-500 transition-colors"
+                    >
+                      {availableObms.map((obm) => (
+                        <option key={obm} value={obm}>
+                          {obm}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
               </div>
               <div className="flex items-center bg-slate-100 rounded-lg p-1 justify-between flex-1 sm:flex-none w-full sm:w-[200px] z-10 relative">
                 <button onClick={handlePrevMonth} className="p-2 hover:bg-white rounded-md transition-all shadow-sm z-20">
@@ -955,6 +981,11 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
                                           const filteredMilitars = militars
                                             .filter(m => {
                                               if (!m.name) return false;
+                                              const rawMObm = m.obm ? m.obm : '10º GBM'; // Treat empty as 10º GBM
+                                              const mObm = rawMObm.replace(/º/g, '°').trim().toUpperCase();
+                                              const ctxObm = (obmContext || '').replace(/º/g, '°').trim().toUpperCase();
+                                              if (ctxObm && ctxObm !== 'GLOBAL' && mObm !== ctxObm) return false;
+                                              
                                               const searchLower = searchTerm.trim().toLowerCase();
                                               const searchValue = searchTerm.trim();
                                               const nameMatch = (m.name || '').toLowerCase().includes(searchLower);

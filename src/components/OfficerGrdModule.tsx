@@ -36,11 +36,19 @@ import { cleanUndefined } from "../lib/utils";
 interface OfficerGrdModuleProps {
   user: UserProfile;
   obmContext: string;
+  setObmContext?: (obm: string) => void;
+  availableObms?: string[];
 }
 
-export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
+export function OfficerGrdModule({ user, obmContext, setObmContext, availableObms = [] }: OfficerGrdModuleProps) {
   const { militars } = useMilitars();
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(() => {
+    const today = new Date();
+    if (today.getDate() >= 20) {
+      return addMonths(today, 1);
+    }
+    return today;
+  });
   const [officerData, setOfficerData] = useState<Record<string, Record<string, string>>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -256,6 +264,12 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
 
   const availableOfficers = useMemo(() => {
     return militars.filter(m => {
+       const rawMObm = m.obm ? m.obm : '10º GBM'; // Treat empty as 10º GBM
+       const mObm = rawMObm.replace(/º/g, '°').trim().toUpperCase();
+       const ctxObm = (obmContext || '').replace(/º/g, '°').trim().toUpperCase();
+       
+       if (ctxObm && ctxObm !== 'GLOBAL' && mObm !== ctxObm) return false;
+
        const r = parseRank(m.rank);
        if (!COLS_OFICIAIS.includes(r)) return false;
 
@@ -313,7 +327,22 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
           </div>
           <div>
             <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter shrink-0 leading-tight">Serviços e GRD de Oficiais</h2>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Escala Mensal 10º GBM</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Escala Mensal {obmContext}</span>
+              {availableObms.length > 1 && setObmContext && (
+                <select
+                  value={obmContext}
+                  onChange={(e) => setObmContext(e.target.value)}
+                  className="bg-slate-100 border border-slate-200 text-slate-500 text-[10px] uppercase font-black tracking-widest rounded px-1.5 py-0.5 outline-none focus:border-emerald-500 transition-colors"
+                >
+                  {availableObms.map((obm) => (
+                    <option key={obm} value={obm}>
+                      {obm}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
           </div>
           <div className="flex items-center bg-slate-100 rounded-lg p-1 min-w-[220px] justify-between ml-4">
             <button onClick={handlePrevMonth} className="p-1 hover:bg-white rounded-md transition-all shadow-sm">
@@ -551,6 +580,11 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
                                  {militars
                                   .filter(m => {
                                     if (!m.name) return false;
+                                    const rawMObm = m.obm ? m.obm : '10º GBM'; // Treat empty as 10º GBM
+                                    const mObm = rawMObm.replace(/º/g, '°').trim().toUpperCase();
+                                    const ctxObm = (obmContext || '').replace(/º/g, '°').trim().toUpperCase();
+                                    if (ctxObm && ctxObm !== 'GLOBAL' && mObm !== ctxObm) return false;
+                                    
                                     const sl = searchTerm.toLowerCase();
                                     const match = (m.name || '').toLowerCase().includes(sl) || (m.rg || '').includes(searchTerm);
                                     
