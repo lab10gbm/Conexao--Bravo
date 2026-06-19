@@ -29,7 +29,8 @@ import {
   ShoppingCart,
   Megaphone,
   ChevronDown,
-  BriefcaseBusiness
+  BriefcaseBusiness,
+  Anchor
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { db } from '../lib/firebase';
@@ -305,6 +306,14 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       description: 'Escala de Oficiais',
       icon: ShieldCheck,
       color: 'bg-indigo-700 shadow-indigo-200',
+      defaultGroups: ['OFICIAIS', 'ADMIN', 'ESCALANTE']
+    },
+    {
+      id: 'nucleo-nautico',
+      label: 'Núcleo Náutico',
+      description: 'Serviços e GRD',
+      icon: Anchor,
+      color: 'bg-cyan-600 shadow-cyan-200',
       defaultGroups: ['OFICIAIS', 'ADMIN', 'ESCALANTE']
     }
   ];

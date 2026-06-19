@@ -5,7 +5,8 @@ import { doc, setDoc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { 
   ChevronLeft, 
   ChevronRight, 
-  Shield, 
+  Anchor,
+  Shield,
   Search,
   X,
   Plus,
@@ -33,12 +34,12 @@ import { UserProfile } from '../types';
 import { COLS_OFICIAIS, parseRank, sortOfficersBySeniority } from '../lib/rankUtils';
 import { cleanUndefined } from "../lib/utils";
 
-interface OfficerGrdModuleProps {
+interface NucleoNauticoGrdModuleProps {
   user: UserProfile;
   obmContext: string;
 }
 
-export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
+export function NucleoNauticoGrdModule({ user, obmContext }: NucleoNauticoGrdModuleProps) {
   const { militars } = useMilitars();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [officerData, setOfficerData] = useState<Record<string, Record<string, string>>>({});
@@ -48,7 +49,6 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
   const [activeSearchDay, setActiveSearchDay] = useState<{ date: string; field: string } | null>(null);
   const [selectedRgsOficialDia, setSelectedRgsOficialDia] = useState<string[]>([]);
   const [selectedRgsSobreaviso, setSelectedRgsSobreaviso] = useState<string[]>([]);
-  const [selectedRgsRas, setSelectedRgsRas] = useState<string[]>([]);
   const [configTab, setConfigTab] = useState<'oficialDia' | 'sobreaviso'>('oficialDia');
   const [showConfig, setShowConfig] = useState(false);
 
@@ -58,7 +58,7 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
 
   useEffect(() => {
     setLoading(true);
-    const unsubscribe = onSnapshot(doc(db, 'officer_scales', docId), (snapshot) => {
+    const unsubscribe = onSnapshot(doc(db, 'nautico_scales', docId), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
         setOfficerData(data.days || {});
@@ -83,12 +83,12 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
       }
       setLoading(false);
     }, (error) => {
-      console.error("Error loading Officer scale:", error);
+      console.error("Error loading Nautico scale:", error);
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [docId]);
+  }, [docId, currentDate]);
 
   const monthDaysOnly = useMemo(() => {
     return eachDayOfInterval({ 
@@ -113,7 +113,7 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
         setSelectedRgsSobreaviso(newSobreaviso);
     }
     
-    await setDoc(doc(db, 'officer_scales', docId), cleanUndefined({
+    await setDoc(doc(db, 'nautico_scales', docId), cleanUndefined({
           lists: {
             [monthKey]: {
                 oficialDia: newOficialDia,
@@ -243,7 +243,7 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
                     newOfficerData[day][configTab] = officer.name;
                 });
             });
-            await setDoc(doc(db, 'officer_scales', docId), cleanUndefined({
+            await setDoc(doc(db, 'nautico_scales', docId), cleanUndefined({
                 days: newOfficerData
             }), { merge: true });
         }
@@ -285,7 +285,7 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
     
     setSaving(true);
     try {
-      await setDoc(doc(db, 'officer_scales', docId), cleanUndefined({
+      await setDoc(doc(db, 'nautico_scales', docId), cleanUndefined({
         days: {
           [dateStr]: {
             [field]: value
@@ -293,7 +293,7 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
         }
       }), { merge: true });
     } catch (error) {
-      console.error("Error saving Officer scale:", error);
+      console.error("Error saving Nautico scale:", error);
     } finally {
       setSaving(false);
     }
@@ -308,11 +308,11 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
     <div className="flex flex-col h-full bg-slate-50 overflow-hidden">
       <div className="p-4 sm:p-6 border-b bg-white flex flex-col sm:flex-row items-center justify-between shadow-sm gap-4">
         <div className="flex items-center gap-4">
-          <div className="bg-emerald-700 p-2 rounded-xl text-white">
-            <Shield className="w-6 h-6 shrink-0" />
+          <div className="bg-cyan-700 p-2 rounded-xl text-white">
+            <Anchor className="w-6 h-6 shrink-0" />
           </div>
           <div>
-            <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter shrink-0 leading-tight">Serviços e GRD de Oficiais</h2>
+            <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter shrink-0 leading-tight">Núcleo Náutico</h2>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Escala Mensal 10º GBM</p>
           </div>
           <div className="flex items-center bg-slate-100 rounded-lg p-1 min-w-[220px] justify-between ml-4">
@@ -331,10 +331,10 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
         <div className="flex items-center gap-3">
           <div className="flex flex-col items-end">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Inscrito como:</span>
-            <span className="text-xs font-black text-emerald-700 uppercase">{user.rank} {user.warName || (user.name || '').split(' ')[0]}</span>
+            <span className="text-xs font-black text-cyan-700 uppercase">{user.rank} {user.warName || (user.name || '').split(' ')[0]}</span>
           </div>
-          <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center border-2 border-emerald-200">
-             <Shield className="w-5 h-5 text-emerald-700" />
+          <div className="w-10 h-10 rounded-full bg-cyan-100 flex items-center justify-center border-2 border-cyan-200">
+             <Shield className="w-5 h-5 text-cyan-700" />
           </div>
         </div>
       </div>
@@ -346,8 +346,8 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
           
           <div className="flex-1 bg-white border border-slate-300 shadow-xl rounded-sm p-4">
             <div className="flex items-center justify-between mb-4 border-b pb-2">
-              <h3 className="text-sm font-black uppercase tracking-widest text-[#406b53] flex items-center gap-2">
-                <Settings className="w-4 h-4" /> Distribuição de Serviços (Oficiais)
+              <h3 className="text-sm font-black uppercase tracking-widest text-[#0e7490] flex items-center gap-2">
+                <Settings className="w-4 h-4" /> Distribuição de Serviços (Oficiais Náutica)
               </h3>
               <div className="flex gap-2">
                 <button 
@@ -359,7 +359,7 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
                 <button 
                   onClick={handleGenerateScale}
                   disabled={distributionQuotas.length === 0}
-                  className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest bg-[#406b53] hover:bg-[#305542] text-white rounded transition-colors flex items-center gap-1 disabled:opacity-50"
+                  className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest bg-[#0e7490] hover:bg-[#164e63] text-white rounded transition-colors flex items-center gap-1 disabled:opacity-50"
                 >
                   <Wand2 className="w-3 h-3" /> Gerar Automático
                 </button>
@@ -371,14 +371,14 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
                 <div className="flex gap-2 mb-4 border-b border-slate-200 pb-2">
                    <button 
                      onClick={() => setConfigTab('oficialDia')}
-                     className={cn("px-3 py-1 text-[11px] font-black uppercase tracking-widest rounded-t-md transition-all", configTab === 'oficialDia' ? "bg-[#406b53] text-white" : "bg-slate-200 text-slate-500 hover:bg-slate-300")}
+                     className={cn("px-3 py-1 text-[11px] font-black uppercase tracking-widest rounded-t-md transition-all", configTab === 'oficialDia' ? "bg-[#0e7490] text-white" : "bg-slate-200 text-slate-500 hover:bg-slate-300")}
                    >OF DE DIA / CMT OP / S1 / G1</button>
                    <button 
                      onClick={() => setConfigTab('sobreaviso')}
-                     className={cn("px-3 py-1 text-[11px] font-black uppercase tracking-widest rounded-t-md transition-all", configTab === 'sobreaviso' ? "bg-[#406b53] text-white" : "bg-slate-200 text-slate-500 hover:bg-slate-300")}
+                     className={cn("px-3 py-1 text-[11px] font-black uppercase tracking-widest rounded-t-md transition-all", configTab === 'sobreaviso' ? "bg-[#0e7490] text-white" : "bg-slate-200 text-slate-500 hover:bg-slate-300")}
                    >SOBREAVISO 2 / GRD 2</button>
                 </div>
-                <h4 className="text-xs font-bold uppercase text-slate-500 mb-3">Selecione os Oficiais para a Escala ({configTab === 'oficialDia' ? 'Of de Dia/Sobreaviso 1' : 'Sobreaviso 2/GRD 2'}):</h4>
+                <h4 className="text-xs font-bold uppercase text-slate-500 mb-3">Selecione os Oficiais para a Escala ({configTab === 'oficialDia' ? 'Of e CMT / G1' : 'Sobreaviso / G2'}):</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1 custom-scrollbar">
                   {availableOfficers.map(mil => {
                     const isSelected = configTab === 'oficialDia' ? selectedRgsOficialDia.includes(mil.rg) : selectedRgsSobreaviso.includes(mil.rg);
@@ -388,7 +388,7 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
                         onClick={() => handleToggleOfficer(mil.rg)}
                         className={cn(
                           "text-left p-2 rounded border text-[11px] font-black uppercase tracking-wider flex items-center justify-between transition-all",
-                          isSelected ? "bg-emerald-50 border-emerald-500 text-emerald-700" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                          isSelected ? "bg-cyan-50 border-cyan-500 text-cyan-700" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
                         )}
                       >
                         <span className="truncate">{mil.rank} {mil.warName || (mil.name || '').split(' ')[0]}</span>
@@ -408,7 +408,7 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
                     <th className="px-3 py-2 border-r border-slate-200 text-center text-red-600">Vermelha</th>
                     <th className="px-3 py-2 border-r border-slate-200 text-center text-purple-600">Roxa</th>
                     <th className="px-3 py-2 border-r border-slate-200 text-center text-slate-800">Preta</th>
-                    <th className="px-3 py-2 text-center text-emerald-700">Total (Cota)</th>
+                    <th className="px-3 py-2 text-center text-cyan-700">Total (Cota)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -423,7 +423,7 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
                         <td className="px-3 py-2 border-r border-slate-100 text-center font-black text-red-600">{dist.quotaRed}</td>
                         <td className="px-3 py-2 border-r border-slate-100 text-center font-black text-purple-600">{dist.quotaPurple}</td>
                         <td className="px-3 py-2 border-r border-slate-100 text-center font-black text-slate-800">{dist.quotaBlack}</td>
-                        <td className="px-3 py-2 text-center font-black text-emerald-700 bg-emerald-50">{dist.quotaTotal}</td>
+                        <td className="px-3 py-2 text-center font-black text-cyan-700 bg-cyan-50">{dist.quotaTotal}</td>
                       </tr>
                     ))
                   )}
@@ -436,15 +436,15 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
         <div className="min-w-[1000px] bg-white border border-slate-300 shadow-xl overflow-hidden rounded-sm">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-[#406b53] border-b border-slate-400">
-                <th className="px-3 py-4 text-[11px] font-black uppercase tracking-widest text-white border-r border-[#305542] w-32">
+              <tr className="bg-[#0e7490] border-b border-slate-400">
+                <th className="px-3 py-4 text-[11px] font-black uppercase tracking-widest text-white border-r border-[#164e63] w-32">
                   <div className="flex items-center gap-2">
                     <CalendarIcon className="w-4 h-4 opacity-50" />
                     DATA
                   </div>
                 </th>
-                <th className="px-3 py-4 text-[11px] font-black uppercase tracking-widest text-white border-r border-[#305542] w-40">DIA</th>
-                <th className="px-3 py-4 text-[11px] font-black uppercase tracking-widest text-white border-r border-[#305542]">OFICIAL DE DIA / CMT OP / SOBREAVISO 1 / GRD 1</th>
+                <th className="px-3 py-4 text-[11px] font-black uppercase tracking-widest text-white border-r border-[#164e63] w-40">DIA</th>
+                <th className="px-3 py-4 text-[11px] font-black uppercase tracking-widest text-white border-r border-[#164e63]">OFICIAL DE DIA / CMT OP / SOBREAVISO 1 / GRD 1</th>
                 <th className="px-3 py-4 text-[11px] font-black uppercase tracking-widest text-white">SOBREAVISO 2 / GRD 2</th>
               </tr>
             </thead>
@@ -492,8 +492,8 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
                             className={cn(
                               "w-full h-full min-h-[40px] px-3 py-2 text-[12px] font-black uppercase text-left rounded-md transition-all flex items-center justify-between group",
                               val 
-                                ? (isMe ? "bg-emerald-600 text-white shadow-md" : "bg-white text-slate-700") 
-                                : "bg-white/50 border border-dashed border-slate-300 text-slate-300 hover:border-emerald-500 hover:text-emerald-600"
+                                ? (isMe ? "bg-cyan-600 text-white shadow-md" : "bg-white text-slate-700") 
+                                : "bg-white/50 border border-dashed border-slate-300 text-slate-300 hover:border-cyan-500 hover:text-cyan-600"
                             )}
                           >
                             <span className="truncate">{val || "Vaga Disponível"}</span>
@@ -512,16 +512,16 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
                           </button>
 
                           {isActiveSearch && (
-                            <div className="absolute top-0 left-0 w-80 bg-white shadow-2xl border border-emerald-200 rounded-xl z-50 p-2 mt-12 animate-in fade-in zoom-in-95 duration-200">
+                            <div className="absolute top-0 left-0 w-80 bg-white shadow-2xl border border-cyan-200 rounded-xl z-50 p-2 mt-12 animate-in fade-in zoom-in-95 duration-200">
                               <div className="relative mb-2">
-                                <Search className="w-3 h-3 text-emerald-600 absolute left-2 top-1/2 -translate-y-1/2" />
+                                <Search className="w-3 h-3 text-cyan-600 absolute left-2 top-1/2 -translate-y-1/2" />
                                 <input
                                   autoFocus
                                   type="text"
                                   placeholder="Selecione ou busque..."
                                   value={searchTerm}
                                   onChange={(e) => setSearchTerm(e.target.value)}
-                                  className="w-full p-2 pl-7 text-[10px] border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                  className="w-full p-2 pl-7 text-[10px] border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                                 />
                                 <button 
                                   onClick={() => setActiveSearchDay(null)}
@@ -538,9 +538,9 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
                                        updateOfficerDay(dateStr, field, `${user.rank} ${user.warName || (user.name || '').split(' ')[0]}`);
                                        setActiveSearchDay(null);
                                      }}
-                                     className="w-full text-left p-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-all flex items-center gap-3 border border-emerald-200 mb-2"
+                                     className="w-full text-left p-3 bg-cyan-50 hover:bg-cyan-100 text-cyan-700 rounded-lg transition-all flex items-center gap-3 border border-cyan-200 mb-2"
                                    >
-                                     <div className="bg-emerald-600 text-white rounded p-1">
+                                     <div className="bg-cyan-600 text-white rounded p-1">
                                         <Plus className="w-3 h-3" />
                                      </div>
                                      <div className="flex-1">
@@ -607,7 +607,7 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
       </div>
       
       {saving && (
-        <div className="fixed bottom-8 right-8 bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce">
+        <div className="fixed bottom-8 right-8 bg-cyan-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce">
           <Shield className="w-4 h-4 animate-pulse" />
           <span className="text-xs font-black uppercase tracking-widest">Salvando Escala...</span>
         </div>
@@ -615,4 +615,3 @@ export function OfficerGrdModule({ user, obmContext }: OfficerGrdModuleProps) {
     </div>
   );
 }
-

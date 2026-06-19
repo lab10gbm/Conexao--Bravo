@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useMilitars } from '../contexts/MilitarContext';
 import { db } from '../lib/firebase';
-import { doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, getDoc, updateDoc } from 'firebase/firestore';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -86,7 +86,7 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
     });
 
     // Listen to Officer data
-    const unsubscribeOfficers = onSnapshot(doc(db, 'officer_scales', docId), (snapshot) => {
+    const unsubscribeOfficers = onSnapshot(doc(db, 'officer_scales', obmId), (snapshot) => {
       if (snapshot.exists()) {
         setOfficerData(snapshot.data().days || {});
       } else {
@@ -208,7 +208,7 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
     };
 
     try {
-      await setDoc(doc(db, 'officer_scales', docId), cleanUndefined({ days: mayData }), { merge: true });
+      await setDoc(doc(db, 'officer_scales', obmId), cleanUndefined({ days: mayData }), { merge: true });
     } catch (error) {
       console.error(error);
     } finally {
@@ -235,14 +235,21 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
   }, [selectedDayRgs, militars]);
 
   const updateDayGrd = async (dateStr: string, rgs: string[]) => {
+    const safeRgs = Array.from(rgs, val => val || "");
+    
+    // Optimistic UI Update
+    setGrdData(prev => ({
+      ...prev,
+      [dateStr]: safeRgs
+    }));
+    
     setSaving(true);
     try {
-      const safeRgs = Array.from(rgs, val => val || "");
       await setDoc(doc(db, 'grd_configs', docId), cleanUndefined({
-              days: {
-                [dateStr]: safeRgs
-              }
-            }), { merge: true });
+        days: {
+          [dateStr]: safeRgs
+        }
+      }), { merge: true });
     } catch (error) {
       console.error("Error saving GRD:", error);
     } finally {
@@ -269,16 +276,24 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
   };
 
   const updateOfficerDay = async (dateStr: string, field: string, value: string) => {
+    // Optimistic UI Update
+    setOfficerData(prev => ({
+      ...prev,
+      [dateStr]: {
+        ...prev[dateStr],
+        [field]: value
+      }
+    }));
+    
     setSaving(true);
     try {
-      const currentDayData = officerData[dateStr] || {};
-      await setDoc(doc(db, 'officer_scales', docId), cleanUndefined({
-              days: {
-                [dateStr]: {
-                  [field]: value
-                }
-              }
-            }), { merge: true });
+      await setDoc(doc(db, 'officer_scales', obmId), cleanUndefined({
+        days: {
+          [dateStr]: {
+            [field]: value
+          }
+        }
+      }), { merge: true });
     } catch (error) {
       console.error("Error saving Officer scale:", error);
     } finally {
@@ -296,7 +311,7 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
     const errors: string[] = [];
     
     if (mainTab === 'grd') {
-      const newGrdData = { ...grdData };
+      const newPastedGrdData: Record<string, string[]> = {};
       for (const row of rows) {
         const parts = row.split('\t').map(p => p.trim());
         if (parts.length < 2) continue;
@@ -332,13 +347,15 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
         });
 
         if (validRgs.length > 0) {
-          newGrdData[finalDateStr] = validRgs;
+          newPastedGrdData[finalDateStr] = validRgs;
           successCount++;
         }
       }
 
       try {
-        await setDoc(doc(db, 'grd_configs', docId), cleanUndefined({ days: newGrdData }), { merge: true });
+        if (Object.keys(newPastedGrdData).length > 0) {
+          await setDoc(doc(db, 'grd_configs', docId), cleanUndefined({ days: newPastedGrdData }), { merge: true });
+        }
         setPasteResults({ success: successCount, errors });
       } catch (err) {
         console.error(err);
@@ -346,7 +363,7 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
       }
     } else {
       // Officers Paste
-      const newOfficerData = { ...officerData };
+      const newPastedOfficerData: Record<string, Record<string, string>> = {};
       for (const row of rows) {
         const parts = row.split('\t').map(p => p.trim());
         if (parts.length < 2) continue;
@@ -376,18 +393,19 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
           continue;
         }
 
-        // expected: DATA | OFICIAL DIA | SOBREAVISO | RAS
-        // RAS might include RG, e.g. "CAP BM MACHADO 53402"
-        newOfficerData[finalDateStr] = {
+        // expected: DATA | OFICIAL DIA | SOBREAVISO
+        // parts[2]: OFICIAL DIA, parts[3]: SOBREAVISO
+        newPastedOfficerData[finalDateStr] = {
           oficialDia: parts[2] || '',
-          sobreaviso: parts[3] || '',
-          ras: parts[4] || ''
+          sobreaviso: parts[3] || ''
         };
         successCount++;
       }
 
       try {
-        await setDoc(doc(db, 'officer_scales', docId), cleanUndefined({ days: newOfficerData }), { merge: true });
+        if (Object.keys(newPastedOfficerData).length > 0) {
+            await setDoc(doc(db, 'officer_scales', obmId), cleanUndefined({ days: newPastedOfficerData }), { merge: true });
+        }
         setPasteResults({ success: successCount, errors });
       } catch (err) {
         console.error(err);
@@ -699,9 +717,8 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
                         </>
                       ) : (
                         <>
-                          <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 border-l">Oficial de Dia / Cmt Op</th>
-                          <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 border-l">Sobreaviso 1 / GRD 1</th>
-                          <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 border-l">RAS</th>
+                          <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 border-l">Oficial de Dia / CMT OP / Sobreaviso 1 / GRD 1</th>
+                          <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 border-l">Sobreaviso 2 / GRD 2</th>
                         </>
                       )}
                     </tr>
@@ -868,7 +885,7 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
                         );
                       } else {
                         // Officer View
-                        const offDay = officerData[dateStr] || { oficialDia: '', sobreaviso: '', ras: '' };
+                        const offDay = officerData[dateStr] || { oficialDia: '', sobreaviso: '' };
                         return (
                           <tr key={dateStr} className="hover:bg-slate-50 transition-colors">
                             <td className="px-3 py-4 text-center">
@@ -879,7 +896,7 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
                                 {format(day, 'eee', { locale: ptBR })}
                               </div>
                             </td>
-                          {['oficialDia', 'sobreaviso', 'ras'].map((field) => {
+                          {['oficialDia', 'sobreaviso'].map((field) => {
                             const val = offDay[field as keyof typeof offDay] || '';
                             const isActiveSearch = activeSearchDay?.date === dateStr && activeSearchDay?.index === field;
                             
@@ -1196,7 +1213,7 @@ export function GrdModule({ obmContext, readonly = false, user = null }: GrdModu
                   {mainTab === 'grd' ? (
                     <>Formato: <span className="font-bold underline">Data [TAB] RG1 [TAB] RG2...</span></>
                   ) : (
-                    <>Formato: <span className="font-bold underline">Data [TAB] DIA [TAB] OFICIAL [TAB] SOBREAVISO [TAB] RAS</span></>
+                    <>Formato: <span className="font-bold underline">Data [TAB] DIA [TAB] OFICIAL [TAB] SOBREAVISO</span></>
                   )}
                 </p>
               </div>
