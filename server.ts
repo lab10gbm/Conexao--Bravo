@@ -17,6 +17,7 @@ import { syncRouter } from './src/server/routes/sync';
 import { setupMilitaryRoutes } from './src/server/routes/military.routes';
 import { setupServiceRoutes } from './src/server/routes/services.routes';
 import { importMilitariesFromLocal } from './src/server/lib/import-militaries';
+// @ts-ignore
 import archiver from 'archiver';
 
 // Initialize Firebase Admin
@@ -301,8 +302,14 @@ async function initFirebaseAdmin() {
     
     // Only trust Admin SDK if we have a real Service Account. ADC in the sandbox cannot reach user databases and will hang.
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-      isDbHealthy = true;
-      console.log(`[Firebase] SUCCESS: Admin SDK connected and healthy for db "${targetDbId}"`);
+      try {
+        await db.collection('militaries').limit(1).get();
+        isDbHealthy = true;
+        console.log(`[Firebase] SUCCESS: Admin SDK connected and healthy for db "${targetDbId}"`);
+      } catch (err: any) {
+        console.log(`[Firebase] WARNING: Admin SDK connection test failed. Reverting to Client SDK. Error: ${err.message}`);
+        isDbHealthy = false;
+      }
     } else {
        console.log(`[Firebase] Notice: No explicit Service Account provided. Marking Admin SDK as unhealthy to prefer Client SDK and avoid hanging RPC calls.`);
        isDbHealthy = false;
@@ -312,8 +319,14 @@ async function initFirebaseAdmin() {
     try {
       db = getFirestore(app);
       if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-        isDbHealthy = true;
-        console.log('[Firebase] Fallback to raw Admin SDK database succeeded.');
+        try {
+          await db.collection('militaries').limit(1).get();
+          isDbHealthy = true;
+          console.log('[Firebase] Fallback to raw Admin SDK database succeeded.');
+        } catch (err2: any) {
+          isDbHealthy = false;
+          console.log(`[Firebase] Fallback Admin SDK test failed. Error: ${err2.message}`);
+        }
       } else {
         isDbHealthy = false;
         console.log('[Firebase] Fallback to raw Admin SDK but marking unhealthy (No SA).');

@@ -57,15 +57,24 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
 
       // 2. Fetch from Firebase directly since the backend cache is disabled due to security rules
       try {
-        
-        
-        const [visSnap, rolSnap, vacSnap, alaSnap, monSnap] = await Promise.all([
+        const fetchTimeout = new Promise((resolve) => setTimeout(() => resolve('timeout'), 5000));
+        const depsPromise = Promise.all([
           getDoc(doc(db, 'config', 'app_visibility')),
           getDoc(doc(db, 'config', 'roles')),
           getDoc(doc(db, 'config', 'vacation_settings')),
           getDoc(doc(db, 'config', 'ala_config')),
           getDoc(doc(db, 'config', 'active_months'))
         ]);
+        
+        const result = await Promise.race([depsPromise, fetchTimeout]);
+
+        if (result === 'timeout') {
+          console.warn('[Config] Firestore fetch timed out, falling back to defaults if not cached');
+          setLoading(false);
+          return;
+        }
+
+        const [visSnap, rolSnap, vacSnap, alaSnap, monSnap] = result as any[];
         
         const newData: any = {};
 
