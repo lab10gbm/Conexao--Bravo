@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 import { initializeApp } from 'firebase/app';
-import { getFirestore as getClientFirestore, doc, setDoc, writeBatch, serverTimestamp, collection, getDocs, getDoc, query, limit, orderBy, where } from 'firebase/firestore';
+import { getFirestore as getClientFirestore, doc, setDoc, serverTimestamp, collection, getDocs, getDoc, query, limit, orderBy, where } from 'firebase/firestore';
 import fs from 'fs';
 import compression from 'compression';
 import cors from 'cors';
@@ -18,7 +18,14 @@ import { setupServiceRoutes } from './src/server/routes/services.routes';
 import { importMilitariesFromLocal } from './src/server/lib/import-militaries';
 
 import { createRequire } from 'module';
-import archiver from 'archiver';
+let requireLib: any;
+if (typeof require !== 'undefined') {
+  requireLib = require;
+} else {
+  // @ts-ignore
+  requireLib = createRequire(import.meta.url);
+}
+const archiver = requireLib('archiver');
 
 // Initialize Firebase Admin
 const firebaseConfigPath = path.join(process.cwd(), 'firebase-applet-config.json');
@@ -185,6 +192,7 @@ async function syncMilitariesFromSheetInternal() {
     }
     
     if (!adminSuccess && clientDb) {
+      const { writeBatch } = requireLib('firebase/firestore');
       let batch = writeBatch(clientDb);
       for (const row of records) {
         if (!row['RG']) continue;
@@ -753,6 +761,7 @@ async function startServer() {
           await batch.commit();
         }
       } else if (clientDb) {
+        const { writeBatch } = requireLib('firebase/firestore');
         let batch = writeBatch(clientDb);
         for (const data of militaries) {
           if (!data.rg) continue;
@@ -1101,7 +1110,7 @@ async function startServer() {
 
       const pseudoEmail = `${safeRg.toLowerCase()}@cbmerj.local`;
       try {
-        const { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = await import('firebase/auth');
+        const { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = requireLib('firebase/auth');
         const clientAuth = getAuth();
         try {
            await signInWithEmailAndPassword(clientAuth, pseudoEmail, dataNascimento);

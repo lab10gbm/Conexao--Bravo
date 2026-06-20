@@ -233,7 +233,6 @@ export function VacationImporter({ militarRg, onImport, onClose, allMilitars = [
 
                   <div className="space-y-4">
                     <a 
-                       ref={bookmarkletRef}
                        onClick={(e) => {
                           if (e.button === 0) { // Left click only
                             e.preventDefault();
