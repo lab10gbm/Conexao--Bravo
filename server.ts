@@ -18,14 +18,7 @@ import { setupServiceRoutes } from './src/server/routes/services.routes';
 import { importMilitariesFromLocal } from './src/server/lib/import-militaries';
 
 import { createRequire } from 'module';
-let requireLib: any;
-if (typeof require !== 'undefined') {
-  requireLib = require;
-} else {
-  // @ts-ignore
-  requireLib = createRequire(import.meta.url);
-}
-const archiver = requireLib('archiver');
+import archiver from 'archiver';
 
 // Initialize Firebase Admin
 const firebaseConfigPath = path.join(process.cwd(), 'firebase-applet-config.json');
@@ -760,7 +753,6 @@ async function startServer() {
           await batch.commit();
         }
       } else if (clientDb) {
-        const { writeBatch, doc, serverTimestamp } = requireLib('firebase/firestore');
         let batch = writeBatch(clientDb);
         for (const data of militaries) {
           if (!data.rg) continue;
@@ -1109,7 +1101,7 @@ async function startServer() {
 
       const pseudoEmail = `${safeRg.toLowerCase()}@cbmerj.local`;
       try {
-        const { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = requireLib('firebase/auth');
+        const { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = await import('firebase/auth');
         const clientAuth = getAuth();
         try {
            await signInWithEmailAndPassword(clientAuth, pseudoEmail, dataNascimento);
