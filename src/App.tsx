@@ -6,6 +6,7 @@
 import React, { useEffect, useState } from "react";
 import { auth, db } from "./lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 import {
   Routes,
   Route,
@@ -362,8 +363,6 @@ export default function App() {
 
       const refreshProfile = async () => {
         try {
-          const { getDoc, doc } = await import('firebase/firestore');
-          const { db } = await import('./lib/firebase');
           const pDoc = await getDoc(doc(db, 'militaries', profile.rg));
           
           if (pDoc.exists()) {
