@@ -139,13 +139,6 @@ export function GestaoEfetivoModeracaoModule({ user, onBack }: { user: UserProfi
       
       await setDoc(dbDoc, cleanUndefined(toSave), { merge: true });
       
-      // Request backend to refresh cache
-      await fetch('/api/admin/militaries/bulk-sync', {
-         method: 'POST',
-         headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify({ militaries: [toSave] })
-      }).catch(err => console.warn('Cache sync errored', err));
-      
       setIsFormOpen(false);
       refreshMilitars();
     } catch (e: any) {

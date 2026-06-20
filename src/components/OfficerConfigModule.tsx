@@ -67,13 +67,6 @@ export function OfficerConfigModule({ onClose }: { onClose: () => void }) {
       const cleanRg = id.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
       const militarRef = doc(db, 'militaries', cleanRg);
       await updateDoc(militarRef, cleanUndefined({ [field]: value }));
-      
-      // 3. Inform Backend Server to update its internal cache immediately
-      await fetch('/api/admin/militaries/bulk-sync', {
-         method: 'POST',
-         headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify({ militaries: [{ rg: cleanRg, [field]: value }] })
-      }).catch(err => console.warn('Cache sync non-fatal err:', err));
 
     } catch (err) {
       console.error("Error updating officer config", err);

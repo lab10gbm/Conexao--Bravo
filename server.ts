@@ -8,7 +8,7 @@ import { initializeApp as initAdminApp, getApps as getAdminApps, getApp as getAd
 import { getFirestore as getAdminFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { initializeApp } from 'firebase/app';
-import { getFirestore as getClientFirestore, doc, setDoc, serverTimestamp, collection, getDocs, getDoc, query, limit, orderBy, where, writeBatch } from 'firebase/firestore';
+import { getFirestore as getClientFirestore, doc, setDoc, serverTimestamp, collection, getDocs, getDoc, query, limit, orderBy, where, writeBatch, onSnapshot } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import fs from 'fs';
 import compression from 'compression';
@@ -370,6 +370,18 @@ async function startServer() {
         });
         isCacheLoaded = true;
         console.log(`[Cache] Preloaded ${militaryCache.size} militaries into memory.`);
+        
+        // Setup realtime sync for Admin
+        db.collection('militaries').onSnapshot((snapshot: any) => {
+           snapshot.docChanges().forEach((change: any) => {
+              if (change.type === 'added' || change.type === 'modified') {
+                 militaryCache.set(change.doc.id, change.doc.data());
+              } else if (change.type === 'removed') {
+                 militaryCache.delete(change.doc.id);
+              }
+           });
+        }, (err: any) => console.warn('[Cache Sync] Admin SDK listener error:', err.message));
+        
       } catch (e: any) {
         // Silently bypass Admin SDK errors since we expect them in an unlinked IAM environment.
         if (clientDb) {
@@ -380,6 +392,18 @@ async function startServer() {
             });
             isCacheLoaded = true;
             console.log(`[Cache] Preloaded ${militaryCache.size} militaries into memory using Client SDK fallback.`);
+            
+            // Setup realtime sync for Client SDK fallback
+            onSnapshot(collection(clientDb, 'militaries'), (snapshot) => {
+               snapshot.docChanges().forEach(change => {
+                  if (change.type === 'added' || change.type === 'modified') {
+                     militaryCache.set(change.doc.id, change.doc.data());
+                  } else if (change.type === 'removed') {
+                     militaryCache.delete(change.doc.id);
+                  }
+               });
+            }, (err) => console.warn('[Cache Sync] Client SDK listener error:', err.message));
+            
           } catch (clientErr: any) {
             console.error('[Cache] Failed to load military cache with Client SDK fallback:', clientErr.message);
           }
@@ -397,6 +421,18 @@ async function startServer() {
         });
         isCacheLoaded = true;
         console.log(`[Cache] Preloaded ${militaryCache.size} militaries into memory using Client SDK.`);
+        
+        // Setup realtime sync for Client SDK
+        onSnapshot(collection(clientDb, 'militaries'), (snapshot) => {
+           snapshot.docChanges().forEach(change => {
+              if (change.type === 'added' || change.type === 'modified') {
+                 militaryCache.set(change.doc.id, change.doc.data());
+              } else if (change.type === 'removed') {
+                 militaryCache.delete(change.doc.id);
+              }
+           });
+        }, (err) => console.warn('[Cache Sync] Client SDK listener error:', err.message));
+        
       } catch (clientErr: any) {
         console.error('[Cache] Failed to load military cache with Client SDK:', clientErr.message);
       }

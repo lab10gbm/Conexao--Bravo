@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import { UserProfile } from '../types';
 
 interface MilitarContextType {
@@ -14,55 +16,42 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
   const [militars, setMilitars] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchMilitars = async (rg?: string, silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      const cacheKey = rg ? `militars_data_cache_${rg}` : 'militars_data_cache';
-      const cacheTimeKey = rg ? `militars_data_time_${rg}` : 'militars_data_time';
-      const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
-
-      // Try reading from cache first if silent is false (initial load)
-      if (!silent) {
-        const cachedMilitars = localStorage.getItem(cacheKey);
-        const cachedTime = localStorage.getItem(cacheTimeKey);
-        if (cachedMilitars && cachedTime) {
-          const age = Date.now() - parseInt(cachedTime, 10);
-          if (age < CACHE_TTL_MS) {
-             setMilitars(JSON.parse(cachedMilitars));
-             setLoading(false);
-             // Keep loading in background silently to ensure it's up to date eventually but don't block
-             silent = true; 
-          }
-        }
-      }
-
-      const url = rg ? `/api/militar?rg=${rg}` : '/api/militar';
-      const res = await fetch(url);
-      const data = await res.json();
-      if (data.success && data.members) {
-        setMilitars(data.members);
-        // Update cache
-        try {
-          localStorage.setItem(cacheKey, JSON.stringify(data.members));
-          localStorage.setItem(cacheTimeKey, Date.now().toString());
-        } catch (e) {
-          console.warn('LocalStorage is full or unavailable');
-        }
-      }
-    } catch (e) {
-      console.error('Error fetching militars:', e);
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchMilitars();
+    // Escuta em tempo real todas as alterações na coleção de militares
+    // Isso substitui a rota /api/militar e o localStorage, o próprio Firebase tem cache offline
+    const unsubscribe = onSnapshot(collection(db, 'militaries'), (snapshot) => {
+      const fetchedMembers = snapshot.docs.map(d => {
+        const data = d.data();
+        return {
+          rg: d.id,
+          name: data.name || '',
+          postGrad: data.postGrad || '',
+          registration: data.registration || '',
+          unit: data.unit || '',
+          phone: data.phone || '',
+          email: data.email || '',
+          ...data
+        } as UserProfile;
+      });
+      setMilitars(fetchedMembers);
+      setLoading(false);
+    }, (error) => {
+      console.error('Realtime Firebase error on militars:', error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
+
+  // Compatibilidade com componentes antigos que chamam refreshMilitars
+  const refreshMilitars = async (rg?: string) => {
+    // Com onSnapshot, a atualização é automática e em tempo real. Não precisamos recarregar nada.
+    // Pode apenas resolver as promisses de outros arquivos
+    return Promise.resolve();
+  };
 
   const updateMilitarLocal = (rg: string, updates: Partial<UserProfile>) => {
     setMilitars(prev => prev.map(m => {
-      // Comparação flexível considerando null/undefined
       if (m.rg === rg || m.uid === rg || (m.rg && m.rg.toString() === rg.toString())) {
         return { ...m, ...updates };
       }
@@ -74,7 +63,7 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
     <MilitarContext.Provider value={{
       militars,
       loading,
-      refreshMilitars: (rg?: string) => fetchMilitars(rg, true),
+      refreshMilitars,
       updateMilitarLocal
     }}>
       {children}
