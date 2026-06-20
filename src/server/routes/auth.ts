@@ -1,5 +1,5 @@
 import express from "express";
-import admin from "firebase-admin";
+import { getAuth } from "firebase-admin/auth";
 
 export const authRouter = express.Router();
 
@@ -12,7 +12,7 @@ export const verifyFirebaseSession = async (req: any, res: any, next: any) => {
 
   const idToken = authHeader.split("Bearer ")[1];
   try {
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const decodedToken = await getAuth().verifyIdToken(idToken);
     req.user = decodedToken;
     next();
   } catch (error) {
@@ -34,7 +34,7 @@ authRouter.post("/set-claims", verifyFirebaseSession, async (req: any, res: any)
       return res.status(400).json({ error: "targetUid and claims required" });
     }
 
-    await admin.auth().setCustomUserClaims(targetUid, claims);
+    await getAuth().setCustomUserClaims(targetUid, claims);
     return res.json({ success: true, message: `Claims set for ${targetUid}` });
   } catch (err: any) {
     res.status(500).json({ error: err.message });

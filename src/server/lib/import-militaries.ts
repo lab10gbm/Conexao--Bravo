@@ -1,10 +1,10 @@
 
 import fs from 'fs';
 import path from 'path';
-import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
+import { getFirestore as getAdminFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getFirestore as getClientFirestore, doc, setDoc, writeBatch } from 'firebase/firestore';
 
-export async function importMilitariesFromLocal(adminDb: any, clientDb: any, admin: any) {
+export async function importMilitariesFromLocal(adminDb: any, clientDb: any) {
   const dataPath = path.join(process.cwd(), 'src/server/lib/detailed_militaries_data.json');
   if (!fs.existsSync(dataPath)) {
     console.log('[Import] Detailed data file not found at', dataPath);
@@ -24,7 +24,7 @@ export async function importMilitariesFromLocal(adminDb: any, clientDb: any, adm
       return clean.replace(/^0+/, '') || clean;
     };
 
-    if (adminDb && admin) {
+    if (adminDb) {
       console.log('[Import] Using Admin SDK for batch import...');
       let batch = adminDb.batch();
       for (const m of militaries) {
@@ -34,7 +34,7 @@ export async function importMilitariesFromLocal(adminDb: any, clientDb: any, adm
         const data = {
           ...m,
           rg: safeRg,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          updatedAt: FieldValue.serverTimestamp()
         };
 
         batch.set(docRef, data, { merge: true });
@@ -51,6 +51,7 @@ export async function importMilitariesFromLocal(adminDb: any, clientDb: any, adm
       }
       console.log(`[Import] Successfully imported ${count} militaries via Admin SDK.`);
     } else if (clientDb) {
+
       console.log('[Import] Admin SDK not available, using Client SDK writeBatch...');
       let batch = writeBatch(clientDb);
       for (const m of militaries) {

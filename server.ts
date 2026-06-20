@@ -4,8 +4,9 @@ import path from 'path';
 import axios from 'axios';
 import { parse } from 'csv-parse/sync';
 import { fileURLToPath } from 'url';
-import admin from 'firebase-admin';
-import { getFirestore } from 'firebase-admin/firestore';
+import { initializeApp as initAdminApp, getApps as getAdminApps, getApp as getAdminApp, cert, deleteApp } from 'firebase-admin/app';
+import { getFirestore as getAdminFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { initializeApp } from 'firebase/app';
 import { getFirestore as getClientFirestore, doc, setDoc, serverTimestamp, collection, getDocs, getDoc, query, limit, orderBy, where, writeBatch } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -39,7 +40,7 @@ if (fs.existsSync(firebaseConfigPath)) {
 }
 
 // Global DB and Cache handles
-let db: admin.firestore.Firestore;
+let db: any;
 let clientDb: any;
 let militaryCache: Map<string, any> = new Map();
 let isCacheLoaded = false;
@@ -154,7 +155,7 @@ async function syncMilitariesFromSheetInternal() {
             idFuncional: row['ID Funcional'] || row['Id Funcional'] || row['ID FUNCIONAL'] || null,
             birthDate: row['Nascimento'] || row['NASCIMENTO'] || row['birthDate'] || row['D.Nasc'] || row['DATA DE NASCIMENTO'] || row['DataNasc'] || null,
             nascimento: row['Nascimento'] || row['NASCIMENTO'] || row['birthDate'] || row['D.Nasc'] || row['DATA DE NASCIMENTO'] || row['DataNasc'] || null,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            updatedAt: FieldValue.serverTimestamp()
           };
 
           for (const key in data) {
@@ -250,8 +251,8 @@ async function initFirebaseAdmin() {
 
   try {
     // Force reset if already initialized
-    if (admin.apps.length > 0) {
-      try { await admin.app().delete(); } catch(e) {}
+    if (getAdminApps().length > 0) {
+      try { await deleteApp(getAdminApp()); } catch(e) {}
     }
     
     // Check if we have an explicit Service Account provided via Environment Variable (for Render/External)
@@ -259,27 +260,27 @@ async function initFirebaseAdmin() {
     if (saJson) {
       console.log(`[Firebase] Using Service Account from environment variable.`);
       const sa = JSON.parse(saJson);
-      admin.initializeApp({
-        credential: admin.credential.cert(sa),
+      initAdminApp({
+        credential: cert(sa),
         projectId: sa.project_id
       });
     } else if (targetProject && targetProject !== 'remixed-project-id' && targetProject !== '') {
       console.log(`[Firebase] Initializing with explicit ProjectID: ${targetProject}`);
-      admin.initializeApp({ projectId: targetProject });
+      initAdminApp({ projectId: targetProject });
     } else {
       console.log(`[Firebase] Initializing with ADC...`);
-      admin.initializeApp();
+      initAdminApp();
     }
     
-    console.log(`[Firebase] Admin initialized for: ${admin.app().options.projectId}`);
+    console.log(`[Firebase] Admin initialized for: ${getAdminApp().options.projectId}`);
   } catch (e: any) {
     console.error('[Firebase] Admin Init error:', e.message);
-    if (admin.apps.length === 0) {
-      try { admin.initializeApp(); } catch (f) {}
+    if (getAdminApps().length === 0) {
+      try { initAdminApp(); } catch (f) {}
     }
   }
 
-  const app = admin.app();
+  const app = getAdminApp();
   const project = app.options.projectId || 'unknown';
   const configDbId = firebaseConfig.firestoreDatabaseId;
   
@@ -298,7 +299,7 @@ async function initFirebaseAdmin() {
 
   try {
     console.log(`[Firebase] Initializing Admin SDK Firestore on database "${targetDbId}"...`);
-    db = getFirestore(app, targetDbId);
+    db = getAdminFirestore(app, targetDbId);
     
     // Only trust Admin SDK if we have a real Service Account. ADC in the sandbox cannot reach user databases and will hang.
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
@@ -317,7 +318,7 @@ async function initFirebaseAdmin() {
   } catch (err: any) {
     console.error(`[Firebase] Admin SDK Firestore initialization failed: ${err.message}`);
     try {
-      db = getFirestore(app);
+      db = getAdminFirestore(app);
       if (process.env.FIREBASE_SERVICE_ACCOUNT) {
         try {
           await db.collection('militaries').limit(1).get();
@@ -355,7 +356,7 @@ async function startServer() {
   cachePromise = firebaseInitPromise.then(async () => {
     if (isDbHealthy && db) {
       // Run local import if file exists
-      await importMilitariesFromLocal(db, clientDb, admin);
+      await importMilitariesFromLocal(db, clientDb);
       
       console.log('[Cache] Loading military cache from Firestore...');
       try {
@@ -382,7 +383,7 @@ async function startServer() {
       }
     } else if (clientDb) {
       // Run local import if file exists
-      await importMilitariesFromLocal(null, clientDb, null);
+      await importMilitariesFromLocal(null, clientDb);
 
       console.log('[Cache] Admin SDK unhealthy or unavailable, loading military cache via Client SDK...');
       try {
@@ -540,7 +541,7 @@ async function startServer() {
     res.json({ 
       status: 'ok', 
       db: db ? 'connected' : 'not_available',
-      auth: admin.apps.length > 0 ? 'ready' : 'not_ready',
+      auth: getAdminApps().length > 0 ? 'ready' : 'not_ready',
       time: new Date().toISOString() 
     });
   });
@@ -575,7 +576,6 @@ async function startServer() {
     normalizeRg,
     normalizeObm,
     OBM_HIERARCHY,
-    admin,
     isCacheLoaded,
     cachePromise,
     setDbUnhealthy: () => { isDbHealthy = false; }
@@ -744,7 +744,7 @@ async function startServer() {
           if (data.name) data.name = data.name.toUpperCase();
           if (data.warName) data.warName = data.warName.toUpperCase();
           if (data.rank) data.rank = data.rank.toUpperCase();
-          data.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+          data.updatedAt = FieldValue.serverTimestamp();
           
           Object.keys(data).forEach(k => {
              if (data[k] === null || data[k] === undefined) delete data[k];
@@ -1001,20 +1001,20 @@ async function startServer() {
     // Run Firebase Auth sync in the background so it doesn't block login
     Promise.resolve().then(async () => {
        try {
-         await admin.auth().updateUser(safeRg, {
+         await getAdminAuth().updateUser(safeRg, {
            email: authEmail,
            password: effectiveAuthPassword,
          });
-         await admin.auth().setCustomUserClaims(safeRg, claims);
+         await getAdminAuth().setCustomUserClaims(safeRg, claims);
        } catch (userErr: any) {
          if (userErr.code === 'auth/user-not-found') {
            try {
-             await admin.auth().createUser({
+             await getAdminAuth().createUser({
                uid: safeRg,
                email: authEmail,
                password: effectiveAuthPassword,
              });
-             await admin.auth().setCustomUserClaims(safeRg, claims);
+             await getAdminAuth().setCustomUserClaims(safeRg, claims);
            } catch (createErr: any) {
              if (!createErr.message?.includes('Identity Toolkit API has not been used')) {
                console.warn('[API] Background auth create failed:', createErr.message);
@@ -1103,7 +1103,7 @@ async function startServer() {
       if (db && isDbHealthy) {
         // Clear custom password
         await db.collection('militaries').doc(safeRg).collection('private').doc('secrets').set({
-          customPassword: admin.firestore.FieldValue.delete()
+          customPassword: FieldValue.delete()
         }, { merge: true });
       } else if (clientDb) {
         await setDoc(doc(clientDb, 'militaries', safeRg, 'private', 'secrets'), {

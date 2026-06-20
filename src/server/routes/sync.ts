@@ -1,6 +1,7 @@
 import express from "express";
-import admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from "../lib/firebase-admin";
+
 
 export const syncRouter = express.Router();
 
@@ -40,7 +41,7 @@ const bulkSyncHandler = async (req: any, res: any) => {
     }
 
     const timestamp = new Date().toISOString();
-    const serverTimestampValue = admin.firestore.FieldValue.serverTimestamp() || timestamp;
+    const serverTimestampValue = FieldValue.serverTimestamp() || timestamp;
 
     let batch = db.batch();
     let count = 0;
@@ -148,7 +149,7 @@ syncRouter.post('/admin/vacation/raw-sync', apiKeyMiddleware, async (req, res) =
     if (vacations.length === 0) return res.status(400).json({ success: false, error: 'RG encontrado, mas Nenhuma férias localizada/parseada', rg });
     
     // Save to DB
-    const serverTimestampValue = admin.firestore.FieldValue.serverTimestamp();
+    const serverTimestampValue = FieldValue.serverTimestamp();
     let batch = db.batch();
     for (const v of vacations) {
         const docId = `${rg}_${v.anoRef || '0000'}_${(v.dataInicio || '').replace(/\//g, '')}`;
@@ -175,7 +176,7 @@ syncRouter.post('/admin/personal-data/bulk-sync', apiKeyMiddleware, async (req, 
     }
 
     const timestamp = new Date().toISOString();
-    const serverTimestampValue = admin.firestore.FieldValue.serverTimestamp() || timestamp;
+    const serverTimestampValue = FieldValue.serverTimestamp() || timestamp;
 
     let batch = db.batch();
     let count = 0;
@@ -253,7 +254,7 @@ syncRouter.post('/admin/militaries/bulk-sync', apiKeyMiddleware, async (req, res
       
       currentBatch.set(docRef, {
           ...dataToSave,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+          updatedAt: FieldValue.serverTimestamp()
       }, { merge: true });
       
       batchCount++;

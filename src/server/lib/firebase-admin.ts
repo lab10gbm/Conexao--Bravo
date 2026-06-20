@@ -1,4 +1,4 @@
-import admin from 'firebase-admin';
+import { initializeApp, getApps, getApp, cert, deleteApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import fs from 'fs';
 import path from 'path';
@@ -6,7 +6,7 @@ import path from 'path';
 let isInitialized = false;
 
 export function initFirebaseAdmin() {
-  if (isInitialized) return admin;
+  if (isInitialized) return true;
 
   const firebaseConfigPath = path.join(process.cwd(), 'firebase-applet-config.json');
   let firebaseConfig: any = { projectId: '' };
@@ -25,37 +25,37 @@ export function initFirebaseAdmin() {
   const targetProject = firebaseConfig.projectId;
 
   try {
-    if (admin.apps.length > 0) {
-      try { admin.app().delete().catch(()=>{}); } catch(e) {}
+    if (getApps().length > 0) {
+      try { deleteApp(getApp()).catch(()=>{}); } catch(e) {}
     }
     
     const saJson = process.env.FIREBASE_SERVICE_ACCOUNT;
     const saFilePath = path.join(process.cwd(), 'service-account.json');
     if (saJson) {
       const sa = JSON.parse(saJson);
-      admin.initializeApp({
-        credential: admin.credential.cert(sa),
+      initializeApp({
+        credential: cert(sa),
         projectId: sa.project_id
       });
     } else if (fs.existsSync(saFilePath)) {
       const sa = JSON.parse(fs.readFileSync(saFilePath, 'utf8'));
-      admin.initializeApp({
-        credential: admin.credential.cert(sa),
+      initializeApp({
+        credential: cert(sa),
         projectId: sa.project_id
       });
     } else if (targetProject && targetProject !== 'remixed-project-id' && targetProject !== '') {
-      admin.initializeApp({ projectId: targetProject });
+      initializeApp({ projectId: targetProject });
     } else {
-      admin.initializeApp();
+      initializeApp();
     }
     isInitialized = true;
   } catch (e: any) {
     console.error('[Firebase] Admin Init error:', e.message);
-    if (admin.apps.length === 0) {
-      try { admin.initializeApp(); isInitialized = true; } catch (f) {}
+    if (getApps().length === 0) {
+      try { initializeApp(); isInitialized = true; } catch (f) {}
     }
   }
-  return admin;
+  return true;
 }
 
 export const getAdminDb = () => {
@@ -66,11 +66,11 @@ export const getAdminDb = () => {
         try {
             const config = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf8'));
             if (config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)') {
-                return getFirestore(admin.app(), config.firestoreDatabaseId);
+                return getFirestore(getApp(), config.firestoreDatabaseId);
             }
         } catch (e) {
             console.error('[Firebase] Error reading firestoreDatabaseId in getAdminDb:', e);
         }
     }
-    return getFirestore(admin.app());
+    return getFirestore(getApp());
 };

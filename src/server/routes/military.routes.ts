@@ -3,7 +3,7 @@ import { collection, getDocs, getDoc, doc, setDoc } from 'firebase/firestore';
 
 export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
   app.get('/api/militar', async (req, res) => {
-    const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, normalizeObm, OBM_HIERARCHY, admin, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
+    const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, normalizeObm, OBM_HIERARCHY, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
     const requesterRg = req.query.rg as string;
     let usersData: any[] = [];
     
@@ -163,7 +163,7 @@ export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
   });
 
 app.get('/api/militar/:rg', async (req, res) => {
-    const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, OBM_HIERARCHY, admin, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
+    const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, OBM_HIERARCHY, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
     const { rg } = req.params;
     if (!rg) return res.status(400).json({ success: false });
 
@@ -249,7 +249,7 @@ app.get('/api/militar/:rg', async (req, res) => {
   });
 
 app.post('/api/militar/update', async (req, res) => {
-    const { isDbHealthy, db, militaryCache, normalizeRg, OBM_HIERARCHY, admin, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
+    const { isDbHealthy, db, militaryCache, normalizeRg, OBM_HIERARCHY, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
     const { rg, data } = req.body;
     if (!rg || !data) return res.status(400).json({ success: false });
 
@@ -281,7 +281,7 @@ app.post('/api/militar/update', async (req, res) => {
   });
 
 app.post('/api/militar/role', async (req, res) => {
-    const { isDbHealthy, db, militaryCache, normalizeRg, OBM_HIERARCHY, admin, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
+    const { isDbHealthy, db, militaryCache, normalizeRg, OBM_HIERARCHY, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
     const { rg, role, value } = req.body;
     if (!rg || !role) return res.status(400).json({ success: false });
 
@@ -307,7 +307,7 @@ app.post('/api/militar/role', async (req, res) => {
   });
 
 app.post('/api/militar/emprestar', async (req, res) => {
-    const { isDbHealthy, db, militaryCache, normalizeRg, OBM_HIERARCHY, admin, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
+    const { isDbHealthy, db, militaryCache, normalizeRg, OBM_HIERARCHY, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
     const { lentTo, rg } = req.body;
     
     if (!rg) return res.status(400).json({ success: false, error: 'RG obrigatório' });
