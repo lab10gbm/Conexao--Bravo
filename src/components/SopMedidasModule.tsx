@@ -123,7 +123,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
   }, [militars, globalMilitars]);
 
   useEffect(() => {
-    import('firebase/firestore').then(({ onSnapshot }) => {
+    try {
       setLoading(true);
       const q = query(collection(db, 'medidasAntropometricas'));
       const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -139,9 +139,9 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
       });
       
       return () => unsubscribe();
-    }).catch(() => {
+    } catch (e) {
       setLoading(false);
-    });
+    }
   }, []);
 
   const handleBulkUpdate = async (value: string) => {

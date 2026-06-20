@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { UserProfile } from '../types';
-import { doc, onSnapshot, setDoc, query, collection, getDocs, deleteField } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, updateDoc, query, collection, getDocs, deleteField } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { cn, formatMilitaryName, getAlaForDate, getAlaLightColor, getAlaColor } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -413,7 +413,6 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       try {
           const safeRg = addMemberRg.toString().trim().toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^0+/, '');
           if (db) {
-             const { doc, setDoc } = await import('firebase/firestore');
              await setDoc(doc(db, 'militaries', safeRg), { ala: 'EXP' }, { merge: true });
           }
           updateMilitarLocal(addMemberRg, { ala: 'EXP' });
@@ -448,7 +447,6 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
           const safeRg = rgToUpdate.toString().trim().toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^0+/, '');
           
           if (db) {
-              const { doc, setDoc } = await import('firebase/firestore');
               await setDoc(doc(db, 'militaries', safeRg), { ala: alaValue }, { merge: true });
           }
           updateMilitarLocal(rgToUpdate, { ala: alaValue });
@@ -460,7 +458,6 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                   [`sectors.${rgToUpdate}`]: deleteField(),
                   [`regimes.${rgToUpdate}`]: deleteField()
               };
-              const { updateDoc } = await import('firebase/firestore');
               await updateDoc(globalDocRef, globalUpdates);
           } catch (e: any) {
               if (e.code !== 'not-found') console.error('Global doc update error:', e);
@@ -471,7 +468,6 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                   [`selections.${rgToUpdate}`]: deleteField(),
                   [`locked.${rgToUpdate}`]: deleteField()
               };
-              const { updateDoc } = await import('firebase/firestore');
               await updateDoc(monthDocRef, monthUpdates);
           } catch (e: any) {
               if (e.code !== 'not-found') console.error('Month doc update error:', e);
@@ -504,7 +500,6 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                         selections: { 'ESCALANTE_PREF': sels }
                     }), { merge: true });
           try {
-              const { updateDoc } = await import('firebase/firestore');
               await updateDoc(monthDocRef, { [`preferencesDetails.${dayStr}`]: deleteField() });
           } catch(e) {}
       } else {
@@ -658,7 +653,6 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       
       if (qty <= 0) {
           try {
-              const { updateDoc } = await import('firebase/firestore');
               await updateDoc(monthDocRef, { [`preferencesDetails.${dayStr}.${func}`]: deleteField() });
           } catch(e) {}
       } else {
@@ -1066,7 +1060,6 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                   else if (val === "2 e 1/2 Expedientes (Militar com Redução de Carga Horária)") autoReq = 0;
 
                                                   if (r === "") {
-                                                      const { updateDoc } = await import('firebase/firestore');
                                                       updateDoc(globalDocRef, { [`regimes.${rg}`]: deleteField() }).catch(console.error);
                                                   } else {
                                                       newGlobal.regimes = { [rg]: r };
@@ -1076,7 +1069,6 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                   
                                                   if (autoReq !== undefined && autoReq !== data.requirements?.[rg]) {
                                                       if (autoReq === 0) {
-                                                          const { updateDoc } = await import('firebase/firestore');
                                                           updateDoc(globalDocRef, { [`requirements.${rg}`]: deleteField() }).catch(console.error);
                                                       } else {
                                                           newGlobal.requirements = { [rg]: autoReq };
@@ -1125,7 +1117,6 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                     userNames: { [rg]: formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name) }
                                                 };
                                                 if (req <= 0) {
-                                                    const { updateDoc } = await import('firebase/firestore');
                                                     updateDoc(globalDocRef, { [`requirements.${rg}`]: deleteField() }).catch(console.error);
                                                 } else {
                                                     newGlobal.requirements = { [rg]: req };
@@ -1148,7 +1139,6 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                     userNames: { [rg]: formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name) }
                                                 };
                                                 if (!s) {
-                                                    const { updateDoc } = await import('firebase/firestore');
                                                     updateDoc(globalDocRef, { [`sectors.${rg}`]: deleteField() }).catch(console.error);
                                                 } else {
                                                     newGlobal.sectors = { [rg]: s };

@@ -57,7 +57,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
 
       // 2. Fetch from Firebase directly since the backend cache is disabled due to security rules
       try {
-        const { db } = await import('../lib/firebase');
+        
         
         const [visSnap, rolSnap, vacSnap, alaSnap, monSnap] = await Promise.all([
           getDoc(doc(db, 'config', 'app_visibility')),

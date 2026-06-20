@@ -340,7 +340,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
         if (!m.rg) return Promise.resolve();
         const safeRg = String(m.rg).replace(/^0+/, "").replace(/\D/g, "");
         if (db) {
-            const { doc, setDoc } = await import('firebase/firestore');
+            
             return setDoc(doc(db, 'militaries', safeRg), cleanUndefined({ [field]: newState }), { merge: true }).catch(() => {});
         }
         return Promise.resolve();
@@ -369,7 +369,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
         if (!m.rg) return Promise.resolve();
         const safeRg = String(m.rg).replace(/^0+/, "").replace(/\D/g, "");
         if (db) {
-           const { doc, setDoc } = await import('firebase/firestore');
+           
            return setDoc(doc(db, 'militaries', safeRg), cleanUndefined({ viaturas: { [viat]: newState } }), { merge: true }).catch(() => {});
         }
         return Promise.resolve();

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Check, Ruler, Shield, AlertCircle, Info, Database, Layout } from 'lucide-react';
 import { UserProfile } from '../types';
 import { db } from '../lib/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 const medidasDgp: Record<string, any> = {};
 const epiDgp: Record<string, any> = {};
 import { DEFAULT_SOP_SCHEMA } from '../constants';
@@ -196,8 +196,7 @@ export function MedidasModule({ user, onBack }: MedidasModuleProps) {
         
         let initialData: Record<string, any> = {};
         
-        import('firebase/firestore').then(({ onSnapshot }) => {
-          onSnapshot(docRef, (docSnap) => {
+        onSnapshot(docRef, (docSnap) => {
             if (docSnap.exists()) {
               const data = docSnap.data();
               currentConfig.areas.forEach(area => {
@@ -263,8 +262,6 @@ export function MedidasModule({ user, onBack }: MedidasModuleProps) {
             console.error("Error fetching realtime medidas:", error);
             setIsLoading(false);
           });
-        });
-
       } catch (error) {
         console.error("Error fetching config:", error);
         setIsLoading(false);

@@ -446,9 +446,6 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
             .replace(/^0+/, "")
         : "";
 
-      const { doc, setDoc } = await import("firebase/firestore");
-      const { db } = await import("../lib/firebase");
-
       if (db && safeRg) {
         await setDoc(
           doc(db, "militaries", safeRg),
