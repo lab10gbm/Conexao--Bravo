@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import * as XLSX from '@e965/xlsx';
 import { format } from 'date-fns';
 
 export function exportToExcel(data: any[], sheetName: string, fileName: string) {

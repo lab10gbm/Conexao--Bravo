@@ -260,6 +260,9 @@ async function initFirebaseAdmin() {
     if (saJson) {
       console.log(`[Firebase] Using Service Account from environment variable.`);
       const sa = JSON.parse(saJson);
+      if (sa.private_key) {
+        sa.private_key = sa.private_key.replace(/\\n/g, '\n');
+      }
       initAdminApp({
         credential: cert(sa),
         projectId: sa.project_id
@@ -309,6 +312,7 @@ async function initFirebaseAdmin() {
         console.log(`[Firebase] SUCCESS: Admin SDK connected and healthy for db "${targetDbId}"`);
       } catch (err: any) {
         console.log(`[Firebase] WARNING: Admin SDK connection test failed. Reverting to Client SDK. Error: ${err.message}`);
+        console.log(`[Firebase] HINT: Check if your FIREBASE_SERVICE_ACCOUNT JSON is correct, the Service Account still exists, and has the 'Firebase Admin' or 'Cloud Datastore User' role.`);
         isDbHealthy = false;
       }
     } else {
