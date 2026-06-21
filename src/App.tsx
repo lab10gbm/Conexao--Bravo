@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from "react";
 import { auth, db } from "./lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import {
   Routes,
   Route,
@@ -358,49 +358,40 @@ export default function App() {
   // Proactive profile refresh to ensure data is never stale (Ala, rank etc)
   useEffect(() => {
     if (profile?.rg && !loading && authReady) {
-      // Trigger a military list fetch with the new RG for security filtering
-      refreshMilitars(profile.rg);
-
-      const refreshProfile = async () => {
-        try {
-          const pDoc = await getDoc(doc(db, 'militaries', profile.rg));
+      // Set up real-time listener for the user's own profile without cache interference
+      const unsub = onSnapshot(doc(db, 'militaries', profile.rg), (pDoc) => {
+        if (pDoc.exists()) {
+          const memberData = pDoc.data();
+          const isNewDataBetter = true; // Always accept latest real-time data
           
-          if (pDoc.exists()) {
-            const memberData = pDoc.data();
-            const isNewDataBetter =
-              memberData.name && memberData.name !== "Militar";
-            const isCurrentProfileDefault =
-              !profile.name || profile.name === "Militar";
-
-            if (isNewDataBetter || isCurrentProfileDefault) {
+          if (isNewDataBetter) {
+            setProfile(prev => {
+              if (!prev) return prev;
               const updatedProfile = {
-                ...profile,
+                ...prev,
                 ...memberData,
                 // Ensure aliases are mapped to expected internal names
-                nascimento: memberData.nascimento || memberData.birthDate || profile.nascimento || (profile as any).birthDate,
-                idFuncional: memberData.idFuncional || memberData.id_funcional || profile.idFuncional || (profile as any).id_funcional,
-                promotionDate: memberData.promotionDate || memberData.ultimaPromocao || profile.promotionDate || (profile as any).ultimaPromocao,
-                quadro: memberData.quadro || memberData.QUADRO || profile.quadro || (profile as any).QUADRO
+                nascimento: memberData.nascimento || memberData.birthDate || prev.nascimento || (prev as any).birthDate,
+                idFuncional: memberData.idFuncional || memberData.id_funcional || prev.idFuncional || (prev as any).id_funcional,
+                promotionDate: memberData.promotionDate || memberData.ultimaPromocao || prev.promotionDate || (prev as any).ultimaPromocao,
+                quadro: memberData.quadro || memberData.QUADRO || prev.quadro || (prev as any).QUADRO
               };
 
               // Only update if something actually changed to avoid re-render loops
-              // Use specific fields if whole object comparison is too noisy, but here we want everything
-              if (JSON.stringify(updatedProfile) !== JSON.stringify(profile)) {
-                console.log("[Auth] Profile updated with all real-time db data.");
-                setProfile(updatedProfile);
+              if (JSON.stringify(updatedProfile) !== JSON.stringify(prev)) {
+                console.log("[Auth] Profile updated with real-time db data via onSnapshot.");
                 localStorage.setItem(
                   "militar_profile",
                   JSON.stringify(updatedProfile),
                 );
+                return updatedProfile;
               }
-            }
+              return prev;
+            });
           }
-        } catch (e) {
-          console.warn("[Auth] Failed to refresh profile:", e);
         }
-      };
-
-      refreshProfile();
+      });
+      return () => unsub();
     }
   }, [profile?.rg, loading, authReady]);
 

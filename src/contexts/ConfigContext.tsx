@@ -27,121 +27,13 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const loadConfigs = async (forceNetwork = false) => {
-      // 1. Try to load from cache
-      const cacheKey = 'global_configs_cache';
-      const cacheTimeKey = 'global_configs_time';
-      
-      let fetchedFromCache = false;
-      if (!forceNetwork) {
-        try {
-          const cachedStr = localStorage.getItem(cacheKey);
-          const timeStr = localStorage.getItem(cacheTimeKey);
-          if (cachedStr && timeStr) {
-             const age = Date.now() - parseInt(timeStr, 10);
-             if (age < CACHE_TTL_MS) {
-                const data = JSON.parse(cachedStr);
-                if (data.alaConfig) {
-                  setAlaConfig(data.alaConfig);
-                  setGlobalAlaConfig(data.alaConfig.referenceYear || 2026, data.alaConfig.startAla || 2);
-                }
-                if (data.roles) setEscalanteRGs(data.roles);
-                if (data.activeMonths) setActiveMonths(data.activeMonths.map(Number));
-                if (data.appVisibility !== undefined) setAppVisibility(data.appVisibility);
-                if (data.vacationSettings) setVacationSettings(data.vacationSettings);
-                setLoading(false);
-                fetchedFromCache = true;
-             }
-          }
-        } catch(e) {}
-      }
-
-      // 2. Fetch from Firebase directly since the backend cache is disabled due to security rules
-      try {
-        const fetchTimeout = new Promise((resolve) => setTimeout(() => resolve('timeout'), 5000));
-        const depsPromise = Promise.all([
-          getDoc(doc(db, 'config', 'app_visibility')),
-          getDoc(doc(db, 'config', 'roles')),
-          getDoc(doc(db, 'config', 'vacation_settings')),
-          getDoc(doc(db, 'config', 'ala_config')),
-          getDoc(doc(db, 'config', 'active_months'))
-        ]);
-        
-        const result = await Promise.race([depsPromise, fetchTimeout]);
-
-        if (result === 'timeout') {
-          console.warn('[Config] Firestore fetch timed out, falling back to defaults if not cached');
-          setLoading(false);
-          return;
-        }
-
-        const [visSnap, rolSnap, vacSnap, alaSnap, monSnap] = result as any[];
-        
-        const newData: any = {};
-
-        if (alaSnap.exists()) {
-          const alaData = alaSnap.data() as any;
-          setAlaConfig(alaData);
-          setGlobalAlaConfig(alaData.referenceYear || 2026, alaData.startAla || 2);
-          newData.alaConfig = alaData;
-        }
-
-        if (rolSnap.exists()) {
-          const rolData = rolSnap.data() as any;
-          if (rolData.escalanteRGs) {
-            newData.roles = rolData.escalanteRGs;
-            setEscalanteRGs(newData.roles);
-          } else {
-            newData.roles = rolData.roles || [];
-            if (Array.isArray(newData.roles)) setEscalanteRGs(newData.roles);
-          }
-        }
-
-        if (monSnap.exists()) {
-          const monData = monSnap.data() as any;
-          if (Array.isArray(monData.months)) {
-            newData.activeMonths = monData.months.map(Number);
-            setActiveMonths(newData.activeMonths);
-          } else if (Array.isArray(monData)) {
-            // Fallback for legacy format where it might be a direct array
-            newData.activeMonths = monData.map(Number);
-            setActiveMonths(newData.activeMonths);
-          }
-        }
-
-        if (visSnap.exists()) {
-           const visData = visSnap.data() as any;
-           if (visData.visibility) {
-             newData.appVisibility = visData.visibility;
-             setAppVisibility(newData.appVisibility);
-           } else {
-             newData.appVisibility = visData;
-             setAppVisibility(newData.appVisibility);
-           }
-        }
-
-        if (vacSnap.exists()) {
-           const vacData = vacSnap.data() as any;
-           newData.vacationSettings = vacData;
-           setVacationSettings(vacData);
-        }
-
-        try {
-          localStorage.setItem(cacheKey, JSON.stringify(newData));
-          localStorage.setItem(cacheTimeKey, Date.now().toString());
-        } catch(e) {}
-
-      } catch (error) {
-        console.warn('[ConfigContext] Error fetching configs:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    // We rely entirely on onSnapshot, so manual loading and localStorage
+    // caching have been removed to prevent state-fighting and delays.
+    // Initial loading state will be set to false rapidly by listeners.
+  };
 
   useEffect(() => {
-    // Initial load
-    loadConfigs();
-
-    // Setup real-time listeners for critical configs
+    // Setup real-time listeners for all configs to be our single source of truth
     const unsubMonths = onSnapshot(doc(db, 'config', 'active_months'), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
@@ -151,6 +43,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
           setActiveMonths(data.map(Number));
         }
       }
+      setLoading(false);
     });
 
     const unsubRoles = onSnapshot(doc(db, 'config', 'roles'), (snap) => {
@@ -169,10 +62,25 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       }
     });
 
+    const unsubVis = onSnapshot(doc(db, 'config', 'app_visibility'), (snap) => {
+      if (snap.exists()) {
+         const data = snap.data() as any;
+         setAppVisibility(data.visibility || data);
+      }
+    });
+    
+    const unsubVac = onSnapshot(doc(db, 'config', 'vacation_settings'), (snap) => {
+      if (snap.exists()) {
+         setVacationSettings(snap.data() as any);
+      }
+    });
+
     return () => {
       unsubMonths();
       unsubRoles();
       unsubAla();
+      unsubVis();
+      unsubVac();
     };
   }, []);
 
