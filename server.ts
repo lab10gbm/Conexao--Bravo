@@ -1005,6 +1005,7 @@ async function startServer() {
     };
 
     const profileData = {
+      ...userData,
       uid: safeRg,
       rg: userData.isOutsourced ? null : safeRg,
       login: userData.isOutsourced ? safeRg : null,
@@ -1056,18 +1057,18 @@ async function startServer() {
              });
              await getAdminAuth().setCustomUserClaims(safeRg, claims);
            } catch (createErr: any) {
-             if (!createErr.message?.includes('Identity Toolkit API has not been used')) {
+             if (!createErr.message?.includes('Identity Toolkit API') && !createErr.message?.includes('identitytoolkit.googleapis.com')) {
                console.warn('[API] Background auth create failed:', createErr.message);
              }
            }
          } else {
-           if (!userErr.message?.includes('Identity Toolkit API has not been used')) {
+           if (!userErr.message?.includes('Identity Toolkit API') && !userErr.message?.includes('identitytoolkit.googleapis.com')) {
              console.warn('[API] Background auth sync failed:', userErr.message);
            }
          }
        }
     }).catch(err => {
-       if (!err.message?.includes('Identity Toolkit API has not been used')) {
+       if (!err.message?.includes('Identity Toolkit API') && !err.message?.includes('identitytoolkit.googleapis.com')) {
          console.warn('[API] Background auth sync unhandled error:', err.message);
        }
     });
