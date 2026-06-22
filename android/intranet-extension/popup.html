@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { width: 300px; padding: 15px; font-family: sans-serif; text-align: center; }
+        h3 { color: #d32f2f; font-size: 16px; margin-bottom: 10px; }
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 5px;
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+        button { 
+            background-color: #1976d2; color: white; border: none; 
+            padding: 10px 20px; cursor: pointer; border-radius: 5px; font-weight: bold; width: 100%;
+            margin-bottom: 10px;
+        }
+        button:hover { background-color: #1565c0; }
+        .info { font-size: 11px; color: #666; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h3>DGP Helper - Férias</h3>
+    <textarea id="listaRGs" placeholder="Cole os RGs dos militares (um por linha) ex:&#10;28019&#10;12345"></textarea>
+    <button id="btnVarrer">Extração em Massa (Férias)</button>
+    <p class="info">Acesse qualquer página dentro do sistema DGP antes de clicar.</p>
+    <script src="popup.js"></script>
+</body>
+</html>

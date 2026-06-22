@@ -65,7 +65,7 @@ const ModuleIcon: React.FC<ModuleIconProps> = ({ label, icon: Icon, color, onCli
       whileTap={disabled ? {} : { scale: 0.98 }}
       onClick={disabled ? undefined : onClick}
       className={cn(
-        "bg-white border-2 border-slate-100 rounded-[2rem] p-4 sm:p-6 flex flex-col items-center justify-center gap-3 sm:gap-4 shadow-sm transition-all text-center group relative overflow-hidden",
+        "bg-white border-2 border-slate-100 rounded-3xl sm:rounded-[2rem] p-3 sm:p-6 flex flex-col items-center justify-center gap-2 sm:gap-4 shadow-sm transition-all text-center group relative overflow-hidden",
         disabled ? "opacity-50 grayscale cursor-not-allowed" : "hover:shadow-xl hover:border-indigo-100"
       )}
     >
@@ -112,10 +112,10 @@ const ModuleIcon: React.FC<ModuleIconProps> = ({ label, icon: Icon, color, onCli
       )}
 
       <div className={cn(
-        `w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl ${color} flex items-center justify-center text-white shadow-lg transition-transform`,
+        `w-10 h-10 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl ${color} flex items-center justify-center text-white shadow-lg transition-transform`,
         !disabled && "group-hover:rotate-6"
       )}>
-        <Icon className="w-6 h-6 sm:w-8 sm:h-8" />
+        <Icon className="w-5 h-5 sm:w-8 sm:h-8" />
       </div>
       <div>
         <h3 className="font-black text-slate-800 uppercase tracking-tighter text-[11px] sm:text-sm leading-tight">{label}</h3>
