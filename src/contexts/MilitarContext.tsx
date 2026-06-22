@@ -22,7 +22,7 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onSnapshot(collection(db, 'militaries'), (snapshot) => {
       const fetchedMembers = snapshot.docs.map(d => {
         const data = d.data();
-        return {
+        return ({
           rg: d.id,
           name: data.name || '',
           postGrad: data.postGrad || '',
@@ -31,7 +31,7 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
           phone: data.phone || '',
           email: data.email || '',
           ...data
-        } as UserProfile;
+        } as unknown) as UserProfile;
       });
       setMilitars(fetchedMembers);
       setLoading(false);
