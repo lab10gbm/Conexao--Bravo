@@ -245,7 +245,7 @@ export function MainLayout({
         </div>
       </nav>
 
-      <main className="flex-1 w-full max-w-[2000px] 2xl:max-w-none mx-auto sm:px-6 lg:px-8 xl:px-12 transition-all">{children}</main>
+      <main className="flex-1 w-full max-w-[2000px] 2xl:max-w-none mx-auto px-4 py-4 sm:p-6 lg:p-8 xl:p-12 transition-all">{children}</main>
     </div>
   );
 }
