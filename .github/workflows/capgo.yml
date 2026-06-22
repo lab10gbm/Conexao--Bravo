@@ -25,7 +25,8 @@ jobs:
         run: npm run build
 
       - name: Capgo deploy
-        uses: Cap-go/capgo-action@v1
-        with:
-          token: ${{ secrets.CAPGO_TOKEN }}
-          app_id: com.app.intranet # O mesmo ID que está no seu capacitor.config.ts
+        env:
+          CAPGO_TOKEN: ${{ secrets.CAPGO_TOKEN }}
+        run: |
+          npm install -g @capgo/cli
+          npx @capgo/cli upload -a $CAPGO_TOKEN -c com.app.intranet
