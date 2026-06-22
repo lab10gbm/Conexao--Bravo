@@ -519,17 +519,17 @@ export function Header({
         theme.panel,
       )}
     >
-      <div className="p-4 sm:p-6">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 sm:gap-8 min-w-0">
-          <div className="flex-1 min-w-0 w-full">
-            <div className="flex items-start sm:items-center gap-2 mb-3 sm:mb-2">
-              <div className="w-1.5 sm:w-2 h-7 bg-[var(--color-brand-red)] shrink-0" />
+      <div className="p-6">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-2 h-7 bg-[var(--color-brand-red)]" />
 
-              <div className="relative shrink-0">
+              <div className="relative">
                 <button
                   onClick={() => setIsExpanded(!isExpanded)}
                   className={cn(
-                    "px-2 py-1.5 rounded flex items-center gap-1 sm:gap-2 transition-colors relative shadow-sm",
+                    "px-2 py-1.5 rounded flex items-center gap-2 transition-colors relative shadow-sm",
                     notifications.length > 0 || epiRequestActive
                       ? "text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200"
                       : "text-[var(--color-brand-red)] bg-red-50 hover:bg-red-100 border border-red-100",
@@ -537,39 +537,39 @@ export function Header({
                   title="Expandir Resumo e Notificações"
                 >
                   <div className="relative">
-                    <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <Bell className="w-5 h-5" />
                     {(notifications.length > 0 || epiRequestActive) && (
                       <motion.span
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        className="absolute -top-1 -right-1 w-2 h-2 sm:w-2.5 sm:h-2.5 bg-red-500 border-2 border-white rounded-full"
+                        className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 border-2 border-white rounded-full"
                       />
                     )}
                   </div>
                   <motion.div animate={{ rotate: isExpanded ? 180 : 0 }}>
-                    <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" strokeWidth={3} />
+                    <ChevronDown className="w-4 h-4" strokeWidth={3} />
                   </motion.div>
                 </button>
               </div>
 
               {/* Rank Insignia */}
-              <div className="mr-1 mt-1 sm:mr-4 shrink-0 text-[var(--color-brand-red)]">
+              <div className="mr-3 mt-1 sm:mr-4 text-[var(--color-brand-red)]">
                 <RankInsignia
                   rankStr={profile.rank}
-                  className="scale-[1.4] sm:scale-[2.2] origin-center sm:origin-left"
+                  className="scale-[1.8] sm:scale-[2.2] origin-center sm:origin-left"
                 />
               </div>
 
               <div
-                className={`flex flex-col min-w-0 ${["CORONEL", "TEN CEL", "MAJOR", "CAPITÃO", "1º TEN", "2º TEN", "ASP OF", "CADETE"].includes(profile.rank?.trim()?.toUpperCase() || "") ? "ml-8 sm:ml-36" : "ml-2 sm:ml-10"}`}
+                className={`flex flex-col ${["CORONEL", "TEN CEL", "MAJOR", "CAPITÃO", "1º TEN", "2º TEN", "ASP OF", "CADETE"].includes(profile.rank?.trim()?.toUpperCase() || "") ? "ml-16 sm:ml-36" : "ml-6 sm:ml-10"}`}
               >
                 <div className="flex items-center gap-2">
-                  <h2 className="text-[10px] sm:text-sm font-black text-[var(--color-brand-red)] uppercase tracking-[0.2em] mb-0.5 truncate">
+                  <h2 className="text-[12px] sm:text-sm font-black text-[var(--color-brand-red)] uppercase tracking-[0.2em] mb-0.5">
                     {profile.rank}
                   </h2>
                 </div>
-                <div className="flex items-center flex-wrap gap-2">
-                  <h2 className="text-lg sm:text-2xl font-black text-[var(--color-brand-dark)] uppercase tracking-tight break-words line-clamp-2">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl sm:text-2xl font-black text-[var(--color-brand-dark)] uppercase tracking-tight flex items-center">
                     {profile.warName || profile.name}
                   </h2>
                   {(() => {
@@ -586,7 +586,7 @@ export function Header({
                         <button
                           onClick={onToggleAdminMode}
                           className={cn(
-                            "text-[8px] sm:text-[10px] font-black px-2 py-1 rounded-lg sm:rounded-xl flex items-center gap-1.5 border transition-all shadow-sm active:scale-95 cursor-pointer shrink-0 mt-1 sm:mt-0",
+                            "text-[8px] sm:text-[10px] font-black px-2.5 py-1 rounded-xl flex items-center gap-1.5 border transition-all shadow-sm active:scale-95 cursor-pointer",
                             adminModeActive
                               ? "bg-indigo-600 text-white border-indigo-700 shadow-indigo-100/50 hover:bg-indigo-700"
                               : "bg-slate-100 text-slate-500 border-slate-300 hover:bg-slate-200",
@@ -599,7 +599,7 @@ export function Header({
                     }
 
                     return (
-                      <span className="bg-amber-100 text-amber-700 text-[8px] sm:text-[10px] font-black px-2 py-1 rounded flex items-center gap-1 border border-amber-200 shrink-0 mt-1 sm:mt-0">
+                      <span className="bg-amber-100 text-amber-700 text-[8px] sm:text-[10px] font-black px-2 py-1 rounded flex items-center gap-1 border border-amber-200">
                         MODERADOR
                       </span>
                     );
@@ -607,14 +607,14 @@ export function Header({
                 </div>
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em] mt-3 sm:mt-0 px-1 sm:px-0">
-              <div className="flex items-center gap-1.5 font-mono min-w-0">
-                <span className="text-slate-300 shrink-0">Unidade:</span>
+            <div className="flex flex-wrap items-center gap-4 text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em]">
+              <div className="flex items-center gap-1.5 font-mono">
+                <span className="text-slate-300">Unidade:</span>
                 {availableObms.length > 1 ? (
                   <select
                     value={obmContext}
                     onChange={(e) => setObmContext(e.target.value)}
-                    className="bg-slate-50 border border-slate-200 text-slate-600 font-black rounded px-2 py-1 outline-none focus:border-[var(--color-brand-red)] transition-colors max-w-[120px] sm:max-w-none text-ellipsis"
+                    className="bg-slate-50 border border-slate-200 text-slate-600 font-black rounded px-2 py-1 outline-none focus:border-[var(--color-brand-red)] transition-colors"
                   >
                     {availableObms.map((obm) => (
                       <option key={obm} value={obm}>
@@ -623,15 +623,15 @@ export function Header({
                     ))}
                   </select>
                 ) : (
-                  <span className="text-slate-600 font-black truncate">
+                  <span className="text-slate-600 font-black">
                     {obmContext || "10º GBM"}
                   </span>
                 )}
               </div>
-              <div className="hidden sm:block w-1 h-1 bg-slate-200 rounded-full shrink-0" />
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-slate-300 shrink-0">Escala:</span>
-                <span className="text-slate-600 truncate">
+              <div className="w-1 h-1 bg-slate-200 rounded-full" />
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-300">Escala:</span>
+                <span className="text-slate-600">
                   {isExp
                     ? userRegime || "EXPEDIENTE (Pendente)"
                     : "24H TRABALHO X 72H FOLGA"}

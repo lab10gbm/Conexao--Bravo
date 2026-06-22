@@ -53,17 +53,17 @@ export function PainelMilitarDashboard({ user }: PainelMilitarDashboardProps) {
             <button
               key={mod.id}
               onClick={() => navigate(`/${mod.id}`)}
-              className="bg-white border-2 border-slate-100 rounded-3xl sm:rounded-[2rem] p-4 sm:p-6 flex flex-col items-center justify-center gap-2 sm:gap-4 shadow-sm hover:shadow-xl hover:border-teal-100 transition-all text-center group relative overflow-hidden"
+              className="bg-white border-2 border-slate-100 rounded-[2rem] p-6 flex flex-col items-center justify-center gap-4 shadow-sm hover:shadow-xl hover:border-teal-100 transition-all text-center group relative overflow-hidden"
             >
               <div className={cn(
-                `w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl flex items-center justify-center text-white shadow-lg transition-transform group-hover:rotate-6`,
+                `w-16 h-16 rounded-2xl flex items-center justify-center text-white shadow-lg transition-transform group-hover:rotate-6`,
                 mod.color
               )}>
-                <Icon className="w-6 h-6 sm:w-8 sm:h-8" />
+                <Icon className="w-8 h-8" />
               </div>
               <div>
-                <h3 className="font-black text-slate-800 uppercase tracking-tighter text-xs sm:text-sm leading-tight">{mod.label}</h3>
-                <p className="text-[9px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 sm:mt-1 transition-colors group-hover:text-slate-500">
+                <h3 className="font-black text-slate-800 uppercase tracking-tighter text-sm leading-tight">{mod.label}</h3>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1 transition-colors group-hover:text-slate-500">
                   {mod.description}
                 </p>
               </div>
