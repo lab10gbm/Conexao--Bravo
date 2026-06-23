@@ -1,8 +1,0 @@
-{
-  "name": "Remix: 10º GBM - Sistema de Permutas",
-  "description": "Sistema de gestão e troca de escala de serviço para militares do 10º GBM - Angra dos Reis. Permite visualizar a escala anual e solicitar trocas respeitando os prazos legais.",
-  "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}
