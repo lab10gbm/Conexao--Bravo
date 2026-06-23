@@ -29,6 +29,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
   const [allMilitars, setAllMilitars] = useState<UserProfile[]>([]);
   const [sopRoster, setSopRoster] = useState<UserProfile[]>([]);
   const [displayMode, setDisplayMode] = useState<'tudo' | string>('tudo');
+  const [isSectionsExpanded, setIsSectionsExpanded] = useState(false);
   const [viewType, setViewType] = useState<'status' | 'tamanho'>('tamanho');
   const [loading, setLoading] = useState(true);
   const [dbDataMap, setDbDataMap] = useState<Record<string, any>>({});
@@ -476,7 +477,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
 
   return (
     <div className="flex flex-col gap-10 w-full max-w-full pb-40">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 bg-white p-8 lg:p-10 rounded-[2.5rem] lg:rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden">
+      <div className="flex flex-col gap-6 lg:gap-8 bg-white p-8 lg:p-10 rounded-[2.5rem] lg:rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden">
         <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
            <Ruler className="w-32 h-32" />
         </div>
@@ -497,7 +498,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
             </div>
         </div>
 
-        <div className="flex flex-wrap lg:flex-nowrap items-center gap-3 lg:gap-4 relative z-10">
+        <div className="flex flex-wrap lg:flex-nowrap items-center gap-3 lg:gap-4 relative z-10 lg:ml-[104px]">
           {isModerator && (
             <>
               <button
@@ -577,22 +578,31 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
           </div>
         </div>
 
-        <div className="w-full bg-white p-2 rounded-2xl flex border border-slate-200 shadow-sm overflow-x-auto no-scrollbar scroll-smooth gap-1">
-          <button 
-            onClick={() => setDisplayMode('tudo')}
-            className={`px-8 py-3.5 text-[11px] uppercase tracking-widest font-black rounded-xl transition-all whitespace-nowrap ${displayMode === 'tudo' ? 'bg-emerald-50 text-emerald-700 shadow-sm border border-emerald-100' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
-          >
-            Visão Geral
-          </button>
-          {config?.areas.map(area => (
+        <div className="relative w-full flex items-start gap-2">
+          <div className={`flex-1 bg-white p-2 rounded-2xl flex border border-slate-200 shadow-sm transition-all duration-300 gap-1 ${isSectionsExpanded ? 'flex-wrap' : 'overflow-x-auto no-scrollbar scroll-smooth'}`}>
             <button 
-              key={area.id}
-              onClick={() => setDisplayMode(area.id)}
-              className={`px-8 py-3.5 text-[11px] uppercase tracking-widest font-black rounded-xl transition-all whitespace-nowrap ${displayMode === area.id ? 'bg-emerald-50 text-emerald-700 shadow-sm border border-emerald-100' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+              onClick={() => setDisplayMode('tudo')}
+              className={`px-8 py-3.5 text-[11px] uppercase tracking-widest font-black rounded-xl transition-all whitespace-nowrap ${displayMode === 'tudo' ? 'bg-emerald-50 text-emerald-700 shadow-sm border border-emerald-100' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
             >
-              {area.label}
+              Visão Geral
             </button>
-          ))}
+            {config?.areas.map(area => (
+              <button 
+                key={area.id}
+                onClick={() => setDisplayMode(area.id)}
+                className={`px-8 py-3.5 text-[11px] uppercase tracking-widest font-black rounded-xl transition-all whitespace-nowrap ${displayMode === area.id ? 'bg-emerald-50 text-emerald-700 shadow-sm border border-emerald-100' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}
+              >
+                {area.label}
+              </button>
+            ))}
+          </div>
+          <button 
+            onClick={() => setIsSectionsExpanded(!isSectionsExpanded)}
+            className="flex items-center justify-center bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-2xl w-[52px] h-[52px] shrink-0 shadow-sm transition-all"
+            title={isSectionsExpanded ? "Recolher Seções" : "Expandir Seções"}
+          >
+            <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${isSectionsExpanded ? 'rotate-180' : ''}`} />
+          </button>
         </div>
 
         <div className="flex flex-col gap-6">
