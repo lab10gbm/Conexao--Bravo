@@ -34,9 +34,7 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>
 );
 
-try {
-  CapacitorUpdater.notifyAppReady();
-} catch (error) {
+CapacitorUpdater.notifyAppReady().catch((error) => {
   console.log('Skipping CapacitorUpdater on web platform');
-}
+});
 
