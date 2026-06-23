@@ -59,10 +59,11 @@ const normalizeRg = (rg: string | number) => {
 
 const normalizeObm = (obm: string | null | undefined): string => {
   const clean = (obm || "").toString().trim().toUpperCase();
-  const sede10Variations = ['10', '10º', '10 GBM', '10º GBM', '10ºGBM', '10GBM', 'OBM', '10º GBM - SEDE', '10º GBM SEDE', '10 GBM SEDE', '10º GBM-SEDE'];
+  const sede10Variations = ['10', '10º', '10 GBM', '10º GBM', '10ºGBM', '10GBM', 'OBM', '10º GBM - SEDE', '10º GBM SEDE', '10 GBM SEDE', '10º GBM-SEDE', '10º GBM - ANGRA DOS REIS', '10º GBM ANGRA DOS REIS'];
   if (sede10Variations.includes(clean)) return '10º GBM';
-  const sede26Variations = ['26', '26º', '26 GBM', '26º GBM', '26ºGBM', '26GBM', '26º GBM - SEDE'];
+  const sede26Variations = ['26', '26º', '26 GBM', '26º GBM', '26ºGBM', '26GBM', '26º GBM - SEDE', '26º GBM - PARATY'];
   if (sede26Variations.includes(clean)) return '26º GBM';
+  if (['1/26', '1 / 26', '1/26 - MANGARATIBA / PARATY', '1/26 GBM'].includes(clean)) return '1/26';
   return clean;
 };
 
@@ -1039,39 +1040,33 @@ async function startServer() {
 
     console.log(`[API] Login sync for ${safeRg}: raw=${password.length}chars, effective=${effectiveAuthPassword.length}chars`);
 
-    // Run Firebase Auth sync in the background so it doesn't block login
-    Promise.resolve().then(async () => {
-       try {
-         await getAdminAuth().updateUser(safeRg, {
-           email: authEmail,
-           password: effectiveAuthPassword,
-         });
-         await getAdminAuth().setCustomUserClaims(safeRg, claims);
-       } catch (userErr: any) {
-         if (userErr.code === 'auth/user-not-found') {
-           try {
-             await getAdminAuth().createUser({
-               uid: safeRg,
-               email: authEmail,
-               password: effectiveAuthPassword,
-             });
-             await getAdminAuth().setCustomUserClaims(safeRg, claims);
-           } catch (createErr: any) {
-             if (!createErr.message?.includes('Identity Toolkit API') && !createErr.message?.includes('identitytoolkit.googleapis.com')) {
-               console.warn('[API] Background auth create failed:', createErr.message);
-             }
-           }
-         } else {
-           if (!userErr.message?.includes('Identity Toolkit API') && !userErr.message?.includes('identitytoolkit.googleapis.com')) {
-             console.warn('[API] Background auth sync failed:', userErr.message);
-           }
-         }
-       }
-    }).catch(err => {
-       if (!err.message?.includes('Identity Toolkit API') && !err.message?.includes('identitytoolkit.googleapis.com')) {
-         console.warn('[API] Background auth sync unhandled error:', err.message);
-       }
-    });
+    // Run Firebase Auth sync before returning so client login succeeds immediately
+    try {
+      await getAdminAuth().updateUser(safeRg, {
+        email: authEmail,
+        password: effectiveAuthPassword,
+      });
+      await getAdminAuth().setCustomUserClaims(safeRg, claims);
+    } catch (userErr: any) {
+      if (userErr.code === 'auth/user-not-found') {
+        try {
+          await getAdminAuth().createUser({
+            uid: safeRg,
+            email: authEmail,
+            password: effectiveAuthPassword,
+          });
+          await getAdminAuth().setCustomUserClaims(safeRg, claims);
+        } catch (createErr: any) {
+          if (!createErr.message?.includes('Identity Toolkit API') && !createErr.message?.includes('identitytoolkit.googleapis.com')) {
+            console.warn('[API] Auth create failed:', createErr.message);
+          }
+        }
+      } else {
+        if (!userErr.message?.includes('Identity Toolkit API') && !userErr.message?.includes('identitytoolkit.googleapis.com')) {
+          console.warn('[API] Auth sync failed:', userErr.message);
+        }
+      }
+    }
 
     return res.json({ 
       success: true, 

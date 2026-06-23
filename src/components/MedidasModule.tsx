@@ -124,6 +124,8 @@ export function MedidasModule({ user, onBack }: MedidasModuleProps) {
   
   // Dynamic form state
   const [formData, setFormData] = useState<Record<string, any>>({});
+  const [isEditingMap, setIsEditingMap] = useState<Record<string, boolean>>({});
+  const [statusAlteracaoMap, setStatusAlteracaoMap] = useState<Record<string, 'NENHUM' | 'PENDENTE' | 'APROVADO'>>({});
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -199,21 +201,33 @@ export function MedidasModule({ user, onBack }: MedidasModuleProps) {
         onSnapshot(docRef, (docSnap) => {
             if (docSnap.exists()) {
               const data = docSnap.data();
+              const newStatusMap: Record<string, 'NENHUM' | 'PENDENTE' | 'APROVADO'> = {};
+              
               currentConfig.areas.forEach(area => {
+                const isPending = data[`statusAlteracao_${area.id}`] === 'PENDENTE';
+                newStatusMap[area.id] = isPending ? 'PENDENTE' : 'APROVADO';
+                
+                const sourceData = isPending && data[`pendingUpdate_${area.id}`] ? data[`pendingUpdate_${area.id}`] : data;
+                
                 area.fields.forEach(f => {
                   if (area.id !== 'fardamento') {
-                    initialData[f.id] = parseEpiValue(data[f.id]);
+                    initialData[f.id] = parseEpiValue(sourceData[f.id]);
                   } else {
-                    initialData[f.id] = data[f.id] || '';
+                    initialData[f.id] = sourceData[f.id] || '';
                   }
                 });
               });
               setFormData({...initialData});
               setSource('PLATAFORMA');
+              setStatusAlteracaoMap(newStatusMap);
+              setIsEditingMap({});
             } else {
               const dgpData = medidasDgp[rgStr] || {};
               const epiData = epiDgp[rgStr] || {};
+              const newStatusMap: Record<string, 'NENHUM' | 'PENDENTE' | 'APROVADO'> = {};
+              
               currentConfig.areas.forEach(area => {
+                newStatusMap[area.id] = 'NENHUM';
                 area.fields.forEach(f => {
                   if (area.id !== 'fardamento') {
                     const val = (epiData as any)[f.id] || 'NÃO POSSUI';
@@ -225,6 +239,8 @@ export function MedidasModule({ user, onBack }: MedidasModuleProps) {
               });
               setFormData({...initialData});
               setSource('DGP');
+              setStatusAlteracaoMap(newStatusMap);
+              setIsEditingMap({});
             }
             
             // Check EPI request
@@ -276,14 +292,12 @@ export function MedidasModule({ user, onBack }: MedidasModuleProps) {
     try {
       const rgStr = user.rg.toString().padStart(5, '0');
       const docRef = doc(db, 'medidasAntropometricas', rgStr);
-      const dataToSave: Record<string, any> = {
-        updatedAt: new Date().toISOString(),
-        updatedBy: rgStr
-      };
+      const dataToSave: Record<string, any> = {};
       
-      config.areas.forEach(area => {
-        area.fields.forEach(f => {
-          if (area.id !== 'fardamento') {
+      const activeArea = config.areas.find(a => a.id === activeTab);
+      if (activeArea) {
+        activeArea.fields.forEach(f => {
+          if (activeArea.id !== 'fardamento') {
              dataToSave[f.id] = formData[f.id] ? serializeEpiValue(formData[f.id], f.type) : '';
           } else {
              if (formData[f.id] === 'NÃO NECESSITA') {
@@ -293,12 +307,20 @@ export function MedidasModule({ user, onBack }: MedidasModuleProps) {
              }
           }
         });
-      });
+      }
+
+      const updatePayload = {
+        updatedAt: new Date().toISOString(),
+        updatedBy: rgStr,
+        [`statusAlteracao_${activeTab}`]: 'PENDENTE',
+        [`pendingUpdate_${activeTab}`]: dataToSave
+      };
       
-      await setDoc(docRef, cleanUndefined(dataToSave), { merge: true });
+      await setDoc(docRef, cleanUndefined(updatePayload), { merge: true });
       setSource('PLATAFORMA');
       setSavedData(true);
       setHighlightAreas([]);
+      setIsEditingMap(prev => ({...prev, [activeTab]: false}));
       setTimeout(() => setSavedData(false), 3000);
     } catch (error) {
       console.error("Error saving medidas:", error);
@@ -315,15 +337,18 @@ export function MedidasModule({ user, onBack }: MedidasModuleProps) {
   };
 
   const EpiInputGroup = ({ label, value, setter, type }: { label: string, value: EpiValue, setter: (v: EpiValue) => void, type?: string }) => {
+    const currentIsEditing = isEditingMap[activeTab] || false;
+    
     return (
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-4">
         <label className="text-[10px] uppercase tracking-widest font-black text-slate-700">{label}</label>
         
         <div className="flex gap-2 w-full">
           <select 
+            disabled={!currentIsEditing}
             value={value?.status || 'NÃO POSSUI'}
             onChange={(e) => setter({ ...(value || defaultEpi()), status: e.target.value })}
-            className={`flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-black outline-none transition-colors ${(value?.status || '') === 'POSSUI' ? 'text-emerald-600 border-emerald-200 bg-emerald-50/50' : 'text-slate-500'}`}
+            className={`flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-black outline-none transition-colors ${(value?.status || '') === 'POSSUI' ? 'text-emerald-600 border-emerald-200 bg-emerald-50/50' : 'text-slate-500'} ${!currentIsEditing ? 'opacity-70 cursor-not-allowed' : ''}`}
           >
             <option value="POSSUI">POSSUI</option>
             <option value="NÃO POSSUI">NÃO POSSUI</option>
@@ -336,9 +361,10 @@ export function MedidasModule({ user, onBack }: MedidasModuleProps) {
               <div className="flex-1 space-y-1">
                  <label className="text-[9px] uppercase font-bold text-slate-400 pl-1">Número</label>
                  <select 
+                   disabled={!currentIsEditing}
                    value={value?.num || ''}
                    onChange={(e) => setter({ ...value, num: e.target.value })}
-                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-cyan-500 transition-colors cursor-pointer"
+                   className={`w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-cyan-500 transition-colors ${!currentIsEditing ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
                  >
                    <option value="">Selecione...</option>
                    <option value="T. ÚNICO">T. ÚNICO</option>
@@ -350,9 +376,10 @@ export function MedidasModule({ user, onBack }: MedidasModuleProps) {
               <div className="flex-1 space-y-1">
                  <label className="text-[9px] uppercase font-bold text-slate-400 pl-1">Letra</label>
                  <select 
+                   disabled={!currentIsEditing}
                    value={value?.letter || ''}
                    onChange={(e) => setter({ ...value, letter: e.target.value })}
-                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-cyan-500 transition-colors uppercase cursor-pointer"
+                   className={`w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-cyan-500 transition-colors uppercase ${!currentIsEditing ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
                  >
                    <option value="">Selecione...</option>
                    <option value="T. ÚNICO">T. ÚNICO</option>
@@ -368,9 +395,10 @@ export function MedidasModule({ user, onBack }: MedidasModuleProps) {
             <div className="w-full space-y-1 mt-1">
                <label className="text-[9px] uppercase font-bold text-slate-400 pl-1">Estado</label>
                <select 
+                 disabled={!currentIsEditing}
                  value={value?.cond || ''}
                  onChange={(e) => setter({ ...value, cond: e.target.value })}
-                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-cyan-500 transition-colors cursor-pointer"
+                 className={`w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-cyan-500 transition-colors ${!currentIsEditing ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
                >
                  <option value="">Informe o estado...</option>
                  <option value="NOVO">NOVO</option>
@@ -511,9 +539,10 @@ export function MedidasModule({ user, onBack }: MedidasModuleProps) {
                             </div>
                           ) : (
                             <select
+                              disabled={!(isEditingMap[activeTab] || false)}
                               value={formData[f.id] || ''}
                               onChange={(e) => updateFieldStr(f.id, e.target.value)}
-                              className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-lg font-bold text-slate-700 outline-none focus:border-cyan-500 transition-colors shadow-sm cursor-pointer"
+                              className={`w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-lg font-bold text-slate-700 outline-none focus:border-cyan-500 transition-colors shadow-sm ${!(isEditingMap[activeTab] || false) ? 'opacity-70 cursor-not-allowed bg-slate-50' : 'cursor-pointer'}`}
                             >
                               <option value="">Selecione...</option>
                               <option value="NÃO POSSUI">NÃO POSSUI</option>
@@ -531,23 +560,45 @@ export function MedidasModule({ user, onBack }: MedidasModuleProps) {
              </div>
           )}
 
-          <div className="mt-8 flex justify-end shrink-0">
-            <button 
-              onClick={handleSave} 
-              disabled={isLoading || isSaving}
-              className="flex items-center gap-3 bg-cyan-600 text-white px-8 py-3.5 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-cyan-700 transition-all shadow-md hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
-            >
-              {isSaving ? (
-                <>Salvando...</>
-              ) : savedData ? (
-                <>
-                  <Check className="w-5 h-5" />
-                  Atualizado com Sucesso
-                </>
-              ) : (
-                <>Confirmar Informações</>
-              )}
-            </button>
+          <div className="mt-8 flex justify-end shrink-0 gap-4">
+            {statusAlteracaoMap[activeTab] === 'PENDENTE' ? (
+              <div className="bg-amber-100 text-amber-800 px-6 py-3.5 rounded-xl font-bold text-xs flex items-center gap-2">
+                <AlertCircle className="w-5 h-5" />
+                Aguardando aprovação do gestor SOP
+              </div>
+            ) : !(isEditingMap[activeTab] || false) ? (
+              <button 
+                onClick={() => setIsEditingMap(prev => ({...prev, [activeTab]: true}))} 
+                className="flex items-center gap-3 bg-indigo-600 text-white px-8 py-3.5 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg"
+              >
+                Solicitar Alteração de Informação
+              </button>
+            ) : (
+              <>
+                <button 
+                  onClick={() => setIsEditingMap(prev => ({...prev, [activeTab]: false}))} 
+                  className="flex items-center gap-3 bg-slate-200 text-slate-700 px-6 py-3.5 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-slate-300 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={handleSave} 
+                  disabled={isLoading || isSaving}
+                  className="flex items-center gap-3 bg-cyan-600 text-white px-8 py-3.5 rounded-xl font-black uppercase text-xs tracking-widest hover:bg-cyan-700 transition-all shadow-md hover:shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  {isSaving ? (
+                    <>Salvando...</>
+                  ) : savedData ? (
+                    <>
+                      <Check className="w-5 h-5" />
+                      Enviado com Sucesso
+                    </>
+                  ) : (
+                    <>Enviar Mudança</>
+                  )}
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>

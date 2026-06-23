@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, BookOpen, Download, Edit2, Check, X, ChevronDown, Settings, Copy, Filter, Ruler, Search, Plus, AlertCircle } from 'lucide-react';
 import { UserProfile } from '../types';
 import { db } from '../lib/firebase';
-import { doc, setDoc, onSnapshot, getDoc, collection, getDocs, query } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, getDoc, collection, getDocs, query, deleteField } from 'firebase/firestore';
 const medidasDgp: Record<string, any> = {};
 const epiDgp: Record<string, any> = {};
 import { DEFAULT_SOP_SCHEMA } from '../constants';
@@ -14,7 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { exportToExcel } from '../lib/exportUtils';
 import { ManualRgModal } from './ManualRgModal';
 import { EditableSopCell } from './EditableSopCell';
-import { cleanUndefined } from "../lib/utils";
+import { cleanUndefined, normalizeObm } from "../lib/utils";
 
 interface SopMedidasModuleProps {
   user: UserProfile;
@@ -44,6 +44,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
   const [showEpiRequestModal, setShowEpiRequestModal] = useState(false);
   const [epiRequestFields, setEpiRequestFields] = useState<string[]>([]);
   const [epiRequestMessage, setEpiRequestMessage] = useState('');
+  const [reviewingRequestFor, setReviewingRequestFor] = useState<string | null>(null);
 
   // Filters State
   const [filterPostoGrad, setFilterPostoGrad] = useState<string[]>([]);
@@ -55,6 +56,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
   const [filterCursos, setFilterCursos] = useState<string[]>([]);
   const [filterMaterialField, setFilterMaterialField] = useState<string>('');
   const [filterMaterialStatus, setFilterMaterialStatus] = useState<string>('');
+  const [showOnlyPending, setShowOnlyPending] = useState(false);
 
   // Derived from config
   const epiArea = config?.areas.find(a => a.id === 'epi');
@@ -209,18 +211,38 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
     return combined;
   }, [allMilitars, sopRoster]);
 
+  const applicableMilitars = useMemo(() => {
+    return combinedMilitars.filter(p => {
+      if (displayMode !== 'tudo' && config) {
+        const area = config.areas.find(a => a.id === displayMode);
+        if (area) {
+          const qbmps = (area.targetQBMPs || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+          const rgs = (area.targetRGs || '').split(',').map(s => s.trim()).filter(Boolean);
+          if (qbmps.length > 0 || rgs.length > 0) {
+            let userQuadro = (p.quadro || '').toUpperCase().trim();
+            userQuadro = userQuadro.split('/')[0].trim();
+            const rgKey = (p.rg || '').toString().padStart(5, '0');
+            const isApplicable = (rgs.length > 0 && rgs.includes(rgKey)) || (qbmps.length > 0 && userQuadro !== '' && qbmps.some(q => userQuadro.includes(q) || q.includes(userQuadro)));
+            if (!isApplicable) return false;
+          }
+        }
+      }
+      return true;
+    });
+  }, [combinedMilitars, displayMode, config]);
+
   // Derived filter options
   const { uniqueRanks, uniqueQuadros, uniqueAlas, uniqueObms, uniqueCidades, uniqueSituacoes, uniqueCursos } = useMemo(() => {
     return {
-      uniqueRanks: Array.from(new Set(combinedMilitars.map(m => m.rank).filter(Boolean))) as string[],
-      uniqueQuadros: Array.from(new Set(combinedMilitars.map(m => m.quadro).filter(Boolean))) as string[],
-      uniqueObms: Array.from(new Set(combinedMilitars.map(m => m.obm ? m.obm : '10º GBM').filter(Boolean))) as string[],
-      uniqueAlas: Array.from(new Set(combinedMilitars.map(m => m.ala?.toString()).filter(v => v && !['ALA', 'ESCALANTE', 'EXP'].includes(v.toUpperCase())))) as string[],
-      uniqueCidades: Array.from(new Set(combinedMilitars.map(m => m.cidade).filter(Boolean))) as string[],
-      uniqueSituacoes: Array.from(new Set(combinedMilitars.map(m => m.situacao).filter(Boolean))) as string[],
-      uniqueCursos: Array.from(new Set(combinedMilitars.flatMap(m => m.cursos ? m.cursos.toUpperCase().split(',').map(s => s.trim()) : []).filter(v => v && v.length > 1))) as string[],
+      uniqueRanks: Array.from(new Set(applicableMilitars.map(m => m.rank).filter(Boolean))) as string[],
+      uniqueQuadros: Array.from(new Set(applicableMilitars.map(m => m.quadro ? m.quadro.split('/')[0].trim() : '').filter(Boolean))) as string[],
+      uniqueObms: Array.from(new Set(applicableMilitars.map(m => normalizeObm(m.obm)).filter(Boolean))) as string[],
+      uniqueAlas: Array.from(new Set(applicableMilitars.map(m => m.ala?.toString()).filter(v => v && !['ALA', 'ESCALANTE', 'EXP'].includes(v.toUpperCase())))) as string[],
+      uniqueCidades: Array.from(new Set(applicableMilitars.map(m => m.cidade).filter(Boolean))) as string[],
+      uniqueSituacoes: Array.from(new Set(applicableMilitars.map(m => m.situacao).filter(Boolean))) as string[],
+      uniqueCursos: Array.from(new Set(applicableMilitars.flatMap(m => m.cursos ? m.cursos.toUpperCase().split(',').map(s => s.trim()) : []).filter(v => v && v.length > 1))) as string[],
     };
-  }, [combinedMilitars]);
+  }, [applicableMilitars]);
 
   const merged = useMemo(() => {
     return combinedMilitars.map(p => {
@@ -233,6 +255,8 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
         ...p,
         rgStr,
         hasDbData: !!dbDataMap[rgStr],
+        statusAlteracao: config?.areas.some(a => dDB[`statusAlteracao_${a.id}`] === 'PENDENTE') ? 'PENDENTE' : 'NENHUM',
+        pendingUpdate: dDB.pendingUpdate || {},
       };
 
       // Populate dynamic fields
@@ -243,8 +267,9 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
           
           let isApplicable = true;
           if (qbmps.length > 0 || rgs.length > 0) {
-            const userQuadro = (p.quadro || '').toUpperCase().trim();
-            isApplicable = rgs.includes(rgStr) || qbmps.some(q => userQuadro.includes(q) || q.includes(userQuadro));
+            let userQuadro = (p.quadro || '').toUpperCase().trim();
+            userQuadro = userQuadro.split('/')[0].trim();
+            isApplicable = (rgs.length > 0 && rgs.includes(rgStr)) || (qbmps.length > 0 && userQuadro !== '' && qbmps.some(q => userQuadro.includes(q) || q.includes(userQuadro)));
           }
 
           area.fields.forEach(field => {
@@ -284,6 +309,21 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
     return merged.filter(p => {
       if (manualRgs.includes(p.rgStr)) return true;
 
+      // Filter by display mode area applicability
+      if (displayMode !== 'tudo' && config) {
+        const area = config.areas.find(a => a.id === displayMode);
+        if (area) {
+          const qbmps = (area.targetQBMPs || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+          const rgs = (area.targetRGs || '').split(',').map(s => s.trim()).filter(Boolean);
+          if (qbmps.length > 0 || rgs.length > 0) {
+            let userQuadro = (p.quadro || '').toUpperCase().trim();
+            userQuadro = userQuadro.split('/')[0].trim();
+            const isApplicable = (rgs.length > 0 && rgs.includes(p.rgStr)) || (qbmps.length > 0 && userQuadro !== '' && qbmps.some(q => userQuadro.includes(q) || q.includes(userQuadro)));
+            if (!isApplicable) return false;
+          }
+        }
+      }
+
       const s = searchTerm.toLowerCase();
       const matchesSearch = (
         (p.name || '').toLowerCase().includes(s) ||
@@ -293,8 +333,8 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
       );
       
       const matchesPosto = filterPostoGrad.length === 0 || filterPostoGrad.includes(p.rank || '');
-      const matchesQuadro = filterQuadro.length === 0 || filterQuadro.includes(p.quadro || '');
-      const matchesObm = filterObm.length === 0 || filterObm.includes(p.obm ? p.obm : '10º GBM');
+      const matchesQuadro = filterQuadro.length === 0 || filterQuadro.includes((p.quadro || '').split('/')[0].trim());
+      const matchesObm = filterObm.length === 0 || filterObm.includes(normalizeObm(p.obm));
       const matchesAla = filterAla.length === 0 || filterAla.includes(p.ala?.toString() || '');
       const matchesCidade = filterCidade.length === 0 || filterCidade.includes(p.cidade || '');
       const matchesSituacao = filterSituacao.length === 0 || filterSituacao.includes(p.situacao || '');
@@ -326,19 +366,21 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
         }
       }
 
-      return matchesSearch && matchesPosto && matchesQuadro && matchesObm && matchesAla && matchesCidade && matchesSituacao && matchesMaterial && matchesCursos;
+      return matchesSearch && matchesPosto && matchesQuadro && matchesObm && matchesAla && matchesCidade && matchesSituacao && matchesMaterial && matchesCursos && (!showOnlyPending || p.statusAlteracao === 'PENDENTE');
     });
-  }, [merged, searchTerm, filterPostoGrad, filterQuadro, filterObm, filterAla, filterCidade, filterSituacao, filterCursos, filterMaterialField, filterMaterialStatus, manualRgs]);
+  }, [merged, searchTerm, filterPostoGrad, filterQuadro, filterObm, filterAla, filterCidade, filterSituacao, filterCursos, filterMaterialField, filterMaterialStatus, manualRgs, showOnlyPending]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterPostoGrad, filterQuadro, filterObm, filterAla, filterCidade, filterSituacao, filterCursos, filterMaterialField, filterMaterialStatus]);
+  }, [searchTerm, filterPostoGrad, filterQuadro, filterObm, filterAla, filterCidade, filterSituacao, filterCursos, filterMaterialField, filterMaterialStatus, showOnlyPending]);
 
   const totalPages = Math.max(1, Math.ceil(filteredMilitars.length / itemsPerPage));
   const paginatedMilitars = filteredMilitars.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const pendingCount = useMemo(() => merged.filter(m => m.statusAlteracao === 'PENDENTE').length, [merged]);
 
   const allFilteredSelected = filteredMilitars.length > 0 && filteredMilitars.every(m => selectedRgs.includes(m.rgStr));
 
@@ -402,7 +444,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
 
     const rows = filteredMilitars.map(m => {
       const row = [];
-      if (visibleCols.includes('qbmp')) row.push(m.quadro || '');
+      if (visibleCols.includes('qbmp')) row.push((m.quadro || '').split('/')[0].trim());
       if (visibleCols.includes('posto')) row.push(m.rank || '');
       if (visibleCols.includes('nome')) row.push(m.warName || m.name || '');
       if (visibleCols.includes('rg')) row.push(m.rg || '');
@@ -516,6 +558,13 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
           </div>
           
           <div className="flex bg-white p-1 rounded-2xl border border-slate-200 shadow-sm shrink-0 w-full sm:w-auto">
+            <button 
+              onClick={() => setShowOnlyPending(!showOnlyPending)}
+              className={`flex-1 sm:flex-none justify-center flex items-center gap-3 px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${showOnlyPending ? 'bg-amber-100 text-amber-700 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              <AlertCircle className="w-4 h-4" />
+              Solicitações Pendentes {pendingCount > 0 && <span className="bg-amber-500 text-white px-2 py-0.5 rounded-full text-[9px]">{pendingCount}</span>}
+            </button>
             <button 
               onClick={() => setViewType('status')}
               className={`flex-1 sm:flex-none justify-center flex items-center gap-3 px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewType === 'status' ? 'bg-indigo-600 text-white shadow-xl' : 'text-slate-400 hover:text-slate-600'}`}
@@ -750,12 +799,12 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
                 onClick={() => {
                   const exportData = filteredMilitars.map(m => {
                     const row: any = {};
-                    if (visibleCols.includes('qbmp')) row['QBMP'] = m.quadro || '';
+                    if (visibleCols.includes('qbmp')) row['QBMP'] = (m.quadro || '').split('/')[0].trim();
                     if (visibleCols.includes('posto')) row['Posto'] = m.rank || '';
                     if (visibleCols.includes('nome')) row['Nome Completo'] = m.warName || m.name || '';
                     if (visibleCols.includes('rg')) row['RG'] = (m as any).rgStr || m.rg || '';
                     if (visibleCols.includes('idFuncional')) row['ID Func.'] = (m as any).idFuncional || '';
-                    if (visibleCols.includes('status')) row['Status'] = m.hasDbData ? 'FIXADO' : 'DGP';
+                    if (visibleCols.includes('status')) row['Status'] = m.statusAlteracao === 'PENDENTE' ? 'PENDENTE' : (m.hasDbData ? 'FIXADO' : 'DGP');
 
                     config?.areas.forEach(area => {
                       if (displayMode === 'tudo' || displayMode === area.id) {
@@ -856,7 +905,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
                           />
                         </td>
                         {visibleCols.includes('qbmp') && (
-                          <td className="p-4 border-r border-slate-100">{item.quadro || '-'}</td>
+                          <td className="p-4 border-r border-slate-100">{item.quadro ? item.quadro.split('/')[0].trim() : '-'}</td>
                         )}
                         {visibleCols.includes('posto') && (
                           <td className="p-4 border-r border-slate-100 uppercase font-black text-slate-600">{item.rank}</td>
@@ -872,10 +921,17 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
                         )}
                         {visibleCols.includes('status') && (
                           <td className="p-4 border-r border-slate-100 text-center">
-                             {item.hasDbData ? (
+                             {item.statusAlteracao === 'PENDENTE' ? (
+                               <button 
+                                 onClick={() => setReviewingRequestFor(item.rgStr)}
+                                 className="inline-flex items-center px-2 py-1 rounded bg-amber-100 text-amber-700 text-[8px] font-black uppercase tracking-widest whitespace-nowrap hover:bg-amber-200 transition-colors"
+                               >
+                                 REVISAR SOLICITAÇÃO
+                               </button>
+                             ) : item.hasDbData ? (
                                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[8px] font-black uppercase tracking-widest whitespace-nowrap">FIXADO</span>
                              ) : (
-                               <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[8px] font-black uppercase tracking-widest whitespace-nowrap">DGP</span>
+                               <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[8px] font-black uppercase tracking-widest whitespace-nowrap">DGP</span>
                              )}
                           </td>
                         )}
@@ -1128,6 +1184,106 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
           />
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {reviewingRequestFor && (
+          <ReviewRequestModal 
+            rg={reviewingRequestFor}
+            militar={filteredMilitars.find(m => m.rgStr === reviewingRequestFor)}
+            dbDataMap={dbDataMap}
+            config={config}
+            onClose={() => setReviewingRequestFor(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
+
+const ReviewRequestModal = ({ rg, militar, dbDataMap, config, onClose }: any) => {
+  const currentData = dbDataMap[rg] || {};
+  const [saving, setSaving] = useState(false);
+
+  const changes: any[] = [];
+  const payloadToApprove: any = {};
+  const payloadToReject: any = {};
+
+  if (config) {
+    config.areas.forEach((area: any) => {
+      const isPending = currentData[`statusAlteracao_${area.id}`] === 'PENDENTE';
+      const pendingAreaUpdate = currentData[`pendingUpdate_${area.id}`] || {};
+      
+      if (isPending) {
+        payloadToApprove[`statusAlteracao_${area.id}`] = deleteField();
+        payloadToApprove[`pendingUpdate_${area.id}`] = deleteField();
+        payloadToReject[`statusAlteracao_${area.id}`] = deleteField();
+        payloadToReject[`pendingUpdate_${area.id}`] = deleteField();
+
+        area.fields.forEach((f: any) => {
+          const oldVal = currentData[f.id] || '-';
+          const newVal = pendingAreaUpdate[f.id];
+          
+          if (newVal !== undefined && newVal !== oldVal) {
+            changes.push({ label: f.label, oldVal, newVal, area: area.label });
+            payloadToApprove[f.id] = newVal; // apply the change
+          }
+        });
+      }
+    });
+  }
+
+  const handleApprove = async () => {
+    setSaving(true);
+    const docRef = doc(db, 'medidasAntropometricas', rg);
+    await setDoc(docRef, cleanUndefined(payloadToApprove), { merge: true });
+    setSaving(false);
+    onClose();
+  };
+
+  const handleReject = async () => {
+    setSaving(true);
+    const docRef = doc(db, 'medidasAntropometricas', rg);
+    await setDoc(docRef, cleanUndefined(payloadToReject), { merge: true });
+    setSaving(false);
+    onClose();
+  };
+
+  return (
+    <motion.div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
+       <motion.div className="bg-white rounded-[2rem] p-8 max-w-lg w-full shadow-2xl relative flex flex-col max-h-[90vh]" initial={{scale:0.95, y:20}} animate={{scale:1, y:0}}>
+         <button onClick={onClose} className="absolute top-6 right-6 p-2 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition-colors"><X className="w-5 h-5" /></button>
+         <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight mb-1 shrink-0">Revisar Solicitação</h3>
+         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6 shrink-0">Militar: {militar?.name || militar?.warName} (RG: {rg})</p>
+         
+         <div className="space-y-3 mb-8 overflow-y-auto pr-2 small-scrollbar flex-1 min-h-0">
+            {changes.length === 0 ? (
+              <p className="text-sm font-medium text-slate-500">Nenhuma alteração detectada.</p>
+            ) : (
+              changes.map((c, i) => (
+                <div key={i} className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col gap-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black text-cyan-600 uppercase tracking-widest bg-cyan-50 px-2 py-0.5 rounded-md">{c.area}</span>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{c.label}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="flex-1 text-sm font-bold text-rose-500 bg-rose-50 p-2 rounded-lg line-through text-center">{c.oldVal}</span>
+                    <ArrowLeft className="w-4 h-4 text-slate-300 rotate-180 shrink-0" />
+                    <span className="flex-1 text-sm font-bold text-emerald-600 bg-emerald-50 p-2 rounded-lg text-center">{c.newVal}</span>
+                  </div>
+                </div>
+              ))
+            )}
+         </div>
+
+         <div className="flex gap-4 shrink-0">
+           <button onClick={handleReject} disabled={saving || changes.length === 0} className="flex-1 bg-rose-50 hover:bg-rose-100 text-rose-600 py-4 rounded-xl font-black uppercase text-xs tracking-widest transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+             Rejeitar
+           </button>
+           <button onClick={handleApprove} disabled={saving || changes.length === 0} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-xl font-black uppercase text-xs tracking-widest transition-colors shadow-lg shadow-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed">
+             {saving ? 'Processando...' : 'Aprovar Mudanças'}
+           </button>
+         </div>
+       </motion.div>
+    </motion.div>
+  );
+};

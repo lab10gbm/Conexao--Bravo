@@ -56,23 +56,37 @@ export function Login({
       // We do this in the background, without blocking the login flow, or we skip it if it fails.
       if (data.useClientAuth && data.authEmail && data.authPassword) {
         try {
-           try {
-             await signInWithEmailAndPassword(auth, data.authEmail, data.authPassword);
-           } catch (authErr: any) {
-             if (authErr.code === 'auth/user-not-found' || data.needsClientRegistration) {
-                try {
-                   await createUserWithEmailAndPassword(auth, data.authEmail, data.authPassword);
-                } catch (createErr: any) {
-                   if (createErr.code === 'auth/email-already-in-use') {
-                       await signInWithEmailAndPassword(auth, data.authEmail, data.authPassword).catch(e => console.warn(e.message));
-                   } else if (createErr.code !== 'auth/operation-not-allowed') {
-                       console.warn("[Auth] Client registration failed or not allowed.", createErr.message);
-                   }
-                }
-             } else if (authErr.code !== 'auth/operation-not-allowed') {
-                console.warn("[Auth] Client email/password sign-in failed.", authErr.message);
+           const attemptSignIn = async (retries = 3, delay = 500) => {
+             for (let i = 0; i < retries; i++) {
+               try {
+                 await signInWithEmailAndPassword(auth, data.authEmail, data.authPassword);
+                 return true; // Success
+               } catch (authErr: any) {
+                 if (authErr.code === 'auth/user-not-found' || data.needsClientRegistration) {
+                    try {
+                       await createUserWithEmailAndPassword(auth, data.authEmail, data.authPassword);
+                       return true;
+                    } catch (createErr: any) {
+                       if (createErr.code === 'auth/email-already-in-use') {
+                           // Continue to retry sign in
+                       } else if (createErr.code !== 'auth/operation-not-allowed') {
+                           console.warn("[Auth] Client registration failed or not allowed.", createErr.message);
+                           throw createErr;
+                       }
+                    }
+                 } else if (authErr.code === 'auth/invalid-credential' && i < retries - 1) {
+                    // Password might still be propagating in Firebase backend. Wait and retry.
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    continue;
+                 } else if (authErr.code !== 'auth/operation-not-allowed') {
+                    console.warn("[Auth] Client email/password sign-in failed.", authErr.message);
+                    throw authErr;
+                 }
+               }
              }
-           }
+           };
+           
+           await attemptSignIn().catch(() => {});
         } catch(e) { console.warn("Failed to load firebase/auth", e) }
       } else if (data.token) {
         try {

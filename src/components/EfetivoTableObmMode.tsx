@@ -39,7 +39,7 @@ export function EfetivoTableObmMode({
     const term = search.toLowerCase();
     const matchesSearch = (m.name?.toLowerCase().includes(term) || m.warName?.toLowerCase().includes(term) || m.rg?.includes(term));
     const matchesPosto = filters.filterPostoGrad.length === 0 || filters.filterPostoGrad.includes(m.rank || '');
-    const matchesQuadro = filters.filterQuadro.length === 0 || filters.filterQuadro.includes(m.quadro || '');
+    const matchesQuadro = filters.filterQuadro.length === 0 || filters.filterQuadro.includes((m.quadro || '').split('/')[0].trim());
     const matchesObm = filters.filterObm.length === 0 || filters.filterObm.includes(normalizeObm(m.obm));
     const matchesAla = filters.filterAla.length === 0 || filters.filterAla.includes(m.ala?.toString() || '');
     const matchesCidade = filters.filterCidade.length === 0 || filters.filterCidade.includes(m.cidade || '');

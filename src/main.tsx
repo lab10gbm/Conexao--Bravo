@@ -5,9 +5,8 @@ import App from './App.tsx';
 import { MilitarProvider } from './contexts/MilitarContext.tsx';
 import { ConfigProvider } from './contexts/ConfigContext.tsx';
 import './index.css';
-import { CapacitorUpdater } from '@capgo/capacitor-updater';
-
 import { Capacitor } from '@capacitor/core';
+import { CapacitorUpdater } from '@capgo/capacitor-updater';
 
 // Intercept fetch calls to redirect /api to the live server when running on a native device
 if (Capacitor.isNativePlatform()) {
@@ -35,4 +34,9 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>
 );
 
-CapacitorUpdater.notifyAppReady();
+try {
+  CapacitorUpdater.notifyAppReady();
+} catch (error) {
+  console.log('Skipping CapacitorUpdater on web platform');
+}
+

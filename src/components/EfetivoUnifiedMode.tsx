@@ -48,7 +48,10 @@ export function EfetivoUnifiedMode({ militars, isAdmin, onLendRequested, onRowCl
           
           const val = m[col.id as keyof UserProfile] as string;
           if (['quadro', 'ala', 'obm', 'situacao'].includes(col.id)) {
-             const displayVal = col.id === 'obm' ? normalizeObm(val) : val;
+             let displayVal = col.id === 'obm' ? normalizeObm(val) : val;
+             if (col.id === 'quadro' && displayVal) {
+               displayVal = displayVal.split('/')[0].trim();
+             }
              return <td className="p-1.5 sm:p-3 text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase">{displayVal || '-'}</td>;
           }
           return <td className="p-1.5 sm:p-3 text-[10px] sm:text-xs text-slate-800">{val || '-'}</td>;

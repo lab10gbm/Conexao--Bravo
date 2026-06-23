@@ -17,7 +17,7 @@ export const INITIAL_COLUMNS = [
 ];
 
 export const GROUPS = [
-  { id: "10º GBM", label: "10º GBM - Angra dos Reis" },
+  { id: "10º GBM", label: "10º GBM" },
   { id: "1/10", label: "1/10 - Itaguaí" },
   { id: "2/10", label: "2/10 - Ilha Grande" },
   { id: "3/10", label: "3/10 - Frade" },
