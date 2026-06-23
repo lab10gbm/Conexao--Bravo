@@ -476,27 +476,28 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
 
   return (
     <div className="flex flex-col gap-10 w-full max-w-full pb-40">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-10 opacity-5">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 bg-white p-8 lg:p-10 rounded-[2.5rem] lg:rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
            <Ruler className="w-32 h-32" />
         </div>
-        <div className="flex gap-6 items-center">
+        <div className="flex gap-4 lg:gap-6 items-center relative z-10">
             <button 
               onClick={onBack}
-              className="w-20 h-20 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-3xl flex items-center justify-center transition-colors"
+              className="w-14 h-14 lg:w-20 lg:h-20 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-2xl lg:rounded-3xl flex items-center justify-center transition-all hover:scale-105 active:scale-95 shrink-0"
+              title="Voltar"
             >
-              <ArrowLeft className="w-10 h-10" />
+              <ArrowLeft className="w-6 h-6 lg:w-8 lg:h-8" />
             </button>
-            <div className="w-20 h-20 rounded-3xl bg-indigo-600 flex items-center justify-center text-white shadow-2xl shadow-indigo-200 ring-8 ring-indigo-50">
-               <BookOpen className="w-10 h-10" />
+            <div className="w-14 h-14 lg:w-20 lg:h-20 rounded-2xl lg:rounded-3xl bg-indigo-600 flex items-center justify-center text-white shadow-xl shadow-indigo-200 ring-4 lg:ring-8 ring-indigo-50 shrink-0">
+               <BookOpen className="w-6 h-6 lg:w-10 lg:h-10" />
             </div>
-            <div>
-               <h2 className="text-3xl md:text-4xl font-black text-slate-800 uppercase tracking-tighter">Gestão do Efetivo - SOP</h2>
-               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Carga Individual e Medidas Antropométricas</p>
+            <div className="flex flex-col justify-center">
+               <h2 className="text-2xl lg:text-4xl font-black text-slate-800 uppercase tracking-tighter leading-tight">Gestão do Efetivo - SOP</h2>
+               <p className="text-[10px] lg:text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Carga Individual e Medidas Antropométricas</p>
             </div>
         </div>
 
-        <div className="flex items-center gap-4 relative z-10">
+        <div className="flex flex-wrap lg:flex-nowrap items-center gap-3 lg:gap-4 relative z-10">
           {isModerator && (
             <>
               <button
@@ -505,36 +506,30 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
                   setEpiRequestFields([]);
                   setShowEpiRequestModal(true);
                 }}
-                className="flex items-center justify-center gap-3 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-6 py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all shadow-sm active:scale-95"
+                className="flex flex-1 lg:flex-none items-center justify-center gap-2 lg:gap-3 bg-white hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 border border-slate-200 hover:border-indigo-200 px-5 lg:px-6 py-4 lg:py-5 rounded-2xl font-black uppercase text-[9px] lg:text-[10px] tracking-[0.2em] transition-all shadow-sm active:scale-95 group"
                 title="Sinalizar que todo o efetivo deve atualizar EPI"
               >
-                <AlertCircle className="w-5 h-5 text-indigo-500" />
-                <span className="hidden md:inline">Sinalizar Revisão (EPI)</span>
+                <AlertCircle className="w-4 h-4 lg:w-5 lg:h-5 text-indigo-500 group-hover:scale-110 transition-transform" />
+                <span>Sinalizar Revisão <span className="hidden sm:inline">(EPI)</span></span>
               </button>
+              
               <button 
                 onClick={() => setShowManualRgModal(true)}
-                className="flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white w-[60px] h-[60px] rounded-2xl transition-all shadow-xl shadow-indigo-200 active:scale-95 flex-shrink-0"
+                className="flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white w-[52px] h-[52px] lg:w-[60px] lg:h-[60px] rounded-2xl transition-all shadow-xl shadow-indigo-200 active:scale-95 shrink-0 hover:rotate-90 duration-300"
                 title="Adicionar RG na Relação"
               >
-                <Plus className="w-5 h-5 font-black" />
+                <Plus className="w-5 h-5 lg:w-6 lg:h-6 font-black" />
               </button>
+
               <button 
                 onClick={() => navigate('/sop-config')}
-                className="flex items-center justify-center gap-3 bg-slate-900 hover:bg-black text-white px-8 py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] transition-all shadow-xl shadow-slate-200 active:scale-95 group"
+                className="flex flex-1 lg:flex-none items-center justify-center gap-2 lg:gap-3 bg-slate-900 hover:bg-slate-800 text-white px-5 lg:px-8 py-4 lg:py-5 rounded-2xl font-black uppercase text-[9px] lg:text-[10px] tracking-[0.2em] transition-all shadow-xl shadow-slate-200 active:scale-95 group"
               >
                 <Settings className="w-4 h-4 group-hover:rotate-90 transition-transform duration-500" />
-                Configurar Sistema
+                <span className="hidden sm:inline">Configurar</span> Sistema
               </button>
             </>
           )}
-          
-          <button 
-            onClick={onBack}
-            className="flex items-center justify-center gap-3 px-8 py-5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Sair do Módulo
-          </button>
         </div>
       </div>
 
