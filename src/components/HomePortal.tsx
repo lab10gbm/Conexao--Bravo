@@ -273,7 +273,6 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       description: 'Gestão de Trocas',
       icon: ArrowRightLeft,
       color: 'bg-indigo-600 shadow-indigo-200',
-      comingSoon: true,
       defaultGroups: ['TODOS']
     },
     {
@@ -283,14 +282,6 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       icon: Calendar,
       color: 'bg-amber-500 shadow-amber-200',
       defaultGroups: ['TODOS']
-    },
-    {
-      id: 'grd',
-      label: 'GRD',
-      description: 'Guarnição de Resgate e Defesa',
-      icon: Shield,
-      color: 'bg-emerald-700 shadow-emerald-200',
-      defaultGroups: ['EXP', 'PRONTIDAO', 'ADMIN', 'ESCALANTE']
     },
     {
       id: 'expediente',
@@ -408,6 +399,14 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
   ];
 
   const moderadorModulesDef = [
+    {
+      id: 'grd',
+      label: 'GRD',
+      description: 'Guarnição de Resgate e Defesa',
+      icon: Shield,
+      color: 'bg-emerald-700 shadow-emerald-200',
+      defaultGroups: ['EXP', 'PRONTIDAO', 'ADMIN', 'ESCALANTE']
+    },
     {
       id: 'translado',
       label: 'Translado OBM',
