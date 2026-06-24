@@ -40,7 +40,6 @@ import {
   onSnapshot,
   serverTimestamp,
 } from "firebase/firestore";
-import { VacationImporter } from "./VacationImporter";
 
 import { useMilitars } from "../contexts/MilitarContext";
 import { exportToExcel } from "../lib/exportUtils";
@@ -549,16 +548,12 @@ export function VacationModule({
   };
 
   const deleteVacation = async (id: string) => {
-    if (
-      !confirm("Deseja realmente excluir este registro de férias do sistema?")
-    )
-      return;
     try {
       const rg = id.split("_")[0];
       await deleteDoc(doc(db, "vacations", id));
       if (rg) await deleteDoc(doc(db, "militaries", rg, "ferias", id));
-      if (selectedMilitar) fetchVacations(selectedMilitar.rg);
-    } catch (e) {
+      // fetchVacations is deprecated, relying on onSnapshot
+    } catch (e: any) {
       console.error("Error deleting vacation:", e);
     }
   };
@@ -1180,28 +1175,7 @@ export function VacationModule({
               )}
             </div>
           )}
-          <button
-            onClick={() =>
-              window.open(
-                "https://cbmerj.rj.gov.br/dgp/sistema/relatorio_mapa_forca.php",
-                "_blank",
-              )
-            }
-            className="px-4 py-3 bg-slate-100 text-slate-600 border border-slate-200 rounded-2xl hover:bg-slate-200 transition-all font-black text-[10px] uppercase tracking-widest flex items-center gap-2"
-          >
-            <ExternalLink className="w-4 h-4" /> Acessar DGP
-          </button>
-          <button
-            onClick={() => selectedMilitar && setShowImporter(true)}
-            disabled={!selectedMilitar || !isPowerUser}
-            className={cn(
-              "flex-1 sm:flex-none px-6 py-3 bg-orange-600 text-white rounded-2xl hover:bg-orange-700 transition-all font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-orange-100 disabled:opacity-50",
-              !isPowerUser && "hidden",
-            )}
-          >
-            <Download className="w-4 h-4" />{" "}
-            <span>Sincronizar DGP</span>
-          </button>
+
           {isPowerUser && (
             <div className="flex items-center gap-2 bg-gradient-to-r from-indigo-50 to-white px-3 py-2 border border-indigo-100 shadow-sm rounded-2xl ring-1 ring-white/50 transition-all hover:border-indigo-200 group">
               <span className="hidden sm:flex items-center gap-1.5 text-[9px] font-black uppercase text-indigo-900 tracking-[0.1em]">
@@ -2303,10 +2277,11 @@ export function VacationModule({
                                 <div className="flex items-center justify-end gap-2 text-slate-400">
                                   <button
                                     onClick={(e) => {
+                                      e.preventDefault();
                                       e.stopPropagation();
                                       deleteVacation(v.id);
                                     }}
-                                    className="p-2 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                    className="p-2 text-slate-300 hover:text-red-500 transition-colors"
                                   >
                                     <X className="w-4 h-4" />
                                   </button>
@@ -2395,8 +2370,12 @@ export function VacationModule({
                                     </td>
                                     <td className="px-6 py-3 text-right">
                                       <button
-                                        onClick={() => deleteVacation(subV.id)}
-                                        className="p-1.5 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          deleteVacation(subV.id);
+                                        }}
+                                        className="p-1.5 text-slate-300 hover:text-red-500 transition-colors"
                                       >
                                         <X className="w-3 h-3" />
                                       </button>
@@ -2432,15 +2411,6 @@ export function VacationModule({
       )}
 
       <AnimatePresence>
-        {showImporter && (
-          <VacationImporter
-            militarRg={selectedMilitar?.rg || ""}
-            allMilitars={militars}
-            onClose={() => setShowImporter(false)}
-            onImport={handleImport}
-          />
-        )}
-        
         {validationModalOpen && (
            <motion.div
               initial={{ opacity: 0 }}

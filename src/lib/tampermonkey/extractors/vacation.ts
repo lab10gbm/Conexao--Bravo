@@ -43,20 +43,20 @@ export const getVacationExtractorString = () => `
             if (cols.length < 5) continue;
             if (cols[0].toUpperCase() === 'ATO' || cols[1].toUpperCase().includes('ANO')) continue;
             
-            let dtInicio = cols[4] || '';
-            if (dtInicio.match(/\\d{2}\\/\\d{2}\\/\\d{4}/) || cols[1].toUpperCase().includes('ASSEGURADAS') || cols[1].toUpperCase().includes('PRESUMIDAS')) {
+            let dtInicio = cols[3] || '';
+            if (dtInicio.match(/\\d{2}\\/\\d{2}\\/\\d{4}/) || cols[0].toUpperCase().includes('ASSEGURADAS') || cols[0].toUpperCase().includes('PRESUMIDAS')) {
                 vacations.push({
                     militarRg: rg, 
-                    ato: cols[1]||'Concessão', 
-                    anoRef: cols[2]||'',
-                    anoRetifi: cols[3]||'',
+                    ato: cols[0]||'Concessão', 
+                    anoRef: cols[1]||'',
+                    anoRetifi: cols[2]||'',
                     dataInicio: dtInicio, 
-                    dataRetorno: cols[5]||'',
-                    boletim: cols[6]||'', 
+                    dataRetorno: cols[4]||'',
+                    boletim: cols[5]||'',
+                    boletimOrigem: cols[6]||'',
                     diasGozados: parseInt(cols[7])||0, 
                     diasAGozar: parseInt(cols[8])||0,
-                    boletimOrigem: cols[9]||'',
-                    obs: cols[10]||'',
+                    obs: cols[9]||'',
                     status: dtInicio.includes('2026') || dtInicio.includes('2027') ? 'marcado' : 'gozado'
                 });
             }

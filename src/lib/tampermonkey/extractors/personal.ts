@@ -1,50 +1,16 @@
 export const getPersonalDataExtractorString = () => `
 {
     id: 'sync_personal',
-    label: '👥 Mass Sync Pessoal',
+    label: '👥 Sync Pessoal (Atual)',
     color: '#10b981', // Emerald
     action: async (btn) => {
-        let rgsInput = prompt("Cole os RGs para extração em massa (separados por vírgula ou espaço):");
-        if (!rgsInput) return;
-        
-        const rgs = rgsInput.split(/[\\s,]+/).filter(r => r.trim() !== '');
-        if(rgs.length === 0) return;
-        
-        if (!confirm('Iniciar varredura de ' + rgs.length + ' militares?')) return;
-        
-        btn.disabled = true;
         let originalText = btn.innerText;
+        btn.disabled = true;
         btn.innerText = '⌛ EXTRAINDO...';
 
-        let finalData = [];
-        for (let rg of rgs) {
-            console.log('Buscando dados pessoais do RG: ' + rg);
-            try {
-                const fd = new FormData();
-                fd.append('rg_cons', rg);
-                fd.append('Submit', 'Pesquisar');
-                
-                let searchAction = 'consulta_mil.php';
-                const docT = window.frames['corpo']?.document || document;
-                const f = docT.querySelector('form');
-                if (f && f.getAttribute('action')) { searchAction = f.getAttribute('action'); }
-                
-                await fetch(searchAction, { method: 'POST', body: fd }).catch(() => {});
-                
-                let text = "";
-                try {
-                    let res = await fetch('corpo.php').catch(() => null);
-                    if (res && res.status === 200) {
-                        text = await res.text();
-                    } else {
-                        text = docT.body.innerHTML;
-                    }
-                } catch (e) {
-                    text = docT.body.innerHTML;
-                }
-                
-                const docParser = new DOMParser().parseFromString(text, 'text/html');
-                const pageText = (docParser.body.textContent || "").replace(/\\s+/g, ' ');
+        try {
+            const extractData = (doc) => {
+                const pageText = (doc.body.textContent || "").replace(/\\s+/g, ' ');
                 
                 const extractField = (str, fn, nfn) => {
                     const regex = new RegExp(fn + ':?\\\\s*(.*?)\\\\s*(?:' + nfn + '|$)', 'i');
@@ -52,7 +18,12 @@ export const getPersonalDataExtractorString = () => `
                     return match ? match[1].trim() : '';
                 };
 
-                const personalData = {
+                let rgMatch = pageText.match(/RG:\\s*([\\d.]+)/i) || pageText.match(/RG\\s*([\\d.]+)/i);
+                const rg = rgMatch ? rgMatch[1].replace(/\\D/g, '') : '';
+
+                if (!rg) return null;
+
+                return {
                     rg: rg,
                     pai: extractField(pageText, 'PAI', 'MAE:'),
                     mae: extractField(pageText, 'MAE', 'Nome de Guerra:'),
@@ -93,41 +64,45 @@ export const getPersonalDataExtractorString = () => `
                     identidadeCivil: extractField(pageText, 'Identidade Civil', 'Orgao Emissor'),
                     orgaoEmissor: extractField(pageText, 'Orgao Emissor', 'Estado Emissor')
                 };
-                
-                if (personalData.nomeGuerra || personalData.cpf) {
-                    finalData.push(personalData);
-                }
-                await new Promise(r => setTimeout(r, 800));
+            };
 
-            } catch(e) {
-                console.error('Erro RG: ' + rg, e);
+            let data = extractData(document);
+            if (!data) {
+                // Try from frame 'corpo' if available
+                const docT = window.frames['corpo']?.document;
+                if (docT) {
+                    data = extractData(docT);
+                }
             }
-        }
 
-        if(finalData.length > 0) {
-            GM_xmlhttpRequest({
-                method: "POST",
-                url: APP_URL + '/api/admin/personal-data/bulk-sync',
-                data: JSON.stringify({ personalDataList: finalData }),
-                headers: { 
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
-                    "x-api-key": "MINHA_CHAVE_SECRETA_SUPER_SEGURA_123"
-                },
-                onload: function(res) {
-                    if (res.status === 200) {
-                        alert('🚀 Sincronizado com Sucesso! (' + finalData.length + ' militares)');
-                    } else {
-                        alert('Erro no Servidor: ' + res.status + '\\n\\nResposta: ' + res.responseText.substring(0, 200));
+            if (data && (data.nomeGuerra || data.cpf)) {
+                GM_xmlhttpRequest({
+                    method: "POST",
+                    url: APP_URL + '/api/admin/personal-data/bulk-sync',
+                    data: JSON.stringify({ personalDataList: [data] }),
+                    headers: { 
+                        "Content-Type": "application/json",
+                        "Accept": "application/json",
+                        "x-api-key": "MINHA_CHAVE_SECRETA_SUPER_SEGURA_123"
+                    },
+                    onload: function(res) {
+                        if (res.status === 200) {
+                            alert('🚀 Militar ' + data.nomeGuerra + ' (RG ' + data.rg + ') Sincronizado com Sucesso!');
+                        } else {
+                            alert('Erro no Servidor: ' + res.status + '\\n\\nResposta: ' + res.responseText.substring(0, 200));
+                        }
+                    },
+                    onerror: function(err) {
+                        console.error('Erro GM_xmlhttpRequest:', err);
+                        alert('Erro de Conexão. Verifique seu applet.');
                     }
-                },
-                onerror: function(err) {
-                    console.error('Erro GM_xmlhttpRequest:', err);
-                    alert('Erro de Conexão. Verifique seu applet.');
-                }
-            });
-        } else {
-            alert("Nenhum dado válido extraído.");
+                });
+            } else {
+                alert("Nenhum dado pessoal válido extraído. Navegue até a página 'Dados Pessoais' do militar.");
+            }
+        } catch(e) {
+            console.error(e);
+            alert("Erro na extração dos dados pessoais.");
         }
         
         btn.disabled = false;
@@ -135,3 +110,4 @@ export const getPersonalDataExtractorString = () => `
     }
 }
 `;
+

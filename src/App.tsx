@@ -85,7 +85,7 @@ const EscalanteDashboard = React.lazy(() =>
 );
 const GestaoEfetivoModeracaoModule = React.lazy(() => import("./components/GestaoEfetivoModeracaoModule").then((m) => ({ default: m.GestaoEfetivoModeracaoModule })));
 const GestaoSadDashboard = React.lazy(() => import("./components/GestaoSadDashboard").then((m) => ({ default: m.GestaoSadDashboard })));
-const AtualizacaoCadastralModule = React.lazy(() => import("./components/AtualizacaoCadastralModule").then((m) => ({ default: m.AtualizacaoCadastralModule })));
+const DgpSyncModule = React.lazy(() => import("./components/DgpSyncModule").then((m) => ({ default: m.DgpSyncModule })));
 const PainelMilitarDashboard = React.lazy(() => import("./components/PainelMilitarDashboard").then((m) => ({ default: m.PainelMilitarDashboard })));
 const MedidasModule = React.lazy(() =>
   import("./components/MedidasModule").then((m) => ({
@@ -1121,7 +1121,7 @@ export default function App() {
                 }
               />
               <Route
-                path="/atualizacao-cadastral"
+                path="/dgp-sync"
                 element={
                   <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
@@ -1129,7 +1129,7 @@ export default function App() {
                     exit={{ opacity: 0, scale: 1.05 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <AtualizacaoCadastralModule
+                    <DgpSyncModule
                       user={effectiveProfile!}
                       onBack={() => navigate("/gestao-sad")}
                     />

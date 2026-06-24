@@ -44,14 +44,14 @@ export const buildUnifiedTampermonkeyScript = (appUrl: string) => {
         if (document.documentElement) document.documentElement.appendChild(script);
     } catch(e) {}
 
-    const APP_URL = '\${finalAppUrl}';
-    const FIREBASE_PROJECT_ID = '\${projectId}';
-    const FIREBASE_API_KEY = '\${apiKey}';
-    const FIREBASE_DB_ID = '\${dbId}';
+    const APP_URL = '${finalAppUrl}';
+    const FIREBASE_PROJECT_ID = '${projectId}';
+    const FIREBASE_API_KEY = '${apiKey}';
+    const FIREBASE_DB_ID = '${dbId}';
 
     const extractors = [
-        \${getVacationExtractorString()},
-        \${getPersonalDataExtractorString()}
+        ${getVacationExtractorString()},
+        ${getPersonalDataExtractorString()}
     ];
 
     function createUI() {

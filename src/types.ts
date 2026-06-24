@@ -36,7 +36,15 @@ export interface UserProfile {
   situacao?: string;
   officerRole?: string;
   endereco?: string;
+  bairro?: string;
+  cep?: string;
   nascimento?: string;
+  cpf?: string;
+  pai?: string;
+  mae?: string;
+  cnh?: string;
+  cnhCat?: string;
+  grauInstrucao?: string;
   specializations?: string[];
   promotionDate?: string;
   lastProfileUpdate?: number;

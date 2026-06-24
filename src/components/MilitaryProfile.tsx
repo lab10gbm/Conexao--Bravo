@@ -114,10 +114,16 @@ export function MilitaryProfile({ militar, viewer, onClose, onLendRequested }: M
                 </h3>
                 <div className="space-y-3">
                   <InfoRow label="Nome Completo" value={militar.name} />
+                  <InfoRow label="Pai" value={militar.pai} />
+                  <InfoRow label="Mãe" value={militar.mae} />
                   <InfoRow label="RG" value={militar.rg} />
+                  <InfoRow label="CPF" value={militar.cpf} />
                   <InfoRow label="ID Funcional" value={militar.idFuncional} />
                   <InfoRow label="Nascimento" value={militar.nascimento} icon={Calendar} />
                   <InfoRow label="Quadro" value={militar.quadro} icon={Briefcase} />
+                  <InfoRow label="CNH" value={militar.cnh} />
+                  <InfoRow label="Cat CNH" value={militar.cnhCat} />
+                  <InfoRow label="Instrução" value={militar.grauInstrucao} />
                 </div>
               </section>
 
@@ -130,7 +136,9 @@ export function MilitaryProfile({ militar, viewer, onClose, onLendRequested }: M
                   <InfoRow label="Celular" value={militar.cel} icon={Phone} />
                   <InfoRow label="Telefone" value={militar.tel} icon={Phone} />
                   <InfoRow label="Endereço" value={militar.endereco} icon={MapPin} fullWidth />
+                  <InfoRow label="Bairro" value={militar.bairro} icon={MapPinned} />
                   <InfoRow label="Cidade" value={militar.cidade} icon={MapPinned} />
+                  <InfoRow label="CEP" value={militar.cep} />
                 </div>
               </section>
             </div>

@@ -197,15 +197,18 @@ syncRouter.post('/admin/personal-data/bulk-sync', apiKeyMiddleware, async (req, 
         updatedAt: serverTimestampValue
       }, { merge: true });
 
-      // Optionally sync some fields back to 'militaries' for global app usage
-      const updatesToMilitary: any = { updatedAt: serverTimestampValue };
+      // Sync all fields back to 'militaries' for global app usage
+      const updatesToMilitary: any = { 
+        ...item,
+        updatedAt: serverTimestampValue 
+      };
+      
+      // Map legacy/specific fields to match the military profile expected names
       if (item.cpf) updatesToMilitary.cpf = item.cpf;
       if (item.telefoneCelular) updatesToMilitary.cel = item.telefoneCelular;
       if (item.telefoneResidencial) updatesToMilitary.tel = item.telefoneResidencial;
-      if (item.email) updatesToMilitary.email = item.email;
-      if (item.nascimento) updatesToMilitary.nascimento = item.nascimento;
-      if (item.idFuncional) updatesToMilitary.idFuncional = item.idFuncional;
       if (item.nomeGuerra) updatesToMilitary.warName = item.nomeGuerra;
+      if (item.nomeGuerra && !updatesToMilitary.name) updatesToMilitary.name = item.nomeGuerra; // Backup if name missing
 
       batch.set(militaryRef, updatesToMilitary, { merge: true });
 

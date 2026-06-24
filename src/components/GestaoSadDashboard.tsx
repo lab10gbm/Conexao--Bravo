@@ -36,9 +36,9 @@ export function GestaoSadDashboard({ user }: GestaoSadDashboardProps) {
       inDevelopment: true
     },
     {
-      id: 'atualizacao-cadastral',
-      label: 'Atualização Cadastral',
-      description: 'Sincronizar Dados DGP',
+      id: 'dgp-sync',
+      label: 'DGP Sync',
+      description: 'Sincronizador Universal',
       icon: Users,
       color: 'bg-emerald-600 shadow-emerald-200'
     }

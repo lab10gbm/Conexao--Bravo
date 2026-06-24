@@ -309,17 +309,17 @@ async function enviarParaPlanilha(finalData) {
         if (!currentRg) return;
         vacations.push({
             militarRg: currentRg,
-            ato: content[1] || 'Concessão',
-            anoRef: content[2] || '',
-            anoRetifi: content[3] || '',
-            dataInicio: content[4] || '',
-            dataRetorno: content[5] || '',
-            boletim: content[6] || '',
+            ato: content[0] || 'Concessão',
+            anoRef: content[1] || '',
+            anoRetifi: content[2] || '',
+            dataInicio: content[3] || '',
+            dataRetorno: content[4] || '',
+            boletim: content[5] || '',
+            boletimOrigem: content[6] || '',
             diasGozados: parseInt(content[7]) || 0,
             diasAGozar: parseInt(content[8]) || 0,
-            boletimOrigem: content[9] || '',
-            obs: content[10] || '',
-            status: (content[4] || '').includes('2026') || (content[4] || '').includes('2027') ? 'marcado' : 'gozado'
+            obs: content[9] || '',
+            status: (content[3] || '').includes('2026') || (content[3] || '').includes('2027') ? 'marcado' : 'gozado'
         });
       }
     });
