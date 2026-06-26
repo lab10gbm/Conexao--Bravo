@@ -416,15 +416,6 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       defaultGroups: ['ADMIN', 'ESCALANTE']
     },
     {
-      id: 'ferias',
-      label: 'Controle de Férias',
-      description: 'Seu Escalonamento Anual',
-      icon: Library,
-      color: 'bg-orange-600 shadow-orange-200',
-      inDevelopment: true,
-      defaultGroups: ['ADMIN', 'ESCALANTE']
-    },
-    {
       id: 'comunicacao',
       label: 'Painel do Comunicante',
       description: 'Acionar Viaturas',

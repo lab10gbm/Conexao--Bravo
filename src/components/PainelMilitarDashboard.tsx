@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, Settings, Ruler, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Settings, Ruler, ChevronRight, Library } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { UserProfile } from '../types';
 import { cn } from '../lib/utils';
@@ -26,6 +26,13 @@ export function PainelMilitarDashboard({ user }: PainelMilitarDashboardProps) {
        description: 'Tamanhos e Fardamento',
        icon: Ruler,
        color: 'bg-indigo-600 shadow-indigo-200'
+    },
+    {
+      id: 'ferias',
+      label: 'Controle de Férias',
+      description: 'Seu Escalonamento Anual',
+      icon: Library,
+      color: 'bg-orange-600 shadow-orange-200'
     }
   ];
 
@@ -55,6 +62,11 @@ export function PainelMilitarDashboard({ user }: PainelMilitarDashboardProps) {
               onClick={() => navigate(`/${mod.id}`)}
               className="bg-white border-2 border-slate-100 rounded-3xl sm:rounded-[2rem] p-4 sm:p-6 flex flex-col items-center justify-center gap-2 sm:gap-4 shadow-sm hover:shadow-xl hover:border-teal-100 transition-all text-center group relative overflow-hidden"
             >
+              {mod.inDevelopment && (
+                <div className="absolute top-2 sm:top-3 right-[-40px] sm:right-[-35px] bg-indigo-500 text-white text-[6px] sm:text-[7px] font-black py-1 px-12 rotate-45 uppercase tracking-widest shadow-sm z-10">
+                  Dev
+                </div>
+              )}
               <div className={cn(
                 `w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl flex items-center justify-center text-white shadow-lg transition-transform group-hover:rotate-6`,
                 mod.color

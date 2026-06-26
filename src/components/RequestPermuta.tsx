@@ -424,7 +424,6 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
                         type="button" 
                         onClick={() => setOfferType('troca')}
                         className={`w-8 h-8 rounded-full transition-all flex items-center justify-center text-white ${offerType === 'troca' ? 'ring-2 ring-offset-2 ring-[#1E293B]' : 'hover:scale-110 opacity-50'} bg-[#1E293B]`}
-                        title="Troca de Serviço"
                       >
                         <ArrowLeftRight className="w-4 h-4" />
                       </button>
@@ -432,7 +431,6 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
                         type="button" 
                         onClick={() => setOfferType('pago')}
                         className={`w-8 h-8 rounded-full transition-all flex items-center justify-center text-white ${offerType === 'pago' ? 'ring-2 ring-offset-2 ring-[#8B4513]' : 'hover:scale-110 opacity-50'} bg-[#8B4513]`}
-                        title="Tabela Comum (Valor Tabelado)"
                       >
                         <Equal className="w-4 h-4" />
                       </button>
@@ -440,7 +438,6 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
                         type="button" 
                         onClick={() => setOfferType('especial')}
                         className={`w-8 h-8 rounded-full transition-all flex items-center justify-center text-white ${offerType === 'especial' ? 'ring-2 ring-offset-2 ring-[#3B0764]' : 'hover:scale-110 opacity-50'} bg-[#3B0764]`}
-                        title="Tabela Especial (Valor Especial/Datas Festivas)"
                       >
                         <ArrowUp className="w-4 h-4" />
                       </button>

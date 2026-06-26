@@ -41,25 +41,34 @@ export function MainLayout({
   const navigate = useNavigate();
   const location = useLocation();
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
+  const lastScrollY = React.useRef(0);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
   useEffect(() => {
+    let ticking = false;
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
       if (currentScrollY < 50) {
-        setIsHeaderVisible(true);
-      } else if (currentScrollY > lastScrollY) {
-        setIsHeaderVisible(false);
+        setIsHeaderVisible(prev => prev ? prev : true);
+      } else if (currentScrollY > lastScrollY.current) {
+        setIsHeaderVisible(prev => prev ? false : prev);
       } else {
-        setIsHeaderVisible(true);
+        setIsHeaderVisible(prev => prev ? prev : true);
       }
-      setLastScrollY(currentScrollY);
+      lastScrollY.current = currentScrollY;
+      ticking = false;
     };
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScrollY]);
+    const onScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(handleScroll);
+        ticking = true;
+      }
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const effectiveProfile = profile;
 

@@ -223,26 +223,6 @@ export default function App() {
   const [simulatedVersion, setSimulatedVersion] = useState<string>("");
   const [moderatorMode, setModeratorMode] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
-  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      // Only hide on scroll down, show on scroll up. Keep visible at top.
-      if (currentScrollY < 50) {
-        setIsHeaderVisible(true);
-      } else if (currentScrollY > lastScrollY) {
-        setIsHeaderVisible(false);
-      } else {
-        setIsHeaderVisible(true);
-      }
-      setLastScrollY(currentScrollY);
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScrollY]);
 
   const { escalanteRGs, alaConfig, loading: configLoading } = useAppConfig();
   const { refreshMilitars } = useMilitars();

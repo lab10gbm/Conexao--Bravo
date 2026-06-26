@@ -59,13 +59,15 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
     }));
   };
 
+  const value = React.useMemo(() => ({
+    militars,
+    loading,
+    refreshMilitars,
+    updateMilitarLocal
+  }), [militars, loading]);
+
   return (
-    <MilitarContext.Provider value={{
-      militars,
-      loading,
-      refreshMilitars,
-      updateMilitarLocal
-    }}>
+    <MilitarContext.Provider value={value}>
       {children}
     </MilitarContext.Provider>
   );

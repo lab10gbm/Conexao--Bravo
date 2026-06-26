@@ -309,31 +309,7 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
           
           <MuralAvisos isAdminOrEscalante={!!(user?.isAdmin || user?.isEscalante)} userName={user?.name || 'Militar'} />
 
-          {/* Resumo Operacional (Bento Grid) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-b border-slate-200 pb-6">
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
-                <Briefcase className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Serviços Ano</p>
-                <p className="text-2xl font-black text-slate-800">
-                   {servicosRestantes} <span className="text-sm text-slate-400">faltam de {totalServicos}</span>
-                </p>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
-                <Coffee className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Folgas Ano</p>
-                <p className="text-2xl font-black text-slate-800">
-                  {folgasRestantes} <span className="text-sm text-slate-400">restam de {totalFolgas}</span>
-                </p>
-              </div>
-            </div>
-          </div>
+          {/* Resumo Operacional Removido */}
 
 {/* 
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col xl:flex-row gap-4 items-center justify-between">

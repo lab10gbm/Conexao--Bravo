@@ -115,6 +115,8 @@ export function VacationModule({
   const [preferencesEnabled, setPreferencesEnabled] = useState(false);
   const [userPrefs, setUserPrefs] = useState<string[]>([]);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [userGrantedMonth, setUserGrantedMonth] = useState<string | null>(null);
+  const [userGrantedMonths, setUserGrantedMonths] = useState<Record<string, string>>({});
   const [allPreferences, setAllPreferences] = useState<Record<string, any>>({});
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -273,6 +275,8 @@ export function VacationModule({
                  [],
              );
              setIsSubmitted(data.submitted?.[activeYear] || false);
+             setUserGrantedMonth(data.granted?.[activeYear] || null);
+             setUserGrantedMonths(data.granted || {});
            }
          } catch (e) {
            console.error("Prefs API fallback failed", e);
@@ -296,6 +300,8 @@ export function VacationModule({
                 [],
             );
             setIsSubmitted(data.submitted?.[activeYear] || false);
+            setUserGrantedMonth(data.granted?.[activeYear] || null);
+            setUserGrantedMonths(data.granted || {});
           }
         },
         (e) => {
@@ -306,6 +312,8 @@ export function VacationModule({
     } else {
       setUserPrefs([]);
       setIsSubmitted(false);
+      setUserGrantedMonth(null);
+      setUserGrantedMonths({});
     }
     return () => unsubPrefs();
   }, [selectedMilitar?.rg, activeYear]);
@@ -1856,25 +1864,47 @@ export function VacationModule({
                 Próximos Afastamentos
               </h3>
               <div className="space-y-4">
-                {vacations.filter((v) => v.status === "marcado").length > 0 ? (
-                  vacations
-                    .filter((v) => v.status === "marcado")
-                    .map((v) => (
-                      <div
-                        key={v.id}
-                        className="p-4 bg-orange-50 rounded-2xl border border-orange-100"
-                      >
-                        <div className="text-[9px] font-black text-orange-600 uppercase mb-1">
-                          Ref: {v.anoRef}
+                {vacations.filter((v) => v.status === "marcado").length > 0 || isSubmitted || userGrantedMonth ? (
+                  <>
+                    {vacations
+                      .filter((v) => v.status === "marcado")
+                      .map((v) => {
+                        const isCurrentActiveYear = v.anoRef === activeYear;
+                        const isGranted = isCurrentActiveYear ? !!userGrantedMonths[v.anoRef || ""] : true;
+                        
+                        return (
+                          <div
+                            key={v.id}
+                            className={cn("p-4 rounded-2xl border", isGranted ? "bg-orange-50 border-orange-100" : "bg-indigo-50 border-indigo-100")}
+                          >
+                            <div className={cn("text-[9px] font-black uppercase mb-1", isGranted ? "text-orange-600" : "text-indigo-600")}>
+                              Ref: {v.anoRef}
+                            </div>
+                            <div className="text-xs font-black text-slate-800 uppercase">
+                              {isCurrentActiveYear 
+                                ? (isGranted ? `MÊS: ${userGrantedMonths[v.anoRef || ""]}` : "PERÍODO A DEFINIR")
+                                : v.dataInicio}
+                            </div>
+                            <div className={cn("text-[8px] font-bold uppercase tracking-widest mt-1", isGranted ? "text-orange-400" : "text-amber-500")}>
+                              Status: {isCurrentActiveYear ? (isGranted ? "Confirmado pelo Escalonamento" : "A Decidir") : "Confirmado"}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    {!vacations.some(v => v.status === "marcado" && v.anoRef === activeYear) && (isSubmitted || userGrantedMonth) && (
+                      <div className={cn("p-4 rounded-2xl border", userGrantedMonth ? "bg-emerald-50 border-emerald-100" : "bg-indigo-50 border-indigo-100")}>
+                        <div className={cn("text-[9px] font-black uppercase mb-1", userGrantedMonth ? "text-emerald-600" : "text-indigo-600")}>
+                          Ref: {activeYear}
                         </div>
                         <div className="text-xs font-black text-slate-800 uppercase">
-                          {v.dataInicio}
+                          {userGrantedMonth ? `Mês: ${userGrantedMonth}` : "Período Solicitado (A Definir)"}
                         </div>
-                        <div className="text-[8px] font-bold text-orange-400 uppercase tracking-widest mt-1">
-                          Status: Confirmado
+                        <div className={cn("text-[8px] font-bold uppercase tracking-widest mt-1", userGrantedMonth ? "text-emerald-500" : "text-amber-500")}>
+                          Status: {userGrantedMonth ? "Confirmado pelo Escalonamento" : "A Decidir"}
                         </div>
                       </div>
-                    ))
+                    )}
+                  </>
                 ) : (
                   <div className="text-[10px] font-black text-slate-300 uppercase text-center py-8">
                     Nenhum agendamento

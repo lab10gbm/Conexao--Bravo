@@ -89,8 +89,18 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     await loadConfigs(true);
   };
 
+  const value = React.useMemo(() => ({
+    activeMonths,
+    escalanteRGs,
+    appVisibility,
+    alaConfig,
+    vacationSettings,
+    loading,
+    refreshConfigs
+  }), [activeMonths, escalanteRGs, appVisibility, alaConfig, vacationSettings, loading]);
+
   return (
-    <ConfigContext.Provider value={{ activeMonths, escalanteRGs, appVisibility, alaConfig, vacationSettings, loading, refreshConfigs }}>
+    <ConfigContext.Provider value={value}>
       {children}
     </ConfigContext.Provider>
   );

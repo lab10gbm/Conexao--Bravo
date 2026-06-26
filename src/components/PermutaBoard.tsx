@@ -6,7 +6,7 @@ import { PermutaRequest, PermutaStatus, UserProfile } from '../types';
 import { format, differenceInDays, startOfYear, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { getAlaColor, getAlaName, getAlaForDate, cn, calculateDeadline } from '../lib/utils';
-import { MessageSquare, UserCheck, Trash2, CalendarDays, X, Check, RefreshCw, ExternalLink, AlertTriangle, PenTool, Clock, Archive } from 'lucide-react';
+import { MessageSquare, UserCheck, Trash2, CalendarDays, X, Check, RefreshCw, ExternalLink, AlertTriangle, PenTool, Clock, Archive, ArrowLeftRight, Equal, ArrowUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useMilitars } from '../contexts/MilitarContext';
 import { RankInsignia } from './RankInsignia';
@@ -719,17 +719,16 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
                               <div className="flex flex-col text-left justify-center py-1 min-w-0">
                                 {(permuta.isLookingForSubstitute && !permuta.requesterRg) ? (
                                   <>
-                                    <div className="flex items-center gap-1.5 mb-1">
-                                      <div className={`w-3.5 h-3.5 rounded-full shrink-0 animate-pulse ${
+                                    <div className="flex justify-center mb-1">
+                                      <div className={`w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-white ${
                                         permuta.offerType === 'troca' ? 'bg-[#1E293B]' :
                                         permuta.offerType === 'pago' ? 'bg-[#8B4513]' :
                                          'bg-[#3B0764]'
-                                      }`} />
-                                      <span className="text-[10px] sm:text-[11px] font-black uppercase text-indigo-500 tracking-widest leading-none whitespace-nowrap opacity-75">
-                                        {permuta.offerType === 'troca' && 'TROCA'}
-                                        {permuta.offerType === 'pago' && 'TABELA COMUM'}
-                                        {permuta.offerType === 'especial' && 'TABELA ESPECIAL'}
-                                      </span>
+                                      }`}>
+                                        {permuta.offerType === 'troca' && <ArrowLeftRight className="w-3 h-3" />}
+                                        {permuta.offerType === 'pago' && <Equal className="w-3 h-3" />}
+                                        {permuta.offerType === 'especial' && <ArrowUp className="w-3 h-3" />}
+                                      </div>
                                     </div>
                                     <button 
                                       onClick={() => handleFillVacancy(permuta, 'requester')}
@@ -782,17 +781,16 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
                               <div className="flex flex-col text-left justify-center py-1 min-w-0">
                                 {(permuta.isLookingForSubstitute && !permuta.substituteRg) ? (
                                   <>
-                                    <div className="flex items-center gap-1.5 mb-1">
-                                      <div className={`w-3.5 h-3.5 rounded-full shrink-0 animate-pulse ${
+                                    <div className="flex justify-center mb-1">
+                                      <div className={`w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-white ${
                                         permuta.offerType === 'troca' ? 'bg-[#1E293B]' :
                                         permuta.offerType === 'pago' ? 'bg-[#8B4513]' :
                                          'bg-[#3B0764]'
-                                      }`} />
-                                      <span className="text-[10px] sm:text-[11px] font-black uppercase text-indigo-500 tracking-widest leading-none whitespace-nowrap opacity-75">
-                                        {permuta.offerType === 'troca' && 'TROCA'}
-                                        {permuta.offerType === 'pago' && 'TABELA COMUM'}
-                                        {permuta.offerType === 'especial' && 'TABELA ESPECIAL'}
-                                      </span>
+                                      }`}>
+                                        {permuta.offerType === 'troca' && <ArrowLeftRight className="w-3 h-3" />}
+                                        {permuta.offerType === 'pago' && <Equal className="w-3 h-3" />}
+                                        {permuta.offerType === 'especial' && <ArrowUp className="w-3 h-3" />}
+                                      </div>
                                     </div>
                                     <button 
                                       onClick={() => handleFillVacancy(permuta, 'substitute')}
