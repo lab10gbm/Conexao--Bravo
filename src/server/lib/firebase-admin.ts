@@ -66,7 +66,8 @@ export const getAdminDb = () => {
         try {
             const config = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf8'));
             if (config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)') {
-                return getFirestore(getApp(), config.firestoreDatabaseId);
+                // FORCE default database to fix UNAUTHENTICATED
+                // return getFirestore(getApp(), config.firestoreDatabaseId);
             }
         } catch (e) {
             console.error('[Firebase] Error reading firestoreDatabaseId in getAdminDb:', e);

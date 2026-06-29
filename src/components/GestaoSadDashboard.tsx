@@ -28,14 +28,6 @@ export function GestaoSadDashboard({ user }: GestaoSadDashboardProps) {
       color: 'bg-fuchsia-600 shadow-fuchsia-200'
     },
     {
-      id: 'ferias-sad',
-      label: 'Controle Férias SAD',
-      description: 'Gestão Geral de Férias',
-      icon: CalendarOff,
-      color: 'bg-sky-600 shadow-sky-200',
-      inDevelopment: true
-    },
-    {
       id: 'dgp-sync',
       label: 'DGP Sync',
       description: 'Sincronizador Universal',
@@ -70,11 +62,6 @@ export function GestaoSadDashboard({ user }: GestaoSadDashboardProps) {
               onClick={() => navigate(`/${mod.id}`)}
               className="bg-white border-2 border-slate-100 rounded-[2rem] p-6 flex flex-col items-center justify-center gap-4 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all text-center group relative overflow-hidden"
             >
-              {mod.inDevelopment && (
-                <div className="absolute top-3 right-[-35px] bg-indigo-500 text-white text-[7px] font-black py-1 px-10 rotate-45 uppercase tracking-widest shadow-sm z-10">
-                  Dev
-                </div>
-              )}
               <div className={cn(
                 `w-16 h-16 rounded-2xl flex items-center justify-center text-white shadow-lg transition-transform group-hover:rotate-6`,
                 mod.color

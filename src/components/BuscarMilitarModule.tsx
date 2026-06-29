@@ -334,11 +334,11 @@ export function BuscarMilitarModule({ viewer, onBack }: BuscarMilitarModuleProps
                                    </div>
                                    <div className="flex flex-row sm:flex-col gap-3 sm:gap-1 text-right border-t sm:border-t-0 sm:border-l border-slate-100 pt-3 sm:pt-0 sm:pl-4">
                                       <div>
-                                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Dias Gozados</div>
+                                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Dias Tirados</div>
                                         <div className="text-lg font-black text-slate-700">{vac.diasGozados}</div>
                                       </div>
                                       <div>
-                                        <div className="text-[9px] font-black text-emerald-500/70 uppercase tracking-widest">A Gozar</div>
+                                        <div className="text-[9px] font-black text-emerald-500/70 uppercase tracking-widest">A Tirar</div>
                                         <div className="text-lg font-black text-emerald-600">{vac.diasAGozar}</div>
                                       </div>
                                    </div>

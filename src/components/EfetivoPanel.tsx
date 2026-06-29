@@ -124,16 +124,21 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
         m.warName?.toLowerCase().includes(term) ||
         m.rg?.includes(term);
       const matchesPosto =
-        filterPostoGrad.length === 0 || filterPostoGrad.includes(m.rank || "");
+        filterPostoGrad.length === 0 || 
+        filterPostoGrad.includes(m.rank || "") ||
+        filterPostoGrad.some(fp => parseRank(fp) === parseRank(m.rank));
       const matchesQuadro =
         filterQuadro.length === 0 ||
-        filterQuadro.some((fq) =>
-          (m.quadro || "").toUpperCase().startsWith(fq.toUpperCase()),
-        );
+        filterQuadro.some((fq) => {
+          if (fq === "S/Q") return !m.quadro;
+          return (m.quadro || "").toUpperCase().startsWith(fq.toUpperCase());
+        });
       const matchesObm =
         filterObm.length === 0 || filterObm.includes(normalizeObm(m.obm));
       const matchesAla =
-        filterAla.length === 0 || filterAla.includes(m.ala?.toString() || "");
+        filterAla.length === 0 || 
+        filterAla.includes(m.ala?.toString() || "") ||
+        (filterAla.includes("S/A") && !m.ala);
       const matchesCidade =
         filterCidade.length === 0 || filterCidade.includes(m.cidade || "");
       const matchesSituacao =
@@ -279,9 +284,9 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
     quadro?: string;
     ala?: string;
   }) => {
-    if (f.rank !== undefined) setFilterPostoGrad(f.rank ? [f.rank] : []);
-    if (f.quadro !== undefined) setFilterQuadro(f.quadro ? [f.quadro] : []);
-    if (f.ala !== undefined) setFilterAla(f.ala ? [f.ala] : []);
+    setFilterPostoGrad(f.rank && f.rank !== "TOTAL" ? [f.rank] : []);
+    setFilterQuadro(f.quadro && f.quadro !== "TOTAL" ? [f.quadro] : []);
+    setFilterAla(f.ala && f.ala !== "TOTAL" ? [f.ala] : []);
     setViewMode("table_unified");
   };
 

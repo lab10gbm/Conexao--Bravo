@@ -372,6 +372,8 @@ export default function App() {
             });
           }
         }
+      }, (err) => {
+        console.warn("[Auth] Failed to subscribe to profile updates:", err.message);
       });
       return () => unsub();
     }
@@ -575,7 +577,7 @@ export default function App() {
                           JSON.stringify(updated),
                         );
                       }}
-                      onBack={() => navigate("/")}
+                      onBack={() => navigate("/painel-militar")}
                     />
                   </motion.div>
                 }
@@ -628,7 +630,7 @@ export default function App() {
                   >
                     <MedidasModule
                       user={effectiveProfile!}
-                      onBack={() => navigate("/")}
+                      onBack={() => navigate("/painel-militar")}
                     />
                   </motion.div>
                 }
@@ -828,24 +830,7 @@ export default function App() {
                   >
                     <VacationModule
                       user={effectiveProfile!}
-                      onBackToPortal={() => navigate("/")}
-                    />
-                  </motion.div>
-                }
-              />
-              <Route
-                path="/ferias-sad"
-                element={
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 1.05 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <VacationModule
-                      user={effectiveProfile!}
-                      onBackToPortal={() => navigate("/")}
-                      isSadMode={true}
+                      onBackToPortal={() => navigate("/painel-militar")}
                     />
                   </motion.div>
                 }

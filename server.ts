@@ -20,6 +20,7 @@ import { setupServiceRoutes } from './src/server/routes/services.routes';
 import { importMilitariesFromLocal } from './src/server/lib/import-militaries';
 // @ts-ignore
 import archiver from 'archiver';
+import { EventEmitter } from 'events';
 
 // Initialize Firebase Admin
 const firebaseConfigPath = path.join(process.cwd(), 'firebase-applet-config.json');
@@ -43,6 +44,8 @@ if (fs.existsSync(firebaseConfigPath)) {
 let db: any;
 let clientDb: any;
 let militaryCache: Map<string, any> = new Map();
+let militaryCacheVersion: number = Date.now();
+const cacheEvents = new EventEmitter();
 let isCacheLoaded = false;
 let cachePromise: Promise<void> | null = null;
 let isSyncing = false;
@@ -374,13 +377,20 @@ async function startServer() {
         
         // Setup realtime sync for Admin
         db.collection('militaries').onSnapshot((snapshot: any) => {
+           let hasChanges = false;
            snapshot.docChanges().forEach((change: any) => {
               if (change.type === 'added' || change.type === 'modified') {
                  militaryCache.set(change.doc.id, change.doc.data());
+                 hasChanges = true;
               } else if (change.type === 'removed') {
                  militaryCache.delete(change.doc.id);
+                 hasChanges = true;
               }
            });
+           if (hasChanges) {
+              militaryCacheVersion++;
+              cacheEvents.emit('update', militaryCacheVersion);
+           }
         }, (err: any) => console.warn('[Cache Sync] Admin SDK listener error:', err.message));
         
       } catch (e: any) {
@@ -396,13 +406,20 @@ async function startServer() {
             
             // Setup realtime sync for Client SDK fallback
             onSnapshot(collection(clientDb, 'militaries'), (snapshot) => {
+               let hasChanges = false;
                snapshot.docChanges().forEach(change => {
                   if (change.type === 'added' || change.type === 'modified') {
                      militaryCache.set(change.doc.id, change.doc.data());
+                     hasChanges = true;
                   } else if (change.type === 'removed') {
                      militaryCache.delete(change.doc.id);
+                     hasChanges = true;
                   }
                });
+               if (hasChanges) {
+                  militaryCacheVersion++;
+                  cacheEvents.emit('update', militaryCacheVersion);
+               }
             }, (err) => console.warn('[Cache Sync] Client SDK listener error:', err.message));
             
           } catch (clientErr: any) {
@@ -425,13 +442,20 @@ async function startServer() {
         
         // Setup realtime sync for Client SDK
         onSnapshot(collection(clientDb, 'militaries'), (snapshot) => {
+           let hasChanges = false;
            snapshot.docChanges().forEach(change => {
               if (change.type === 'added' || change.type === 'modified') {
                  militaryCache.set(change.doc.id, change.doc.data());
+                 hasChanges = true;
               } else if (change.type === 'removed') {
                  militaryCache.delete(change.doc.id);
+                 hasChanges = true;
               }
            });
+           if (hasChanges) {
+              militaryCacheVersion++;
+              cacheEvents.emit('update', militaryCacheVersion);
+           }
         }, (err) => console.warn('[Cache Sync] Client SDK listener error:', err.message));
         
       } catch (clientErr: any) {
@@ -552,6 +576,8 @@ async function startServer() {
       }
       console.log('[Cache] Injected requested militaries into memory.');
     } catch (e) {}
+  }).catch(e => {
+    console.error('[Cache] Initialization error:', e);
   });
 
   const app = express();
@@ -572,7 +598,14 @@ async function startServer() {
     next();
   });
 
-  app.use(compression());
+  app.use(compression({
+    filter: (req, res) => {
+      if (req.headers['accept'] === 'text/event-stream') {
+        return false;
+      }
+      return compression.filter(req, res);
+    }
+  }));
   app.use(express.text({ limit: '20mb' })); // will parse text/plain by default
   app.use(express.json({ limit: '20mb' }));
   app.use(express.urlencoded({ extended: true, limit: '20mb' }));
@@ -614,6 +647,8 @@ async function startServer() {
     db,
     clientDb,
     militaryCache,
+    getCacheVersion: () => militaryCacheVersion,
+    cacheEvents,
     normalizeRg,
     normalizeObm,
     OBM_HIERARCHY,
@@ -1329,4 +1364,4 @@ async function startServer() {
   });
 }
 
-const expressApp = startServer();
+const expressApp = startServer().catch(e => console.error('[Server] Fatal startup error:', e));

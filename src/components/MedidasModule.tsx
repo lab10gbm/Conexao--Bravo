@@ -421,7 +421,7 @@ export function MedidasModule({ user, onBack }: MedidasModuleProps) {
           className="flex items-center gap-2 text-slate-400 hover:text-cyan-600 transition-colors uppercase font-black text-[10px] tracking-[0.2em] group"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          Voltar ao Portal Principal
+          Voltar ao Painel do Militar
         </button>
       </div>
 

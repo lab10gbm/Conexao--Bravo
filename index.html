@@ -9,7 +9,8 @@
         console.error('GLOBAL ERROR:', event.message, event.filename, event.lineno, event.colno, event.error);
       });
       window.addEventListener('unhandledrejection', function(event) {
-        console.error('UNHANDLED REJECTION:', event.reason);
+        console.warn('UNHANDLED REJECTION:', event.reason?.message || event.reason);
+        event.preventDefault();
       });
     </script>
   </head>

@@ -716,8 +716,8 @@ export function VacationModule({
       Retorno: v.dataRetorno,
       Status: v.status.toUpperCase(),
       "Ato/Bol": `${v.ato} - ${v.boletim}`,
-      "Dias Gozados": v.diasGozados,
-      "Saldo a Gozar": v.diasAGozar,
+      "Dias Tirados": v.diasGozados,
+      "Saldo a Tirar": v.diasAGozar,
     }));
     exportToExcel(
       exportData,
@@ -1101,7 +1101,7 @@ export function VacationModule({
             className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors uppercase font-black text-[10px] tracking-[0.2em] mb-4 group"
           >
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            <span className="hidden sm:inline">Voltar ao Portal Principal</span>
+            <span className="hidden sm:inline">Voltar ao Painel do Militar</span>
             <span className="sm:hidden">Voltar</span>
           </button>
           <h2 className="text-3xl sm:text-4xl font-black text-slate-800 uppercase tracking-tighter flex items-center gap-4">
@@ -1830,15 +1830,15 @@ export function VacationModule({
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
           {/* Sidebar Stats */}
           <div className="xl:col-span-1 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-6">
-            <div className="bg-slate-900 rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+            <div className="bg-slate-900 rounded-2xl p-5 sm:p-6 text-white shadow-xl relative overflow-hidden flex flex-col items-center justify-center text-center">
               <div className="absolute -top-10 -right-10 w-32 h-32 bg-orange-600/20 rounded-full blur-3xl"></div>
-              <h3 className="text-orange-400 font-black text-[10px] uppercase tracking-[0.3em] mb-6">
+              <h3 className="text-orange-400 font-black text-[10px] sm:text-xs uppercase tracking-[0.3em] mb-4">
                 Resumo Anual
               </h3>
-              <div className="space-y-6">
-                <div>
-                  <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">
-                    Total Dias Gozados
+              <div className="flex items-center justify-center gap-6 w-full">
+                <div className="flex-1 flex flex-col items-center">
+                  <div className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                    Total Dias Tirados
                   </div>
                   <div className="text-3xl sm:text-4xl font-black tracking-tighter">
                     {vacations.reduce(
@@ -1847,9 +1847,10 @@ export function VacationModule({
                     )}
                   </div>
                 </div>
-                <div className="pt-6 border-t border-white/10">
-                  <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">
-                    Total Saldo a Gozar
+                <div className="w-px h-12 sm:h-16 bg-white/10 shrink-0"></div>
+                <div className="flex-1 flex flex-col items-center">
+                  <div className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                    Total Saldo a Tirar
                   </div>
                   <div className="text-3xl sm:text-4xl font-black tracking-tighter text-orange-500">
                     {vacations.reduce((acc, v) => acc + (v.diasAGozar || 0), 0)}
@@ -1859,11 +1860,11 @@ export function VacationModule({
             </div>
 
             {/* Próximos Afastamentos */}
-            <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 border-2 border-slate-50 shadow-sm">
-              <h3 className="text-slate-400 font-black text-[10px] uppercase tracking-[0.2em] mb-6">
+            <div className="bg-white rounded-2xl p-5 border-2 border-slate-50 shadow-sm">
+              <h3 className="text-slate-400 font-black text-[10px] uppercase tracking-[0.2em] mb-4">
                 Próximos Afastamentos
               </h3>
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {vacations.filter((v) => v.status === "marcado").length > 0 || isSubmitted || userGrantedMonth ? (
                   <>
                     {vacations
@@ -1875,38 +1876,42 @@ export function VacationModule({
                         return (
                           <div
                             key={v.id}
-                            className={cn("p-4 rounded-2xl border", isGranted ? "bg-orange-50 border-orange-100" : "bg-indigo-50 border-indigo-100")}
+                            className={cn("px-4 py-2 rounded-xl border flex items-center justify-between gap-4", isGranted ? "bg-orange-50 border-orange-100" : "bg-indigo-50 border-indigo-100")}
                           >
-                            <div className={cn("text-[9px] font-black uppercase mb-1", isGranted ? "text-orange-600" : "text-indigo-600")}>
-                              Ref: {v.anoRef}
+                            <div className="flex flex-col">
+                              <div className={cn("text-[9px] font-black uppercase", isGranted ? "text-orange-600" : "text-indigo-600")}>
+                                Ref: {v.anoRef}
+                              </div>
+                              <div className={cn("text-[8px] font-bold uppercase tracking-widest", isGranted ? "text-orange-400" : "text-amber-500")}>
+                                {isCurrentActiveYear ? (isGranted ? "Confirmado Escalonamento" : "A Decidir") : "Confirmado"}
+                              </div>
                             </div>
-                            <div className="text-xs font-black text-slate-800 uppercase">
+                            <div className="text-xs font-black text-slate-800 uppercase text-right">
                               {isCurrentActiveYear 
-                                ? (isGranted ? `MÊS: ${userGrantedMonths[v.anoRef || ""]}` : "PERÍODO A DEFINIR")
+                                ? (isGranted ? `MÊS: ${userGrantedMonths[v.anoRef || ""]}` : "A DEFINIR")
                                 : v.dataInicio}
-                            </div>
-                            <div className={cn("text-[8px] font-bold uppercase tracking-widest mt-1", isGranted ? "text-orange-400" : "text-amber-500")}>
-                              Status: {isCurrentActiveYear ? (isGranted ? "Confirmado pelo Escalonamento" : "A Decidir") : "Confirmado"}
                             </div>
                           </div>
                         );
                       })}
                     {!vacations.some(v => v.status === "marcado" && v.anoRef === activeYear) && (isSubmitted || userGrantedMonth) && (
-                      <div className={cn("p-4 rounded-2xl border", userGrantedMonth ? "bg-emerald-50 border-emerald-100" : "bg-indigo-50 border-indigo-100")}>
-                        <div className={cn("text-[9px] font-black uppercase mb-1", userGrantedMonth ? "text-emerald-600" : "text-indigo-600")}>
-                          Ref: {activeYear}
+                      <div className={cn("px-4 py-2 rounded-xl border flex items-center justify-between gap-4", userGrantedMonth ? "bg-emerald-50 border-emerald-100" : "bg-indigo-50 border-indigo-100")}>
+                        <div className="flex flex-col">
+                          <div className={cn("text-[9px] font-black uppercase", userGrantedMonth ? "text-emerald-600" : "text-indigo-600")}>
+                            Ref: {activeYear}
+                          </div>
+                          <div className={cn("text-[8px] font-bold uppercase tracking-widest", userGrantedMonth ? "text-emerald-500" : "text-amber-500")}>
+                            {userGrantedMonth ? "Confirmado Escalonamento" : "A Decidir"}
+                          </div>
                         </div>
-                        <div className="text-xs font-black text-slate-800 uppercase">
-                          {userGrantedMonth ? `Mês: ${userGrantedMonth}` : "Período Solicitado (A Definir)"}
-                        </div>
-                        <div className={cn("text-[8px] font-bold uppercase tracking-widest mt-1", userGrantedMonth ? "text-emerald-500" : "text-amber-500")}>
-                          Status: {userGrantedMonth ? "Confirmado pelo Escalonamento" : "A Decidir"}
+                        <div className="text-xs font-black text-slate-800 uppercase text-right">
+                          {userGrantedMonth ? `Mês: ${userGrantedMonth}` : "A Definir"}
                         </div>
                       </div>
                     )}
                   </>
                 ) : (
-                  <div className="text-[10px] font-black text-slate-300 uppercase text-center py-8">
+                  <div className="text-[10px] font-black text-slate-300 uppercase text-center py-4">
                     Nenhum agendamento
                   </div>
                 )}
@@ -2551,7 +2556,7 @@ function VacationCard({ vacation }: { vacation: Vacation }) {
               {vacation.diasGozados}
             </div>
             <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">
-              Dias Gozados
+              Dias Tirados
             </div>
           </div>
           <div className="text-right border-l border-slate-100 pl-4">

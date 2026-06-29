@@ -3,7 +3,7 @@ import { UserProfile } from '../types';
 import { db } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { motion } from 'motion/react';
-import { Save, UserCircle2, Phone, MapPin, Building, Lock, Calendar, Award, Shield, Briefcase, UserCheck, Settings2, Trash2 } from 'lucide-react';
+import { Save, UserCircle2, Phone, MapPin, Building, Lock, Calendar, Award, Shield, Briefcase, UserCheck, Settings2, Trash2, ArrowLeft } from 'lucide-react';
 import { RankInsignia } from './RankInsignia';
 import { cleanUndefined } from "../lib/utils";
 import { TagInput } from './TagInput';
@@ -219,9 +219,19 @@ export function ProfileUpdate({ user, onUpdate, onBack }: ProfileUpdateProps) {
 
   return (
     <div className="max-w-3xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-700 pt-10">
-      <div className="flex items-center gap-3 mb-8">
-        <UserCircle2 className="w-6 h-6 text-indigo-600" />
-        <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Atualização Cadastral</h2>
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-3">
+          <UserCircle2 className="w-6 h-6 text-indigo-600" />
+          <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Atualização Cadastral</h2>
+        </div>
+        <button 
+          onClick={onBack}
+          className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors uppercase font-black text-[10px] tracking-[0.2em] group"
+        >
+          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+          <span className="hidden sm:inline">Voltar ao Painel do Militar</span>
+          <span className="sm:hidden">Voltar</span>
+        </button>
       </div>
 
       <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">

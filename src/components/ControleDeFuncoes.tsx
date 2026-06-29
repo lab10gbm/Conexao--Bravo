@@ -48,6 +48,54 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
   const [filterCursos, setFilterCursos] = useState<string[]>([]);
   const [somenteAtivos, setSomenteAtivos] = useState(false);
 
+  React.useEffect(() => {
+    const doUpdate = async () => {
+      const fixedFlag = localStorage.getItem('fixed_condutores_rg_1');
+      if (fixedFlag || !db || militars.length === 0) return;
+      
+      const rgsToUpdate = [
+        "20960", "26029", "43427", "43408", "43581", "43386", "49075", "61427",
+        "54168", "54208", "54211", "54236", "54237", "61205", "61109", "61168",
+        "61173", "61207", "22352"
+      ];
+      
+      let updatedCount = 0;
+      
+      for (const militar of militars) {
+        if (!militar.rg) continue;
+        const safeRg = String(militar.rg).replace(/^0+/, "").replace(/\D/g, "");
+        if (rgsToUpdate.includes(safeRg)) {
+          console.log(`Auto-updating RG ${safeRg}...`);
+          try {
+            await setDoc(doc(db, "militaries", safeRg), cleanUndefined({
+              ativoCondutor: true,
+              viaturas: {
+                ABT: true,
+                ABSL: true,
+                ASE: true,
+                AR: true,
+                ARC: true
+              },
+              ativoEncarregado: true,
+              ativoAbastecedor: true
+            }), { merge: true });
+            updatedCount++;
+          } catch (e) {
+            console.error('Failed to auto-update', e);
+          }
+        }
+      }
+      
+      if (updatedCount > 0) {
+        console.log(`Successfully auto-updated ${updatedCount} militaries.`);
+        localStorage.setItem('fixed_condutores_rg_1', 'true');
+        refreshMilitars();
+      }
+    };
+    
+    doUpdate().catch(console.error);
+  }, [militars, refreshMilitars]);
+
   const {
     uniqueRanks,
     uniqueQuadros,
@@ -79,7 +127,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
         new Set(contextMilitars.map((m) => m.rank).filter(Boolean)),
       ) as string[],
       uniqueQuadros: Array.from(
-        new Set(contextMilitars.map((m) => m.quadro).filter(Boolean)),
+        new Set(contextMilitars.map((m) => (m.quadro ? m.quadro.split('/')[0] : '')).filter(Boolean)),
       ) as string[],
       uniqueAlas: Array.from(
         new Set(
@@ -104,6 +152,27 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
         const isSameObm = !ctxObm || ctxObm === "GLOBAL" || rawMObm === ctxObm;
         if (!isSameObm) return false;
 
+        const r = (m.rank || "").toUpperCase().trim();
+        const isOfficer = [
+          "CEL",
+          "CORONEL",
+          "TC",
+          "TENENTE CORONEL",
+          "TENENTE-CORONEL",
+          "MAJ",
+          "MAJOR",
+          "CAP",
+          "CAPITÃO",
+          "1º TEN",
+          "1º TENENTE",
+          "2º TEN",
+          "2º TENENTE",
+          "ASP",
+          "ASPIRANTE",
+        ].includes(r);
+
+        if (isOfficer) return false;
+
         const isActiveInCurrentTab = () => {
           if (activeTab === "condutores") return !!m.ativoCondutor;
           if (activeTab === "chefes") return !!m.ativoChefeGua;
@@ -113,25 +182,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
           if (activeTab === "cbs_sds") return !!m.ativoCbsSds;
           if (activeTab === "auxiliares") return !!m.ativoAuxiliar;
           if (activeTab === "mostruario") {
-            const r = (m.rank || "").toUpperCase().trim();
-            const isOfficer = [
-              "CEL",
-              "CORONEL",
-              "TC",
-              "TENENTE CORONEL",
-              "TENENTE-CORONEL",
-              "MAJ",
-              "MAJOR",
-              "CAP",
-              "CAPITÃO",
-              "1º TEN",
-              "1º TENENTE",
-              "2º TEN",
-              "2º TENENTE",
-              "ASP",
-              "ASPIRANTE",
-            ].includes(r);
-            return !isOfficer;
+            return true;
           }
           return !!m.ativoComunicante;
         };
@@ -140,17 +191,18 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
 
         // Basic filtering logic
         let matches = true;
-        if (search.length >= 2) {
+        if (search.length >= 1) {
           const s = search.toLowerCase();
           matches =
             matches &&
             ((m.name || "").toLowerCase().includes(s) ||
+              (m.warName || "").toLowerCase().includes(s) ||
               (m.rg || "").toString().includes(search));
         }
         if (filterPostoGrad.length > 0)
           matches = matches && filterPostoGrad.includes(m.rank || "");
         if (filterQuadro.length > 0)
-          matches = matches && filterQuadro.includes(m.quadro || "");
+          matches = matches && filterQuadro.includes(m.quadro ? m.quadro.split('/')[0] : '');
         if (filterAla.length > 0)
           matches = matches && filterAla.includes(m.ala?.toString() || "");
         if (filterSituacao.length > 0)
@@ -173,7 +225,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
         // By default we ONLY show active people.
         // But if "Exibir Não Ativos" is checked, OR they are searching by name, we show everyone.
         if (somenteAtivos) return true;
-        if (search.length >= 2) return true;
+        if (search.length >= 1) return true;
 
         return active;
       })
@@ -417,28 +469,43 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
         obmContext={obmContext}
       />
       <div className="p-4 sm:p-6 bg-white border-b border-slate-200 shrink-0">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h3 className="text-lg font-black text-slate-800 tracking-tight flex items-center gap-2">
-              <Truck className="w-5 h-5 text-indigo-600" />
-              Controle de Funções
-            </h3>
-            <p className="text-xs text-slate-500 font-medium mt-1">
-              Gerencie habilitações, viaturas e funções operacionais da{" "}
-              {obmContext}
-            </p>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-black text-slate-800 tracking-tight flex items-center gap-2">
+                <Truck className="w-5 h-5 text-indigo-600" />
+                Controle de Funções
+              </h3>
+              <p className="text-xs text-slate-500 font-medium mt-1">
+                Gerencie habilitações, viaturas e funções operacionais da{" "}
+                {obmContext}
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+              <div className="relative w-full sm:w-72 shrink-0">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Buscar militar por RG ou nome..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 border-2 border-slate-200 rounded-lg text-sm font-medium focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition-all shadow-sm"
+                />
+              </div>
+              <button
+                onClick={() => setIsConfigModalOpen(true)}
+                className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-4 py-2 rounded-lg text-sm transition-colors border border-slate-200 shadow-sm whitespace-nowrap"
+                title="Configurar Correlacionamento de Funções"
+              >
+                <Settings className="w-4 h-4" />
+                <span className="hidden sm:inline">Regras de Escala</span>
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setIsConfigModalOpen(true)}
-              className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-3 py-1.5 rounded-lg text-xs transition-colors border border-slate-200 shadow-sm"
-              title="Configurar Correlacionamento de Funções"
-            >
-              <Settings className="w-4 h-4" />
-              <span className="hidden sm:inline">Regras de Escala</span>
-            </button>
-            <div className="flex bg-slate-100 p-1 rounded-lg">
+          <div className="flex overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+            <div className="flex bg-slate-100 p-1 rounded-lg min-w-max gap-1">
               <button
                 onClick={() => {
                   setActiveTab("condutores");
@@ -565,16 +632,6 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
               >
                 Mostruário Geral
               </button>
-            </div>
-            <div className="relative w-full sm:w-64">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Buscar militar por RG ou nome..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-1.5 border-2 border-slate-200 rounded-lg text-xs font-medium focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 outline-none transition-all"
-              />
             </div>
           </div>
         </div>
@@ -760,7 +817,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                                   RG: {m.rg}
                                 </span>
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-1 rounded">
-                                  {m.quadro || m.specializations?.[0] || "-"}
+                                  {m.quadro ? m.quadro.split('/')[0] : (m.specializations?.[0] || '-')}
                                 </span>
                               </div>
                             </div>
@@ -950,7 +1007,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                                   RG: {m.rg}
                                 </span>
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-1 rounded">
-                                  {m.quadro || m.specializations?.[0] || "-"}
+                                  {m.quadro ? m.quadro.split('/')[0] : (m.specializations?.[0] || '-')}
                                 </span>
                               </div>
                             </div>
@@ -1132,7 +1189,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                                   RG: {m.rg}
                                 </span>
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-1 rounded">
-                                  {m.quadro || m.specializations?.[0] || "-"}
+                                  {m.quadro ? m.quadro.split('/')[0] : (m.specializations?.[0] || '-')}
                                 </span>
                               </div>
                             </div>
@@ -1333,7 +1390,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                                   RG: {m.rg}
                                 </span>
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-1 rounded">
-                                  {m.quadro || m.specializations?.[0] || "-"}
+                                  {m.quadro ? m.quadro.split('/')[0] : (m.specializations?.[0] || '-')}
                                 </span>
                               </div>
                             </div>
@@ -1457,7 +1514,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                                   RG: {m.rg}
                                 </span>
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-1 rounded">
-                                  {m.quadro || m.specializations?.[0] || "-"}
+                                  {m.quadro ? m.quadro.split('/')[0] : (m.specializations?.[0] || '-')}
                                 </span>
                               </div>
                             </div>
@@ -1607,7 +1664,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                                   RG: {m.rg}
                                 </span>
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-1 rounded">
-                                  {m.quadro || m.specializations?.[0] || "-"}
+                                  {m.quadro ? m.quadro.split('/')[0] : (m.specializations?.[0] || '-')}
                                 </span>
                               </div>
                             </div>
@@ -1833,7 +1890,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                                   RG: {m.rg}
                                 </span>
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-1 rounded">
-                                  {m.quadro || m.specializations?.[0] || "-"}
+                                  {m.quadro ? m.quadro.split('/')[0] : (m.specializations?.[0] || '-')}
                                 </span>
                               </div>
                             </div>
@@ -2097,7 +2154,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                                   RG: {m.rg}
                                 </span>
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-1 rounded">
-                                  {m.quadro || m.specializations?.[0] || "-"}
+                                  {m.quadro ? m.quadro.split('/')[0] : (m.specializations?.[0] || '-')}
                                 </span>
                               </div>
                             </div>
@@ -2357,7 +2414,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                                   RG: {m.rg}
                                 </span>
                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-1 rounded">
-                                  {m.quadro || m.specializations?.[0] || "-"}
+                                  {m.quadro ? m.quadro.split('/')[0] : (m.specializations?.[0] || '-')}
                                 </span>
                               </div>
                             </div>

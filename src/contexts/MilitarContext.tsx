@@ -1,6 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { UserProfile } from '../types';
 
 interface MilitarContextType {
@@ -15,39 +13,88 @@ const MilitarContext = createContext<MilitarContextType | undefined>(undefined);
 export function MilitarProvider({ children }: { children: ReactNode }) {
   const [militars, setMilitars] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const cacheVersionRef = useRef<number>(0);
+
+  const fetchMilitars = async () => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      let rg = '';
+      if (storedUser) {
+        try {
+          const parsed = JSON.parse(storedUser);
+          rg = parsed.rg || '';
+        } catch (e) {}
+      }
+
+      const res = await fetch(`/api/militar${rg ? `?rg=${rg}` : ''}`);
+      if (!res.ok) {
+        console.warn('[MilitarContext] Failed to fetch militars:', res.status, res.statusText);
+        return;
+      }
+      const data = await res.json();
+      if (data.success && data.members) {
+        setMilitars(data.members as UserProfile[]);
+      }
+    } catch (e) {
+      console.error('[MilitarContext] Error fetching militars:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Escuta em tempo real todas as alterações na coleção de militares
-    // Isso substitui a rota /api/militar e o localStorage, o próprio Firebase tem cache offline
-    const unsubscribe = onSnapshot(collection(db, 'militaries'), (snapshot) => {
-      const fetchedMembers = snapshot.docs.map(d => {
-        const data = d.data();
-        return ({
-          rg: d.id,
-          name: data.name || '',
-          postGrad: data.postGrad || '',
-          registration: data.registration || '',
-          unit: data.unit || '',
-          phone: data.phone || '',
-          email: data.email || '',
-          ...data
-        } as unknown) as UserProfile;
-      });
-      setMilitars(fetchedMembers);
-      setLoading(false);
-    }, (error) => {
-      console.error('Realtime Firebase error on militars:', error);
-      setLoading(false);
-    });
+    // Initial fetch to populate data before SSE connects
+    fetchMilitars();
 
-    return () => unsubscribe();
+    let eventSource: EventSource | null = null;
+    let retryTimeout: NodeJS.Timeout | null = null;
+    let isMounted = true;
+
+    const connectSSE = () => {
+      if (!isMounted) return;
+      
+      eventSource = new EventSource('/api/militar/stream');
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.version && data.version > cacheVersionRef.current) {
+            console.log(`[MilitarContext] Cache version changed (${cacheVersionRef.current} -> ${data.version}). Fetching updates...`);
+            cacheVersionRef.current = data.version;
+            fetchMilitars();
+          }
+        } catch (e) {
+          console.error('[MilitarContext] Error parsing SSE data:', e);
+        }
+      };
+
+      eventSource.onerror = (error) => {
+        // SSE connections normally get closed by proxies/timeouts, this is expected behavior.
+        console.log('[MilitarContext] SSE connection closed, reconnecting in 5s...');
+        if (eventSource) {
+          eventSource.close();
+        }
+        if (isMounted) {
+          retryTimeout = setTimeout(() => connectSSE(), 5000);
+        }
+      };
+    };
+
+    connectSSE();
+
+    return () => {
+      isMounted = false;
+      if (eventSource) {
+        eventSource.close();
+      }
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
+    };
   }, []);
 
-  // Compatibilidade com componentes antigos que chamam refreshMilitars
   const refreshMilitars = async (rg?: string) => {
-    // Com onSnapshot, a atualização é automática e em tempo real. Não precisamos recarregar nada.
-    // Pode apenas resolver as promisses de outros arquivos
-    return Promise.resolve();
+    await fetchMilitars();
   };
 
   const updateMilitarLocal = (rg: string, updates: Partial<UserProfile>) => {

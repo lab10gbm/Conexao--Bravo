@@ -2,6 +2,47 @@ import express from 'express';
 import { collection, getDocs, getDoc, doc, setDoc } from 'firebase/firestore';
 
 export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
+  app.get('/api/militar/version', (req, res) => {
+    const { getCacheVersion } = getDeps();
+    return res.json({ version: getCacheVersion ? getCacheVersion() : 0 });
+  });
+
+  app.get('/api/militar/stream', (req, res) => {
+    const { cacheEvents, getCacheVersion } = getDeps();
+    
+    if (!cacheEvents) {
+      return res.status(500).json({ error: 'SSE not supported on this server instance' });
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    // Send initial version to establish baseline
+    res.write(`data: ${JSON.stringify({ version: getCacheVersion ? getCacheVersion() : 0 })}\n\n`);
+    if (typeof (res as any).flush === 'function') (res as any).flush();
+
+    const onUpdate = (newVersion: number) => {
+      res.write(`data: ${JSON.stringify({ version: newVersion })}\n\n`);
+      if (typeof (res as any).flush === 'function') (res as any).flush();
+    };
+
+    // Send a heartbeat comment every 15 seconds to keep the connection alive
+    const heartbeat = setInterval(() => {
+      res.write(': heartbeat\n\n');
+      if (typeof (res as any).flush === 'function') (res as any).flush();
+    }, 15000);
+
+    cacheEvents.on('update', onUpdate);
+
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      cacheEvents.off('update', onUpdate);
+    });
+  });
+
   app.get('/api/militar', async (req, res) => {
     const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, normalizeObm, OBM_HIERARCHY, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
     const requesterRg = req.query.rg as string;

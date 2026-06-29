@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useMilitars } from "../contexts/MilitarContext";
 import { PermutaRequest, PermutaStatus } from "../types";
-import { collection, query, where, onSnapshot, updateDoc, doc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, onSnapshot, updateDoc, doc, serverTimestamp, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -14,6 +14,7 @@ import {
 } from "../lib/utils";
 import { parseRank } from "../lib/rankUtils";
 import { RankInsignia } from "./RankInsignia";
+import { EscalaPrintView } from "./EscalaPrintView";
 import {
   Calendar as CalendarIcon,
   Users,
@@ -25,7 +26,9 @@ import {
   ChevronDown,
   Check,
   X,
-  Clock
+  Clock,
+  Printer,
+  Shuffle
 } from "lucide-react";
 
 import { motion } from "framer-motion";
@@ -34,9 +37,11 @@ import { cleanUndefined } from "../lib/utils";
 function FuncoesMultiSelect({
   selected,
   onChange,
+  allowedOptions,
 }: {
   selected: string[];
   onChange: (v: string[]) => void;
+  allowedOptions?: string[];
 }) {
   const [open, setOpen] = useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
@@ -52,7 +57,12 @@ function FuncoesMultiSelect({
     'SENTINELA'
   ];
 
-  const options = search ? allOptions.filter(o => o.toLowerCase().includes(search.toLowerCase())) : allOptions;
+  let filteredOptions = allOptions;
+  if (allowedOptions) {
+    filteredOptions = allOptions.filter(o => allowedOptions.includes(o) || selected.includes(o));
+  }
+
+  const options = search ? filteredOptions.filter(o => o.toLowerCase().includes(search.toLowerCase())) : filteredOptions;
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -117,128 +127,169 @@ interface EscalaEspelhoModuleProps {
   obmContext: string;
 }
 
+const DEFAULT_VIATURAS = [
+  { id: "ABT-183", vtr: "ABT-183", ativa: true, condutor: true, g1: true, g2: true, g3: true, g4: false, cg: true, blocked: [] },
+  { id: "ABSL-152", vtr: "ABSL-152", ativa: true, condutor: true, g1: true, g2: true, g3: false, g4: false, cg: true, blocked: [] },
+  { id: "ASE-404", vtr: "ASE-404", ativa: true, condutor: true, g1: true, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "ARC-162", vtr: "ARC-162", ativa: true, condutor: true, g1: true, g2: null, g3: null, g4: null, cg: null, blocked: ["g2", "g3", "g4", "cg"] },
+  { id: "AR-583", vtr: "AR-583", ativa: true, condutor: true, g1: null, g2: null, g3: null, g4: null, cg: null, blocked: ["g1", "g2", "g3", "g4", "cg"] },
+  { id: "L-09", vtr: "L-09", ativa: true, condutor: true, g1: true, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "BIA-006", vtr: "BIA-006", ativa: true, condutor: true, g1: true, g2: true, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "BIA-013", vtr: "BIA-013", ativa: false, condutor: false, g1: false, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "ABT-12", vtr: "ABT-12", ativa: false, condutor: false, g1: false, g2: false, g3: false, g4: false, cg: false, blocked: [] },
+];
+
 export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
   const [selectedDate, setSelectedDate] = useState<string>(
     format(new Date(), "yyyy-MM-dd"),
   );
   const { militars, loading: militarsLoading } = useMilitars();
   const [permutas, setPermutas] = useState<PermutaRequest[]>([]);
+  const [afastamentos, setAfastamentos] = useState<any[]>([]);
   const [loadingPermutas, setLoadingPermutas] = useState(false);
+  const [manuallyAddedRgs, setManuallyAddedRgs] = useState<Record<string, string[]>>({});
+  const [expedienteRgs, setExpedienteRgs] = useState<string[]>([]);
+  const [addMilitarSearch, setAddMilitarSearch] = useState('');
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const addMenuRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
+        setShowAddMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedDate || !obmContext || obmContext === 'GLOBAL') {
+        setExpedienteRgs([]);
+        return;
+    }
+    const normalizedObm = obmContext.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+    const monthKey = selectedDate.substring(0, 7); // yyyy-MM
+    
+    const docRef = doc(db, `expediente_${normalizedObm}`, monthKey);
+    const unsub = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+         const data = docSnap.data();
+         const sels = data.selections || {};
+         const rgsInDay: string[] = [];
+         
+         Object.keys(sels).forEach(rg => {
+            if (rg === 'ESCALANTE_PREF') return;
+            const days = sels[rg] || [];
+            if (days.includes(selectedDate)) {
+               rgsInDay.push(rg);
+            }
+         });
+         setExpedienteRgs(rgsInDay);
+      } else {
+         setExpedienteRgs([]);
+      }
+    });
+    
+    return () => unsub();
+  }, [selectedDate, obmContext]);
 
   const [selectedFunctions, setSelectedFunctions] = useState<
     Record<string, string[]>
   >({});
 
-  const [viaturasInfo, setViaturasInfo] = useState([
-    {
-      id: "ABT-183",
-      vtr: "ABT-183",
-      ativa: true,
-      condutor: true,
-      g1: true,
-      g2: true,
-      g3: true,
-      g4: false,
-      cg: true,
-      blocked: [],
-    },
-    {
-      id: "ABSL-152",
-      vtr: "ABSL-152",
-      ativa: true,
-      condutor: true,
-      g1: true,
-      g2: true,
-      g3: false,
-      g4: false,
-      cg: true,
-      blocked: [],
-    },
-    {
-      id: "ASE-404",
-      vtr: "ASE-404",
-      ativa: true,
-      condutor: true,
-      g1: true,
-      g2: false,
-      g3: null,
-      g4: null,
-      cg: null,
-      blocked: ["g3", "g4", "cg"],
-    },
-    {
-      id: "ARC-162",
-      vtr: "ARC-162",
-      ativa: true,
-      condutor: true,
-      g1: true,
-      g2: null,
-      g3: null,
-      g4: null,
-      cg: null,
-      blocked: ["g2", "g3", "g4", "cg"],
-    },
-    {
-      id: "AR-583",
-      vtr: "AR-583",
-      ativa: true,
-      condutor: true,
-      g1: null,
-      g2: null,
-      g3: null,
-      g4: null,
-      cg: null,
-      blocked: ["g1", "g2", "g3", "g4", "cg"],
-    },
-    {
-      id: "L-09",
-      vtr: "L-09",
-      ativa: true,
-      condutor: true,
-      g1: true,
-      g2: false,
-      g3: null,
-      g4: null,
-      cg: null,
-      blocked: ["g3", "g4", "cg"],
-    },
-    {
-      id: "BIA-006",
-      vtr: "BIA-006",
-      ativa: true,
-      condutor: true,
-      g1: true,
-      g2: true,
-      g3: null,
-      g4: null,
-      cg: null,
-      blocked: ["g3", "g4", "cg"],
-    },
-    {
-      id: "BIA-013",
-      vtr: "BIA-013",
-      ativa: false,
-      condutor: false,
-      g1: false,
-      g2: false,
-      g3: null,
-      g4: null,
-      cg: null,
-      blocked: ["g3", "g4", "cg"],
-    },
-    {
-      id: "ABT-12",
-      vtr: "ABT-12",
-      ativa: false,
-      condutor: false,
-      g1: false,
-      g2: false,
-      g3: false,
-      g4: false,
-      cg: false,
-      blocked: [],
-    },
-  ]);
+  const [viaturasInfo, setViaturasInfo] = useState(DEFAULT_VIATURAS);
+
+  const isFirstLoad = useRef(true);
+  const previousDate = useRef(selectedDate);
+  const [savingState, setSavingState] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [showPrintView, setShowPrintView] = useState(false);
+  const [correlation, setCorrelation] = useState<Record<string, Record<string, number>>>({});
+
+  // Load correlation matrix
+  useEffect(() => {
+    if (!obmContext || obmContext === 'GLOBAL') return;
+    const loadCorrelation = async () => {
+      try {
+        const docRef = doc(db, "obm_settings", obmContext);
+        const snap = await getDoc(docRef);
+        if (snap.exists() && snap.data()?.escala_regras?.correlation) {
+          setCorrelation(snap.data().escala_regras.correlation);
+        } else {
+          setCorrelation({});
+        }
+      } catch (e) {
+        console.error("Error loading correlation rules", e);
+      }
+    };
+    loadCorrelation();
+  }, [obmContext]);
+
+  // Sync state from Firebase when date changes
+  useEffect(() => {
+    if (!selectedDate || !obmContext || obmContext === 'GLOBAL') return;
+    
+    // Reset state locally if date changed
+    if (previousDate.current !== selectedDate) {
+       setSelectedFunctions({});
+       setManuallyAddedRgs({});
+       setViaturasInfo(DEFAULT_VIATURAS);
+       previousDate.current = selectedDate;
+       isFirstLoad.current = true;
+    }
+    
+    const normalizedObm = obmContext.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+    const docRef = doc(db, `escala24h_${normalizedObm}`, selectedDate);
+    
+    let isMounted = true;
+    const loadState = async () => {
+       try {
+           const snap = await getDoc(docRef);
+           if (snap.exists() && isMounted) {
+               const data = snap.data();
+               if (data.selectedFunctions) setSelectedFunctions(data.selectedFunctions);
+               if (data.viaturasInfo) setViaturasInfo(data.viaturasInfo);
+               if (data.manuallyAddedRgs) {
+                   setManuallyAddedRgs(prev => ({...prev, [selectedDate]: data.manuallyAddedRgs}));
+               }
+           }
+           if (isMounted) isFirstLoad.current = false;
+       } catch (e) {
+           console.error("Error loading escala24h state:", e);
+           if (isMounted) isFirstLoad.current = false;
+       }
+    };
+    
+    loadState();
+    
+    return () => { isMounted = false; };
+  }, [selectedDate, obmContext]);
+
+  // Auto-save state to Firebase
+  useEffect(() => {
+    if (isFirstLoad.current) return;
+    if (!selectedDate || !obmContext || obmContext === 'GLOBAL') return;
+    
+    setSavingState('saving');
+    const timeout = setTimeout(async () => {
+      try {
+          const normalizedObm = obmContext.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+          const docRef = doc(db, `escala24h_${normalizedObm}`, selectedDate);
+          await setDoc(docRef, {
+             selectedFunctions,
+             viaturasInfo,
+             manuallyAddedRgs: manuallyAddedRgs[selectedDate] || []
+          }, { merge: true });
+          setSavingState('saved');
+          setTimeout(() => setSavingState('idle'), 2000);
+      } catch(e) {
+          console.error("Error saving escala24h state:", e);
+          setSavingState('idle');
+      }
+    }, 1000);
+    
+    return () => clearTimeout(timeout);
+  }, [selectedFunctions, viaturasInfo, manuallyAddedRgs, selectedDate, obmContext]);
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -248,7 +299,7 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
       where("date", "==", selectedDate)
     );
 
-    const unsub = onSnapshot(qDate, (snapshot) => {
+    const unsubPermutas = onSnapshot(qDate, (snapshot) => {
       const data = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
@@ -260,7 +311,23 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
       setLoadingPermutas(false);
     });
 
-    return () => unsub();
+    const qAfast = query(
+      collection(db, "afastamentos_alas"),
+      where("obm", "==", obmContext.toUpperCase())
+    );
+
+    const unsubAfast = onSnapshot(qAfast, (snapshot) => {
+      const data = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setAfastamentos(data);
+    });
+
+    return () => {
+      unsubPermutas();
+      unsubAfast();
+    };
   }, [selectedDate, obmContext]);
 
   // Sincroniza funções pré-definidas nas permutas quando elas carregam
@@ -320,14 +387,30 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
 
   // Base Roster for the identified Ala
   const baseRoster = useMemo(() => {
+    const manualRgs = manuallyAddedRgs[selectedDate] || [];
     return militarsInObm
-      .filter((m) => normalizeAlaField(m.ala) === identifiedAlaStr)
+      .filter((m) => {
+        const isAla = normalizeAlaField(m.ala) === identifiedAlaStr;
+        const isManual = manualRgs.includes(m.rg || '');
+        const isExpediente = expedienteRgs.includes(m.rg || '');
+        if (!isAla && !isManual && !isExpediente) return false;
+        
+        // Verifica se há afastamento para o militar na data selecionada
+        const hasAfastamento = afastamentos.some((a) => {
+          if (a.rg === m.rg) {
+             return selectedDate >= a.inicio && selectedDate <= a.retorno;
+          }
+          return false;
+        });
+
+        return !hasAfastamento;
+      })
       .sort((a, b) => {
         const rgA = parseInt((a.rg || "").replace(/\D/g, "") || "0");
         const rgB = parseInt((b.rg || "").replace(/\D/g, "") || "0");
         return rgA - rgB;
       });
-  }, [militarsInObm, identifiedAlaStr]);
+  }, [militarsInObm, identifiedAlaStr, afastamentos, selectedDate, manuallyAddedRgs, expedienteRgs]);
 
   // Map to easily find if a militar is swapping out
   const permutasOut = useMemo(() => {
@@ -370,6 +453,55 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
     if (militar.ativoComunicante) funcs.push("COMUNICANTE");
     if (militar.sentinela) funcs.push("SENTINELA");
     return funcs.join(", ") || "NÃO CONFIGURADO";
+  };
+
+  const getAllowedOptions = (militar: any) => {
+    if (!militar) return undefined;
+    const allowed = new Set<string>();
+    
+    if (militar.adjunto) allowed.add('ADJUNTO');
+    if (militar.ativoEncarregado) allowed.add('ENCARREGADO DE MOTORISTA');
+    
+    if (militar.ativoCondutor) {
+      if (militar.viaturas?.AR) allowed.add('CONDUTOR AR');
+      if (militar.viaturas?.ABSL) allowed.add('CONDUTOR ABSL');
+      if (militar.viaturas?.ABT) allowed.add('CONDUTOR ABT');
+      if (militar.viaturas?.ASE) allowed.add('CONDUTOR ASE');
+      if (militar.viaturas?.ARC) allowed.add('CONDUTOR ARC');
+    }
+    
+    if (militar.ativoChefeGua || militar.chefeAbsl) allowed.add('CHEFE ABSL');
+    if (militar.ativoChefeGua || militar.chefeAbt) allowed.add('CHEFE ABT');
+    
+    if (militar.auxArc || militar.ativoAuxiliar || militar.ativoChefeGua) allowed.add('AUXILIAR / CHEFE ARC');
+    if (militar.auxAbt || militar.ativoAuxiliar) allowed.add('AUXILIAR ABT');
+    if (militar.auxAbsl || militar.ativoAuxiliar) allowed.add('AUXILIAR ABSL');
+    
+    if (militar.ativoEnfermeiro) allowed.add('ENFERMEIRO');
+    if (militar.mestreAl || militar.ativoMaritimo) allowed.add('MESTRE AL');
+    if (militar.mestreBia || militar.ativoMaritimo) allowed.add('MESTRE BIA');
+    if (militar.marinheiros || militar.ativoMaritimo) allowed.add('MARINHEIRO');
+    if (militar.opAma || militar.ativoMaritimo) allowed.add('OPERADOR AMA');
+    if (militar.gvAma || militar.ativoMaritimo) allowed.add('GV AMA');
+    
+    if (militar.auxRancho) allowed.add('AUXILIAR RANCHO');
+    if (militar.toqueDeFogo) allowed.add('TOQUE DE FOGO');
+    if (militar.deposito) allowed.add('DIA AO DEPOSITO');
+    if (militar.faxina) allowed.add('RESP FAXINA');
+    if (militar.ativoAbastecedor) allowed.add('ABASTECEDOR');
+    
+    if (militar.sgtDia) allowed.add('SGT DIA');
+    if (militar.cmtGuarda) allowed.add('CMT GUARDA');
+    if (militar.cbGuarda) allowed.add('CB GUARDA');
+    if (militar.cbDia) allowed.add('CB DIA');
+    if (militar.ativoComunicante) allowed.add('COMUNICANTE');
+    if (militar.sentinela) allowed.add('SENTINELA');
+    
+    allowed.add('PRECARIO');
+    allowed.add('PRECARIO ADM');
+    allowed.add('ESCALANTE');
+
+    return Array.from(allowed);
   };
 
   const dynamicRequirements = useMemo(() => {
@@ -437,6 +569,90 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
     return reqs;
   }, [viaturasInfo]);
 
+  const handleSortear = () => {
+    const newSelected = { ...selectedFunctions };
+    
+    // 1. Determine all missing slots based on dynamicRequirements
+    const missingSlots: string[] = [];
+    dynamicRequirements.forEach(req => {
+      const currentCount = Object.values(newSelected).flat().filter(f => f === req.name).length;
+      if (req.req > currentCount) {
+        for (let i = 0; i < req.req - currentCount; i++) {
+          missingSlots.push(req.name);
+        }
+      }
+    });
+
+    if (missingSlots.length === 0) {
+      alert("Todas as funções obrigatórias já estão preenchidas!");
+      return;
+    }
+
+    // 2. Pre-calculate eligible militars for each role
+    const availableMilitars = baseRoster.map(m => {
+       const isSwapped = permutasOut.has(m.rg || '');
+       const actualMilitar = isSwapped ? (militars.find(x => x.rg === permutasOut.get(m.rg || '')?.substituteRg) || m) : m;
+       return {
+         rg: m.rg || '',
+         actualMilitar,
+         allowed: getAllowedOptions(actualMilitar) || []
+       };
+    });
+
+    const getRoleCount = (rg: string) => (newSelected[rg] || []).length;
+
+    let remainingSlots = [...missingSlots];
+    let slotsFilledCount = 0;
+    
+    // Process slots one by one to ensure dynamic updates to getRoleCount
+    while (remainingSlots.length > 0) {
+       // Recalculate eligible counts for each slot dynamically
+       const slotOptions = remainingSlots.map((slot, index) => {
+          const eligible = availableMilitars.filter(m => {
+             if (!m.allowed.includes(slot)) return false;
+             // Verity compatibility with already selected roles
+             const existingRoles = newSelected[m.rg] || [];
+             for (const role of existingRoles) {
+               if (correlation[slot]?.[role] === 1 || correlation[role]?.[slot] === 1) {
+                 return false; // incompatible
+               }
+             }
+             return true;
+          });
+          return { slot, index, eligible };
+       });
+       
+       // Sort slots by number of eligible candidates (ascending)
+       slotOptions.sort((a, b) => a.eligible.length - b.eligible.length);
+       
+       const toFill = slotOptions[0];
+       remainingSlots.splice(toFill.index, 1);
+       
+       if (toFill.eligible.length === 0) {
+          continue; // Cannot fill this slot, just skip
+       }
+       
+       // Sort eligible candidates by the number of roles they already have
+       toFill.eligible.sort((a, b) => getRoleCount(a.rg) - getRoleCount(b.rg));
+       
+       const minRoles = getRoleCount(toFill.eligible[0].rg);
+       const candidates = toFill.eligible.filter(m => getRoleCount(m.rg) === minRoles);
+       
+       // Pick a random candidate
+       const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+       
+       newSelected[chosen.rg] = [...(newSelected[chosen.rg] || []), toFill.slot];
+       slotsFilledCount++;
+    }
+    
+    if (slotsFilledCount > 0) {
+       setSelectedFunctions(newSelected);
+       alert(`Sorteio concluído! ${slotsFilledCount} função(ões) preenchida(s).`);
+    } else {
+       alert("Não foi possível sortear funções adicionais com o efetivo disponível.");
+    }
+  };
+
   return (
     <div className="h-full flex flex-col bg-slate-50 relative overflow-hidden">
       {/* Top Control Bar */}
@@ -471,17 +687,57 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
               {getAlaName(identifiedAla)}
             </span>
           </div>
+          
+          <div className="flex flex-col items-start ml-2">
+            {savingState === 'saving' && (
+              <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200 animate-pulse">
+                Salvando alterações...
+              </span>
+            )}
+            {savingState === 'saved' && (
+              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+                Salvo na nuvem ✓
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="flex text-[10px] font-black uppercase tracking-widest text-slate-400 gap-6">
-          <div className="flex flex-col items-end">
-            <span>Militars na Ala Base</span>
-            <span className="text-sm text-slate-800">{baseRoster.length}</span>
+        <div className="flex items-center gap-6">
+          <div className="flex text-[10px] font-black uppercase tracking-widest text-slate-400 gap-6">
+            <div className="flex flex-col items-end">
+              <span>Militars na Ala Base</span>
+              <span className="text-sm text-slate-800">{baseRoster.length}</span>
+            </div>
+            <div className="flex flex-col items-end">
+              <span>Permutas Deferidas</span>
+              <span className="text-sm text-emerald-600">{permutas.length}</span>
+            </div>
           </div>
-          <div className="flex flex-col items-end">
-            <span>Permutas Deferidas</span>
-            <span className="text-sm text-emerald-600">{permutas.length}</span>
-          </div>
+          <button
+            onClick={() => {
+              if (window.confirm("Tem certeza que deseja limpar todas as funções selecionadas?")) {
+                setSelectedFunctions({});
+              }
+            }}
+            className="bg-red-500 hover:bg-red-400 text-white font-black uppercase tracking-widest text-[10px] px-4 py-2.5 rounded-lg shadow-sm flex items-center gap-2 transition-colors"
+          >
+            <X className="w-4 h-4" />
+            Limpar
+          </button>
+          <button
+            onClick={handleSortear}
+            className="bg-orange-500 hover:bg-orange-400 text-white font-black uppercase tracking-widest text-[10px] px-4 py-2.5 rounded-lg shadow-sm flex items-center gap-2 transition-colors"
+          >
+            <Shuffle className="w-4 h-4" />
+            Sortear Funções
+          </button>
+          <button
+            onClick={() => setShowPrintView(true)}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest text-[10px] px-4 py-2.5 rounded-lg shadow-sm flex items-center gap-2 transition-colors"
+          >
+            <Printer className="w-4 h-4" />
+            Gerar Escala
+          </button>
         </div>
       </div>
 
@@ -647,6 +903,7 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
                       <td className="border-r border-slate-300 p-1 px-1 text-center align-middle bg-white/50">
                         <FuncoesMultiSelect 
                            selected={p.substituteFunctions || []}
+                           allowedOptions={getAllowedOptions(militars.find(m => m.rg === p.substituteRg))}
                            onChange={async (newFuncs) => {
                              if (!p.id) return;
                              try {
@@ -714,14 +971,73 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
 
         {/* SECTION 2: TAB_PERMUTA (Escala Espelho Base) */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="bg-indigo-50 border-b border-indigo-100 p-3 px-4 flex items-center justify-between">
-            <h3 className="text-xs font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2">
+          <div className="bg-indigo-50 border-b border-indigo-100 p-3 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h3 className="text-xs font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2 shrink-0">
               <Users className="w-4 h-4 text-indigo-600" />
               Tab Permuta (Construção da Escala)
             </h3>
-            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
-              {baseRoster.length} Militares
-            </span>
+            
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="relative w-full sm:w-64 z-20" ref={addMenuRef}>
+                <input
+                  type="text"
+                  placeholder="Buscar militar..."
+                  value={addMilitarSearch}
+                  onChange={(e) => {
+                    setAddMilitarSearch(e.target.value);
+                    setShowAddMenu(true);
+                  }}
+                  onFocus={() => setShowAddMenu(true)}
+                  className="w-full text-xs bg-white border border-indigo-200 rounded px-3 py-1.5 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 placeholder:text-slate-400 text-slate-800 font-bold"
+                />
+                {showAddMenu && addMilitarSearch.length >= 2 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-xl max-h-48 overflow-y-auto">
+                    {militars
+                      .filter(m => {
+                        const s = addMilitarSearch.toLowerCase();
+                        return (m.name || '').toLowerCase().includes(s) || 
+                               (m.warName || '').toLowerCase().includes(s) || 
+                               (m.rg || '').toString().includes(addMilitarSearch);
+                      })
+                      .filter(m => !baseRoster.some(br => br.rg === m.rg))
+                      .slice(0, 10)
+                      .map((m) => (
+                        <button
+                          key={m.rg}
+                          onClick={() => {
+                            setManuallyAddedRgs(prev => {
+                              const curr = prev[selectedDate] || [];
+                              return {
+                                ...prev,
+                                [selectedDate]: [...curr, m.rg || '']
+                              };
+                            });
+                            setAddMilitarSearch('');
+                            setShowAddMenu(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-[10px] font-bold text-slate-700 hover:bg-indigo-50 border-b border-slate-100 last:border-0 flex flex-col"
+                        >
+                          <span className="uppercase">{m.rank} {m.warName}</span>
+                          <span className="text-[9px] text-slate-400 font-medium">RG: {m.rg}</span>
+                        </button>
+                    ))}
+                    {militars.filter(m => {
+                        const s = addMilitarSearch.toLowerCase();
+                        return (m.name || '').toLowerCase().includes(s) || 
+                               (m.warName || '').toLowerCase().includes(s) || 
+                               (m.rg || '').toString().includes(addMilitarSearch);
+                      }).filter(m => !baseRoster.some(br => br.rg === m.rg)).length === 0 && (
+                        <div className="px-3 py-2 text-[10px] font-medium text-slate-500 text-center">
+                          Nenhum militar encontrado
+                        </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full uppercase tracking-widest shrink-0">
+                {baseRoster.length} Militares
+              </span>
+            </div>
           </div>
           <div className="overflow-x-auto relative min-h-[300px]">
             {militarsLoading && (
@@ -778,7 +1094,7 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
                         )}
                       </td>
 
-                      <td className="p-2 px-4 border-r border-slate-100">
+                      <td className="p-2 px-4 border-r border-slate-100 relative group">
                         <div
                           className={cn(
                             "flex items-center gap-3",
@@ -806,8 +1122,30 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
                             <span className="text-[9px] text-slate-400 font-mono tracking-widest leading-none">
                               RG: {rg}
                             </span>
+                            {expedienteRgs.includes(rg) && (
+                              <span className="mt-1 text-[8px] font-bold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded w-max uppercase tracking-widest">
+                                EXPEDIENTE
+                              </span>
+                            )}
                           </div>
                         </div>
+                        {manuallyAddedRgs[selectedDate]?.includes(rg) && (
+                          <button
+                            onClick={() => {
+                              setManuallyAddedRgs(prev => {
+                                const curr = prev[selectedDate] || [];
+                                return {
+                                  ...prev,
+                                  [selectedDate]: curr.filter(r => r !== rg)
+                                };
+                              });
+                            }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded shadow-sm opacity-0 group-hover:opacity-100 transition-all"
+                            title="Remover Adição Manual"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
                       </td>
 
                       <td
@@ -845,6 +1183,7 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
                       <td className="p-2 border-r border-slate-100 bg-white">
                         <FuncoesMultiSelect
                           selected={selectedFunctions[rg] || []}
+                          allowedOptions={getAllowedOptions(isSwapped ? (militars.find(m => m.rg === permuta.substituteRg) || militar) : militar)}
                           onChange={(newVal) =>
                             setSelectedFunctions((prev) => ({
                               ...prev,
@@ -855,9 +1194,9 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
                       </td>
                       <td
                         className="p-2 px-4 text-[8px] text-slate-500 truncate max-w-[200px]"
-                        title={getMostruario(militar)}
+                        title={getMostruario(isSwapped ? (militars.find(m => m.rg === permuta.substituteRg) || militar) : militar)}
                       >
-                        {getMostruario(militar)}
+                        {getMostruario(isSwapped ? (militars.find(m => m.rg === permuta.substituteRg) || militar) : militar)}
                       </td>
                     </tr>
                   );
@@ -1111,6 +1450,20 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
           </div>
         </div>
       </div>
+
+      {showPrintView && (
+        <EscalaPrintView
+          selectedDate={selectedDate}
+          identifiedAla={identifiedAla}
+          obmContext={obmContext}
+          baseRoster={baseRoster}
+          permutasOut={permutasOut}
+          militars={militars}
+          selectedFunctions={selectedFunctions}
+          viaturasInfo={viaturasInfo}
+          onClose={() => setShowPrintView(false)}
+        />
+      )}
     </div>
   );
 }

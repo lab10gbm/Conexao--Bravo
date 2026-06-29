@@ -325,8 +325,12 @@ export function DgpSyncModule({ user, onBack }: DgpSyncModuleProps) {
                      />
                      <button 
                        onClick={() => {
-                          navigator.clipboard.writeText(tampermonkeyCode);
-                          alert('CÓDIGO COPIADO!\nAgora cole no Tampermonkey e salve.');
+                          navigator.clipboard.writeText(tampermonkeyCode).then(() => {
+                            alert('CÓDIGO COPIADO!\nAgora cole no Tampermonkey e salve.');
+                          }).catch(err => {
+                            console.error('Failed to copy', err);
+                            alert('Erro ao copiar.');
+                          });
                        }}
                        className="w-full py-4 bg-orange-600 text-white rounded-xl font-black text-xs uppercase shadow-lg hover:bg-orange-700 transition-colors"
                      >

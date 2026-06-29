@@ -44,7 +44,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         }
       }
       setLoading(false);
-    });
+    }, (err) => console.warn('[ConfigContext] active_months listener error:', err.message));
 
     const unsubRoles = onSnapshot(doc(db, 'config', 'roles'), (snap) => {
       if (snap.exists()) {
@@ -52,7 +52,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         if (data.escalanteRGs) setEscalanteRGs(data.escalanteRGs);
         else if (Array.isArray(data.roles)) setEscalanteRGs(data.roles);
       }
-    });
+    }, (err) => console.warn('[ConfigContext] roles listener error:', err.message));
 
     const unsubAla = onSnapshot(doc(db, 'config', 'ala_config'), (snap) => {
       if (snap.exists()) {
@@ -60,20 +60,20 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         setAlaConfig(data);
         setGlobalAlaConfig(data.referenceYear || 2026, data.startAla || 2);
       }
-    });
+    }, (err) => console.warn('[ConfigContext] ala_config listener error:', err.message));
 
     const unsubVis = onSnapshot(doc(db, 'config', 'app_visibility'), (snap) => {
       if (snap.exists()) {
          const data = snap.data() as any;
          setAppVisibility(data.visibility || data);
       }
-    });
+    }, (err) => console.warn('[ConfigContext] app_visibility listener error:', err.message));
     
     const unsubVac = onSnapshot(doc(db, 'config', 'vacation_settings'), (snap) => {
       if (snap.exists()) {
          setVacationSettings(snap.data() as any);
       }
-    });
+    }, (err) => console.warn('[ConfigContext] vacation_settings listener error:', err.message));
 
     return () => {
       unsubMonths();

@@ -463,8 +463,12 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
     });
 
     const spreadsheet = [headers.join('\t'), ...rows].join('\n');
-    navigator.clipboard.writeText(spreadsheet);
-    alert("Tabela copiada para o clipboard! Você já pode colar no Excel.");
+    navigator.clipboard.writeText(spreadsheet).then(() => {
+      alert("Tabela copiada para o clipboard! Você já pode colar no Excel.");
+    }).catch(err => {
+      console.error("Failed to copy", err);
+      alert("Erro ao copiar. Seu navegador pode não suportar esta ação.");
+    });
   };
 
   const handleQuickSave = async (rgStr: string, field: string, newVal: string) => {
