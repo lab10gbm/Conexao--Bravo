@@ -1,0 +1,10 @@
+{
+	"appId": "com.app.intranet",
+	"appName": "Conexão Bravo",
+	"webDir": "dist",
+	"plugins": {
+		"CapacitorUpdater": {
+			"autoUpdate": true
+		}
+	}
+}

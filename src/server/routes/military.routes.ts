@@ -154,6 +154,7 @@ export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
         endereco: user.endereco,
         nascimento: user.nascimento,
         promotionDate: user.promotionDate,
+        promotions: user.promotions,
         specializations: user.specializations,
         cursos: user.cursos,
         isAdmin: is54444 ? true : user.isAdmin,

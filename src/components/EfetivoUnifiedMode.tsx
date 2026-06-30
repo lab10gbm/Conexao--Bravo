@@ -40,12 +40,24 @@ export function EfetivoUnifiedMode({ militars, isAdmin, onLendRequested, onRowCl
           }
           if (col.id === 'warName') {
              return (
-               <td className="p-1.5 sm:p-3 text-[10px] sm:text-xs text-slate-800 flex items-center gap-2">
+               <td key={col.id} className="p-1.5 sm:p-3 text-[10px] sm:text-xs text-slate-800 flex items-center gap-2">
                  {m.warName || m.name}
                </td>
              );
           }
           
+          if (col.id === 'promotionDate') {
+            let pDate = m.promotionDate;
+            if (!pDate && m.promotions && m.promotions.length > 0) {
+               pDate = m.promotions[0].dataPromocao;
+            }
+            return (
+              <td key={col.id} className="p-1.5 sm:p-3 text-[10px] sm:text-[11px] font-medium text-slate-600 uppercase">
+                {pDate || '-'}
+              </td>
+            );
+          }
+
           const val = m[col.id as keyof UserProfile] as string;
           if (['quadro', 'ala', 'obm', 'situacao'].includes(col.id)) {
              let displayVal = col.id === 'obm' ? normalizeObm(val) : val;

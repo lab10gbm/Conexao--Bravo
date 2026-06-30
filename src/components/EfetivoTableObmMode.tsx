@@ -143,6 +143,17 @@ export function EfetivoTableObmMode({
                                    </td>
                                  );
                                }
+                               if (col.id === 'promotionDate') {
+                                 let pDate = m.promotionDate;
+                                 if (!pDate && m.promotions && m.promotions.length > 0) {
+                                    pDate = m.promotions[0].dataPromocao;
+                                 }
+                                 return (
+                                   <td key={col.id} className="p-1 sm:p-2 px-2 sm:px-4 text-[9px] sm:text-[11px] font-medium text-slate-600">
+                                     {pDate || '-'}
+                                   </td>
+                                 );
+                               }
                                let val = m[col.id as keyof UserProfile] as string;
                                if (['quadro', 'ala', 'obm', 'situacao'].includes(col.id)) {
                                   const displayVal = col.id === 'obm' ? normalizeObm(val) : val;

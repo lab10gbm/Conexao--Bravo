@@ -8,13 +8,13 @@ import { initializeApp as initAdminApp, getApps as getAdminApps, getApp as getAd
 import { getFirestore as getAdminFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { initializeApp } from 'firebase/app';
-import { getFirestore as getClientFirestore, doc, setDoc, serverTimestamp, collection, getDocs, getDoc, query, limit, orderBy, where, writeBatch, onSnapshot } from 'firebase/firestore';
+import { getFirestore as getClientFirestore, initializeFirestore, doc, setDoc, serverTimestamp, collection, getDocs, getDoc, query, limit, orderBy, where, writeBatch, onSnapshot } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import fs from 'fs';
 import compression from 'compression';
 import cors from 'cors';
 import { authRouter } from './src/server/routes/auth';
-import { syncRouter } from './src/server/routes/sync';
+import { setupSyncRoutes } from './src/server/routes/sync';
 import { setupMilitaryRoutes } from './src/server/routes/military.routes';
 import { setupServiceRoutes } from './src/server/routes/services.routes';
 import { importMilitariesFromLocal } from './src/server/lib/import-militaries';
@@ -298,7 +298,7 @@ async function initFirebaseAdmin() {
   
   try {
      const clientApp = initializeApp(firebaseConfig);
-     clientDb = getClientFirestore(clientApp, targetDbId);
+     clientDb = initializeFirestore(clientApp, { experimentalForceLongPolling: true }, targetDbId);
      console.log(`[Firebase] Client SDK initialized on database "${targetDbId}"`);
   } catch(e: any) {
      console.error('[Firebase] Client SDK init error:', e.message);
@@ -627,7 +627,6 @@ async function startServer() {
   });
 
   app.use('/api/auth', authRouter);
-  app.use('/api', syncRouter);
   
   const OBM_HIERARCHY: Record<string, string[]> = {
     '10º GBM': ['10º GBM', '1/10', '2/10', '3/10', '4/10'],
@@ -644,10 +643,11 @@ async function startServer() {
   // Expose dependencies to extracted routes
   const getRouteDeps = () => ({
     isDbHealthy,
-    db,
+    db: isDbHealthy ? db : null,
     clientDb,
     militaryCache,
     getCacheVersion: () => militaryCacheVersion,
+    incrementCacheVersion: () => { militaryCacheVersion++; return militaryCacheVersion; },
     cacheEvents,
     normalizeRg,
     normalizeObm,
@@ -657,6 +657,7 @@ async function startServer() {
     setDbUnhealthy: () => { isDbHealthy = false; }
   });
   
+  setupSyncRoutes(app, getRouteDeps);
   setupMilitaryRoutes(app, getRouteDeps);
   setupServiceRoutes(app, getRouteDeps);
 

@@ -62,12 +62,14 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
   const [search, setSearch] = useState("");
   const [selectedLendGroup, setSelectedLendGroup] = useState("");
   const [isLending, setIsLending] = useState(false);
-  const [selectedMilitar, setSelectedMilitar] = useState<UserProfile | null>(
-    null,
-  );
-  const [lendingMilitar, setLendingMilitar] = useState<UserProfile | null>(
-    null,
-  );
+  const [selectedMilitarId, setSelectedMilitarId] = useState<string | null>(null);
+  const selectedMilitar = React.useMemo(() => militars.find(m => m.rg === selectedMilitarId) || null, [militars, selectedMilitarId]);
+  
+  const [lendingMilitarId, setLendingMilitarId] = useState<string | null>(null);
+  const lendingMilitar = React.useMemo(() => militars.find(m => m.rg === lendingMilitarId) || null, [militars, lendingMilitarId]);
+
+  const handleSelectMilitar = (m: UserProfile | null) => setSelectedMilitarId(m?.rg || null);
+  const handleLendingMilitar = (m: UserProfile | null) => setLendingMilitarId(m?.rg || null);
 
   // Custom states added
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
@@ -802,8 +804,8 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
         <EfetivoUnifiedMode
           militars={filteredMilitars}
           isAdmin={user.isAdmin || false}
-          onLendRequested={setLendingMilitar}
-          onRowClick={setSelectedMilitar}
+          onLendRequested={handleLendingMilitar}
+          onRowClick={handleSelectMilitar}
           orderedColumns={orderedColumns}
           visibleColumns={visibleColumns}
         />
@@ -815,7 +817,7 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
           filters={filters}
           expandedGroup={expandedGroup}
           setExpandedGroup={setExpandedGroup}
-          onRowClick={setSelectedMilitar}
+          onRowClick={handleSelectMilitar}
           orderedColumns={orderedColumns}
           visibleColumns={visibleColumns}
           isAdmin={user.isAdmin || false}
@@ -829,7 +831,7 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
           filters={filters}
           expandedGroup={expandedGroup}
           setExpandedGroup={setExpandedGroup}
-          onRowClick={setSelectedMilitar}
+          onRowClick={handleSelectMilitar}
         />
       )}
 
@@ -837,7 +839,7 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
       {lendingMilitar && (
         <LendMilitarModal
           lendingMilitar={lendingMilitar}
-          onClose={() => setLendingMilitar(null)}
+          onClose={() => handleLendingMilitar(null)}
           onLendConfirm={handleLend}
           isLending={isLending}
         />
@@ -849,10 +851,10 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
           <MilitaryProfile
             militar={selectedMilitar}
             viewer={user}
-            onClose={() => setSelectedMilitar(null)}
+            onClose={() => handleSelectMilitar(null)}
             onLendRequested={(m) => {
-              setSelectedMilitar(null);
-              setLendingMilitar(m);
+              handleSelectMilitar(null);
+              handleLendingMilitar(m);
             }}
           />
         )}

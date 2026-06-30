@@ -47,6 +47,7 @@ export interface UserProfile {
   grauInstrucao?: string;
   specializations?: string[];
   promotionDate?: string;
+  promotions?: any[];
   lastProfileUpdate?: number;
   // Funções e Viaturas
   ativoCondutor?: boolean;

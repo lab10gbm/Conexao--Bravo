@@ -27,6 +27,17 @@ export const RANKS_PRACAS = ['SUBTEN', '1º SGT', '2º SGT', '3º SGT', 'CABO', 
 export const isOfficer = (r: string) => COLS_OFICIAIS.includes(parseRank(r));
 export const isPraca = (r: string) => RANKS_PRACAS.includes(parseRank(r));
 
+const parsePromotionDate = (dateStr: string) => {
+  if (!dateStr) return 0;
+  if (dateStr.includes('/')) {
+    const parts = dateStr.split('/');
+    if (parts.length === 3) {
+      return new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00`).getTime();
+    }
+  }
+  return new Date(dateStr).getTime() || 0;
+};
+
 export const sortAllBySeniority = (a: any, b: any) => {
   const allRanks = [...COLS_OFICIAIS, ...RANKS_PRACAS];
   const rankA = allRanks.indexOf(parseRank(a.rank));
@@ -35,10 +46,13 @@ export const sortAllBySeniority = (a: any, b: any) => {
   const rB = rankB >= 0 ? rankB : 99;
   if (rA !== rB) return rA - rB;
   
-  if (a.promotionDate && b.promotionDate) {
-    const timeA = new Date(a.promotionDate).getTime();
-    const timeB = new Date(b.promotionDate).getTime();
-    if (timeA !== timeB) return timeA - timeB;
+  const pDateA = a.promotionDate || (a.promotions && a.promotions.length > 0 ? a.promotions[0].dataPromocao : null);
+  const pDateB = b.promotionDate || (b.promotions && b.promotions.length > 0 ? b.promotions[0].dataPromocao : null);
+  
+  if (pDateA && pDateB) {
+    const timeA = parsePromotionDate(pDateA);
+    const timeB = parsePromotionDate(pDateB);
+    if (timeA !== timeB) return timeA - timeB; // Older dates (smaller timestamp) come first
   }
   
   return parseInt((a.rg || '').replace(/\D/g,'') || '0') - parseInt((b.rg || '').replace(/\D/g,'') || '0');
@@ -51,9 +65,12 @@ export const sortOfficersBySeniority = (a: any, b: any) => {
   const rB = rankB >= 0 ? rankB : 99;
   if (rA !== rB) return rA - rB;
   
-  if (a.promotionDate && b.promotionDate) {
-    const timeA = new Date(a.promotionDate).getTime();
-    const timeB = new Date(b.promotionDate).getTime();
+  const pDateA = a.promotionDate || (a.promotions && a.promotions.length > 0 ? a.promotions[0].dataPromocao : null);
+  const pDateB = b.promotionDate || (b.promotions && b.promotions.length > 0 ? b.promotions[0].dataPromocao : null);
+  
+  if (pDateA && pDateB) {
+    const timeA = parsePromotionDate(pDateA);
+    const timeB = parsePromotionDate(pDateB);
     if (timeA !== timeB) return timeA - timeB;
   }
   

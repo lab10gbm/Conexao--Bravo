@@ -3,6 +3,7 @@ export const INITIAL_COLUMNS = [
   { id: 'rank', label: 'Posto/Grad' },
   { id: 'quadro', label: 'Quadro' },
   { id: 'warName', label: 'N.Guerra' },
+  { id: 'promotionDate', label: 'Data Promoção' },
   { id: 'rg', label: 'RG' },
   { id: 'idFuncional', label: 'ID Funcional' },
   { id: 'ala', label: 'ALA' },

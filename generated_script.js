@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         Sincronizador Universal DGP CBMERJ
 // @namespace    http://tampermonkey.net/
-// @version      3.0
-// @description  Suite Completa DGP - Sincronização de Férias, Pessoal, etc. (Botão Flutuante)
+// @version      3.1
+// @description  Suite Completa DGP - Sincronização de Férias, Pessoal, Promoções etc. (Botão Flutuante)
 // @author       10º GBM
 // @match        *://cbmerj.rj.gov.br/*
 // @match        *://*.cbmerj.rj.gov.br/*
 // @grant        GM_xmlhttpRequest
 // @grant        unsafeWindow
-// @connect      ${appDomain}
+// @connect      localhost
 // @connect      firestore.googleapis.com
 // @connect      ais-pre-zrzalylqdof6lo5c3vm2nd-725468355119.us-east1.run.app
 // @connect      ais-dev-zrzalylqdof6lo5c3vm2nd-725468355119.us-east1.run.app
@@ -33,7 +33,7 @@
         if (document.documentElement) document.documentElement.appendChild(script);
     } catch(e) {}
 
-    const APP_URL = 'http://localhost';
+    const APP_URL = 'http://localhost:3000';
     const FIREBASE_PROJECT_ID = 'ai-studio-applet-webapp-33cfe';
     const FIREBASE_API_KEY = 'AIzaSyB46AKE1I7nke459STRmIZ--bURelU3rNY';
     const FIREBASE_DB_ID = 'ai-studio-4572982c-0772-4965-98e3-8ccd137a6b92';
@@ -84,20 +84,20 @@
             if (cols.length < 5) continue;
             if (cols[0].toUpperCase() === 'ATO' || cols[1].toUpperCase().includes('ANO')) continue;
             
-            let dtInicio = cols[4] || '';
-            if (dtInicio.match(/\d{2}\/\d{2}\/\d{4}/) || cols[1].toUpperCase().includes('ASSEGURADAS') || cols[1].toUpperCase().includes('PRESUMIDAS')) {
+            let dtInicio = cols[3] || '';
+            if (dtInicio.match(/\d{2}\/\d{2}\/\d{4}/) || cols[0].toUpperCase().includes('ASSEGURADAS') || cols[0].toUpperCase().includes('PRESUMIDAS')) {
                 vacations.push({
                     militarRg: rg, 
-                    ato: cols[1]||'Concessão', 
-                    anoRef: cols[2]||'',
-                    anoRetifi: cols[3]||'',
+                    ato: cols[0]||'Concessão', 
+                    anoRef: cols[1]||'',
+                    anoRetifi: cols[2]||'',
                     dataInicio: dtInicio, 
-                    dataRetorno: cols[5]||'',
-                    boletim: cols[6]||'', 
+                    dataRetorno: cols[4]||'',
+                    boletim: cols[5]||'',
+                    boletimOrigem: cols[6]||'',
                     diasGozados: parseInt(cols[7])||0, 
                     diasAGozar: parseInt(cols[8])||0,
-                    boletimOrigem: cols[9]||'',
-                    obs: cols[10]||'',
+                    obs: cols[9]||'',
                     status: dtInicio.includes('2026') || dtInicio.includes('2027') ? 'marcado' : 'gozado'
                 });
             }
@@ -266,6 +266,115 @@
         } catch(e) {
             console.error(e);
             alert("Erro na extração dos dados pessoais.");
+        }
+        
+        btn.disabled = false;
+        btn.innerText = originalText;
+    }
+}
+,
+        
+{
+    id: 'sync_promotion',
+    label: '⭐ Sync Promoções',
+    color: '#3b82f6', // Blue
+    action: async (btn) => {
+        let originalText = btn.innerText;
+        btn.disabled = true;
+        btn.innerText = '⌛ EXTRAINDO...';
+
+        try {
+            const extractData = (doc) => {
+                const pageText = (doc.body.textContent || "").replace(/\s+/g, ' ');
+                
+                let rgMatch = pageText.match(/RG\s*([\d.]+)/i);
+                const rg = rgMatch ? rgMatch[1].replace(/\D/g, '') : '';
+
+                if (!rg) return null;
+
+                const tables = doc.querySelectorAll('table');
+                let targetTable = null;
+                for (let table of tables) {
+                    if (table.textContent.includes('*Promoções') && table.textContent.includes('Ao Posto de')) {
+                        targetTable = table;
+                        break;
+                    }
+                }
+
+                if (!targetTable) return { rg };
+
+                const rows = targetTable.querySelectorAll('tr');
+                const promotions = [];
+                for (let i = 1; i < rows.length; i++) {
+                    const cols = rows[i].querySelectorAll('td');
+                    if (cols.length >= 5) {
+                        promotions.push({
+                            ato: cols[0].textContent.trim(),
+                            criterio: cols[1].textContent.trim(),
+                            posto: cols[2].textContent.trim(),
+                            boletim: cols[3].textContent.trim(),
+                            dataPromocao: cols[4].textContent.trim(),
+                            observacoes: cols[5] ? cols[5].textContent.trim() : ''
+                        });
+                    }
+                }
+
+                // Get the first promotion date (which should be the most recent / highest)
+                let promotionDate = '';
+                if (promotions.length > 0) {
+                    promotionDate = promotions[0].dataPromocao;
+                }
+
+                return {
+                    rg,
+                    promotions,
+                    promotionDate
+                };
+            };
+
+            let data = extractData(document);
+            if (!data) {
+                const docT = window.frames['corpo']?.document;
+                if (docT) {
+                    data = extractData(docT);
+                }
+            }
+
+            if (data && data.rg) {
+                if (!data.promotions || data.promotions.length === 0) {
+                    alert("Militar encontrado, mas nenhuma tabela de promoção localizada. Verifique se está na página de promoções.");
+                    btn.disabled = false;
+                    btn.innerText = originalText;
+                    return;
+                }
+
+                GM_xmlhttpRequest({
+                    method: "POST",
+                    url: APP_URL + '/api/admin/personal-data/bulk-sync',
+                    data: JSON.stringify({ personalDataList: [data] }),
+                    headers: { 
+                        "Content-Type": "application/json",
+                        "Accept": "application/json",
+                        "x-api-key": "MINHA_CHAVE_SECRETA_SUPER_SEGURA_123"
+                    },
+                    onload: function(res) {
+                        if (res.status === 200) {
+                            alert('🚀 Promoções do militar (RG ' + data.rg + ') Sincronizadas com Sucesso!');
+                        } else {
+                            alert('Erro no Servidor: ' + res.status + '\n\nResposta: ' + res.responseText.substring(0, 200));
+                        }
+                    },
+                    onerror: function(err) {
+                        console.error('Erro GM_xmlhttpRequest:', err);
+                        alert('Erro de Conexão. Verifique seu applet.');
+                    }
+                });
+            } else {
+                alert("Nenhum dado válido extraído. Navegue até a página 'Promoções' do militar.");
+            }
+        } catch(e) {
+            console.error(e);
+            alert("Erro na extração das promoções.");
         }
         
         btn.disabled = false;

@@ -1,5 +1,6 @@
 import { getVacationExtractorString } from './extractors/vacation';
 import { getPersonalDataExtractorString } from './extractors/personal';
+import { getPromotionDataExtractorString } from './extractors/promotion';
 
 export const buildUnifiedTampermonkeyScript = (appUrl: string) => {
     // These constants will be embedded in the Tampermonkey script
@@ -12,14 +13,14 @@ export const buildUnifiedTampermonkeyScript = (appUrl: string) => {
     return `// ==UserScript==
 // @name         Sincronizador Universal DGP CBMERJ
 // @namespace    http://tampermonkey.net/
-// @version      3.0
-// @description  Suite Completa DGP - Sincronização de Férias, Pessoal, etc. (Botão Flutuante)
+// @version      3.1
+// @description  Suite Completa DGP - Sincronização de Férias, Pessoal, Promoções etc. (Botão Flutuante)
 // @author       10º GBM
 // @match        *://cbmerj.rj.gov.br/*
 // @match        *://*.cbmerj.rj.gov.br/*
 // @grant        GM_xmlhttpRequest
 // @grant        unsafeWindow
-// @connect      \${appDomain}
+// @connect      ${appDomain}
 // @connect      firestore.googleapis.com
 // @connect      ais-pre-zrzalylqdof6lo5c3vm2nd-725468355119.us-east1.run.app
 // @connect      ais-dev-zrzalylqdof6lo5c3vm2nd-725468355119.us-east1.run.app
@@ -51,7 +52,8 @@ export const buildUnifiedTampermonkeyScript = (appUrl: string) => {
 
     const extractors = [
         ${getVacationExtractorString()},
-        ${getPersonalDataExtractorString()}
+        ${getPersonalDataExtractorString()},
+        ${getPromotionDataExtractorString()}
     ];
 
     function createUI() {

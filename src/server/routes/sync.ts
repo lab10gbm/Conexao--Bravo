@@ -1,33 +1,32 @@
 import express from "express";
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from "../lib/firebase-admin";
+import { writeBatch, doc, serverTimestamp } from 'firebase/firestore';
+import { parseRank } from "../../lib/rankUtils";
 
+export function setupSyncRoutes(app: express.Express, getDeps: () => any) {
+  const syncRouter = express.Router();
 
-export const syncRouter = express.Router();
+  const apiKeyMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const apiKey = process.env.SYNC_API_KEY || "MINHA_CHAVE_SECRETA_SUPER_SEGURA_123";
+    if (!apiKey) {
+      return res.status(500).json({ success: false, error: 'Configuração do Servidor Incompleta: SYNC_API_KEY ausente' });
+    }
+    const provided = req.headers['x-api-key'] || req.headers.authorization?.replace('Bearer ', '');
+    if (provided !== apiKey) {
+      return res.status(401).json({ success: false, error: 'Acesso Negado: Chave de API inválida ou ausente' });
+    }
+    next();
+  };
 
-const apiKeyMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  const apiKey = process.env.SYNC_API_KEY || "MINHA_CHAVE_SECRETA_SUPER_SEGURA_123";
-  if (!apiKey) {
-    return res.status(500).json({ success: false, error: 'Configuração do Servidor Incompleta: SYNC_API_KEY ausente' });
-  }
-  const provided = req.headers['x-api-key'] || req.headers.authorization?.replace('Bearer ', '');
-  if (provided !== apiKey) {
-    return res.status(401).json({ success: false, error: 'Acesso Negado: Chave de API inválida ou ausente' });
-  }
-  next();
-};
-
-
-// Helper to normalize RGs for consistency - Removes leading zeros and non-alphanumeric
-const normalizeRg = (rg: string | number) => {
-  const str = (rg || '').toString().trim().toUpperCase();
-  // Remove non-alphanumeric first, then leading zeros
-  const clean = str.replace(/[^A-Z0-9]/g, '');
-  return clean.replace(/^0+/, '') || clean;
-};
+  const normalizeRg = (rg: string | number) => {
+    const str = (rg || '').toString().trim().toUpperCase();
+    const clean = str.replace(/[^A-Z0-9]/g, '');
+    return clean.replace(/^0+/, '') || clean;
+  };
 
 const bulkSyncHandler = async (req: any, res: any) => {
-  const db = getAdminDb();
+  const { db: adminDb, clientDb } = getDeps();
   
   try {
     let data = req.body;
@@ -40,10 +39,12 @@ const bulkSyncHandler = async (req: any, res: any) => {
       return res.status(200).json({ success: false, error: 'Lista vazia' });
     }
 
-    const timestamp = new Date().toISOString();
-    const serverTimestampValue = FieldValue.serverTimestamp() || timestamp;
+    let batch;
+    let isClientDb = false;
+    if (adminDb) batch = adminDb.batch();
+    else if (clientDb) { batch = writeBatch(clientDb); isClientDb = true; }
+    else return res.status(500).json({ success: false, error: 'No db' });
 
-    let batch = db.batch();
     let count = 0;
     let batchCount = 0;
 
@@ -53,7 +54,7 @@ const bulkSyncHandler = async (req: any, res: any) => {
       if (!cleanRg) continue;
       
       const docId = `${cleanRg}_${v.anoRef || '0000'}_${(v.dataInicio || '').replace(/\//g, '')}`;
-      const docRef = db.collection('vacations').doc(docId);
+      const docRef = isClientDb ? doc(clientDb, 'vacations', docId) : adminDb.collection('vacations').doc(docId);
       
       batch.set(docRef, {
         id: docId,
@@ -69,7 +70,7 @@ const bulkSyncHandler = async (req: any, res: any) => {
         ato: String(v.ato || 'Concessão'),
         anoRetifi: String(v.anoRetifi || ''),
         obs: String(v.obs || ''),
-        updatedAt: serverTimestampValue
+        updatedAt: isClientDb ? serverTimestamp() : FieldValue.serverTimestamp()
       }, { merge: true });
 
       count++;
@@ -77,7 +78,7 @@ const bulkSyncHandler = async (req: any, res: any) => {
 
       if (batchCount >= 400) {
         await batch.commit();
-        batch = db.batch();
+        batch = isClientDb ? writeBatch(clientDb) : adminDb.batch();
         batchCount = 0;
       }
     }
@@ -167,7 +168,7 @@ syncRouter.post('/admin/vacation/raw-sync', apiKeyMiddleware, async (req, res) =
 });
 
 syncRouter.post('/admin/personal-data/bulk-sync', apiKeyMiddleware, async (req, res) => {
-  const db = getAdminDb();
+  const { db: adminDb, clientDb, militaryCache, cacheEvents } = getDeps();
   try {
     const { personalDataList } = req.body;
     
@@ -176,10 +177,20 @@ syncRouter.post('/admin/personal-data/bulk-sync', apiKeyMiddleware, async (req, 
     }
 
     const timestamp = new Date().toISOString();
-    const serverTimestampValue = FieldValue.serverTimestamp() || timestamp;
-
-    let batch = db.batch();
     let count = 0;
+    
+    let batch;
+    let isClientDb = false;
+    
+    if (adminDb) {
+       batch = adminDb.batch();
+    } else if (clientDb) {
+       batch = writeBatch(clientDb);
+       isClientDb = true;
+    } else {
+       return res.status(500).json({ success: false, error: 'No database available' });
+    }
+
     let batchCount = 0;
 
     for (const item of personalDataList) {
@@ -187,20 +198,23 @@ syncRouter.post('/admin/personal-data/bulk-sync', apiKeyMiddleware, async (req, 
       const cleanRg = normalizeRg(item.rg);
       if (!cleanRg) continue;
       
-      const docRef = db.collection('personalData').doc(cleanRg);
-      const militaryRef = db.collection('militaries').doc(cleanRg);
+      console.log(`[bulk-sync] Processing RG ${cleanRg}. Has promotions?`, !!item.promotions, item.promotions?.length);
+
+      const docRef = isClientDb ? doc(clientDb, 'personalData', cleanRg) : adminDb.collection('personalData').doc(cleanRg);
+      const militaryRef = isClientDb ? doc(clientDb, 'militaries', cleanRg) : adminDb.collection('militaries').doc(cleanRg);
+      const ts = isClientDb ? serverTimestamp() : FieldValue.serverTimestamp();
       
       // Save full extracted personal data to a separate 'personalData' collection
       batch.set(docRef, {
         ...item,
         rg: cleanRg,
-        updatedAt: serverTimestampValue
+        updatedAt: ts
       }, { merge: true });
 
       // Sync all fields back to 'militaries' for global app usage
       const updatesToMilitary: any = { 
         ...item,
-        updatedAt: serverTimestampValue 
+        updatedAt: ts 
       };
       
       // Map legacy/specific fields to match the military profile expected names
@@ -208,16 +222,32 @@ syncRouter.post('/admin/personal-data/bulk-sync', apiKeyMiddleware, async (req, 
       if (item.telefoneCelular) updatesToMilitary.cel = item.telefoneCelular;
       if (item.telefoneResidencial) updatesToMilitary.tel = item.telefoneResidencial;
       if (item.nomeGuerra) updatesToMilitary.warName = item.nomeGuerra;
-      if (item.nomeGuerra && !updatesToMilitary.name) updatesToMilitary.name = item.nomeGuerra; // Backup if name missing
+      if (item.nomeGuerra && !updatesToMilitary.name) updatesToMilitary.name = item.nomeGuerra;
+      if (item.promotions && item.promotions.length > 0) {
+        updatesToMilitary.rank = parseRank(item.promotions[0].posto);
+        console.log(`[bulk-sync] Extracted rank ${updatesToMilitary.rank} from promotion ${item.promotions[0].posto}`);
+      }
 
       batch.set(militaryRef, updatesToMilitary, { merge: true });
+
+      // Update in-memory cache directly!
+      if (militaryCache) {
+         const existing = militaryCache.get(cleanRg) || {};
+         militaryCache.set(cleanRg, { ...existing, ...updatesToMilitary, updatedAt: timestamp });
+         if (cacheEvents && getDeps().incrementCacheVersion) {
+             const newVer = getDeps().incrementCacheVersion();
+             cacheEvents.emit('update', newVer);
+         } else if (cacheEvents) {
+             cacheEvents.emit('update', Date.now());
+         }
+      }
 
       count++;
       batchCount++;
 
       if (batchCount >= 200) {
         await batch.commit();
-        batch = db.batch();
+        batch = isClientDb ? writeBatch(clientDb) : adminDb.batch();
         batchCount = 0;
       }
     }
@@ -228,36 +258,46 @@ syncRouter.post('/admin/personal-data/bulk-sync', apiKeyMiddleware, async (req, 
     
     return res.json({ success: true, count });
   } catch (err: any) {
+    console.error('Bulk sync error:', err);
     return res.status(500).json({ success: false, error: err.message });
   }
 });
+
 syncRouter.post('/admin/militaries/bulk-sync', apiKeyMiddleware, async (req, res) => {
-  const db = getAdminDb();
+  const { db: adminDb, clientDb } = getDeps();
   const { militaries } = req.body;
   
   if (!militaries || !Array.isArray(militaries)) {
     return res.status(400).json({ success: false, error: 'Lista inválida' });
   }
+
+  let batch;
+  let isClientDb = false;
+  if (adminDb) { batch = adminDb.batch(); }
+  else if (clientDb) { batch = writeBatch(clientDb); isClientDb = true; }
+  else return res.status(500).json({ success: false, error: 'No db' });
   
   let savedCount = 0;
   try {
-    let currentBatch = db.batch();
+    let currentBatch = batch;
     let batchCount = 0;
     
     for (const m of militaries) {
       const safeRg = normalizeRg(m.rg);
       if (!safeRg) continue;
       
-      const docRef = db.collection('militaries').doc(safeRg);
+      const docRef = isClientDb ? doc(clientDb, 'militaries', safeRg) : adminDb.collection('militaries').doc(safeRg);
       const dataToSave = { ...m };
       if (safeRg === '54444') {
         dataToSave.isAdmin = true;
         dataToSave.isEscalante = true;
       }
       
+      const ts = isClientDb ? serverTimestamp() : FieldValue.serverTimestamp();
+      
       currentBatch.set(docRef, {
           ...dataToSave,
-          updatedAt: FieldValue.serverTimestamp()
+          updatedAt: ts
       }, { merge: true });
       
       batchCount++;
@@ -265,7 +305,7 @@ syncRouter.post('/admin/militaries/bulk-sync', apiKeyMiddleware, async (req, res
       
       if (batchCount >= 450) {
           await currentBatch.commit();
-          currentBatch = db.batch();
+          currentBatch = isClientDb ? writeBatch(clientDb) : adminDb.batch();
           batchCount = 0;
       }
     }
@@ -275,3 +315,6 @@ syncRouter.post('/admin/militaries/bulk-sync', apiKeyMiddleware, async (req, res
     res.status(500).json({ success: false, error: e.message });
   }
 });
+
+app.use('/api', syncRouter);
+}

@@ -22,7 +22,7 @@ jobs:
         run: npm install
 
       - name: Build Web App
-        run: npm run build
+        run: npm run build && npx cap sync
 
       - name: Capgo deploy
         uses: Cap-go/capgo-action@v1

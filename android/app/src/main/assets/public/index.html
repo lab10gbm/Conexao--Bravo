@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Conexão Bravo</title>
+    <script>
+      window.addEventListener('error', function(event) {
+        console.error('GLOBAL ERROR:', event.message, event.filename, event.lineno, event.colno, event.error);
+      });
+      window.addEventListener('unhandledrejection', function(event) {
+        console.warn('UNHANDLED REJECTION:', event.reason?.message || event.reason);
+        event.preventDefault();
+      });
+    </script>
+    <script type="module" crossorigin src="/assets/index-BFD2ALBm.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DMFjQRpz.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+
