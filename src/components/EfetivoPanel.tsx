@@ -22,6 +22,7 @@ import {
   FileText,
   Settings,
   Rows3,
+  RefreshCw
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { UserProfile } from "../types";
@@ -481,9 +482,19 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
             <Users className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-600" />
             Painel do Efetivo
           </h2>
-          <p className="text-[10px] sm:text-sm text-slate-500 font-bold uppercase tracking-widest mt-1">
-            Gestão de Militares e Subunidades
-          </p>
+          <div className="flex items-center gap-3 mt-1">
+             <p className="text-[10px] sm:text-sm text-slate-500 font-bold uppercase tracking-widest">
+               Gestão de Militares e Subunidades
+             </p>
+             <button
+               onClick={() => refreshMilitars()}
+               disabled={loading}
+               className="p-1 rounded-full text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors disabled:opacity-50"
+               title="Atualizar Dados"
+             >
+               <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+             </button>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {(user.isAdmin || user.isEscalante) && (

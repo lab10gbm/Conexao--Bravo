@@ -44,6 +44,7 @@ export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
   });
 
   app.get('/api/militar', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
     const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, normalizeObm, OBM_HIERARCHY, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
     const requesterRg = req.query.rg as string;
     let usersData: any[] = [];
@@ -205,6 +206,7 @@ export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
   });
 
 app.get('/api/militar/:rg', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
     const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, OBM_HIERARCHY, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
     const { rg } = req.params;
     if (!rg) return res.status(400).json({ success: false });

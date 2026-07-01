@@ -170,7 +170,13 @@ syncRouter.post('/admin/vacation/raw-sync', apiKeyMiddleware, async (req, res) =
 syncRouter.post('/admin/personal-data/bulk-sync', apiKeyMiddleware, async (req, res) => {
   const { db: adminDb, clientDb, militaryCache, cacheEvents } = getDeps();
   try {
-    const { personalDataList } = req.body;
+    let data = req.body;
+    if (typeof data === 'string') {
+      try { data = JSON.parse(data); } catch (e) {}
+    }
+    
+    const personalDataList = data?.personalDataList;
+    console.log(`[bulk-sync] Received request. personalDataList is array?`, Array.isArray(personalDataList), 'length:', personalDataList?.length);
     
     if (!personalDataList || !Array.isArray(personalDataList)) {
       return res.status(400).json({ success: false, error: 'Lista de dados pessoais vazia ou inválida' });

@@ -205,18 +205,21 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
   const [savingState, setSavingState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [showPrintView, setShowPrintView] = useState(false);
   const [correlation, setCorrelation] = useState<Record<string, Record<string, number>>>({});
+  const [roleQtds, setRoleQtds] = useState<Record<string, number>>({});
 
-  // Load correlation matrix
+  // Load correlation matrix and quantities
   useEffect(() => {
     if (!obmContext || obmContext === 'GLOBAL') return;
     const loadCorrelation = async () => {
       try {
         const docRef = doc(db, "obm_settings", obmContext);
         const snap = await getDoc(docRef);
-        if (snap.exists() && snap.data()?.escala_regras?.correlation) {
-          setCorrelation(snap.data().escala_regras.correlation);
+        if (snap.exists() && snap.data()?.escala_regras) {
+          setCorrelation(snap.data().escala_regras.correlation || {});
+          setRoleQtds(snap.data().escala_regras.qtds || {});
         } else {
           setCorrelation({});
+          setRoleQtds({});
         }
       } catch (e) {
         console.error("Error loading correlation rules", e);
@@ -424,34 +427,63 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
   // Mostruario Generator
   const getMostruario = (militar: any) => {
     const funcs = [];
-    if (militar.adjunto) funcs.push("ADJUNTO");
-    if (militar.ativoEncarregado) funcs.push("ENCARREGADO MOTORISTA");
-    if (militar.ativoChefeGua) funcs.push("CHEFE GUA");
-    if (militar.chefeAbsl) funcs.push("CHEFE ABSL");
-    if (militar.chefeAbt) funcs.push("CHEFE ABT");
-    if (militar.ativoCondutor) funcs.push("CONDUTOR");
-    if (militar.ativoAuxiliar) funcs.push("AUXILIAR GUA");
-    if (militar.auxAbt) funcs.push("AUXILIAR ABT");
-    if (militar.auxAbsl) funcs.push("AUXILIAR ABSL");
-    if (militar.auxArc) funcs.push("AUXILIAR ARC");
-    if (militar.auxAse) funcs.push("AUXILIAR ASE");
-    if (militar.ativoEnfermeiro) funcs.push("ENFERMEIRO");
-    if (militar.ativoMaritimo) funcs.push("MARITIMO");
-    if (militar.marinheiros) funcs.push("MARINHEIRO");
-    if (militar.mestreAl) funcs.push("MESTRE AL");
-    if (militar.mestreBia) funcs.push("MESTRE BIA");
-    if (militar.opAma) funcs.push("OPERADOR AMA");
-    if (militar.gvAma) funcs.push("GV AMA");
-    if (militar.auxRancho) funcs.push("AUX RANCHO");
-    if (militar.toqueDeFogo) funcs.push("TOQUE DE FOGO");
-    if (militar.deposito) funcs.push("DIA DEPOSITO");
-    if (militar.faxina) funcs.push("RESP FAXINA");
-    if (militar.sgtDia) funcs.push("SGT DIA");
-    if (militar.cmtGuarda) funcs.push("CMT GUARDA");
-    if (militar.cbGuarda) funcs.push("CB GUARDA");
-    if (militar.cbDia) funcs.push("CB DIA");
-    if (militar.ativoComunicante) funcs.push("COMUNICANTE");
-    if (militar.sentinela) funcs.push("SENTINELA");
+    
+    if (militar.ativoCondutor) {
+      funcs.push("CONDUTOR");
+      if (militar.ativoEncarregado) funcs.push("ENC MOTORISTA");
+      if (militar.ativoAbastecedor) funcs.push("ABASTECEDOR");
+    }
+    
+    if (militar.ativoChefeGua) {
+      funcs.push("CHEFE GUA");
+      if (militar.chefeAbsl) funcs.push("CHEFE ABSL");
+      if (militar.chefeAbt) funcs.push("CHEFE ABT");
+    }
+    
+    if (militar.ativoAuxiliar) {
+      funcs.push("AUX GUA");
+      if (militar.auxAbt) funcs.push("AUX ABT");
+      if (militar.auxAbsl) funcs.push("AUX ABSL");
+      if (militar.auxArc) funcs.push("AUX ARC");
+      if (militar.auxAse) funcs.push("AUX ASE");
+    }
+    
+    if (militar.ativoEnfermeiro) {
+      funcs.push("ENFERMEIRO");
+    }
+    
+    if (militar.ativoMaritimo) {
+      funcs.push("MARITIMO");
+      if (militar.mestreAl) funcs.push("MESTRE AL");
+      if (militar.mestreBia) funcs.push("MESTRE BIA");
+      if (militar.marinheiros) funcs.push("MARINHEIRO");
+      if (militar.opAma) funcs.push("OP AMA");
+      if (militar.gvAma) funcs.push("GV AMA");
+    }
+    
+    if (militar.ativoGraduado) {
+      if (militar.adjunto) funcs.push("ADJUNTO");
+      if (militar.sgtDia) funcs.push("SGT DIA");
+      if (militar.cmtGuarda) funcs.push("CMT GUARDA");
+      if (militar.disponivel1) funcs.push("DISP 1");
+      if (militar.disponivel2) funcs.push("DISP 2");
+    }
+    
+    if (militar.ativoCbsSds) {
+      if (militar.cbGuarda) funcs.push("CB GUARDA");
+      if (militar.cbDia) funcs.push("CB DIA");
+      if (militar.sentinela) funcs.push("SENTINELA");
+      if (militar.auxRancho) funcs.push("AUX RANCHO");
+      if (militar.toqueDeFogo) funcs.push("T. FOGO");
+      if (militar.deposito) funcs.push("DEPOSITO");
+      if (militar.faxina) funcs.push("FAXINA");
+      if (militar.disponivelCbsSds) funcs.push("DISP");
+    }
+    
+    if (militar.ativoComunicante) {
+      funcs.push("COMUNICANTE");
+    }
+
     return funcs.join(", ") || "NÃO CONFIGURADO";
   };
 
@@ -459,10 +491,10 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
     if (!militar) return undefined;
     const allowed = new Set<string>();
     
-    if (militar.adjunto) allowed.add('ADJUNTO');
-    if (militar.ativoEncarregado) allowed.add('ENCARREGADO DE MOTORISTA');
-    
     if (militar.ativoCondutor) {
+      if (militar.ativoEncarregado) allowed.add('ENCARREGADO DE MOTORISTA');
+      if (militar.ativoAbastecedor) allowed.add('ABASTECEDOR');
+      
       if (militar.viaturas?.AR) allowed.add('CONDUTOR AR');
       if (militar.viaturas?.ABSL) allowed.add('CONDUTOR ABSL');
       if (militar.viaturas?.ABT) allowed.add('CONDUTOR ABT');
@@ -470,32 +502,53 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
       if (militar.viaturas?.ARC) allowed.add('CONDUTOR ARC');
     }
     
-    if (militar.ativoChefeGua || militar.chefeAbsl) allowed.add('CHEFE ABSL');
-    if (militar.ativoChefeGua || militar.chefeAbt) allowed.add('CHEFE ABT');
+    if (militar.ativoChefeGua) {
+      if (militar.chefeAbsl) allowed.add('CHEFE ABSL');
+      if (militar.chefeAbt) allowed.add('CHEFE ABT');
+      allowed.add('AUXILIAR / CHEFE ARC');
+    }
     
-    if (militar.auxArc || militar.ativoAuxiliar || militar.ativoChefeGua) allowed.add('AUXILIAR / CHEFE ARC');
-    if (militar.auxAbt || militar.ativoAuxiliar) allowed.add('AUXILIAR ABT');
-    if (militar.auxAbsl || militar.ativoAuxiliar) allowed.add('AUXILIAR ABSL');
+    if (militar.ativoAuxiliar) {
+      if (militar.auxAbt) allowed.add('AUXILIAR ABT');
+      if (militar.auxAbsl) allowed.add('AUXILIAR ABSL');
+      if (militar.auxArc) allowed.add('AUXILIAR / CHEFE ARC');
+      if (militar.auxAse) allowed.add('AUXILIAR ASE');
+    }
     
-    if (militar.ativoEnfermeiro) allowed.add('ENFERMEIRO');
-    if (militar.mestreAl || militar.ativoMaritimo) allowed.add('MESTRE AL');
-    if (militar.mestreBia || militar.ativoMaritimo) allowed.add('MESTRE BIA');
-    if (militar.marinheiros || militar.ativoMaritimo) allowed.add('MARINHEIRO');
-    if (militar.opAma || militar.ativoMaritimo) allowed.add('OPERADOR AMA');
-    if (militar.gvAma || militar.ativoMaritimo) allowed.add('GV AMA');
+    if (militar.ativoEnfermeiro) {
+      allowed.add('ENFERMEIRO');
+    }
     
-    if (militar.auxRancho) allowed.add('AUXILIAR RANCHO');
-    if (militar.toqueDeFogo) allowed.add('TOQUE DE FOGO');
-    if (militar.deposito) allowed.add('DIA AO DEPOSITO');
-    if (militar.faxina) allowed.add('RESP FAXINA');
-    if (militar.ativoAbastecedor) allowed.add('ABASTECEDOR');
+    if (militar.ativoMaritimo) {
+      if (militar.mestreAl) allowed.add('MESTRE AL');
+      if (militar.mestreBia) allowed.add('MESTRE BIA');
+      if (militar.marinheiros) allowed.add('MARINHEIRO');
+      if (militar.opAma) allowed.add('OPERADOR AMA');
+      if (militar.gvAma) allowed.add('GV AMA');
+    }
     
-    if (militar.sgtDia) allowed.add('SGT DIA');
-    if (militar.cmtGuarda) allowed.add('CMT GUARDA');
-    if (militar.cbGuarda) allowed.add('CB GUARDA');
-    if (militar.cbDia) allowed.add('CB DIA');
-    if (militar.ativoComunicante) allowed.add('COMUNICANTE');
-    if (militar.sentinela) allowed.add('SENTINELA');
+    if (militar.ativoGraduado) {
+      if (militar.adjunto) allowed.add('ADJUNTO');
+      if (militar.sgtDia) allowed.add('SGT DIA');
+      if (militar.cmtGuarda) allowed.add('CMT GUARDA');
+      if (militar.disponivel1) allowed.add('DISPONIVEL 1');
+      if (militar.disponivel2) allowed.add('DISPONIVEL 2');
+    }
+    
+    if (militar.ativoCbsSds) {
+      if (militar.cbGuarda) allowed.add('CB GUARDA');
+      if (militar.cbDia) allowed.add('CB DIA');
+      if (militar.sentinela) allowed.add('SENTINELA');
+      if (militar.auxRancho) allowed.add('AUXILIAR RANCHO');
+      if (militar.toqueDeFogo) allowed.add('TOQUE DE FOGO');
+      if (militar.deposito) allowed.add('DIA AO DEPOSITO');
+      if (militar.faxina) allowed.add('RESP FAXINA');
+      if (militar.disponivelCbsSds) allowed.add('DISPONIVEL CBS/SDS');
+    }
+    
+    if (militar.ativoComunicante) {
+      allowed.add('COMUNICANTE');
+    }
     
     allowed.add('PRECARIO');
     allowed.add('PRECARIO ADM');
@@ -506,8 +559,8 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
 
   const dynamicRequirements = useMemo(() => {
     let reqs = [
-      { name: "ADJUNTO", req: 1 },
-      { name: "ENCARREGADO DE MOTORISTA", req: 1 },
+      { name: "ADJUNTO", req: roleQtds["ADJUNTO"] ?? 1 },
+      { name: "ENCARREGADO DE MOTORISTA", req: roleQtds["ENCARREGADO DE MOTORISTA"] ?? 1 },
     ];
 
     const getReq = (vtrId: string, type: 'condutor' | 'cg' | 'g1' | 'g2' | 'g3' | 'g4', defaultVal: number = 0) => {
@@ -531,43 +584,43 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
         return count;
     };
 
-    reqs.push({ name: "CONDUTOR AR", req: getReq("AR-583", "condutor") });
-    reqs.push({ name: "CONDUTOR ABSL", req: countCondutor("ABSL") });
-    reqs.push({ name: "CONDUTOR ABT", req: countCondutor("ABT") });
-    reqs.push({ name: "CONDUTOR ASE", req: countCondutor("ASE") });
-    reqs.push({ name: "CONDUTOR ARC", req: countCondutor("ARC") });
+    reqs.push({ name: "CONDUTOR AR", req: roleQtds["CONDUTOR AR"] ?? getReq("AR-583", "condutor") });
+    reqs.push({ name: "CONDUTOR ABSL", req: roleQtds["CONDUTOR ABSL"] ?? countCondutor("ABSL") });
+    reqs.push({ name: "CONDUTOR ABT", req: roleQtds["CONDUTOR ABT"] ?? countCondutor("ABT") });
+    reqs.push({ name: "CONDUTOR ASE", req: roleQtds["CONDUTOR ASE"] ?? countCondutor("ASE") });
+    reqs.push({ name: "CONDUTOR ARC", req: roleQtds["CONDUTOR ARC"] ?? countCondutor("ARC") });
     
-    reqs.push({ name: "CHEFE ABSL", req: countChefe("ABSL") });
-    reqs.push({ name: "CHEFE ABT", req: countChefe("ABT") });
+    reqs.push({ name: "CHEFE ABSL", req: roleQtds["CHEFE ABSL"] ?? countChefe("ABSL") });
+    reqs.push({ name: "CHEFE ABT", req: roleQtds["CHEFE ABT"] ?? countChefe("ABT") });
     
-    reqs.push({ name: "AUXILIAR / CHEFE ARC", req: countAux("ARC") });
+    reqs.push({ name: "AUXILIAR / CHEFE ARC", req: roleQtds["AUXILIAR / CHEFE ARC"] ?? countAux("ARC") });
     
-    reqs.push({ name: "AUXILIAR ABT", req: countAux("ABT") });
-    reqs.push({ name: "AUXILIAR ABSL", req: countAux("ABSL") });
+    reqs.push({ name: "AUXILIAR ABT", req: roleQtds["AUXILIAR ABT"] ?? countAux("ABT") });
+    reqs.push({ name: "AUXILIAR ABSL", req: roleQtds["AUXILIAR ABSL"] ?? countAux("ABSL") });
     
-    reqs.push({ name: "ENFERMEIRO", req: countAux("ASE") });
+    reqs.push({ name: "ENFERMEIRO", req: roleQtds["ENFERMEIRO"] ?? countAux("ASE") });
     
-    reqs.push({ name: "MESTRE AL", req: countCondutor("L-") });
-    reqs.push({ name: "MESTRE BIA", req: countCondutor("BIA-") });
+    reqs.push({ name: "MESTRE AL", req: roleQtds["MESTRE AL"] ?? countCondutor("L-") });
+    reqs.push({ name: "MESTRE BIA", req: roleQtds["MESTRE BIA"] ?? countCondutor("BIA-") });
     
-    reqs.push({ name: "MARINHEIRO", req: countAux("L-") + countAux("BIA-") });
+    reqs.push({ name: "MARINHEIRO", req: roleQtds["MARINHEIRO"] ?? (countAux("L-") + countAux("BIA-")) });
     
-    reqs.push({ name: "AUXILIAR RANCHO", req: 1 });
-    reqs.push({ name: "TOQUE DE FOGO", req: 1 });
-    reqs.push({ name: "DIA AO DEPOSITO", req: 2 });
-    reqs.push({ name: "RESP FAXINA", req: 1 });
-    reqs.push({ name: "ABASTECEDOR", req: 1 });
+    reqs.push({ name: "AUXILIAR RANCHO", req: roleQtds["AUXILIAR RANCHO"] ?? 1 });
+    reqs.push({ name: "TOQUE DE FOGO", req: roleQtds["TOQUE DE FOGO"] ?? 1 });
+    reqs.push({ name: "DIA AO DEPOSITO", req: roleQtds["DIA AO DEPOSITO"] ?? 2 });
+    reqs.push({ name: "RESP FAXINA", req: roleQtds["RESP FAXINA"] ?? 1 });
+    reqs.push({ name: "ABASTECEDOR", req: roleQtds["ABASTECEDOR"] ?? 1 });
 
-    reqs.push({ name: "SGT DIA", req: 1 });
-    reqs.push({ name: "CMT GUARDA", req: 1 });
-    reqs.push({ name: "CB GUARDA", req: 1 });
-    reqs.push({ name: "CB DIA", req: 1 });
-    reqs.push({ name: "COMUNICANTE", req: 2 });
-    reqs.push({ name: "ESCALANTE", req: 1 });
-    reqs.push({ name: "SENTINELA", req: 4 });
+    reqs.push({ name: "SGT DIA", req: roleQtds["SGT DIA"] ?? 1 });
+    reqs.push({ name: "CMT GUARDA", req: roleQtds["CMT GUARDA"] ?? 1 });
+    reqs.push({ name: "CB GUARDA", req: roleQtds["CB GUARDA"] ?? 1 });
+    reqs.push({ name: "CB DIA", req: roleQtds["CB DIA"] ?? 1 });
+    reqs.push({ name: "COMUNICANTE", req: roleQtds["COMUNICANTE"] ?? 2 });
+    reqs.push({ name: "ESCALANTE", req: roleQtds["ESCALANTE"] ?? 1 });
+    reqs.push({ name: "SENTINELA", req: roleQtds["SENTINELA"] ?? 4 });
 
     return reqs;
-  }, [viaturasInfo]);
+  }, [viaturasInfo, roleQtds]);
 
   const handleSortear = () => {
     const newSelected = { ...selectedFunctions };
@@ -610,11 +663,12 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
        const slotOptions = remainingSlots.map((slot, index) => {
           const eligible = availableMilitars.filter(m => {
              if (!m.allowed.includes(slot)) return false;
-             // Verity compatibility with already selected roles
+             // Verify compatibility with already selected roles
              const existingRoles = newSelected[m.rg] || [];
+             if (existingRoles.includes(slot)) return false; // Prevent assigning same role twice to the same person
              for (const role of existingRoles) {
                if (correlation[slot]?.[role] === 1 || correlation[role]?.[slot] === 1) {
-                 return false; // incompatible
+                 return false; // incompatible according to rules
                }
              }
              return true;
@@ -622,24 +676,35 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
           return { slot, index, eligible };
        });
        
-       // Sort slots by number of eligible candidates (ascending)
+       // Sort slots by number of eligible candidates (ascending).
+       // We must fill the hardest-to-fill slots first (fewer candidates).
        slotOptions.sort((a, b) => a.eligible.length - b.eligible.length);
        
        const toFill = slotOptions[0];
        remainingSlots.splice(toFill.index, 1);
        
        if (toFill.eligible.length === 0) {
-          continue; // Cannot fill this slot, just skip
+          continue; // Cannot fill this slot with current constraints, skip
        }
        
-       // Sort eligible candidates by the number of roles they already have
-       toFill.eligible.sort((a, b) => getRoleCount(a.rg) - getRoleCount(b.rg));
+       // Strategy: Priority 1 - Fewest roles assigned so far.
+       //           Priority 2 - Most specialized (fewer allowed options total).
+       // By doing this, we avoid assigning generalists to easy slots and saving them for hard slots.
+       toFill.eligible.sort((a, b) => {
+         const countDiff = getRoleCount(a.rg) - getRoleCount(b.rg);
+         if (countDiff !== 0) return countDiff; // less assigned roles first
+         return a.allowed.length - b.allowed.length; // more specialized first
+       });
        
-       const minRoles = getRoleCount(toFill.eligible[0].rg);
-       const candidates = toFill.eligible.filter(m => getRoleCount(m.rg) === minRoles);
+       const bestCandidateCount = getRoleCount(toFill.eligible[0].rg);
+       const bestCandidateAllowed = toFill.eligible[0].allowed.length;
        
-       // Pick a random candidate
-       const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+       // Find all candidates that tie for best so we can randomly pick among them to vary scales
+       const topCandidates = toFill.eligible.filter(
+         m => getRoleCount(m.rg) === bestCandidateCount && m.allowed.length === bestCandidateAllowed
+       );
+       
+       const chosen = topCandidates[Math.floor(Math.random() * topCandidates.length)];
        
        newSelected[chosen.rg] = [...(newSelected[chosen.rg] || []), toFill.slot];
        slotsFilledCount++;
@@ -647,9 +712,9 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
     
     if (slotsFilledCount > 0) {
        setSelectedFunctions(newSelected);
-       alert(`Sorteio concluído! ${slotsFilledCount} função(ões) preenchida(s).`);
+       alert(`Sorteio concluído! ${slotsFilledCount} função(ões) preenchida(s) respeitando as restrições.`);
     } else {
-       alert("Não foi possível sortear funções adicionais com o efetivo disponível.");
+       alert("Não foi possível sortear funções adicionais com o efetivo disponível e as restrições impostas.");
     }
   };
 
