@@ -15,7 +15,7 @@ const db = getFirestore();
 db.settings({ databaseId: firebaseConfig.firestoreDatabaseId });
 
 async function run() {
-  const doc = await db.collection('militaries').doc('31600').get();
+  const doc = await db.collection('militaries').doc('12764').get();
   console.log('Exists in militaries?', doc.exists);
   if (doc.exists) console.log(JSON.stringify(doc.data(), null, 2));
 }

@@ -9,6 +9,17 @@ export const getPersonalDataExtractorString = () => `
         btn.innerText = '⌛ EXTRAINDO...';
 
         try {
+            const getTargetDoc = () => {
+                const frames = ['corpo', 'main', 'frame_principal'];
+                for (let fName of frames) {
+                    try {
+                        let topFrames = window.top ? window.top.frames : window.frames;
+                        if (topFrames[fName] && topFrames[fName].document) return topFrames[fName].document;
+                    } catch(e){}
+                }
+                return document;
+            };
+
             const extractData = (doc) => {
                 const pageText = (doc.body.textContent || "").replace(/\\s+/g, ' ');
                 
@@ -66,12 +77,16 @@ export const getPersonalDataExtractorString = () => `
                 };
             };
 
-            let data = extractData(document);
-            if (!data) {
-                // Try from frame 'corpo' if available
-                const docT = window.frames['corpo']?.document;
-                if (docT) {
-                    data = extractData(docT);
+            let data = extractData(getTargetDoc());
+            const fallbackData = extractData(document);
+            
+            if (data && !data.rg && fallbackData && fallbackData.rg) {
+                data.rg = fallbackData.rg;
+            }
+
+            if (!data || !data.cpf) {
+                if (fallbackData && fallbackData.cpf) {
+                    data = fallbackData;
                 }
             }
 
