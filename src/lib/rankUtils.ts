@@ -37,7 +37,7 @@ export const sortRanks = (a: string, b: string) => {
 export const isOfficer = (r: string) => COLS_OFICIAIS.includes(parseRank(r));
 export const isPraca = (r: string) => RANKS_PRACAS.includes(parseRank(r));
 
-const parsePromotionDate = (dateStr: string) => {
+export const parsePromotionDate = (dateStr: string) => {
   if (!dateStr) return 0;
   if (dateStr.includes('/')) {
     const parts = dateStr.split('/');

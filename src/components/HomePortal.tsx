@@ -234,6 +234,7 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
   if (isAdminRaw) userGroups.push('ADMIN');
   if (isEscalanteRaw) userGroups.push('ESCALANTE');
   if (isOfficerUser) userGroups.push('OFICIAIS');
+  if (!isOfficerUser) userGroups.push('PRACAS');
   if (isExp) userGroups.push('EXP');
   if (user.isRefeitorioAdmin) userGroups.push('REFEITORIO_ADMIN');
   
@@ -306,6 +307,14 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       icon: Anchor,
       color: 'bg-cyan-600 shadow-cyan-200',
       defaultGroups: ['OFICIAIS', 'ADMIN', 'ESCALANTE']
+    },
+    {
+      id: 'ras',
+      label: 'RAS',
+      description: 'Regime Adicional de Serviço',
+      icon: BriefcaseBusiness,
+      color: 'bg-amber-600 shadow-amber-200',
+      defaultGroups: ['PRACAS', 'ADMIN', 'ESCALANTE']
     }
   ];
 

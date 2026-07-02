@@ -85,6 +85,7 @@ const EscalanteDashboard = React.lazy(() =>
 );
 const GestaoEfetivoModeracaoModule = React.lazy(() => import("./components/GestaoEfetivoModeracaoModule").then((m) => ({ default: m.GestaoEfetivoModeracaoModule })));
 const GestaoSadDashboard = React.lazy(() => import("./components/GestaoSadDashboard").then((m) => ({ default: m.GestaoSadDashboard })));
+const RasClientModule = React.lazy(() => import("./components/RasClientModule").then((m) => ({ default: m.RasClientModule })));
 const DgpSyncModule = React.lazy(() => import("./components/DgpSyncModule").then((m) => ({ default: m.DgpSyncModule })));
 const PainelMilitarDashboard = React.lazy(() => import("./components/PainelMilitarDashboard").then((m) => ({ default: m.PainelMilitarDashboard })));
 const MedidasModule = React.lazy(() =>
@@ -1126,6 +1127,33 @@ export default function App() {
                     transition={{ duration: 0.3 }}
                   >
                     <EmDesenvolvimento />
+                  </motion.div>
+                }
+              />
+              <Route
+                path="/ras"
+                element={
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.05 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <div className="flex flex-col gap-6">
+                      <div className="mb-4 pt-12">
+                        <button
+                          onClick={() => navigate("/")}
+                          className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors uppercase font-black text-[10px] tracking-[0.2em] group mt-6"
+                        >
+                          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                          Voltar ao Portal Principal
+                        </button>
+                      </div>
+                      <RasClientModule
+                        user={effectiveProfile!}
+                        obmContext={obmContext}
+                      />
+                    </div>
                   </motion.div>
                 }
               />

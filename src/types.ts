@@ -92,6 +92,36 @@ export interface UserProfile {
     AR?: boolean;
     ARC?: boolean;
   };
+  rasHours?: number; // Total hours accumulated from RAS
+}
+
+export interface RasOpportunity {
+  id?: string;
+  obm: string;
+  date: string;
+  duration: 12 | 24;
+  description?: string;
+  functions: string[]; // Required functions
+  vacancies: number;
+  status: 'open' | 'closed' | 'completed';
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface RasApplication {
+  id?: string;
+  rasId: string;
+  functionId?: string;
+  militarId: string;
+  militarRg: string;
+  militarName: string;
+  militarWarName?: string;
+  militarQuadro?: string;
+  militarRank: string;
+  militarPromotionDate?: string;
+  status: 'applied' | 'selected' | 'rejected' | 'completed';
+  appliedAt: number;
 }
 
 export interface Vacation {
