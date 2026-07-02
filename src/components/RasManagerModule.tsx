@@ -341,7 +341,12 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
                                   <div className="p-4 text-center text-sm font-bold text-slate-400 uppercase tracking-widest">Nenhum interessado para esta função.</div>
                                 )}
                                 {funcApps.map((app, index) => (
-                                  <div key={app.id} className="p-4 border-b border-slate-100 last:border-0 flex items-center justify-between bg-[#ffeceb] hover:bg-[#ffe1e0] transition-colors rounded-lg mx-2 mb-2 shadow-sm">
+                                  <div key={app.id} className="p-4 border-b border-slate-100 last:border-0 flex items-center justify-between bg-[#ffeceb] hover:bg-[#ffe1e0] transition-colors rounded-lg mx-2 mb-2 shadow-sm relative">
+                                    {index < (opp.vacancies || 1) && app.status === 'applied' && (
+                                      <div className="absolute -top-2 left-4 bg-emerald-500 text-white text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded shadow-sm border border-emerald-600 z-10">
+                                        Eleito (Prévia)
+                                      </div>
+                                    )}
                                     <div className="flex items-center gap-4">
                                       <ChevronDown className="w-6 h-6 text-rose-400 stroke-[3]" />
                                       <div className="flex flex-col">

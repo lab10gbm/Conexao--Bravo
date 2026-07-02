@@ -5,6 +5,7 @@ import { collection, query, where, onSnapshot, addDoc, getDocs } from 'firebase/
 import { BriefcaseBusiness, Clock, Users, ArrowRight, CheckCircle2, History, ChevronDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { getAuth } from 'firebase/auth';
+import { parsePromotionDate, ALL_RANKS_IN_ORDER, parseRank } from '../lib/rankUtils';
 
 const availableFunctions = [
   { id: 'ativoCondutor', label: 'Condutor (Geral)' },
@@ -105,6 +106,33 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
   const hasAppliedForFunction = (oppId: string, functionId: string) => 
     myApplications.some(app => app.rasId === oppId && app.functionId === functionId);
 
+  const getSortedApplications = (apps: RasApplication[]) => {
+    return [...apps].sort((a, b) => {
+      const hoursA = (a as any).militarRasHours || 0;
+      const hoursB = (b as any).militarRasHours || 0;
+      
+      if (hoursA !== hoursB) return hoursA - hoursB; // Less hours gets priority
+      
+      // Tie breaker 1: Rank (Graduação)
+      const rankA = ALL_RANKS_IN_ORDER.indexOf(parseRank(a.militarRank));
+      const rankB = ALL_RANKS_IN_ORDER.indexOf(parseRank(b.militarRank));
+      const rA = rankA >= 0 ? rankA : 99;
+      const rB = rankB >= 0 ? rankB : 99;
+      if (rA !== rB) return rA - rB;
+
+      // Tie breaker 2: Seniority (Data de Promoção)
+      const dateA = a.militarPromotionDate || '';
+      const dateB = b.militarPromotionDate || '';
+      const timeA = parsePromotionDate(dateA);
+      const timeB = parsePromotionDate(dateB);
+      if (timeA !== timeB && timeA !== 0 && timeB !== 0) return timeA - timeB; // Older promotion date first
+      
+      // Tie breaker 3: RG
+      const rgA = parseInt((a.militarRg || '').replace(/\D/g, '') || '0', 10);
+      const rgB = parseInt((b.militarRg || '').replace(/\D/g, '') || '0', 10);
+      return rgA - rgB;
+    });
+  };
 
   return (
     <div className="max-w-4xl mx-auto w-full space-y-6">
@@ -165,6 +193,7 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
                     <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Vagas Disponíveis por Função</h4>
                     {opp.functions.map(f => {
                       const funcApps = oppApps.filter(app => app.functionId === f);
+                      const sortedApps = getSortedApplications(funcApps);
                       const applied = hasAppliedForFunction(opp.id!, f);
                       const funcLabel = availableFunctions.find(af => af.id === f)?.label || f;
 
@@ -195,12 +224,17 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
 
                           <div className="mt-4 border-t border-slate-200 pt-3">
                             <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex justify-between">
-                              <span>Militares Interessados ({funcApps.length})</span>
+                              <span>Militares Interessados ({sortedApps.length})</span>
                             </div>
-                            {funcApps.length > 0 ? (
+                            {sortedApps.length > 0 ? (
                               <div className="flex flex-col gap-2">
-                                {funcApps.map(app => (
-                                  <div key={app.id} className="p-4 border-b border-slate-100 last:border-0 flex items-center justify-between bg-[#ffeceb] hover:bg-[#ffe1e0] transition-colors rounded-lg shadow-sm">
+                                {sortedApps.map((app, index) => (
+                                  <div key={app.id} className="p-4 border-b border-slate-100 last:border-0 flex items-center justify-between bg-[#ffeceb] hover:bg-[#ffe1e0] transition-colors rounded-lg shadow-sm relative">
+                                    {index < (opp.vacancies || 1) && app.status === 'applied' && (
+                                      <div className="absolute -top-2 left-4 bg-emerald-500 text-white text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded shadow-sm border border-emerald-600 z-10">
+                                        Eleito (Prévia)
+                                      </div>
+                                    )}
                                     <div className="flex items-center gap-4">
                                       <ChevronDown className="w-6 h-6 text-rose-400 stroke-[3]" />
                                       <div className="flex flex-col">
