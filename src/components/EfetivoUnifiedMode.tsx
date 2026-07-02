@@ -2,6 +2,7 @@ import React from 'react';
 import { UserProfile } from '../types';
 import { SmartDataTable, ColumnDef } from './ui/SmartDataTable';
 import { RankInsignia } from './RankInsignia';
+import { parseRank } from '../lib/rankUtils';
 import { ArrowRightLeft, Shield } from 'lucide-react';
 import { normalizeObm } from '../lib/utils';
 
@@ -34,7 +35,7 @@ export function EfetivoUnifiedMode({ militars, isAdmin, onLendRequested, onRowCl
           if (col.id === 'rank') {
             return (
               <td className="p-1.5 sm:p-3 text-[10px] sm:text-[11px] font-bold text-slate-800 flex items-center gap-2">
-                {m.rank}
+                {parseRank(m.rank)}
               </td>
             );
           }

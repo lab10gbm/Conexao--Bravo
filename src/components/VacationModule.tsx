@@ -45,7 +45,7 @@ import { useMilitars } from "../contexts/MilitarContext";
 import { exportToExcel } from "../lib/exportUtils";
 import { VacationStats } from "./VacationStats";
 import { cleanUndefined } from "../lib/utils";
-import { isOfficer, sortAllBySeniority } from "../lib/rankUtils";
+import { isOfficer, sortAllBySeniority, parseRank, sortRanks } from "../lib/rankUtils";
 
 interface VacationModuleProps {
   user: UserProfile;
@@ -729,7 +729,7 @@ export function VacationModule({
   const { uniqueRanks, uniqueObms, uniqueAlas } = React.useMemo(() => {
     return {
       uniqueRanks: Array.from(
-        new Set(militars.map((m) => m.rank).filter(Boolean)),
+        new Set(militars.map((m) => parseRank(m.rank)).filter(Boolean)),
       ) as string[],
       uniqueObms: Array.from(
         new Set(militars.map((m) => m.obm || "10º GBM").filter(Boolean)),
@@ -748,7 +748,7 @@ export function VacationModule({
         m.warName?.toLowerCase().includes(term) ||
         m.rg?.includes(term);
       const matchesPosto =
-        filterPostoGrad.length === 0 || filterPostoGrad.includes(m.rank || "");
+        filterPostoGrad.length === 0 || filterPostoGrad.includes(parseRank(m.rank || ""));
       const matchesObm =
         filterObm.length === 0 || filterObm.includes(m.obm || "10º GBM");
       const matchesAla =
@@ -1174,7 +1174,7 @@ export function VacationModule({
                         className="w-full p-2 text-left hover:bg-slate-50 text-[9px] font-bold uppercase tracking-tight flex items-center justify-between"
                       >
                         <span>
-                          {m.rank} {m.warName || m.name}
+                          {parseRank(m.rank)} {m.warName || m.name}
                         </span>
                         <span className="text-slate-400">RG: {m.rg}</span>
                       </button>
@@ -1280,7 +1280,7 @@ export function VacationModule({
                         [];
                       const granted = data.granted?.[reportYear] || "-";
                       return {
-                        Militar: `${m.rank} ${m.name}`,
+                        Militar: `${parseRank(m.rank)} ${m.name}`,
                         RG: m.rg,
                         "Mês 1": prefs[0] || "-",
                         "Mês 2": prefs[1] || "-",
@@ -1336,7 +1336,7 @@ export function VacationModule({
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <MultiSelectFilter
                     label="Posto/Grad"
-                    options={uniqueRanks.sort()}
+                    options={uniqueRanks.sort(sortRanks)}
                     selected={filterPostoGrad}
                     onChange={setFilterPostoGrad}
                   />
@@ -1428,11 +1428,11 @@ export function VacationModule({
                             <td className="px-5 py-4">
                               <div className="flex items-center gap-3">
                                 <div className="shrink-0 w-8 flex justify-center">
-                                  <RankInsignia rankStr={m.rank} />
+                                  <RankInsignia rankStr={parseRank(m.rank)} />
                                 </div>
                                 <div className="flex flex-col leading-tight">
                                   <div className="text-[11px] font-black text-slate-800 uppercase">
-                                    {m.rank}
+                                    {parseRank(m.rank)}
                                   </div>
                                   <div className="text-[14px] font-black text-indigo-600 uppercase tracking-tight">
                                     {m.warName || m.name}

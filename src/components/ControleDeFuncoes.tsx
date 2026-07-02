@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { parseRank, sortRanks } from "../lib/rankUtils";
 import { useMilitars } from "../contexts/MilitarContext";
 import { db } from "../lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
@@ -124,7 +125,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
 
     return {
       uniqueRanks: Array.from(
-        new Set(contextMilitars.map((m) => m.rank).filter(Boolean)),
+        new Set(contextMilitars.map((m) => parseRank(m.rank)).filter(Boolean)),
       ) as string[],
       uniqueQuadros: Array.from(
         new Set(contextMilitars.map((m) => (m.quadro ? m.quadro.split('/')[0] : '')).filter(Boolean)),
@@ -200,7 +201,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
               (m.rg || "").toString().includes(search));
         }
         if (filterPostoGrad.length > 0)
-          matches = matches && filterPostoGrad.includes(m.rank || "");
+          matches = matches && filterPostoGrad.includes(parseRank(m.rank || ""));
         if (filterQuadro.length > 0)
           matches = matches && filterQuadro.includes(m.quadro ? m.quadro.split('/')[0] : '');
         if (filterAla.length > 0)
@@ -643,7 +644,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
           <div className="flex-1 min-w-[150px]">
             <MultiSelectFilter
               label="Posto/Grad"
-              options={uniqueRanks}
+              options={uniqueRanks.sort(sortRanks)}
               selected={filterPostoGrad}
               onChange={setFilterPostoGrad}
             />
@@ -801,13 +802,13 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                           <div className="flex items-center gap-3">
                             <div className="w-10 flex shrink-0 justify-center">
                               <RankInsignia
-                                rankStr={m.rank}
+                                rankStr={parseRank(m.rank)}
                                 className="scale-75 origin-center"
                               />
                             </div>
                             <div className="flex flex-col">
                               <span className="text-[10px] font-bold text-slate-500 uppercase leading-none mb-1">
-                                {m.rank}
+                                {parseRank(m.rank)}
                               </span>
                               <span className="text-xs font-black text-slate-700 uppercase tracking-wider leading-none">
                                 {m.warName || (m.name || "").split(" ")[0]}
@@ -991,13 +992,13 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                           <div className="flex items-center gap-3">
                             <div className="w-10 flex shrink-0 justify-center">
                               <RankInsignia
-                                rankStr={m.rank}
+                                rankStr={parseRank(m.rank)}
                                 className="scale-75 origin-center"
                               />
                             </div>
                             <div className="flex flex-col">
                               <span className="text-[10px] font-bold text-slate-500 uppercase leading-none mb-1">
-                                {m.rank}
+                                {parseRank(m.rank)}
                               </span>
                               <span className="text-xs font-black text-slate-700 uppercase tracking-wider leading-none">
                                 {m.warName || (m.name || "").split(" ")[0]}
@@ -1173,13 +1174,13 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                           <div className="flex items-center gap-3">
                             <div className="w-10 flex shrink-0 justify-center">
                               <RankInsignia
-                                rankStr={m.rank}
+                                rankStr={parseRank(m.rank)}
                                 className="scale-75 origin-center"
                               />
                             </div>
                             <div className="flex flex-col">
                               <span className="text-[10px] font-bold text-slate-500 uppercase leading-none mb-1">
-                                {m.rank}
+                                {parseRank(m.rank)}
                               </span>
                               <span className="text-xs font-black text-slate-700 uppercase tracking-wider leading-none">
                                 {m.warName || (m.name || "").split(" ")[0]}
@@ -1374,13 +1375,13 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                           <div className="flex items-center gap-3">
                             <div className="w-10 flex shrink-0 justify-center">
                               <RankInsignia
-                                rankStr={m.rank}
+                                rankStr={parseRank(m.rank)}
                                 className="scale-75 origin-center"
                               />
                             </div>
                             <div className="flex flex-col">
                               <span className="text-[10px] font-bold text-slate-500 uppercase leading-none mb-1">
-                                {m.rank}
+                                {parseRank(m.rank)}
                               </span>
                               <span className="text-xs font-black text-slate-700 uppercase tracking-wider leading-none">
                                 {m.warName || (m.name || "").split(" ")[0]}
@@ -1498,13 +1499,13 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                           <div className="flex items-center gap-3">
                             <div className="w-10 flex shrink-0 justify-center">
                               <RankInsignia
-                                rankStr={m.rank}
+                                rankStr={parseRank(m.rank)}
                                 className="scale-75 origin-center"
                               />
                             </div>
                             <div className="flex flex-col">
                               <span className="text-[10px] font-bold text-slate-500 uppercase leading-none mb-1">
-                                {m.rank}
+                                {parseRank(m.rank)}
                               </span>
                               <span className="text-xs font-black text-slate-700 uppercase tracking-wider leading-none">
                                 {m.warName || (m.name || "").split(" ")[0]}
@@ -1648,13 +1649,13 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                           <div className="flex items-center gap-3">
                             <div className="w-10 flex shrink-0 justify-center">
                               <RankInsignia
-                                rankStr={m.rank}
+                                rankStr={parseRank(m.rank)}
                                 className="scale-75 origin-center"
                               />
                             </div>
                             <div className="flex flex-col">
                               <span className="text-[10px] font-bold text-slate-500 uppercase leading-none mb-1">
-                                {m.rank}
+                                {parseRank(m.rank)}
                               </span>
                               <span className="text-xs font-black text-slate-700 uppercase tracking-wider leading-none">
                                 {m.warName || (m.name || "").split(" ")[0]}
@@ -1874,13 +1875,13 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                           <div className="flex items-center gap-3">
                             <div className="w-10 flex shrink-0 justify-center">
                               <RankInsignia
-                                rankStr={m.rank}
+                                rankStr={parseRank(m.rank)}
                                 className="scale-75 origin-center"
                               />
                             </div>
                             <div className="flex flex-col">
                               <span className="text-[10px] font-bold text-slate-500 uppercase leading-none mb-1">
-                                {m.rank}
+                                {parseRank(m.rank)}
                               </span>
                               <span className="text-xs font-black text-slate-700 uppercase tracking-wider leading-none">
                                 {m.warName || (m.name || "").split(" ")[0]}
@@ -2138,13 +2139,13 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                           <div className="flex items-center gap-3">
                             <div className="w-10 flex shrink-0 justify-center">
                               <RankInsignia
-                                rankStr={m.rank}
+                                rankStr={parseRank(m.rank)}
                                 className="scale-75 origin-center"
                               />
                             </div>
                             <div className="flex flex-col">
                               <span className="text-[10px] font-bold text-slate-500 uppercase leading-none mb-1">
-                                {m.rank}
+                                {parseRank(m.rank)}
                               </span>
                               <span className="text-xs font-black text-slate-700 uppercase tracking-wider leading-none">
                                 {m.warName || (m.name || "").split(" ")[0]}
@@ -2398,13 +2399,13 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                           <div className="flex items-center gap-3">
                             <div className="w-10 flex shrink-0 justify-center">
                               <RankInsignia
-                                rankStr={m.rank}
+                                rankStr={parseRank(m.rank)}
                                 className="scale-75 origin-center"
                               />
                             </div>
                             <div className="flex flex-col">
                               <span className="text-[10px] font-bold text-slate-500 uppercase leading-none mb-1">
-                                {m.rank}
+                                {parseRank(m.rank)}
                               </span>
                               <span className="text-xs font-black text-slate-700 uppercase tracking-wider leading-none">
                                 {m.warName || (m.name || "").split(" ")[0]}

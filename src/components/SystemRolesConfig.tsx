@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { parseRank } from "../lib/rankUtils";
 import { Search, ShieldAlert, CheckSquare, Square, Loader2, Settings, X, Tag } from 'lucide-react';
 import { useMilitars } from '../contexts/MilitarContext';
 import { doc, setDoc } from 'firebase/firestore';
@@ -315,7 +316,7 @@ export function SystemRolesConfig() {
                                      <td className="px-4 py-3">
                                         <div className="flex flex-col gap-1">
                                            <div className="flex flex-col">
-                                              <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider">{m.rank} {m.name}</span>
+                                              <span className="text-[11px] font-black text-slate-700 uppercase tracking-wider">{parseRank(m.rank)} {m.name}</span>
                                               <span className="text-[9px] font-bold text-slate-400 font-mono">{m.rg}</span>
                                            </div>
                                            <div className="flex flex-wrap gap-1 mt-1">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { parseRank, sortRanks } from '../lib/rankUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, BookOpen, Download, Edit2, Check, X, ChevronDown, Settings, Copy, Filter, Ruler, Search, Plus, AlertCircle } from 'lucide-react';
 import { UserProfile } from '../types';
@@ -235,7 +236,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
   // Derived filter options
   const { uniqueRanks, uniqueQuadros, uniqueAlas, uniqueObms, uniqueCidades, uniqueSituacoes, uniqueCursos } = useMemo(() => {
     return {
-      uniqueRanks: Array.from(new Set(applicableMilitars.map(m => m.rank).filter(Boolean))) as string[],
+      uniqueRanks: Array.from(new Set(applicableMilitars.map(m => parseRank(m.rank)).filter(Boolean))) as string[],
       uniqueQuadros: Array.from(new Set(applicableMilitars.map(m => m.quadro ? m.quadro.split('/')[0].trim() : '').filter(Boolean))) as string[],
       uniqueObms: Array.from(new Set(applicableMilitars.map(m => normalizeObm(m.obm)).filter(Boolean))) as string[],
       uniqueAlas: Array.from(new Set(applicableMilitars.map(m => m.ala?.toString()).filter(v => v && !['ALA', 'ESCALANTE', 'EXP'].includes(v.toUpperCase())))) as string[],
@@ -333,7 +334,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
         (p.rank || '').toLowerCase().includes(s)
       );
       
-      const matchesPosto = filterPostoGrad.length === 0 || filterPostoGrad.includes(p.rank || '');
+      const matchesPosto = filterPostoGrad.length === 0 || filterPostoGrad.includes(parseRank(p.rank || ''));
       const matchesQuadro = filterQuadro.length === 0 || filterQuadro.includes((p.quadro || '').split('/')[0].trim());
       const matchesObm = filterObm.length === 0 || filterObm.includes(normalizeObm(p.obm));
       const matchesAla = filterAla.length === 0 || filterAla.includes(p.ala?.toString() || '');
@@ -612,7 +613,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
         <div className="flex flex-col gap-6">
            <div className="flex flex-wrap items-center gap-4 flex-1">
               <div className="w-full sm:w-[calc(25%-12px)] min-w-[200px]">
-                <MultiSelectFilter label="Posto/Grad" options={uniqueRanks.sort()} selected={filterPostoGrad} onChange={setFilterPostoGrad} />
+                <MultiSelectFilter label="Posto/Grad" options={uniqueRanks.sort(sortRanks)} selected={filterPostoGrad} onChange={setFilterPostoGrad} />
               </div>
               <div className="w-full sm:w-[calc(25%-12px)] min-w-[200px]">
                 <MultiSelectFilter label="Quadro" options={uniqueQuadros.sort()} selected={filterQuadro} onChange={setFilterQuadro} />
@@ -917,7 +918,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
                           <td className="p-4 border-r border-slate-100">{item.quadro ? item.quadro.split('/')[0].trim() : '-'}</td>
                         )}
                         {visibleCols.includes('posto') && (
-                          <td className="p-4 border-r border-slate-100 uppercase font-black text-slate-600">{item.rank}</td>
+                          <td className="p-4 border-r border-slate-100 uppercase font-black text-slate-600">{parseRank(item.rank)}</td>
                         )}
                         {visibleCols.includes('nome') && (
                           <td className="p-4 border-r border-slate-100 uppercase font-black">{item.warName || item.name}</td>

@@ -27,7 +27,7 @@ export function BuscarMilitarModule({ viewer, onBack }: BuscarMilitarModuleProps
     
     const term = deferredSearchTerm.toLowerCase();
     
-    const order = ['CORONEL', 'TEN CEL', 'MAJOR', 'CAPITÃO', '1º TEN', '2º TEN', 'ASP OF', 'SUBTEN', '1º SGT', '2º SGT', '3º SGT', 'CABO', 'SOLDADO'];
+    const order = ['CORONEL', 'TENENTE CORONEL', 'MAJOR', 'CAPITÃO', '1º TENENTE', '2º TENENTE', 'ASP OF', 'SUBTENENTE', '1º SARGENTO', '2º SARGENTO', '3º SARGENTO', 'CABO', 'SOLDADO'];
     const rankMap = new Map(order.map((r, i) => [r, i]));
     const getRankIdx = (rankStr: string | undefined) => {
        const mapped = parseRank(rankStr || '');

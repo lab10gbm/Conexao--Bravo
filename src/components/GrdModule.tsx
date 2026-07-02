@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { parseRank } from "../lib/rankUtils";
 import { useMilitars } from '../contexts/MilitarContext';
 import { db } from '../lib/firebase';
 import { doc, setDoc, onSnapshot, getDoc, updateDoc } from 'firebase/firestore';
@@ -660,7 +661,7 @@ export function GrdModule({ obmContext, setObmContext, availableObms = [], reado
                     const teamRgs = grdData[dateStr] || [];
                     displayItems = teamRgs.slice(0, 3).map(rg => {
                       const m = militars.find(mil => mil.rg === rg);
-                      return m ? `${m.rank} ${m.warName || (m.name || '').split(' ')[0]}` : null;
+                      return m ? `${parseRank(m.rank)} ${m.warName || (m.name || '').split(' ')[0]}` : null;
                     }).filter(Boolean);
                   } else {
                     const offDay = officerData[dateStr] || {};
@@ -798,7 +799,7 @@ export function GrdModule({ obmContext, setObmContext, availableObms = [], reado
                                   {m ? (
                                     <div className="group relative flex items-center justify-between bg-white border border-slate-200 rounded-lg p-2 shadow-sm">
                                       <div className="flex items-center gap-2 overflow-hidden">
-                                        <RankInsignia rankStr={m.rank} className="scale-[0.4] origin-center shrink-0 -ml-2" />
+                                        <RankInsignia rankStr={parseRank(m.rank)} className="scale-[0.4] origin-center shrink-0 -ml-2" />
                                         <div className="min-w-0">
                                           <p className="text-[10px] font-black text-slate-700 truncate">
                                             {m.warName || (m.name || '').split(' ')[0]}
@@ -1117,10 +1118,10 @@ export function GrdModule({ obmContext, setObmContext, availableObms = [], reado
                       {currentTeam.map(m => (
                         <div key={m.rg} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3 group">
                           <div className="w-8 h-8 flex shrink-0 justify-center items-center bg-slate-50 rounded-lg">
-                            <RankInsignia rankStr={m.rank} className="scale-50 origin-center" />
+                            <RankInsignia rankStr={parseRank(m.rank)} className="scale-50 origin-center" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-[10px] font-bold text-slate-500 uppercase leading-none mb-1">{m.rank}</p>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase leading-none mb-1">{parseRank(m.rank)}</p>
                             <p className="text-xs font-black text-slate-800 uppercase tracking-tight truncate leading-none">
                               {m.warName || (m.name || '').split(' ')[0]}
                             </p>
@@ -1173,10 +1174,10 @@ export function GrdModule({ obmContext, setObmContext, availableObms = [], reado
                         className="p-2.5 rounded-xl border border-slate-100 hover:border-cyan-200 hover:bg-cyan-50 transition-all flex items-center gap-3 text-left group disabled:opacity-50"
                       >
                         <div className="w-10 flex shrink-0 justify-center">
-                          <RankInsignia rankStr={m.rank} className="scale-75 origin-center" />
+                          <RankInsignia rankStr={parseRank(m.rank)} className="scale-75 origin-center" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <span className="text-[10px] font-bold text-slate-500 uppercase leading-none mb-1 block">{m.rank}</span>
+                          <span className="text-[10px] font-bold text-slate-500 uppercase leading-none mb-1 block">{parseRank(m.rank)}</span>
                           <span className="text-[11px] font-black text-slate-700 uppercase tracking-tight block">
                             {m.warName || (m.name || '').split(' ')[0]}
                           </span>

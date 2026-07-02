@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { parseRank } from "../lib/rankUtils";
 import QRCode from "qrcode";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -2203,7 +2204,7 @@ export function PatrimonyModule({
                   <option value="">Selecione um oficial/praça cadastrado...</option>
                   {militars.map((m) => (
                     <option key={m.rg} value={m.rg}>
-                      {m.rank} {m.warName || m.name} (RG: {m.rg})
+                      {parseRank(m.rank)} {m.warName || m.name} (RG: {m.rg})
                     </option>
                   ))}
                 </select>

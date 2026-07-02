@@ -1082,7 +1082,7 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
                           }}
                           className="w-full text-left px-3 py-2 text-[10px] font-bold text-slate-700 hover:bg-indigo-50 border-b border-slate-100 last:border-0 flex flex-col"
                         >
-                          <span className="uppercase">{m.rank} {m.warName}</span>
+                          <span className="uppercase">{parseRank(m.rank)} {m.warName}</span>
                           <span className="text-[9px] text-slate-400 font-medium">RG: {m.rg}</span>
                         </button>
                     ))}

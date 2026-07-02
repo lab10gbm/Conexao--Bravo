@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { parseRank } from "../lib/rankUtils";
 import { useMilitars } from '../contexts/MilitarContext';
 import { Search, Loader2, Plus, X, ArrowRight, Users } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -136,7 +137,7 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
                         className="w-full text-left p-2 rounded-lg hover:bg-slate-100 flex items-center justify-between group transition-colors mb-1"
                       >
                         <div className="flex flex-col overflow-hidden">
-                          <span className="text-[10px] font-black text-slate-700 truncate">{m.rank} {m.warName || (m.name || '').split(' ')[0]}</span>
+                          <span className="text-[10px] font-black text-slate-700 truncate">{parseRank(m.rank)} {m.warName || (m.name || '').split(' ')[0]}</span>
                           <span className="text-[8px] font-bold text-slate-400 font-mono tracking-wider">{m.rg} • {m.quadro || 'Sem Quadro'}</span>
                         </div>
                         {assigningRg === m.rg ? (
@@ -161,7 +162,7 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
                         <div className="w-5 h-5 bg-slate-100 rounded-md flex items-center justify-center text-[9px] font-black text-slate-400">
                           {idx + 1}
                         </div>
-                        <span className="text-[11px] font-black text-slate-700 truncate" title={m.name}>{m.rank} {m.warName || (m.name || '').split(' ')[0]}</span>
+                        <span className="text-[11px] font-black text-slate-700 truncate" title={m.name}>{parseRank(m.rank)} {m.warName || (m.name || '').split(' ')[0]}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 pl-7 w-full text-[9px] font-bold text-slate-500 uppercase tracking-widest">

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { parseRank } from "../lib/rankUtils";
 import { motion, AnimatePresence } from 'motion/react';
 import { Users, UserPlus, Search, Save, X, Trash2, ArrowLeft, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import { useMilitars } from '../contexts/MilitarContext';
@@ -241,7 +242,7 @@ export function GestaoEfetivoModeracaoModule({ user, onBack }: { user: UserProfi
                            {expandedRow === m.rg ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                          </td>
                          <td className="px-4 py-4 border-r border-slate-100 text-center text-slate-400">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                         <td className="px-4 py-4 border-r border-slate-100 text-slate-700 whitespace-nowrap">{m.rank}</td>
+                         <td className="px-4 py-4 border-r border-slate-100 text-slate-700 whitespace-nowrap">{parseRank(m.rank)}</td>
                          <td className="px-4 py-4 border-r border-slate-100 text-indigo-600 font-black">{m.rg}</td>
                          <td className="px-4 py-4 border-r border-slate-100 text-slate-800" title={m.name}>{m.name?.substring(0, 30)}{m.name?.length > 30 ? "..." : ""}</td>
                          <td className="px-4 py-4 border-r border-slate-100 text-slate-600">{m.quadro || '-'}</td>

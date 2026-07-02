@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { parseRank } from "../lib/rankUtils";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { UserProfile } from '../types';
@@ -972,12 +973,12 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                               key={(m.uid||m.rg||`m-${i}`)}
                                               onClick={() => {
                                                   setAddMemberRg(m.uid||m.rg);
-                                                  setMemberSearchTerm(`${m.rank} ${formatMilitaryName(m.warName || m.name?.split(' ')[0] || '')} - ${m.rg}`);
+                                                  setMemberSearchTerm(`${parseRank(m.rank)} ${formatMilitaryName(m.warName || m.name?.split(' ')[0] || '')} - ${m.rg}`);
                                                   setShowMemberDropdown(false);
                                               }}
                                               className="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-100 last:border-0 text-xs text-slate-700"
                                           >
-                                              <div className="font-bold">{m.rank} {formatMilitaryName(m.warName || m.name?.split(' ')[0] || '')} {m.obm ? `- ${m.obm}` : ''}</div>
+                                              <div className="font-bold">{parseRank(m.rank)} {formatMilitaryName(m.warName || m.name?.split(' ')[0] || '')} {m.obm ? `- ${m.obm}` : ''}</div>
                                               <div className="text-[10px] text-slate-400 mt-0.5">RG: {m.rg}</div>
                                           </button>
                                       ))}

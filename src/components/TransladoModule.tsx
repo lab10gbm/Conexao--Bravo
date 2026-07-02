@@ -34,16 +34,16 @@ const abbrevRank = (rankStr?: string): string => {
   if (!rankStr) return "";
   const parsed = parseRank(rankStr).toUpperCase().trim();
   if (parsed === "CORONEL") return "CEL";
-  if (parsed === "TEN CEL" || parsed === "TENENTE CORONEL") return "TC";
+  if (parsed === "TENENTE CORONEL") return "TC";
   if (parsed === "MAJOR") return "MJ";
   if (parsed === "CAPITÃO" || parsed === "CAPITAO") return "CAP";
-  if (parsed === "1º TEN" || parsed === "1º TENENTE") return "1º TEN";
-  if (parsed === "2º TEN" || parsed === "2º TENENTE") return "2º TEN";
+  if (parsed === "1º TEN" || parsed === "1º TENENTE") return "1º TENENTE";
+  if (parsed === "2º TEN" || parsed === "2º TENENTE") return "2º TENENTE";
   if (parsed === "ASP OF" || parsed === "ASPIRANTE") return "ASP";
-  if (parsed === "SUBTEN" || parsed === "SUBTENENTE") return "ST";
-  if (parsed === "1º SGT" || parsed === "1º SARGENTO") return "1º SGT";
-  if (parsed === "2º SGT" || parsed === "2º SARGENTO") return "2º SGT";
-  if (parsed === "3º SGT" || parsed === "3º SARGENTO") return "3º SGT";
+  if (parsed === "SUBTENENTE") return "ST";
+  if (parsed === "1º SGT" || parsed === "1º SARGENTO") return "1º SARGENTO";
+  if (parsed === "2º SGT" || parsed === "2º SARGENTO") return "2º SARGENTO";
+  if (parsed === "3º SGT" || parsed === "3º SARGENTO") return "3º SARGENTO";
   if (parsed === "CABO") return "CB";
   if (parsed === "SOLDADO") return "SD";
   return parsed;
@@ -83,16 +83,16 @@ const SteeringWheelIcon = ({ className }: { className?: string }) => (
 
 const ALL_RANKS_SENIORITY = [
   "CORONEL",
-  "TEN CEL",
+  "TENENTE CORONEL",
   "MAJOR",
   "CAPITÃO",
-  "1º TEN",
-  "2º TEN",
+  "1º TENENTE",
+  "2º TENENTE",
   "ASP OF",
-  "SUBTEN",
-  "1º SGT",
-  "2º SGT",
-  "3º SGT",
+  "SUBTENENTE",
+  "1º SARGENTO",
+  "2º SARGENTO",
+  "3º SARGENTO",
   "CABO",
   "SOLDADO",
 ];

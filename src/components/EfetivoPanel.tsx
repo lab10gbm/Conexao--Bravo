@@ -31,7 +31,7 @@ import { doc, setDoc } from "firebase/firestore";
 import { RankInsignia } from "./RankInsignia";
 import { MilitaryProfile } from "./MilitaryProfile";
 import { INITIAL_COLUMNS, GROUPS, OBM_HIERARCHY } from "../constants";
-import { parseRank, isOfficer, sortAllBySeniority } from "../lib/rankUtils";
+import { parseRank, isOfficer, sortAllBySeniority, sortRanks } from "../lib/rankUtils";
 import { EfetivoGridMode } from "./EfetivoGridMode";
 import { EfetivoTableObmMode } from "./EfetivoTableObmMode";
 import { EfetivoUnifiedMode } from "./EfetivoUnifiedMode";
@@ -128,8 +128,7 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
         m.rg?.includes(term);
       const matchesPosto =
         filterPostoGrad.length === 0 || 
-        filterPostoGrad.includes(m.rank || "") ||
-        filterPostoGrad.some(fp => parseRank(fp) === parseRank(m.rank));
+        filterPostoGrad.includes(parseRank(m.rank || ""));
       const matchesQuadro =
         filterQuadro.length === 0 ||
         filterQuadro.some((fq) => {
@@ -366,11 +365,11 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
 
     return GROUPS.map((g) => {
       const defaultObm = (m: UserProfile) => {
-        return m.obm || "";
+        return normalizeObm(m.obm || "");
       };
 
       const membersAtGroup = militars.filter((m) => {
-        const currentObm = m.lentTo ? m.lentTo : defaultObm(m);
+        const currentObm = m.lentTo ? normalizeObm(m.lentTo) : defaultObm(m);
         return currentObm === g.id;
       });
 
@@ -382,7 +381,7 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
         (m) => defaultObm(m) !== g.id,
       ).length;
       const lentOut = membersOriginallyAtGroup.filter(
-        (m) => m.lentTo && m.lentTo !== g.id,
+        (m) => m.lentTo && normalizeObm(m.lentTo) !== g.id,
       ).length;
 
       return {
@@ -416,7 +415,7 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
     });
     return {
       uniqueRanks: Array.from(
-        new Set(militars.map((m) => m.rank).filter(Boolean)),
+        new Set(militars.map((m) => parseRank(m.rank)).filter(Boolean)),
       ) as string[],
       uniqueQuadros: Array.from(
         new Set(militars.map((m) => m.quadro?.split("/")[0]).filter(Boolean)),
@@ -460,7 +459,7 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
           { lentTo: targetLentTo },
           { merge: true },
         );
-        setLendingMilitar(null);
+        handleLendingMilitar(null);
         setSelectedLendGroup("");
         await refreshMilitars();
       } else {
@@ -717,7 +716,7 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
         <div className="flex-1 min-w-[200px]">
           <MultiSelectFilter
             label="Posto/Grad"
-            options={uniqueRanks.sort()}
+            options={uniqueRanks.sort(sortRanks)}
             selected={filterPostoGrad}
             onChange={setFilterPostoGrad}
           />
@@ -832,7 +831,7 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
           orderedColumns={orderedColumns}
           visibleColumns={visibleColumns}
           isAdmin={user.isAdmin || false}
-          onLendRequested={setLendingMilitar}
+          onLendRequested={handleLendingMilitar}
         />
       ) : (
         <EfetivoGridMode

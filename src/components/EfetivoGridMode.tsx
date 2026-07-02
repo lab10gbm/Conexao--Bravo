@@ -25,7 +25,7 @@ export function EfetivoGridMode({ currentGroups, search, filters, expandedGroup,
 
     const term = search.toLowerCase();
     const matchesSearch = (m.name?.toLowerCase().includes(term) || m.warName?.toLowerCase().includes(term) || m.rg?.includes(term));
-    const matchesPosto = filters.filterPostoGrad.length === 0 || filters.filterPostoGrad.includes(m.rank || '');
+    const matchesPosto = filters.filterPostoGrad.length === 0 || filters.filterPostoGrad.includes(parseRank(m.rank || ''));
     const matchesQuadro = filters.filterQuadro.length === 0 || filters.filterQuadro.includes((m.quadro || '').split('/')[0].trim());
     const matchesObm = filters.filterObm.length === 0 || filters.filterObm.includes(normalizeObm(m.obm));
     const matchesAla = filters.filterAla.length === 0 || filters.filterAla.includes(m.ala?.toString() || '');
@@ -99,7 +99,7 @@ export function EfetivoGridMode({ currentGroups, search, filters, expandedGroup,
                              <RankInsignia rankStr={m.rank} className={`${isOff ? 'scale-[1.6] sm:scale-[1.8]' : 'scale-[1.5] sm:scale-[1.8]'} origin-center`} />
                            </div>
                            <div className={`flex flex-col flex-1 overflow-hidden ${isOff ? 'items-center text-center px-1 w-full justify-start' : 'justify-center pr-5'}`}>
-                             <div className={`text-[9px] sm:text-[11px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1 truncate ${isOff ? 'w-full' : ''}`}>{m.rank}</div>
+                             <div className={`text-[9px] sm:text-[11px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1 truncate ${isOff ? 'w-full' : ''}`}>{parseRank(m.rank)}</div>
                              <div className={`font-black text-slate-800 text-xs sm:text-[15px] leading-tight uppercase truncate ${isOff ? 'w-full' : ''}`}>{m.warName || m.name}</div>
                              <div className={`text-[9px] text-slate-400 mt-0.5 sm:mt-1 truncate font-medium ${isOff ? 'w-full' : ''}`}>RG: {m.rg}</div>
                            </div>

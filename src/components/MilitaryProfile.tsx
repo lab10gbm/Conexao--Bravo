@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { UserProfile, Vacation } from '../types';
 import { RankInsignia } from './RankInsignia';
+import { parseRank } from '../lib/rankUtils';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
@@ -88,7 +89,7 @@ export function MilitaryProfile({ militar, viewer, onClose, onLendRequested, inl
           <div className="flex-1 text-center sm:text-left">
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 mb-1">
               <h2 className="text-xl sm:text-2xl font-black text-slate-800 uppercase tracking-tight">
-                {militar.rank} {militar.warName || (militar.name || '').split(' ')[0]}
+                {parseRank(militar.rank)} {militar.warName || (militar.name || '').split(' ')[0]}
               </h2>
               {militar.situacao?.toUpperCase() === 'ATIVO' && (
                 <span className="px-2 py-0.5 bg-green-50 text-green-700 border border-green-200 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1">

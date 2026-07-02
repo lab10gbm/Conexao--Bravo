@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { parseRank } from "../lib/rankUtils";
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Search, UserPlus, UserMinus, ShieldCheck } from 'lucide-react';
 import { UserProfile } from '../types';
@@ -69,7 +70,7 @@ export function ViaturaManagerModal({ viatura, militars, assignedRgs, onClose, o
                 <div key={m.rg} className="flex items-center justify-between p-3 rounded-2xl border border-slate-100 bg-slate-50">
                   <div>
                     <p className="font-black text-slate-800 text-sm uppercase tracking-tight">
-                      {m.rank} {m.warName || m.name.split(' ')[0]}
+                      {parseRank(m.rank)} {m.warName || m.name.split(' ')[0]}
                     </p>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                       RG: {m.rg}
@@ -111,7 +112,7 @@ export function ViaturaManagerModal({ viatura, militars, assignedRgs, onClose, o
               <div key={m.rg} className="flex items-center justify-between p-3 rounded-2xl border border-slate-200 bg-white">
                 <div>
                   <p className="font-black text-slate-800 text-sm uppercase tracking-tight">
-                    {m.rank} {m.warName || m.name.split(' ')[0]}
+                    {parseRank(m.rank)} {m.warName || m.name.split(' ')[0]}
                   </p>
                 </div>
                 <button

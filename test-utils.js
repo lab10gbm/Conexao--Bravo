@@ -1,9 +1,5 @@
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-import { getDay, subDays, addDays } from 'date-fns';
-import { OBM_HIERARCHY } from '../constants';
 
-export function normalizeObm(obm?: string): string {
+function normalizeObm(obm?: string): string {
   if (!obm) return '10º GBM';
   const clean = obm.toString().trim().toUpperCase();
   
@@ -18,7 +14,7 @@ export function normalizeObm(obm?: string): string {
   return clean;
 }
 
-export function cn(...inputs: ClassValue[]) {
+function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
@@ -33,7 +29,7 @@ export const getUserObmAccess = (userObm?: string, isAdmin = false): string[] =>
 export let GLOBAL_REF_YEAR = 2026;
 export let GLOBAL_START_ALA = 2;
 
-export function cleanUndefined(obj: any): any {
+function cleanUndefined(obj: any): any {
   if (obj === null || obj === undefined) return obj;
   if (typeof obj === 'object') {
     if (Array.isArray(obj)) return obj.map(cleanUndefined);
@@ -51,12 +47,12 @@ export function cleanUndefined(obj: any): any {
   return obj;
 }
 
-export function setGlobalAlaConfig(year: number, startAla: number) {
+function setGlobalAlaConfig(year: number, startAla: number) {
   GLOBAL_REF_YEAR = year;
   GLOBAL_START_ALA = startAla;
 }
 
-export function calculateDeadline(targetDate: Date): Date {
+function calculateDeadline(targetDate: Date): Date {
   const targetDayOfWeek = getDay(targetDate);
   
   // Exceção: Quarta-feira o prazo encerra no domingo anterior
@@ -101,7 +97,7 @@ export function calculateDeadline(targetDate: Date): Date {
 /**
  * Calculates which ala is on duty on a specific date.
  */
-export function getAlaForDate(date: Date): number {
+function getAlaForDate(date: Date): number {
   const baseDate = new Date(GLOBAL_REF_YEAR, 0, 1);
   const diffInTime = date.getTime() - baseDate.getTime();
   const diffInDays = Math.floor(diffInTime / (1000 * 3600 * 24));
@@ -110,7 +106,7 @@ export function getAlaForDate(date: Date): number {
   return ala;
 }
 
-export function getOppositeAla(ala: number): number {
+function getOppositeAla(ala: number): number {
   if (ala === 1) return 3;
   if (ala === 3) return 1;
   if (ala === 2) return 4;
@@ -118,7 +114,7 @@ export function getOppositeAla(ala: number): number {
   return 0;
 }
 
-export function getAlaColor(ala: number | string): string {
+function getAlaColor(ala: number | string): string {
   const alaStr = ala.toString().toUpperCase();
   if (alaStr === 'EXP') return 'bg-slate-500';
   
@@ -132,7 +128,7 @@ export function getAlaColor(ala: number | string): string {
   }
 }
 
-export function getAlaLightColor(ala: number | string): string {
+function getAlaLightColor(ala: number | string): string {
   const alaStr = ala.toString().toUpperCase();
   if (alaStr === 'EXP') return 'bg-slate-50 text-slate-700';
   
@@ -146,7 +142,7 @@ export function getAlaLightColor(ala: number | string): string {
   }
 }
 
-export function getAlaCardColor(ala: number | string): string {
+function getAlaCardColor(ala: number | string): string {
   const alaStr = ala.toString().toUpperCase();
   if (['EXP', 'E', 'EXPEDIENTE'].includes(alaStr)) return 'bg-slate-200 text-slate-900';
   if (alaStr === 'ESCALANTE') return 'bg-indigo-100 text-indigo-900';
@@ -161,7 +157,7 @@ export function getAlaCardColor(ala: number | string): string {
   }
 }
 
-export function getThemeColors(ala?: string | number) {
+function getThemeColors(ala?: string | number) {
   const a = ala?.toString().toUpperCase() || '';
   if (a === '1') return { panel: 'bg-emerald-50 border-emerald-200', card: 'bg-emerald-100 border-emerald-300', text: 'text-emerald-900', title: 'text-emerald-800', borderInner: 'border-emerald-200', textLight: 'text-emerald-600', iconBg: 'bg-emerald-200 border-emerald-400', iconText: 'text-emerald-800', divide: 'divide-emerald-200' };
   if (a === '2') return { panel: 'bg-rose-50 border-rose-200', card: 'bg-rose-100 border-rose-300', text: 'text-rose-900', title: 'text-rose-800', borderInner: 'border-rose-200', textLight: 'text-rose-600', iconBg: 'bg-rose-200 border-rose-400', iconText: 'text-rose-800', divide: 'divide-rose-200' };
@@ -174,75 +170,61 @@ export function getThemeColors(ala?: string | number) {
   return { panel: 'bg-white border-slate-200', card: 'bg-slate-50 border-slate-200', text: 'text-slate-800', title: 'text-slate-500', borderInner: 'border-slate-200', textLight: 'text-slate-500', iconBg: 'bg-indigo-100 border-indigo-300', iconText: 'text-indigo-600', divide: 'divide-slate-200' };
 }
 
-export function getAlaName(ala: number | string): string {
+function getAlaName(ala: number | string): string {
   const alaStr = ala.toString().toUpperCase();
   if (alaStr === 'EXP') return 'EXPEDIENTE';
   if (alaStr === 'ESCALANTE') return 'ESCALANTE';
   return `ALA ${ala}`;
 }
 
-export function formatMilitaryName(name: string): string {
+function formatMilitaryName(name: string): string {
   const upper = name.toUpperCase();
   
-  // Ranks mapping to their full extended names
+  // Ranks mapping to their abbreviations
   const ranks: Record<string, string> = {
-    'SD': 'SOLDADO',
-    'SOLDADO': 'SOLDADO',
-    'CB': 'CABO',
-    'CABO': 'CABO',
-    '3º SGT': '3º SARGENTO',
-    '3 SGT': '3º SARGENTO',
-    '3º SARGENTO': '3º SARGENTO',
-    '3 SARGENTO': '3º SARGENTO',
-    '2º SGT': '2º SARGENTO',
-    '2 SGT': '2º SARGENTO',
-    '2º SARGENTO': '2º SARGENTO',
-    '2 SARGENTO': '2º SARGENTO',
-    '1º SGT': '1º SARGENTO',
-    '1 SGT': '1º SARGENTO',
-    '1º SARGENTO': '1º SARGENTO',
-    '1 SARGENTO': '1º SARGENTO',
-    'SUBTEN': 'SUBTENENTE',
-    'SUBTENENTE': 'SUBTENENTE',
-    'ASP OF': 'ASPIRANTE',
-    'ASPIRANTE': 'ASPIRANTE',
-    'ASP': 'ASPIRANTE',
-    '2º TEN': '2º TENENTE',
-    '2 TEN': '2º TENENTE',
-    '2º TENENTE': '2º TENENTE',
-    '2 TENENTE': '2º TENENTE',
-    '1º TEN': '1º TENENTE',
-    '1 TEN': '1º TENENTE',
-    '1º TENENTE': '1º TENENTE',
-    '1 TENENTE': '1º TENENTE',
-    'CAP': 'CAPITÃO',
-    'CAPITAO': 'CAPITÃO',
-    'CAPITÃO': 'CAPITÃO',
-    'MAJ': 'MAJOR',
-    'MAJOR': 'MAJOR',
-    'TC': 'TENENTE-CORONEL',
-    'TEN CEL': 'TENENTE-CORONEL',
-    'TENENTE CORONEL': 'TENENTE-CORONEL',
-    'TENENTE-CORONEL': 'TENENTE-CORONEL',
-    'CEL': 'CORONEL',
-    'CORONEL': 'CORONEL',
-    'AL': 'ALUNO',
-    'ALUNO': 'ALUNO'
+    'SOLDADO': 'SD',
+    'CABO': 'CB',
+    '3º SARGENTO': '3º SGT',
+    '3 SARGENTO': '3º SGT',
+    '3 SGT': '3º SGT',
+    '2º SARGENTO': '2º SGT',
+    '2 SARGENTO': '2º SGT',
+    '2 SGT': '2º SGT',
+    '1º SARGENTO': '1º SGT',
+    '1 SARGENTO': '1º SGT',
+    '1 SGT': '1º SGT',
+    'SUBTENENTE': 'SUBTEN',
+    'ASP OF': 'ASP',
+    'ASPIRANTE': 'ASP',
+    '2º TENENTE': '2º TEN',
+    '2 TENENTE': '2º TEN',
+    '2 TEN': '2º TEN',
+    '1º TENENTE': '1º TEN',
+    '1 TENENTE': '1º TEN',
+    '1 TEN': '1º TEN',
+    'CAPITAO': 'CAP',
+    'CAPITÃO': 'CAP',
+    'MAJOR': 'MAJ',
+    'TENENTE-CORONEL': 'TC',
+    'TENENTE CORONEL': 'TC',
+    'TEN CEL': 'TC',
+    'CORONEL': 'CEL',
+    'ALUNO': 'AL'
   };
 
-  // Sort keys by length descending so longer keys match first
-  const sortedRanks = Object.entries(ranks).sort((a, b) => b[0].length - a[0].length);
-
-  for (const [rank, full] of sortedRanks) {
+  for (const [rank, abbr] of Object.entries(ranks)) {
     if (upper.startsWith(rank + ' ')) {
       const restOfName = upper.substring(rank.length + 1).trim();
-      return `${full} ${restOfName}`;
+      return `${abbr} ${restOfName}`;
     }
   }
 
-  for (const [rank, full] of sortedRanks) {
-    if (upper === rank) {
-      return full;
+  // Also check if it already starts with an abbreviation
+  const abbrs = Array.from(new Set(Object.values(ranks)));
+  for (const abbr of abbrs) {
+    if (upper.startsWith(abbr + ' ')) {
+      const restOfName = upper.substring(abbr.length + 1).trim();
+      return `${abbr} ${restOfName}`;
     }
   }
 
@@ -251,3 +233,4 @@ export function formatMilitaryName(name: string): string {
   if (words.length >= 2) return `${words[0]} ${words[1]}`;
   return words[0] || '';
 }
+module.exports = { formatMilitaryName };

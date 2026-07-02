@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { parseRank } from "../lib/rankUtils";
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp, doc, getDoc, query, where, getDocs } from 'firebase/firestore';
 import { UserProfile, PermutaStatus, PermutaRequest } from '../types';
@@ -77,7 +78,7 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
       
       const m = militars.find(mil => normalizeRg(mil.rg) === cleanRg);
       if (m) {
-        setRequesterName((m.rank && m.warName) ? `${m.rank} ${m.warName}` : (m.name || 'Militar'));
+        setRequesterName((m.rank && m.warName) ? `${parseRank(m.rank)} ${m.warName}` : (m.name || 'Militar'));
       } else {
         setRequesterName('Militar não encontrado');
       }
@@ -117,7 +118,7 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
       
       const m = militars.find(mil => normalizeRg(mil.rg) === cleanRg);
       if (m) {
-        setSubstituteName((m.rank && m.warName) ? `${m.rank} ${m.warName}` : (m.name || 'Militar'));
+        setSubstituteName((m.rank && m.warName) ? `${parseRank(m.rank)} ${m.warName}` : (m.name || 'Militar'));
       } else {
         setSubstituteName('Militar não encontrado');
       }

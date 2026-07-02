@@ -4,6 +4,7 @@ import { db } from '../lib/firebase';
 import { collection, query, getDocs, setDoc, doc, deleteDoc, where, onSnapshot } from 'firebase/firestore';
 import { Plus, Trash2, Calendar, Loader2, Lock, Edit2, Check, X } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { parseRank } from '../lib/rankUtils';
 
 export function normalizeRg(rg: string | number | undefined) {
   if (!rg) return '';
@@ -320,7 +321,7 @@ export function AfastamentosAlaModule({ obmContext, type }: AfastamentosAlaModul
                         <select value={editData.rg || ''} onChange={e => setEditData({...editData, rg: e.target.value})} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-700 outline-none focus:border-indigo-400">
                           <option value="">Selecione o Militar...</option>
                           {militars.filter(m => !m.obm || m.obm.toUpperCase() === obmContext.toUpperCase() || obmContext.toUpperCase() === 'GLOBAL').sort((a,b) => (a.name||'').localeCompare(b.name||'')).map(m => (
-                            <option key={m.rg} value={normalizeRg(m.rg)}>{m.rank} {m.warName || m.name} ({m.rg})</option>
+                            <option key={m.rg} value={normalizeRg(m.rg)}>{parseRank(m.rank)} {m.warName || m.name} ({m.rg})</option>
                           ))}
                         </select>
                       </td>
@@ -392,7 +393,7 @@ export function AfastamentosAlaModule({ obmContext, type }: AfastamentosAlaModul
                     <select value={newRg} onChange={e => setNewRg(e.target.value)} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-700 outline-none focus:border-indigo-400">
                       <option value="">Selecione o Militar...</option>
                       {militars.filter(m => !m.obm || m.obm.toUpperCase() === obmContext.toUpperCase() || obmContext.toUpperCase() === 'GLOBAL').sort((a,b) => (a.name||'').localeCompare(b.name||'')).map(m => (
-                        <option key={m.rg} value={normalizeRg(m.rg)}>{m.rank} {m.warName || m.name} ({m.rg})</option>
+                        <option key={m.rg} value={normalizeRg(m.rg)}>{parseRank(m.rank)} {m.warName || m.name} ({m.rg})</option>
                       ))}
                     </select>
                  </td>

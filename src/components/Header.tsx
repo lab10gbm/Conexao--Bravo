@@ -561,7 +561,7 @@ export function Header({
               </div>
 
               <div
-                className={`flex flex-col min-w-0 ${["CORONEL", "TEN CEL", "MAJOR", "CAPITÃO", "1º TEN", "2º TEN", "ASP OF", "CADETE"].includes(profile.rank?.trim()?.toUpperCase() || "") ? "ml-8 sm:ml-36" : "ml-2 sm:ml-10"}`}
+                className={`flex flex-col min-w-0 ${["CORONEL", "TENENTE CORONEL", "MAJOR", "CAPITÃO", "1º TENENTE", "2º TENENTE", "ASP OF", "CADETE"].includes(profile.rank?.trim()?.toUpperCase() || "") ? "ml-8 sm:ml-36" : "ml-2 sm:ml-10"}`}
               >
                 <div className="flex items-center gap-2">
                   <h2 className="text-[10px] sm:text-sm font-black text-[var(--color-brand-red)] uppercase tracking-[0.2em] mb-0.5 truncate">

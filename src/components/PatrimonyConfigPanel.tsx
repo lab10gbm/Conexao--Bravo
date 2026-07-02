@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { parseRank } from "../lib/rankUtils";
 import { Check } from "lucide-react";
 import { useMilitars } from "../contexts/MilitarContext";
 import { db } from "../lib/firebase";
@@ -94,21 +95,21 @@ export function PatrimonyConfigPanel({ onBack }: PatrimonyConfigPanelProps) {
                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 tracking-widest">Comandante da Unidade</label>
                <select value={globalConfig.comandanteId || ""} onChange={(e) => handleGlobalChange('comandanteId', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:border-cyan-500 transition-colors">
                  <option value="">Padrão (CEL Escarani)</option>
-                 {militars.map(m => <option key={`cmd-${m.rg}`} value={m.rg}>{m.rank} {m.warName || m.name}</option>)}
+                 {militars.map(m => <option key={`cmd-${m.rg}`} value={m.rg}>{parseRank(m.rank)} {m.warName || m.name}</option>)}
                </select>
              </div>
              <div>
                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 tracking-widest">Responsável por Bens Patrimoniais</label>
                <select value={globalConfig.patrimonioId || ""} onChange={(e) => handleGlobalChange('patrimonioId', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:border-cyan-500 transition-colors">
                  <option value="">Padrão (SGT Douglas)</option>
-                 {militars.map(m => <option key={`pat-${m.rg}`} value={m.rg}>{m.rank} {m.warName || m.name}</option>)}
+                 {militars.map(m => <option key={`pat-${m.rg}`} value={m.rg}>{parseRank(m.rank)} {m.warName || m.name}</option>)}
                </select>
              </div>
              <div>
                <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 tracking-widest">Auxiliar de Patrimônio (Opcional)</label>
                <select value={globalConfig.auxPatrimonioId || ""} onChange={(e) => handleGlobalChange('auxPatrimonioId', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:border-cyan-500 transition-colors">
                  <option value="">Nenhum</option>
-                 {militars.map(m => <option key={`auxpat-${m.rg}`} value={m.rg}>{m.rank} {m.warName || m.name}</option>)}
+                 {militars.map(m => <option key={`auxpat-${m.rg}`} value={m.rg}>{parseRank(m.rank)} {m.warName || m.name}</option>)}
                </select>
              </div>
           </div>
@@ -133,14 +134,14 @@ export function PatrimonyConfigPanel({ onBack }: PatrimonyConfigPanelProps) {
                      <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 tracking-widest">Responsável pelo Setor</label>
                      <select value={secConf.responsavelId || ""} onChange={(e) => handleSectionChange(section.id, 'responsavelId', e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-cyan-500 transition-colors shadow-sm">
                        <option value="">Selecione...</option>
-                       {militars.map(m => <option key={`resp-${section.id}-${m.rg}`} value={m.rg}>{m.rank} {m.warName || m.name}</option>)}
+                       {militars.map(m => <option key={`resp-${section.id}-${m.rg}`} value={m.rg}>{parseRank(m.rank)} {m.warName || m.name}</option>)}
                      </select>
                   </div>
                   <div className="md:col-span-4">
                      <label className="block text-[10px] font-black uppercase text-slate-500 mb-1.5 tracking-widest">Auxiliar do Setor</label>
                      <select value={secConf.auxSetorId || ""} onChange={(e) => handleSectionChange(section.id, 'auxSetorId', e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-cyan-500 transition-colors shadow-sm">
                        <option value="">Selecione...</option>
-                       {militars.map(m => <option key={`aux-${section.id}-${m.rg}`} value={m.rg}>{m.rank} {m.warName || m.name}</option>)}
+                       {militars.map(m => <option key={`aux-${section.id}-${m.rg}`} value={m.rg}>{parseRank(m.rank)} {m.warName || m.name}</option>)}
                      </select>
                   </div>
                 </div>

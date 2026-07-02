@@ -185,7 +185,7 @@ export function OfficerGrdModule({ user, obmContext, setObmContext, availableObm
 
     const dist = activeOfficers.map(m => ({
       rg: m.rg,
-      name: `${m.rank} ${m.warName || (m.name || '').split(' ')[0]}`,
+      name: `${parseRank(m.rank)} ${m.warName || (m.name || '').split(' ')[0]}`,
       quotaTotal: baseQuota,
       quotaRed: 0,
       quotaPurple: 0,

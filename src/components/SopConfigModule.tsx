@@ -481,7 +481,7 @@ export function SopConfigModule({ user, onBack }: { user: UserProfile, onBack: (
                       onChange={e => setNewMilitar({...newMilitar, rank: e.target.value})}
                       className="bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 text-sm font-bold text-slate-800 outline-none focus:border-indigo-500 focus:bg-white transition-all appearance-none"
                     >
-                      {['CORONEL', 'TEN CEL', 'MAJOR', 'CAPITÃO', '1º TEN', '2º TEN', 'SUBTEN', '1º SGT', '2º SGT', '3º SGT', 'CABO', 'SD'].map(r => (
+                      {['CORONEL', 'TENENTE CORONEL', 'MAJOR', 'CAPITÃO', '1º TENENTE', '2º TENENTE', 'SUBTENENTE', '1º SARGENTO', '2º SARGENTO', '3º SARGENTO', 'CABO', 'SOLDADO'].map(r => (
                         <option key={r} value={r}>{r}</option>
                       ))}
                     </select>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { parseRank } from '../lib/rankUtils';
 import { UserProfile } from '../types';
 import { Building2, Users, Maximize2, Minimize2, Shield } from 'lucide-react';
 import { RankInsignia } from './RankInsignia';
@@ -38,7 +39,7 @@ export function EfetivoTableObmMode({
 
     const term = search.toLowerCase();
     const matchesSearch = (m.name?.toLowerCase().includes(term) || m.warName?.toLowerCase().includes(term) || m.rg?.includes(term));
-    const matchesPosto = filters.filterPostoGrad.length === 0 || filters.filterPostoGrad.includes(m.rank || '');
+    const matchesPosto = filters.filterPostoGrad.length === 0 || filters.filterPostoGrad.includes(parseRank(m.rank || ''));
     const matchesQuadro = filters.filterQuadro.length === 0 || filters.filterQuadro.includes((m.quadro || '').split('/')[0].trim());
     const matchesObm = filters.filterObm.length === 0 || filters.filterObm.includes(normalizeObm(m.obm));
     const matchesAla = filters.filterAla.length === 0 || filters.filterAla.includes(m.ala?.toString() || '');
@@ -132,7 +133,7 @@ export function EfetivoTableObmMode({
                                if (col.id === 'rank') {
                                  return (
                                    <td key={col.id} className="p-1 sm:p-2 px-2 sm:px-4 text-[9px] sm:text-[11px] font-bold text-slate-800 uppercase">
-                                     {m.rank}
+                                     {parseRank(m.rank)}
                                    </td>
                                  );
                                }
