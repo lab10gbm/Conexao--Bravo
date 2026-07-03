@@ -11,6 +11,91 @@ export function normalizeRg(rg: string | number | undefined) {
   return String(rg).replace(/^0+/, '').replace(/\D/g, '');
 }
 
+function SearchableMilitarSelect({ 
+  value, 
+  onChange, 
+  militars, 
+  obmContext 
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  militars: any[];
+  obmContext: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const wrapperRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredMilitars = militars
+    .filter(m => !m.obm || m.obm.toUpperCase() === obmContext.toUpperCase() || obmContext.toUpperCase() === 'GLOBAL')
+    .sort((a,b) => (a.name||'').localeCompare(b.name||''));
+
+  const selectedMilitar = filteredMilitars.find(m => normalizeRg(m.rg) === value);
+  const displayValue = open 
+    ? search 
+    : (selectedMilitar ? `${parseRank(selectedMilitar.rank)} ${selectedMilitar.warName || selectedMilitar.name} (${selectedMilitar.rg})` : '');
+
+  const searchLower = search.toLowerCase();
+  const searchResults = filteredMilitars.filter(m => {
+    const text = `${parseRank(m.rank)} ${m.warName || m.name} ${m.rg}`.toLowerCase();
+    return text.includes(searchLower);
+  });
+
+  return (
+    <div ref={wrapperRef} className="relative w-full">
+      <input
+        type="text"
+        className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-700 outline-none focus:border-indigo-400"
+        placeholder="Selecione ou busque..."
+        value={displayValue}
+        onChange={(e) => {
+          setSearch(e.target.value);
+          if (!open) setOpen(true);
+        }}
+        onFocus={() => {
+          setOpen(true);
+          setSearch('');
+        }}
+      />
+      {open && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded shadow-lg max-h-48 overflow-y-auto">
+          {searchResults.length > 0 ? (
+            searchResults.map(m => {
+              const val = normalizeRg(m.rg);
+              return (
+                <div
+                  key={val}
+                  className="px-2 py-1.5 text-xs cursor-pointer hover:bg-indigo-50 text-slate-700 font-bold border-b border-slate-100 last:border-0"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    onChange(val);
+                    setOpen(false);
+                    setSearch('');
+                  }}
+                >
+                  {parseRank(m.rank)} {m.warName || m.name} ({m.rg})
+                </div>
+              );
+            })
+          ) : (
+            <div className="px-2 py-2 text-xs text-slate-500 text-center">Nenhum encontrado</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface Afastamento {
   id: string;
   rg: string;
@@ -318,12 +403,12 @@ export function AfastamentosAlaModule({ obmContext, type }: AfastamentosAlaModul
                         </select>
                       </td>
                       <td className="p-2 border-r border-slate-200">
-                        <select value={editData.rg || ''} onChange={e => setEditData({...editData, rg: e.target.value})} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-700 outline-none focus:border-indigo-400">
-                          <option value="">Selecione o Militar...</option>
-                          {militars.filter(m => !m.obm || m.obm.toUpperCase() === obmContext.toUpperCase() || obmContext.toUpperCase() === 'GLOBAL').sort((a,b) => (a.name||'').localeCompare(b.name||'')).map(m => (
-                            <option key={m.rg} value={normalizeRg(m.rg)}>{parseRank(m.rank)} {m.warName || m.name} ({m.rg})</option>
-                          ))}
-                        </select>
+                        <SearchableMilitarSelect
+                          value={editData.rg || ''}
+                          onChange={(val) => setEditData({ ...editData, rg: val })}
+                          militars={militars}
+                          obmContext={obmContext}
+                        />
                       </td>
                       <td className="p-2 border-r border-slate-200">
                         <select value={editData.situacao || 'FERIAS'} onChange={e => setEditData({...editData, situacao: e.target.value})} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400 uppercase font-bold text-slate-600">
@@ -390,12 +475,12 @@ export function AfastamentosAlaModule({ obmContext, type }: AfastamentosAlaModul
                    </select>
                  </td>
                  <td className="p-2 border-r border-slate-200">
-                    <select value={newRg} onChange={e => setNewRg(e.target.value)} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs font-bold text-slate-700 outline-none focus:border-indigo-400">
-                      <option value="">Selecione o Militar...</option>
-                      {militars.filter(m => !m.obm || m.obm.toUpperCase() === obmContext.toUpperCase() || obmContext.toUpperCase() === 'GLOBAL').sort((a,b) => (a.name||'').localeCompare(b.name||'')).map(m => (
-                        <option key={m.rg} value={normalizeRg(m.rg)}>{parseRank(m.rank)} {m.warName || m.name} ({m.rg})</option>
-                      ))}
-                    </select>
+                    <SearchableMilitarSelect
+                      value={newRg}
+                      onChange={setNewRg}
+                      militars={militars}
+                      obmContext={obmContext}
+                    />
                  </td>
                  <td className="p-2 border-r border-slate-200">
                    <select value={newSituacao} onChange={e => setNewSituacao(e.target.value)} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400 uppercase font-bold text-slate-600">

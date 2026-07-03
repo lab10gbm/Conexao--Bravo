@@ -5,7 +5,7 @@ import { ptBR } from 'date-fns/locale';
 import { UserProfile } from '../types';
 import { doc, onSnapshot, setDoc, updateDoc, query, collection, getDocs, deleteField } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { cn, formatMilitaryName, getAlaForDate, getAlaLightColor, getAlaColor } from '../lib/utils';
+import { cn, formatMilitaryName, getAlaForDate, getAlaLightColor, getAlaColor, normalizeObm } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Settings, CheckCircle2, User, AlertCircle, Save, CalendarRange, Table, ArrowUpDown, X, UserPlus, Trash2, List, Columns, Copy, Shield } from 'lucide-react';
 import { useMilitars } from '../contexts/MilitarContext';
@@ -89,12 +89,6 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
     }
     return startOfMonth(now);
   });
-  const normalizeObm = (val: string) => {
-    const v = (val || '').trim().toUpperCase();
-    if (v === '10º' || v === '10º GBM' || v === '10' || v === '10ºGBM') return '10º GBM';
-    if (v === '26º' || v === '26º GBM' || v === '26' || v === '26ºGBM') return '26º GBM';
-    return (val || '').trim();
-  };
 
   const [selectedObm, setSelectedObm] = useState<string>(() => {
      const rawUserObm = normalizeObm(user.obm || '10º GBM');
