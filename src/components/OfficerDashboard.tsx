@@ -37,7 +37,7 @@ export function OfficerDashboard({ user, obmContext }: OfficerDashboardProps) {
 
     const unsubPermutas = onSnapshot(qPermutas, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as PermutaRequest[];
-      const officerData = data.filter(p => (p.obm === obmContext || p.obm === '10º GBM') && (p.isOfficer || true));
+      const officerData = data.filter(p => (getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm))) && (p.isOfficer || true));
       setOfficerPermutas(officerData);
     }, (error) => {
       console.error('Failed to load officer permutas:', error);

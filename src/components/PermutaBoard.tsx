@@ -5,13 +5,13 @@ import { collection, query, onSnapshot, writeBatch, where, updateDoc, doc, serve
 import { PermutaRequest, PermutaStatus, UserProfile } from '../types';
 import { format, differenceInDays, startOfYear, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { getAlaColor, getAlaName, getAlaForDate, cn, calculateDeadline } from '../lib/utils';
+
 import { MessageSquare, UserCheck, Trash2, CalendarDays, X, Check, RefreshCw, ExternalLink, AlertTriangle, PenTool, Clock, Archive, ArrowLeftRight, Equal, ArrowUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useMilitars } from '../contexts/MilitarContext';
 import { RankInsignia } from './RankInsignia';
 import { useAppConfig } from '../contexts/ConfigContext';
-import { cleanUndefined } from "../lib/utils";
+
 
 interface PermutaBoardProps {
   user: UserProfile;
@@ -63,7 +63,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
         id: doc.id
       })) as PermutaRequest[];
       
-      const filteredByObm = data.filter(p => !p.obm || p.obm === obmContext || p.obm === '10º GBM');
+      const filteredByObm = data.filter(p => !p.obm || getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm)));
       
       if (adminMode) {
         setPermutas(filteredByObm);
@@ -116,7 +116,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
         id: doc.id
       })) as PermutaRequest[];
       
-      const filteredByObm = data.filter(p => !p.obm || p.obm === obmContext || p.obm === '10º GBM');
+      const filteredByObm = data.filter(p => !p.obm || getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm)));
       const filtered = adminMode ? filteredByObm : filteredByObm.filter(p => 
         p.status === PermutaStatus.ACCEPTED || 
         p.requesterId === (user?.uid || '') ||
@@ -213,7 +213,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
       const qDup = query(
         collection(db, 'permutas'),
         where('date', '==', permuta.date),
-        where('obm', '==', String(obmContext || '10º GBM'))
+        where('obm', '==', normalizeObm(String(obmContext || '10º GBM')))
       );
       const snapDup = await getDocs(qDup);
       const isDuplicate = snapDup.docs.some(docSnap => {

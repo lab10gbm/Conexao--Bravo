@@ -8,7 +8,7 @@ import { UserProfile, PermutaRequest, PermutaStatus } from '../types';
 import { ptBR } from 'date-fns/locale';
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, startOfMonth, endOfMonth, isSameMonth, isSameDay, subDays } from 'date-fns';
 import { AlertTriangle, Shield } from 'lucide-react';
-import { getAlaForDate, getAlaColor, cn } from '../lib/utils';
+
 import { useAppConfig } from '../contexts/ConfigContext';
 
 interface CalendarHighlightsProps {
@@ -52,7 +52,7 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
     const unsub = onSnapshot(q, (snapshot) => {
       if (!isMounted) return;
       const ofertas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PermutaRequest));
-      const filteredByObm = ofertas.filter(p => !p.archived && (!p.obm || p.obm === obmContext || p.obm === '10º GBM'));
+      const filteredByObm = ofertas.filter(p => !p.archived && (!p.obm || getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm))));
       setLookingForSubstitute(filteredByObm);
     }, (error) => {
       console.error("Error fetching ofertas in highlights:", error);
@@ -83,7 +83,7 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
       if (!isMounted) return;
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PermutaRequest));
       
-      const filteredByObm = data.filter(p => !p.obm || p.obm === obmContext || p.obm === '10º GBM');
+      const filteredByObm = data.filter(p => !p.obm || getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm)));
       const safeRg = String(user.rg).replace(/\D/g, '');
       
       const pending = filteredByObm.filter(p => {

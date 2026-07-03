@@ -5,13 +5,7 @@ import { collection, query, where, onSnapshot, updateDoc, doc, serverTimestamp, 
 import { db } from "../lib/firebase";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import {
-  getAlaForDate,
-  getAlaName,
-  getAlaColor,
-  cn,
-  formatMilitaryName,
-} from "../lib/utils";
+
 import { parseRank } from "../lib/rankUtils";
 import { RankInsignia } from "./RankInsignia";
 import { EscalaPrintView } from "./EscalaPrintView";
@@ -32,7 +26,7 @@ import {
 } from "lucide-react";
 
 import { motion } from "framer-motion";
-import { cleanUndefined } from "../lib/utils";
+import { cleanUndefined, getUserObmAccess, normalizeObm } from "../lib/utils";
 
 function FuncoesMultiSelect({
   selected,
@@ -308,7 +302,7 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
         ...doc.data(),
       })) as PermutaRequest[];
       const filtered = data.filter(
-        (p) => (!p.obm || p.obm === obmContext || p.obm === "10º GBM") && p.status !== "cancelled"
+        (p) => (!p.obm || getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm))) && p.status !== "cancelled"
       );
       setPermutas(filtered);
       setLoadingPermutas(false);
@@ -316,7 +310,7 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
 
     const qAfast = query(
       collection(db, "afastamentos_alas"),
-      where("obm", "==", obmContext.toUpperCase())
+      where("obm", "==", normalizeObm(obmContext))
     );
 
     const unsubAfast = onSnapshot(qAfast, (snapshot) => {

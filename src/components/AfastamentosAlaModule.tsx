@@ -3,7 +3,7 @@ import { useMilitars } from '../contexts/MilitarContext';
 import { db } from '../lib/firebase';
 import { collection, query, getDocs, setDoc, doc, deleteDoc, where, onSnapshot } from 'firebase/firestore';
 import { Plus, Trash2, Calendar, Loader2, Lock, Edit2, Check, X } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, normalizeObm, getUserObmAccess } from '../lib/utils';
 import { parseRank } from '../lib/rankUtils';
 
 export function normalizeRg(rg: string | number | undefined) {
@@ -36,8 +36,9 @@ function SearchableMilitarSelect({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const allowedObms = getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL');
   const filteredMilitars = militars
-    .filter(m => !m.obm || m.obm.toUpperCase() === obmContext.toUpperCase() || obmContext.toUpperCase() === 'GLOBAL')
+    .filter(m => !m.obm || allowedObms.includes(normalizeObm(m.obm)) || normalizeObm(obmContext) === 'GLOBAL')
     .sort((a,b) => (a.name||'').localeCompare(b.name||''));
 
   const selectedMilitar = filteredMilitars.find(m => normalizeRg(m.rg) === value);
@@ -45,10 +46,12 @@ function SearchableMilitarSelect({
     ? search 
     : (selectedMilitar ? `${parseRank(selectedMilitar.rank)} ${selectedMilitar.warName || selectedMilitar.name} (${selectedMilitar.rg})` : '');
 
-  const searchLower = search.toLowerCase();
+  const normalizeString = (str: string) => (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const searchWords = normalizeString(search).split(/\s+/).filter(Boolean);
+  
   const searchResults = filteredMilitars.filter(m => {
-    const text = `${parseRank(m.rank)} ${m.warName || m.name} ${m.rg}`.toLowerCase();
-    return text.includes(searchLower);
+    const text = normalizeString(`${m.rank} ${parseRank(m.rank)} ${m.name} ${m.warName || ''} ${m.rg}`);
+    return searchWords.every(word => text.includes(word));
   });
 
   return (
@@ -133,7 +136,7 @@ export function AfastamentosAlaModule({ obmContext, type }: AfastamentosAlaModul
 
   useEffect(() => {
     if (!obmContext) return;
-    const q = query(collection(db, 'afastamentos_alas'), where('obm', '==', obmContext.toUpperCase()));
+    const q = query(collection(db, 'afastamentos_alas'), where('obm', '==', normalizeObm(obmContext)));
     
     // Using snapshot for real-time updates
     const unsub = onSnapshot(q, (snap) => {
@@ -153,7 +156,7 @@ export function AfastamentosAlaModule({ obmContext, type }: AfastamentosAlaModul
 
   const handleAdd = async () => {
     if (!newRg || !newInicio || !newRetorno) {
-      alert("Preencha RG, Início e Retorno");
+      console.warn("Preencha RG, Início e Retorno");
       return;
     }
     
@@ -167,7 +170,7 @@ export function AfastamentosAlaModule({ obmContext, type }: AfastamentosAlaModul
         retorno: newRetorno,
         situacao: newSituacao,
         obs: newObs,
-        obm: obmContext.toUpperCase(),
+        obm: normalizeObm(obmContext),
         createdAt: new Date().toISOString()
       });
       
@@ -177,19 +180,17 @@ export function AfastamentosAlaModule({ obmContext, type }: AfastamentosAlaModul
       setNewObs('');
     } catch (e) {
       console.error(e);
-      alert("Erro ao adicionar");
+      console.warn("Erro ao adicionar");
     } finally {
       setIsAdding(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Deseja remover este afastamento?")) return;
     try {
       await deleteDoc(doc(db, 'afastamentos_alas', id));
     } catch (e) {
       console.error(e);
-      alert("Erro ao remover");
     }
   };
 
@@ -211,7 +212,6 @@ export function AfastamentosAlaModule({ obmContext, type }: AfastamentosAlaModul
       setEditData({});
     } catch (e) {
       console.error(e);
-      alert("Erro ao salvar edição");
     }
   };
 
@@ -233,7 +233,7 @@ export function AfastamentosAlaModule({ obmContext, type }: AfastamentosAlaModul
     
     // Deletar os antigos importados automaticamente
     try {
-      const q = query(collection(db, 'afastamentos_alas'), where('isAutomatic', '==', true), where('obm', '==', obmContext.toUpperCase()));
+      const q = query(collection(db, 'afastamentos_alas'), where('isAutomatic', '==', true), where('obm', '==', normalizeObm(obmContext)));
       const snap = await getDocs(q);
       for (const d of snap.docs) {
         await deleteDoc(d.ref);
@@ -298,7 +298,7 @@ export function AfastamentosAlaModule({ obmContext, type }: AfastamentosAlaModul
         if (!iniParsed && retParsed) iniParsed = retParsed;
         if (!retParsed && iniParsed) retParsed = iniParsed;
         
-        let obm = obmContext.toUpperCase();
+        let obm = normalizeObm(obmContext);
         let ala = group.ala; // Force based on requested list
         const m = militars.find(m => normalizeRg(m.rg) === normRg);
         if (m) {
@@ -324,27 +324,125 @@ export function AfastamentosAlaModule({ obmContext, type }: AfastamentosAlaModul
         }
       }
     }
-    if (!silent) alert(`Importados ${added} registros com sucesso! As alas 2, 3 e 4 foram definidas conforme a lista.`);
+    // if (!silent) alert(`Importados ${added} registros com sucesso! As alas 2, 3 e 4 foram definidas conforme a lista.`);
     setIsAdding(false);
   };
 
-  // Filtrar baseados no "type" e logic
+  // Categorizar e ordenar
   const now = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-  const filtered = afastamentos.filter(a => {
-     if (type === 'atuais') {
-       // Se o periodo atual bate com a data
-       const ini = a.inicio;
-       const ret = a.retorno;
-       return now >= ini && now <= ret;
-     } else {
-       // anual = todos, ou podemos filtrar por ano. vamos mostrar todos na tabela "Cadastro Anual"
-       return true; 
-     }
+  
+  const passados: Afastamento[] = [];
+  const atuais: Afastamento[] = [];
+  const proximos: Afastamento[] = [];
+
+  afastamentos.forEach(a => {
+    if (now > a.retorno) {
+      passados.push(a);
+    } else if (now >= a.inicio && now <= a.retorno) {
+      atuais.push(a);
+    } else {
+      proximos.push(a);
+    }
   });
+
+  const sortByInicioDesc = (a: Afastamento, b: Afastamento) => b.inicio.localeCompare(a.inicio);
+  passados.sort((a,b) => b.retorno.localeCompare(a.retorno)); // Recentes primeiro
+  atuais.sort(sortByInicioDesc);
+  proximos.sort(sortByInicioDesc);
+
+  const filtered = type === 'atuais' ? atuais : afastamentos;
 
   if (type === 'atuais' && filtered.length === 0) {
       return null;
   }
+
+  const renderRow = (a: Afastamento) => {
+    const militar = militars.find(m => normalizeRg(m.rg) === a.rg);
+    
+    if (editingId === a.id) {
+      return (
+        <tr key={a.id} className="bg-indigo-50/50">
+          <td className="p-2 border-r border-slate-200">
+            <input type="date" value={editData.inicio || ''} onChange={e => setEditData({...editData, inicio: e.target.value})} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400" />
+          </td>
+          <td className="p-2 border-r border-slate-200">
+            <input type="date" value={editData.retorno || ''} onChange={e => setEditData({...editData, retorno: e.target.value})} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400" />
+          </td>
+          <td className="p-2 border-r border-slate-200">
+            <select value={editData.ala || '1'} onChange={e => setEditData({...editData, ala: e.target.value})} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400 uppercase">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="EXP">EXP</option>
+            </select>
+          </td>
+          <td className="p-2 border-r border-slate-200">
+            <SearchableMilitarSelect
+              value={editData.rg || ''}
+              onChange={(val) => setEditData({ ...editData, rg: val })}
+              militars={militars}
+              obmContext={obmContext}
+            />
+          </td>
+          <td className="p-2 border-r border-slate-200">
+            <select value={editData.situacao || 'FERIAS'} onChange={e => setEditData({...editData, situacao: e.target.value})} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400 uppercase font-bold text-slate-600">
+              {SITUACOES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </td>
+          <td className="p-2 border-r border-slate-200">
+            <input type="text" placeholder="Obs..." value={editData.obs || ''} onChange={e => setEditData({...editData, obs: e.target.value})} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400" />
+          </td>
+          <td className="p-2 text-center flex items-center justify-center gap-1">
+            <button onClick={saveEdit} className="text-emerald-500 hover:bg-emerald-50 p-1 rounded transition-colors">
+              <Check className="w-4 h-4" />
+            </button>
+            <button onClick={cancelEditing} className="text-slate-400 hover:bg-slate-100 p-1 rounded transition-colors">
+              <X className="w-4 h-4" />
+            </button>
+          </td>
+        </tr>
+      );
+    }
+
+    return (
+      <tr key={a.id} className="hover:bg-slate-50">
+        <td className="px-4 py-2 border-r border-slate-100 font-mono text-slate-600">{a.inicio}</td>
+        <td className="px-4 py-2 border-r border-slate-100 font-mono text-slate-600">{a.retorno}</td>
+        <td className="px-4 py-2 border-r border-slate-100 font-black text-slate-700 text-center">{a.ala}</td>
+        <td className="px-4 py-2 border-r border-slate-100">
+          <div className="flex flex-col">
+            <span className="font-bold text-slate-700">{militar ? `${militar.rank} ${militar.warName || militar.name}` : a.rg}</span>
+            {militar && <span className="font-mono text-[9px] text-slate-400">{a.rg}</span>}
+          </div>
+        </td>
+        <td className="px-4 py-2 border-r border-slate-100 font-black text-slate-600">{a.situacao}</td>
+        <td className="px-4 py-2 border-r border-slate-100 font-mono text-[10px] text-slate-500 max-w-[200px] truncate" title={a.obs}>{a.obs}</td>
+        <td className="px-4 py-2 border-slate-100 text-center flex items-center justify-center gap-1">
+          <button onClick={() => startEditing(a)} className="text-slate-300 hover:text-indigo-500 transition-colors p-1 rounded-md hover:bg-indigo-50" title="Editar">
+            <Edit2 className="w-4 h-4" />
+          </button>
+          <button onClick={() => handleDelete(a.id)} className="text-slate-300 hover:text-rose-500 transition-colors p-1 rounded-md hover:bg-rose-50" title="Excluir">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </td>
+      </tr>
+    );
+  };
+
+  const renderGroup = (list: Afastamento[], title: string, badgeColor: string) => {
+    if (list.length === 0) return null;
+    return (
+      <>
+        <tr className="bg-slate-50/80 border-y border-slate-200">
+          <td colSpan={7} className="px-4 py-2 font-black text-[10px] uppercase tracking-widest text-slate-500">
+             {title} <span className={cn("ml-2 px-2 py-0.5 rounded-full text-[10px]", badgeColor)}>{list.length}</span>
+          </td>
+        </tr>
+        {list.map(a => renderRow(a))}
+      </>
+    );
+  };
 
   return (
     <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col mb-6">
@@ -380,80 +478,14 @@ export function AfastamentosAlaModule({ obmContext, type }: AfastamentosAlaModul
               <tr><td colSpan={7} className="p-4 text-center text-slate-400 font-bold uppercase tracking-widest animate-pulse"><Loader2 className="w-4 h-4 mx-auto animate-spin" /></td></tr>
             ) : filtered.length === 0 && type !== 'anual' ? (
               <tr><td colSpan={7} className="p-4 text-center text-slate-400 font-bold uppercase tracking-widest">Nenhum militar afastado</td></tr>
+            ) : type === 'anual' ? (
+              <>
+                {renderGroup(atuais, 'Em Andamento', 'bg-emerald-100 text-emerald-700')}
+                {renderGroup(proximos, 'Próximos Afastamentos', 'bg-indigo-100 text-indigo-700')}
+                {renderGroup(passados, 'Histórico (Passados)', 'bg-slate-200 text-slate-700')}
+              </>
             ) : (
-              filtered.map(a => {
-                const militar = militars.find(m => normalizeRg(m.rg) === a.rg);
-                
-                if (editingId === a.id) {
-                  return (
-                    <tr key={a.id} className="bg-indigo-50/50">
-                      <td className="p-2 border-r border-slate-200">
-                        <input type="date" value={editData.inicio || ''} onChange={e => setEditData({...editData, inicio: e.target.value})} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400" />
-                      </td>
-                      <td className="p-2 border-r border-slate-200">
-                        <input type="date" value={editData.retorno || ''} onChange={e => setEditData({...editData, retorno: e.target.value})} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400" />
-                      </td>
-                      <td className="p-2 border-r border-slate-200">
-                        <select value={editData.ala || '1'} onChange={e => setEditData({...editData, ala: e.target.value})} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400 uppercase">
-                          <option value="1">1</option>
-                          <option value="2">2</option>
-                          <option value="3">3</option>
-                          <option value="4">4</option>
-                          <option value="EXP">EXP</option>
-                        </select>
-                      </td>
-                      <td className="p-2 border-r border-slate-200">
-                        <SearchableMilitarSelect
-                          value={editData.rg || ''}
-                          onChange={(val) => setEditData({ ...editData, rg: val })}
-                          militars={militars}
-                          obmContext={obmContext}
-                        />
-                      </td>
-                      <td className="p-2 border-r border-slate-200">
-                        <select value={editData.situacao || 'FERIAS'} onChange={e => setEditData({...editData, situacao: e.target.value})} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400 uppercase font-bold text-slate-600">
-                          {SITUACOES.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      </td>
-                      <td className="p-2 border-r border-slate-200">
-                        <input type="text" placeholder="Obs..." value={editData.obs || ''} onChange={e => setEditData({...editData, obs: e.target.value})} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400" />
-                      </td>
-                      <td className="p-2 text-center flex items-center justify-center gap-1">
-                        <button onClick={saveEdit} className="text-emerald-500 hover:bg-emerald-50 p-1 rounded transition-colors">
-                          <Check className="w-4 h-4" />
-                        </button>
-                        <button onClick={cancelEditing} className="text-slate-400 hover:bg-slate-100 p-1 rounded transition-colors">
-                          <X className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                }
-
-                return (
-                  <tr key={a.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-2 border-r border-slate-100 font-mono text-slate-600">{a.inicio}</td>
-                    <td className="px-4 py-2 border-r border-slate-100 font-mono text-slate-600">{a.retorno}</td>
-                    <td className="px-4 py-2 border-r border-slate-100 font-black text-slate-700 text-center">{a.ala}</td>
-                    <td className="px-4 py-2 border-r border-slate-100">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-slate-700">{militar ? `${militar.rank} ${militar.warName || militar.name}` : a.rg}</span>
-                        {militar && <span className="font-mono text-[9px] text-slate-400">{a.rg}</span>}
-                      </div>
-                    </td>
-                    <td className="px-4 py-2 border-r border-slate-100 font-black text-slate-600">{a.situacao}</td>
-                    <td className="px-4 py-2 border-r border-slate-100 font-mono text-[10px] text-slate-500 max-w-[200px] truncate" title={a.obs}>{a.obs}</td>
-                    <td className="px-4 py-2 border-slate-100 text-center flex items-center justify-center gap-1">
-                      <button onClick={() => startEditing(a)} className="text-slate-300 hover:text-indigo-500 transition-colors p-1 rounded-md hover:bg-indigo-50" title="Editar">
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleDelete(a.id)} className="text-slate-300 hover:text-rose-500 transition-colors p-1 rounded-md hover:bg-rose-50" title="Excluir">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })
+              filtered.map(a => renderRow(a))
             )}
 
             {/* Nova Linha para Cadastro Anual */}

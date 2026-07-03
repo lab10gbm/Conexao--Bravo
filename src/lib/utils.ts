@@ -7,14 +7,18 @@ export function normalizeObm(obm?: string): string {
   if (!obm) return '10º GBM';
   const clean = obm.toString().trim().toUpperCase();
   
-  const sede10Variations = ['10', '10º', '10 GBM', '10º GBM', '10ºGBM', '10GBM', 'OBM', '10º GBM - SEDE', '10º GBM SEDE', '10 GBM SEDE', '10º GBM-SEDE', '10º GBM - ANGRA DOS REIS', '10º GBM ANGRA DOS REIS'];
-  if (sede10Variations.includes(clean)) return '10º GBM';
-  
-  const sede26Variations = ['26', '26º', '26 GBM', '26º GBM', '26ºGBM', '26GBM', '26º GBM - SEDE', '26º GBM - PARATY'];
-  if (sede26Variations.includes(clean)) return '26º GBM';
+  if (clean.includes('1/10')) return '1/10';
+  if (clean.includes('2/10')) return '2/10';
+  if (clean.includes('3/10')) return '3/10';
+  if (clean.includes('4/10')) return '4/10';
+  if (clean.includes('1/26')) return '1/26';
 
-  if (['1/26', '1 / 26', '1/26 - MANGARATIBA / PARATY', '1/26 GBM'].includes(clean)) return '1/26';
-  
+  const sede26Variations = ['26', '26º', '26 GBM', '26º GBM', '26ºGBM', '26GBM', '26º GBM - SEDE', '26º GBM - PARATY'];
+  if (sede26Variations.includes(clean) || clean.includes('26º') || clean.includes('26 GBM')) return '26º GBM';
+
+  const sede10Variations = ['10', '10º', '10 GBM', '10º GBM', '10ºGBM', '10GBM', 'OBM', '10º GBM - SEDE', '10º GBM SEDE', '10 GBM SEDE', '10º GBM-SEDE', '10º GBM - ANGRA DOS REIS', '10º GBM ANGRA DOS REIS'];
+  if (sede10Variations.includes(clean) || clean.includes('10º') || clean.includes('10 GBM')) return '10º GBM';
+
   return clean;
 }
 

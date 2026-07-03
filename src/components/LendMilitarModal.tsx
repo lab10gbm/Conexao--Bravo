@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { UserProfile } from '../types';
 import { GROUPS } from '../constants';
+import { normalizeObm } from '../lib/utils';
 
 interface LendMilitarModalProps {
   lendingMilitar: UserProfile;
@@ -27,8 +28,8 @@ export function LendMilitarModal({ lendingMilitar, onClose, onLendConfirm, isLen
 
           <div className="flex flex-col gap-2 max-h-64 overflow-y-auto mb-6 pr-2">
              {GROUPS.map(g => {
-                const isOriginal = lendingMilitar.obm === g.id || (!lendingMilitar.obm && g.id === '10º GBM');
-                const isCurrent = (lendingMilitar.lentTo || lendingMilitar.obm || '10º GBM') === g.id;
+                const isOriginal = normalizeObm(lendingMilitar.obm) === normalizeObm(g.id);
+                const isCurrent = normalizeObm(lendingMilitar.lentTo || lendingMilitar.obm) === normalizeObm(g.id);
                 const isSelected = selectedLendGroup === g.id;
 
                 return (

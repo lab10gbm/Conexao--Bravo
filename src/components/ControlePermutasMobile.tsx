@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserProfile, PermutaRequest, PermutaStatus } from '../types';
 import { Check, X, Star, CalendarDays, Undo2, ArrowRightLeft, Activity, Users, Loader2, ChevronDown, ChevronUp, FastForward, Info, Eye } from 'lucide-react';
-import { cn, getAlaForDate, getOppositeAla } from '../lib/utils';
+
 import { RankInsignia } from './RankInsignia';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot, updateDoc, doc } from 'firebase/firestore';
@@ -10,7 +10,7 @@ import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useMilitars } from '../contexts/MilitarContext';
 import { isOfficer } from '../lib/rankUtils';
-import { cleanUndefined } from "../lib/utils";
+
 
 interface ControlePermutasMobileProps {
   user: UserProfile;
@@ -223,7 +223,7 @@ export function ControlePermutasMobile({ user, obmContext }: ControlePermutasMob
       
       // Filter logically: same OBM, BOTH signed
       const filtered = data.filter(p => 
-        (p.obm === obmContext || p.obm === '10º GBM' || !p.obm) && 
+        (getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm)) || !p.obm) && 
         p.requesterSigned && 
         p.substituteSigned
       );
