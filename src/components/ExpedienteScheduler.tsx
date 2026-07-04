@@ -3,7 +3,7 @@ import { parseRank } from "../lib/rankUtils";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { UserProfile } from '../types';
-import { doc, onSnapshot, setDoc, updateDoc, query, collection, getDocs, deleteField } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, updateDoc, query, collection, getDocs, deleteField, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { cn, formatMilitaryName, getAlaForDate, getAlaLightColor, getAlaColor, normalizeObm } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -25,6 +25,14 @@ interface SwapRequest {
   toDay: string;
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
+}
+
+interface Afastamento {
+  id: string;
+  rg: string;
+  inicio: string;
+  retorno: string;
+  situacao: string;
 }
 
 interface ExpedienteData {
@@ -100,6 +108,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   const [data, setData] = useState<ExpedienteData>({ requirements: {}, selections: {}, userNames: {}, sectors: {} });
   const [loading, setLoading] = useState(true);
   const [expedienteUsers, setExpedienteUsers] = useState<UserProfile[]>([]);
+  const [afastamentos, setAfastamentos] = useState<Afastamento[]>([]);
   
   useEffect(() => {
     const usersList: UserProfile[] = [];
@@ -341,6 +350,21 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
     if (obmContext && obmContext !== 'GLOBAL') {
       setSelectedObm(obmContext.trim());
     }
+  }, [obmContext]);
+
+  useEffect(() => {
+    if (!obmContext) return;
+    const q = query(collection(db, 'afastamentos_alas'), where('obm', '==', normalizeObm(obmContext)));
+    const unsub = onSnapshot(q, (snap) => {
+      const data: Afastamento[] = [];
+      snap.forEach(doc => {
+         data.push({ id: doc.id, ...doc.data() } as Afastamento);
+      });
+      setAfastamentos(data);
+    }, (err) => {
+      console.error("Error fetching afastamentos:", err);
+    });
+    return () => unsub();
   }, [obmContext]);
 
   const normalizedObm = selectedObm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
@@ -1233,11 +1257,14 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                  
                                                  const isSwapDay = !isEscalantePref && data.swapRequests?.some(r => r.rg === rg && r.status === 'pending' && (r.fromDay === dayStr || r.toDay === dayStr));
                                                  
+                                                 const afastamentoAtivo = !isEscalantePref && afastamentos.find(a => a.rg === rg && dayStr >= a.inicio && dayStr <= a.retorno);
+                                                 const cellCanEdit = canEdit && !afastamentoAtivo;
+                                                 
                                                  return (
                                                      <td 
                                                          key={`${dayStr}-${rg}`} 
                                                          onClick={() => {
-                                                             if (canEdit) {
+                                                             if (cellCanEdit) {
                                                                  handleCycleCellStatus(rg, dayStr);
                                                              }
                                                          }}
@@ -1245,31 +1272,40 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                              "py-1 px-1 border-r border-slate-100 text-center relative select-none group",
                                                              isPreferredDate && !isSelected && !isEscalantePref ? "bg-red-50/70 border-r-red-100" : "",
                                                              isSwapDay ? "bg-orange-50 border-orange-200 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.3)] z-10" : "",
-                                                             isGrd ? "bg-emerald-50/50" : "",
-                                                             canEdit ? "cursor-pointer hover:bg-indigo-200 hover:shadow-inner" : "cursor-default hover:bg-slate-100"
+                                                             isGrd && !afastamentoAtivo ? "bg-emerald-50/50" : "",
+                                                             cellCanEdit ? "cursor-pointer hover:bg-indigo-200 hover:shadow-inner" : "cursor-default hover:bg-slate-100",
+                                                             afastamentoAtivo && "bg-orange-50/80 cursor-not-allowed"
                                                          )}
                                                      >
-                                                         {isSelected && (
-                                                             <div className={cn(
-                                                                 "mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center shadow-sm relative z-10",
-                                                                 isEscalantePref ? "bg-red-500 text-white border border-red-600 shadow-red-200" :
-                                                                 isSwapDay ? "bg-orange-500 text-white shadow-orange-200 border border-orange-600 animate-pulse" :
-                                                                 isTargetUser ? "bg-indigo-500 text-white" : "bg-slate-600 text-white"
-                                                             )}>
-                                                                 <span className={cn("text-[10px] font-black leading-none pt-[1px]", isEscalantePref && "text-white")}>
-                                                                     {isEscalantePref ? '★' : 'X'}
-                                                                 </span>
+                                                         {afastamentoAtivo ? (
+                                                             <div className="mx-auto w-[90%] h-5 sm:h-6 px-0.5 rounded flex items-center justify-center bg-orange-100 text-orange-700 border border-orange-200 shadow-sm relative z-10 overflow-hidden" title={afastamentoAtivo.situacao}>
+                                                                 <span className="text-[7px] font-black leading-none uppercase truncate">{afastamentoAtivo.situacao}</span>
                                                              </div>
-                                                         )}
-                                                         {isExp && (
-                                                             <div className="mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm relative z-10">
-                                                                 <span className="text-[8px] font-black leading-none">EXP</span>
-                                                             </div>
-                                                         )}
-                                                         {isGrd && !isSelected && !isExp && (
-                                                            <div className="absolute inset-0 flex items-center justify-center opacity-40 pointer-events-none group-hover:opacity-20 transition-opacity">
-                                                                <span data-no-copy="true" className="text-[8px] font-black text-emerald-600 bg-emerald-100/50 px-1 rounded border border-emerald-200 shadow-sm">GRD</span>
-                                                            </div>
+                                                         ) : (
+                                                             <>
+                                                                 {isSelected && (
+                                                                     <div className={cn(
+                                                                         "mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center shadow-sm relative z-10",
+                                                                         isEscalantePref ? "bg-red-500 text-white border border-red-600 shadow-red-200" :
+                                                                         isSwapDay ? "bg-orange-500 text-white shadow-orange-200 border border-orange-600 animate-pulse" :
+                                                                         isTargetUser ? "bg-indigo-500 text-white" : "bg-slate-600 text-white"
+                                                                     )}>
+                                                                         <span className={cn("text-[10px] font-black leading-none pt-[1px]", isEscalantePref && "text-white")}>
+                                                                             {isEscalantePref ? '★' : 'X'}
+                                                                         </span>
+                                                                     </div>
+                                                                 )}
+                                                                 {isExp && (
+                                                                     <div className="mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm relative z-10">
+                                                                         <span className="text-[8px] font-black leading-none">EXP</span>
+                                                                     </div>
+                                                                 )}
+                                                                 {isGrd && !isSelected && !isExp && (
+                                                                    <div className="absolute inset-0 flex items-center justify-center opacity-40 pointer-events-none group-hover:opacity-20 transition-opacity">
+                                                                        <span data-no-copy="true" className="text-[8px] font-black text-emerald-600 bg-emerald-100/50 px-1 rounded border border-emerald-200 shadow-sm">GRD</span>
+                                                                    </div>
+                                                                 )}
+                                                             </>
                                                          )}
                                                          {!isSelected && !isExp && isSwapDay && (
                                                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-80">
@@ -1364,11 +1400,14 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                              const isPreferredDate = !isEscalantePref && safeArr(data.selections['ESCALANTE_PREF']).includes(dayStr);
                                              const isSwapDay = !isEscalantePref && data.swapRequests?.some(r => r.rg === rg && r.status === 'pending' && (r.fromDay === dayStr || r.toDay === dayStr));
                                              
+                                             const afastamentoAtivo = !isEscalantePref && afastamentos.find(a => a.rg === rg && dayStr >= a.inicio && dayStr <= a.retorno);
+                                             const cellCanEdit = canEdit && !afastamentoAtivo;
+
                                              return (
                                                  <td 
                                                      key={dayStr} 
                                                      onClick={() => {
-                                                         if (canEdit) {
+                                                         if (cellCanEdit) {
                                                              handleCycleCellStatus(rg, dayStr);
                                                          }
                                                      }}
@@ -1378,31 +1417,40 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                          isWeekend && !isPreferredDate ? "bg-slate-50/50" : "",
                                                          isEven && !isPreferredDate && !isEscalantePref ? "bg-slate-50/30" : "",
                                                          isSwapDay ? "bg-orange-50 border-orange-200 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.3)] z-10" : "",
-                                                         isGrd ? "bg-emerald-50/30" : "",
-                                                         canEdit ? "cursor-pointer hover:bg-indigo-200 hover:shadow-inner" : "hover:bg-slate-100"
+                                                         isGrd && !afastamentoAtivo ? "bg-emerald-50/30" : "",
+                                                         cellCanEdit ? "cursor-pointer hover:bg-indigo-200 hover:shadow-inner" : "hover:bg-slate-100",
+                                                         afastamentoAtivo && "bg-orange-50/80 cursor-not-allowed"
                                                      )}
                                                  >
-                                                     {isSelected && (
-                                                        <div className={cn(
-                                                            "mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center shadow-sm relative z-10",
-                                                            isEscalantePref ? "bg-red-500 text-white border border-red-600 shadow-red-200" :
-                                                            isSwapDay ? "bg-orange-500 text-white shadow-orange-200 border border-orange-600 animate-pulse" :
-                                                            isTargetUser ? "bg-indigo-500 text-white" : "bg-slate-600 text-white"
-                                                        )}>
-                                                            <span className={cn("text-[10px] font-black leading-none pt-[1px]", isEscalantePref && "text-white")}>
-                                                                {isEscalantePref ? '★' : 'X'}
-                                                            </span>
-                                                        </div>
-                                                     )}
-                                                     {isExp && (
-                                                         <div className="mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm relative z-10">
-                                                             <span className="text-[8px] font-black leading-none">EXP</span>
+                                                     {afastamentoAtivo ? (
+                                                         <div className="mx-auto w-[90%] h-5 sm:h-6 px-0.5 rounded flex items-center justify-center bg-orange-100 text-orange-700 border border-orange-200 shadow-sm relative z-10 overflow-hidden" title={afastamentoAtivo.situacao}>
+                                                             <span className="text-[7px] font-black leading-none uppercase truncate">{afastamentoAtivo.situacao}</span>
                                                          </div>
-                                                     )}
-                                                     {!isSelected && !isExp && isGrd && (
-                                                         <div className="absolute inset-0 flex items-center justify-center opacity-40 pointer-events-none group-hover:opacity-20 transition-opacity">
-                                                             <span className="text-[8px] font-black text-emerald-600 bg-emerald-100/50 px-1 rounded border border-emerald-200 shadow-sm">GRD</span>
-                                                         </div>
+                                                     ) : (
+                                                         <>
+                                                             {isSelected && (
+                                                                <div className={cn(
+                                                                    "mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center shadow-sm relative z-10",
+                                                                    isEscalantePref ? "bg-red-500 text-white border border-red-600 shadow-red-200" :
+                                                                    isSwapDay ? "bg-orange-500 text-white shadow-orange-200 border border-orange-600 animate-pulse" :
+                                                                    isTargetUser ? "bg-indigo-500 text-white" : "bg-slate-600 text-white"
+                                                                )}>
+                                                                    <span className={cn("text-[10px] font-black leading-none pt-[1px]", isEscalantePref && "text-white")}>
+                                                                        {isEscalantePref ? '★' : 'X'}
+                                                                    </span>
+                                                                </div>
+                                                             )}
+                                                             {isExp && (
+                                                                 <div className="mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm relative z-10">
+                                                                     <span className="text-[8px] font-black leading-none">EXP</span>
+                                                                 </div>
+                                                             )}
+                                                             {!isSelected && !isExp && isGrd && (
+                                                                 <div className="absolute inset-0 flex items-center justify-center opacity-40 pointer-events-none group-hover:opacity-20 transition-opacity">
+                                                                     <span className="text-[8px] font-black text-emerald-600 bg-emerald-100/50 px-1 rounded border border-emerald-200 shadow-sm">GRD</span>
+                                                                 </div>
+                                                             )}
+                                                         </>
                                                      )}
                                                      {!isSelected && !isExp && isSwapDay && (
                                                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-80">
@@ -1526,7 +1574,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                   const isSelected = u && safeArr(data.selections[u.rg || u.uid]).includes(dayStr);
                                                   const isExp = u && safeArr(data.expedienteDays?.[u.rg || u.uid]).includes(dayStr);
                                                   const isGrd = u && data.grdData?.[dayStr]?.includes(u.rg || u.uid);
-                                                  const canClick = u && (isAdmin || user.isEscalante);
+                                                  const afastamentoAtivo = u ? afastamentos.find(a => a.rg === (u.rg || u.uid) && dayStr >= a.inicio && dayStr <= a.retorno) : null;
+                                                  const canClick = u && (isAdmin || user.isEscalante) && !afastamentoAtivo;
                                                   return (
                                                       <td 
                                                           key={u ? (u.rg || u.uid) : `empty-${i}`} 
@@ -1539,16 +1588,25 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                             "py-1.5 px-3 border-r-2 border-slate-200 text-center text-[11px] font-black transition-colors", 
                                                             isWeekend && "border-amber-300/50", 
                                                             canClick && "cursor-pointer hover:bg-slate-100",
-                                                            isGrd && "bg-emerald-50 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.2)]"
+                                                            isGrd && !afastamentoAtivo && "bg-emerald-50 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.2)]",
+                                                            afastamentoAtivo && "bg-orange-50 cursor-not-allowed"
                                                           )}
                                                       >
-                                                          {isSelected && <span className="inline-flex items-center justify-center text-red-600 font-bold mx-1 bg-red-50 px-2 py-0.5 rounded whitespace-nowrap min-w-[38px]">SV.</span>}
-                                                          {isExp && <span className="inline-flex items-center justify-center text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded mx-1 whitespace-nowrap min-w-[38px]">EXP.</span>}
-                                                            {isGrd && (
-                                                              <span data-no-copy="true" className="text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded mx-0.5 border border-emerald-200 shadow-sm text-[8px] font-black uppercase tracking-tighter flex items-center gap-0.5">
-                                                                <Shield className="w-2 h-2 fill-emerald-500" /> GRD
+                                                          {afastamentoAtivo ? (
+                                                              <span className="inline-flex items-center justify-center text-orange-700 bg-orange-100 px-2 py-0.5 rounded mx-1 whitespace-nowrap min-w-[38px] text-[9px] uppercase tracking-tighter border border-orange-200">
+                                                                {afastamentoAtivo.situacao}
                                                               </span>
-                                                            )}
+                                                          ) : (
+                                                              <>
+                                                                  {isSelected && <span className="inline-flex items-center justify-center text-red-600 font-bold mx-1 bg-red-50 px-2 py-0.5 rounded whitespace-nowrap min-w-[38px]">SV.</span>}
+                                                                  {isExp && <span className="inline-flex items-center justify-center text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded mx-1 whitespace-nowrap min-w-[38px]">EXP.</span>}
+                                                                  {isGrd && (
+                                                                    <span data-no-copy="true" className="text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded mx-0.5 border border-emerald-200 shadow-sm text-[8px] font-black uppercase tracking-tighter flex items-center gap-0.5">
+                                                                      <Shield className="w-2 h-2 fill-emerald-500" /> GRD
+                                                                    </span>
+                                                                  )}
+                                                              </>
+                                                          )}
                                                       </td>
                                                   );
                                               })}

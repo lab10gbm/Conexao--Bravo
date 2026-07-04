@@ -101,8 +101,10 @@ export interface RasOpportunity {
   date: string;
   duration: 12 | 24;
   description?: string;
+  local?: string;
   functions: string[]; // Required functions
-  vacancies: number;
+  vacancies?: number;
+  functionVacancies?: { [key: string]: number };
   status: 'open' | 'closed' | 'completed';
   createdBy: string;
   createdAt: number;

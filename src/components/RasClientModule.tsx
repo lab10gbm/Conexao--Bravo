@@ -8,13 +8,11 @@ import { getAuth } from 'firebase/auth';
 import { parsePromotionDate, ALL_RANKS_IN_ORDER, parseRank } from '../lib/rankUtils';
 
 const availableFunctions = [
-  { id: 'ativoCondutor', label: 'Condutor (Geral)' },
   { id: 'condutorAbt', label: 'Condutor ABT' },
   { id: 'condutorAbsl', label: 'Condutor ABSL' },
   { id: 'condutorArc', label: 'Condutor ARC' },
   { id: 'condutorAse', label: 'Condutor ASE' },
   { id: 'condutorAr', label: 'Condutor AR' },
-  { id: 'ativoChefeGua', label: 'Chefe de Guarnição' },
   { id: 'chefeAbt', label: 'Chefe ABT' },
   { id: 'chefeAbsl', label: 'Chefe ABSL' },
   { id: 'ativoMaritimo', label: 'Marítimo' },
@@ -174,7 +172,12 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
                   <div className="flex flex-col justify-between gap-4 border-b-2 border-slate-50 pb-4 mb-4">
                     <div>
                       <h3 className="font-black text-slate-800 text-xl">{opp.date.split('-').reverse().join('/')}</h3>
-                      <div className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-widest">
+                      {opp.local && (
+                        <div className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-widest bg-slate-100 w-max px-2 py-1 rounded">
+                          Local: {opp.local}
+                        </div>
+                      )}
+                      <div className="text-xs font-bold text-slate-500 mt-2 uppercase tracking-widest">
                         {opp.description || 'Serviço de Reforço'}
                       </div>
                       
@@ -183,7 +186,7 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
                           <Clock className="w-3.5 h-3.5 text-amber-500" /> {opp.duration} Horas
                         </div>
                         <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
-                          <Users className="w-3.5 h-3.5 text-indigo-500" /> {opp.vacancies} Vagas
+                          <Users className="w-3.5 h-3.5 text-indigo-500" /> {opp.functionVacancies ? Object.values(opp.functionVacancies).reduce((a, b) => a + b, 0) : opp.vacancies || 0} Vagas
                         </div>
                       </div>
                     </div>
@@ -230,7 +233,7 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
                               <div className="flex flex-col gap-2">
                                 {sortedApps.map((app, index) => (
                                   <div key={app.id} className="p-4 border-b border-slate-100 last:border-0 flex items-center justify-between bg-[#ffeceb] hover:bg-[#ffe1e0] transition-colors rounded-lg shadow-sm relative">
-                                    {index < (opp.vacancies || 1) && app.status === 'applied' && (
+                                    {index < (opp.functionVacancies?.[f] || opp.vacancies || 1) && app.status === 'applied' && (
                                       <div className="absolute -top-2 left-4 bg-emerald-500 text-white text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded shadow-sm border border-emerald-600 z-10">
                                         Eleito (Prévia)
                                       </div>

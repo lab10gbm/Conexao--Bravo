@@ -444,9 +444,54 @@ export function AfastamentosAlaModule({ obmContext, type }: AfastamentosAlaModul
     );
   };
 
+  const renderAddRow = () => {
+    if (type !== 'anual') return null;
+    return (
+      <tr className="bg-indigo-50/30">
+        <td className="p-2 border-r border-slate-200">
+          <input type="date" value={newInicio} onChange={e => setNewInicio(e.target.value)} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400" />
+        </td>
+        <td className="p-2 border-r border-slate-200">
+          <input type="date" value={newRetorno} onChange={e => setNewRetorno(e.target.value)} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400" />
+        </td>
+        <td className="p-2 border-r border-slate-200">
+          <select value={newAla} onChange={e => setNewAla(e.target.value)} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400 uppercase">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="EXP">EXP</option>
+          </select>
+        </td>
+        <td className="p-2 border-r border-slate-200">
+           <SearchableMilitarSelect
+             value={newRg}
+             onChange={setNewRg}
+             militars={militars}
+             obmContext={obmContext}
+           />
+        </td>
+        <td className="p-2 border-r border-slate-200">
+          <select value={newSituacao} onChange={e => setNewSituacao(e.target.value)} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400 uppercase font-bold text-slate-600">
+            {SITUACOES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </td>
+        <td className="p-2 border-r border-slate-200">
+          <input type="text" placeholder="Obs..." value={newObs} onChange={e => setNewObs(e.target.value)} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400" />
+        </td>
+        <td className="p-2 text-center">
+          <button onClick={handleAdd} disabled={isAdding} className="w-8 h-8 mx-auto bg-indigo-600 text-white rounded flex items-center justify-center hover:bg-indigo-700 disabled:opacity-50 shadow-sm">
+            {isAdding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+          </button>
+        </td>
+      </tr>
+    );
+  };
+
   return (
     <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col mb-6">
       <div className={cn(
+
         "p-4 border-b flex items-center justify-between",
         type === 'atuais' ? "bg-rose-50 border-rose-100" : "bg-emerald-50 border-emerald-100"
       )}>
@@ -474,6 +519,7 @@ export function AfastamentosAlaModule({ obmContext, type }: AfastamentosAlaModul
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs">
+            {renderAddRow()}
             {loading ? (
               <tr><td colSpan={7} className="p-4 text-center text-slate-400 font-bold uppercase tracking-widest animate-pulse"><Loader2 className="w-4 h-4 mx-auto animate-spin" /></td></tr>
             ) : filtered.length === 0 && type !== 'anual' ? (
@@ -489,46 +535,7 @@ export function AfastamentosAlaModule({ obmContext, type }: AfastamentosAlaModul
             )}
 
             {/* Nova Linha para Cadastro Anual */}
-            {type === 'anual' && (
-               <tr className="bg-indigo-50/30">
-                 <td className="p-2 border-r border-slate-200">
-                   <input type="date" value={newInicio} onChange={e => setNewInicio(e.target.value)} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400" />
-                 </td>
-                 <td className="p-2 border-r border-slate-200">
-                   <input type="date" value={newRetorno} onChange={e => setNewRetorno(e.target.value)} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400" />
-                 </td>
-                 <td className="p-2 border-r border-slate-200">
-                   <select value={newAla} onChange={e => setNewAla(e.target.value)} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400 uppercase">
-                     <option value="1">1</option>
-                     <option value="2">2</option>
-                     <option value="3">3</option>
-                     <option value="4">4</option>
-                     <option value="EXP">EXP</option>
-                   </select>
-                 </td>
-                 <td className="p-2 border-r border-slate-200">
-                    <SearchableMilitarSelect
-                      value={newRg}
-                      onChange={setNewRg}
-                      militars={militars}
-                      obmContext={obmContext}
-                    />
-                 </td>
-                 <td className="p-2 border-r border-slate-200">
-                   <select value={newSituacao} onChange={e => setNewSituacao(e.target.value)} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400 uppercase font-bold text-slate-600">
-                     {SITUACOES.map(s => <option key={s} value={s}>{s}</option>)}
-                   </select>
-                 </td>
-                 <td className="p-2 border-r border-slate-200">
-                   <input type="text" placeholder="Obs..." value={newObs} onChange={e => setNewObs(e.target.value)} className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-indigo-400" />
-                 </td>
-                 <td className="p-2 text-center">
-                   <button onClick={handleAdd} disabled={isAdding} className="w-8 h-8 mx-auto bg-indigo-600 text-white rounded flex items-center justify-center hover:bg-indigo-700 disabled:opacity-50 shadow-sm">
-                     {isAdding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                   </button>
-                 </td>
-               </tr>
-            )}
+            {renderAddRow()}
           </tbody>
         </table>
       </div>
