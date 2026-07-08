@@ -44,7 +44,18 @@ export const getVacationExtractorString = () => `
             if (cols[0].toUpperCase() === 'ATO' || cols[1].toUpperCase().includes('ANO')) continue;
             
             let dtInicio = cols[3] || '';
-            if (dtInicio.match(/\\d{2}\\/\\d{2}\\/\\d{4}/) || cols[0].toUpperCase().includes('ASSEGURADAS') || cols[0].toUpperCase().includes('PRESUMIDAS')) {
+            let atoUpper = (cols[0] || '').toUpperCase();
+            let isValidAto = atoUpper.includes('CONCESS') || 
+                             atoUpper.includes('INTERRUP') || 
+                             atoUpper.includes('CANCELAMENT') || 
+                             atoUpper.includes('PENDENTE') || 
+                             atoUpper.includes('PRESUMIDA') || 
+                             atoUpper.includes('PRESUNCAO') || 
+                             atoUpper.includes('PRESUNÇÃO') || 
+                             atoUpper.includes('ABONO') ||
+                             atoUpper.includes('ASSEGURADAS');
+
+            if (dtInicio.match(/\\d{2}\\/\\d{2}\\/\\d{4}/) || isValidAto) {
                 vacations.push({
                     militarRg: rg, 
                     ato: cols[0]||'Concessão', 

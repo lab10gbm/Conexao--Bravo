@@ -569,7 +569,7 @@ export function VacationModule({
   const vacationsByAnoRef = React.useMemo(() => {
     return vacations.reduce(
       (acc, v) => {
-        if (v.ato && v.ato.toUpperCase().includes("CONCESS")) {
+        if (v.ato && !v.ato.toUpperCase().includes("ASSEGURADAS") && !v.ato.toUpperCase().includes("CANCELAMENT")) {
           acc[v.anoRef] = (acc[v.anoRef] || 0) + (v.diasGozados || 0);
         }
         return acc;
@@ -635,7 +635,7 @@ export function VacationModule({
     vacations.forEach((v) => {
       const y = parseInt(v.anoRef);
       if (!isNaN(y) && statsByYear[y]) {
-        if (v.ato?.toUpperCase().includes("CONCESS")) {
+        if (v.ato && !v.ato.toUpperCase().includes("ASSEGURADAS") && !v.ato.toUpperCase().includes("CANCELAMENT")) {
           statsByYear[y].totalGozados += v.diasGozados || 0;
           statsByYear[y].pending = Math.max(
             0,
@@ -873,7 +873,7 @@ export function VacationModule({
       mVacations.forEach((v) => {
         const y = parseInt(v.anoRef);
         if (!isNaN(y) && statsByYear[y]) {
-          if (v.ato?.toUpperCase().includes("CONCESS")) {
+          if (v.ato && !v.ato.toUpperCase().includes("ASSEGURADAS") && !v.ato.toUpperCase().includes("CANCELAMENT")) {
             statsByYear[y].totalGozados += v.diasGozados || 0;
             statsByYear[y].pending = Math.max(
               0,
@@ -2299,11 +2299,11 @@ export function VacationModule({
                                 <div
                                   className={`
                                       inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest
-                                      ${displayStatus === "gozado" ? "bg-emerald-50 text-emerald-600" : displayStatus === "marcado" ? "bg-indigo-50 text-indigo-600" : "bg-amber-50 text-amber-600"}
+                                      ${displayStatus === "gozado" ? "bg-emerald-50 text-emerald-600" : displayStatus === "marcado" ? "bg-indigo-50 text-indigo-600" : displayStatus === "cancelado" ? "bg-rose-50 text-rose-600" : displayStatus === "interrompido" ? "bg-orange-50 text-orange-600" : displayStatus === "presumida" ? "bg-slate-100 text-slate-600" : displayStatus === "abono" ? "bg-teal-50 text-teal-600" : "bg-amber-50 text-amber-600"}
                                    `}
                                 >
                                   <div
-                                    className={`w-1.5 h-1.5 rounded-full ${displayStatus === "gozado" ? "bg-emerald-500" : displayStatus === "marcado" ? "bg-indigo-500" : "bg-amber-500"}`}
+                                    className={`w-1.5 h-1.5 rounded-full ${displayStatus === "gozado" ? "bg-emerald-500" : displayStatus === "marcado" ? "bg-indigo-500" : displayStatus === "cancelado" ? "bg-rose-500" : displayStatus === "interrompido" ? "bg-orange-500" : displayStatus === "presumida" ? "bg-slate-400" : displayStatus === "abono" ? "bg-teal-500" : "bg-amber-500"}`}
                                   ></div>
                                   {displayStatus}
                                 </div>

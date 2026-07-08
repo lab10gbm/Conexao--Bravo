@@ -129,7 +129,18 @@ syncRouter.post('/admin/vacation/raw-sync', apiKeyMiddleware, async (req, res) =
         if (cols[0].toUpperCase() === 'ATO' || cols[1].toUpperCase().includes('ANO')) continue;
         
         let dtInicio = cols[4] || '';
-        if (dtInicio.match(/\d{2}\/\d{2}\/\d{4}/) || cols[1].toUpperCase().includes('ASSEGURADAS') || cols[1].toUpperCase().includes('PRESUMIDAS')) {
+        let atoUpper = (cols[1] || '').toUpperCase();
+        let isValidAto = atoUpper.includes('CONCESS') || 
+                         atoUpper.includes('INTERRUP') || 
+                         atoUpper.includes('CANCELAMENT') || 
+                         atoUpper.includes('PENDENTE') || 
+                         atoUpper.includes('PRESUMIDA') || 
+                         atoUpper.includes('PRESUNCAO') || 
+                         atoUpper.includes('PRESUNÇÃO') || 
+                         atoUpper.includes('ABONO') ||
+                         atoUpper.includes('ASSEGURADAS');
+
+        if (dtInicio.match(/\d{2}\/\d{2}\/\d{4}/) || isValidAto) {
            vacations.push({
               militarRg: rg, 
               ato: cols[1]||'Concessão', 

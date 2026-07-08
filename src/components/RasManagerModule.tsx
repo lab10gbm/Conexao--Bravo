@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, RasOpportunity, RasApplication } from '../types';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
-import { Plus, BriefcaseBusiness, Calendar, Clock, Users, ChevronDown, CheckCircle2, XCircle, Edit, Trash2 } from 'lucide-react';
+import { Plus, BriefcaseBusiness, Calendar, Clock, Users, ChevronDown, CheckCircle2, XCircle, Edit, Trash2, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { createPortal } from 'react-dom';
-import { cn } from '../lib/utils';
+import { cn, normalizeObm, getUserObmAccess } from '../lib/utils';
 import { parsePromotionDate, ALL_RANKS_IN_ORDER, parseRank } from '../lib/rankUtils';
+import { useMilitars } from '../contexts/MilitarContext';
 
 interface RasManagerModuleProps {
   obmContext: string;
@@ -20,6 +21,8 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [activeTab, setActiveTab] = useState<'oportunidades' | 'banco-horas'>('oportunidades');
 
   const [formData, setFormData] = useState({
     date: '',
@@ -228,28 +231,186 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
     });
   };
 
+  const handleClearHours = async () => {
+    try {
+      const batch: Promise<void>[] = [];
+      opportunities.forEach(opp => {
+        if (opp.status === 'completed') {
+          batch.push(deleteDoc(doc(db, 'ras_opportunities', opp.id!)));
+          // Delete related applications too
+          const apps = applications[opp.id!] || [];
+          apps.forEach(app => {
+            batch.push(deleteDoc(doc(db, 'ras_applications', app.id!)));
+          });
+        }
+      });
+      await Promise.all(batch);
+      setShowClearConfirm(false);
+    } catch (err) {
+      console.error('Error clearing hours:', err);
+    }
+  };
+
+  const { militars } = useMilitars();
+
+  const bancoDeHoras = useMemo(() => {
+    const hoursMap: Record<string, { nome: string, rank: string, quadro: string, rg: string, horas: number, numServicos: number }> = {};
+
+    // Initialize with all militaries in this OBM
+    militars.forEach(m => {
+      if (normalizeObm(m.obm) === normalizeObm(obmContext) || normalizeObm(m.lentTo!) === normalizeObm(obmContext)) {
+        hoursMap[m.rg!] = {
+          nome: m.warName || m.name,
+          rank: m.rank,
+          quadro: m.quadro || '',
+          rg: m.rg!,
+          horas: 0,
+          numServicos: 0
+        };
+      }
+    });
+
+    opportunities.forEach(opp => {
+      if (opp.status === 'completed') {
+        const oppApps = applications[opp.id!] || [];
+        const sorted = getSortedApplications(oppApps);
+        
+        opp.functions.forEach(f => {
+          const funcApps = sorted.filter(a => a.functionId === f);
+          const limit = opp.functionVacancies?.[f] || opp.vacancies || 1;
+          
+          let usedVacancies = 0;
+
+          const addHours = (app: RasApplication) => {
+            if (!hoursMap[app.militarRg]) {
+              hoursMap[app.militarRg] = {
+                nome: app.militarWarName || app.militarName,
+                rank: app.militarRank,
+                quadro: app.militarQuadro || '',
+                rg: app.militarRg,
+                horas: 0,
+                numServicos: 0
+              };
+            }
+            hoursMap[app.militarRg].horas += opp.duration;
+            hoursMap[app.militarRg].numServicos += 1;
+          };
+
+          // Explicitly selected get priority
+          funcApps.forEach(app => {
+            if (app.status === 'selected') {
+              usedVacancies++;
+              addHours(app);
+            }
+          });
+
+          // Remaining vacancies go to applied
+          funcApps.forEach(app => {
+            if (app.status === 'applied' && usedVacancies < limit) {
+              usedVacancies++;
+              addHours(app);
+            }
+          });
+        });
+      }
+    });
+
+    return Object.values(hoursMap).sort((a, b) => {
+      if (b.horas !== a.horas) return b.horas - a.horas;
+      const rankA = ALL_RANKS_IN_ORDER.indexOf(a.rank as any);
+      const rankB = ALL_RANKS_IN_ORDER.indexOf(b.rank as any);
+      if (rankA !== rankB) return rankB - rankA; // Higher rank first
+      return a.nome.localeCompare(b.nome);
+    });
+  }, [opportunities, applications, militars, obmContext]);
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="font-black text-slate-800 uppercase tracking-widest text-lg">Oportunidades RAS</h3>
-        <button 
-          onClick={() => {
-            if (isCreating) {
-              setIsCreating(false);
-              setEditingId(null);
-              setFormData({ date: '', duration: 24, local: '', description: '', functions: [], functionVacancies: {} });
-            } else {
-              setIsCreating(true);
-            }
-          }}
-          className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-colors"
-        >
-          {isCreating ? <XCircle className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-          {isCreating ? 'Cancelar' : 'Nova Oportunidade'}
-        </button>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="flex bg-slate-100 p-1 rounded-xl">
+          <button
+            onClick={() => setActiveTab('oportunidades')}
+            className={cn(
+              "px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all",
+              activeTab === 'oportunidades' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            Oportunidades
+          </button>
+          <button
+            onClick={() => setActiveTab('banco-horas')}
+            className={cn(
+              "px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all",
+              activeTab === 'banco-horas' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            Banco de Horas
+          </button>
+        </div>
+        
+        {activeTab === 'oportunidades' && (
+          <button 
+            onClick={() => {
+              if (isCreating) {
+                setIsCreating(false);
+                setEditingId(null);
+                setFormData({ date: '', duration: 24, local: '', description: '', functions: [], functionVacancies: {} });
+              } else {
+                setIsCreating(true);
+              }
+            }}
+            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-colors"
+          >
+            {isCreating ? <XCircle className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+            {isCreating ? 'Cancelar' : 'Nova Oportunidade'}
+          </button>
+        )}
       </div>
 
-      <AnimatePresence>
+      {activeTab === 'banco-horas' && (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+          <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-start">
+            <div>
+              <h3 className="font-black text-slate-800 uppercase tracking-widest">Banco de Horas (Oportunidades Concluídas)</h3>
+              <p className="text-xs text-slate-500 mt-1">Acúmulo de horas baseado nas oportunidades de RAS já finalizadas.</p>
+            </div>
+            <button 
+              onClick={() => setShowClearConfirm(true)}
+              className="p-2 bg-slate-200 text-slate-500 hover:bg-rose-100 hover:text-rose-600 rounded-full transition-colors"
+              title="Limpar Horas"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          </div>
+          {bancoDeHoras.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 font-bold">Nenhum registro de horas acumuladas ainda.</div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {bancoDeHoras.map((m, index) => (
+                <div key={m.rg} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-black text-xs">
+                      {index + 1}º
+                    </div>
+                    <div>
+                      <div className="font-black text-slate-800">{m.rank} {m.quadro} {m.nome}</div>
+                      <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">RG: {m.rg}</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-black text-indigo-600 text-lg">{m.horas}h</div>
+                    <div className="text-[10px] text-slate-400 uppercase tracking-widest">{m.numServicos} Serviço{m.numServicos > 1 ? 's' : ''}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'oportunidades' && (
+        <>
+          <AnimatePresence>
         {isCreating && (
           <motion.form 
             initial={{ height: 0, opacity: 0 }}
@@ -540,6 +701,8 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
            </div>
         )}
       </div>
+      </>
+      )}
       {deleteConfirmId && createPortal(
         <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
@@ -557,6 +720,30 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
                 className="px-4 py-2 text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-xl transition-colors"
               >
                 Sim, Excluir
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {showClearConfirm && createPortal(
+        <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
+            <h3 className="text-lg font-black text-rose-600 mb-2">Limpar Banco de Horas</h3>
+            <p className="text-sm text-slate-600 mb-6">Esta ação apagará permanentemente TODAS as oportunidades de RAS concluídas para este OBM. Tem certeza que deseja zerar o banco de horas?</p>
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setShowClearConfirm(false)}
+                className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleClearHours}
+                className="px-4 py-2 text-sm font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors"
+              >
+                Sim, Zerar Horas
               </button>
             </div>
           </div>
