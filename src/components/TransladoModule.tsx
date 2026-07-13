@@ -203,7 +203,7 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
         snap.forEach((d) =>
           v.push({ id: d.id, ...d.data() } as TransladoVehicle),
         );
-        v.sort((a, b) => a.name.localeCompare(b.name));
+        v.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
         if (snap.empty && !loadingVehicles) {
           // Auto-seed
@@ -1416,7 +1416,7 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
                     const rankDiff =
                       getRankSeniority(a.rank) - getRankSeniority(b.rank);
                     if (rankDiff !== 0) return rankDiff;
-                    return a.name.localeCompare(b.name);
+                    return (a.name || '').localeCompare(b.name || '');
                   });
 
                   const totalOccupied =

@@ -606,8 +606,12 @@ export function VacationModule({
     const eYear = new Date().getFullYear();
 
     // Calcula o startYear baseado no menor anoRef
+    const extractYear = (val: string) => {
+       const match = (val || "").match(/\d{4}/);
+       return match ? parseInt(match[0]) : parseInt(val || "");
+    };
     const validYears = vacations
-      .map((v) => parseInt(v.anoRef))
+      .map((v) => extractYear(v.anoRef))
       .filter((n) => !isNaN(n) && n > 1900);
     if (validYears.length > 0) {
       sYear = Math.min(...validYears);
@@ -633,7 +637,7 @@ export function VacationModule({
     }
 
     vacations.forEach((v) => {
-      const y = parseInt(v.anoRef);
+      const y = extractYear(v.anoRef);
       if (!isNaN(y) && statsByYear[y]) {
         if (v.ato && !v.ato.toUpperCase().includes("ASSEGURADAS") && !v.ato.toUpperCase().includes("CANCELAMENT")) {
           statsByYear[y].totalGozados += v.diasGozados || 0;
@@ -829,8 +833,9 @@ export function VacationModule({
     const currentYear = new Date().getFullYear();
     const vacsByRg: Record<string, Vacation[]> = {};
     allVacations.forEach((v) => {
-      if (!vacsByRg[v.militarRg]) vacsByRg[v.militarRg] = [];
-      vacsByRg[v.militarRg].push(v);
+      const cleanMilitarRg = normalizeRg(v.militarRg || "");
+      if (!vacsByRg[cleanMilitarRg]) vacsByRg[cleanMilitarRg] = [];
+      vacsByRg[cleanMilitarRg].push(v);
     });
 
     const oficiais: any[] = [];
@@ -847,8 +852,12 @@ export function VacationModule({
       if (mVacations.length === 0 && !isVal) continue;
 
       let sYear = currentYear;
+      const extractYear = (val: string) => {
+         const match = (val || "").match(/\d{4}/);
+         return match ? parseInt(match[0]) : parseInt(val || "");
+      };
       const validYears = mVacations
-        .map((v) => parseInt(v.anoRef))
+        .map((v) => extractYear(v.anoRef))
         .filter((n) => !isNaN(n) && n > 1900);
       if (validYears.length > 0) sYear = Math.min(...validYears);
 
@@ -871,7 +880,7 @@ export function VacationModule({
       }
 
       mVacations.forEach((v) => {
-        const y = parseInt(v.anoRef);
+        const y = extractYear(v.anoRef);
         if (!isNaN(y) && statsByYear[y]) {
           if (v.ato && !v.ato.toUpperCase().includes("ASSEGURADAS") && !v.ato.toUpperCase().includes("CANCELAMENT")) {
             statsByYear[y].totalGozados += v.diasGozados || 0;
@@ -1215,7 +1224,7 @@ export function VacationModule({
               <div className="w-px h-6 bg-indigo-100 mx-1"></div>
               <button
                 onClick={toggleGlobalPreferences}
-                className={`relative overflow-hidden px-4 py-1.5 rounded-xl transition-all duration-300 font-black text-[10px] uppercase tracking-[0.2em] flex items-center gap-2 shadow-sm ${
+                className={`relative overflow-visible px-4 py-1.5 rounded-xl transition-all duration-300 font-black text-[10px] uppercase tracking-[0.2em] flex items-center gap-2 shadow-sm ${
                   preferencesEnabled
                     ? "bg-emerald-500 text-white border-transparent shadow-emerald-200/50 hover:bg-emerald-600 hover:scale-[1.02]"
                     : "bg-white text-slate-400 border-slate-200 hover:bg-slate-50 hover:text-slate-600 hover:scale-[1.02]"
@@ -1241,7 +1250,7 @@ export function VacationModule({
 
       {viewMode === "report" ? (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] border-2 border-slate-50 shadow-sm overflow-hidden flex flex-col h-full">
+          <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] border-2 border-slate-50 shadow-sm overflow-visible flex flex-col">
             <div className="p-6 sm:p-8 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50/50 gap-4">
               <div className="flex items-center gap-4">
                 <button
@@ -1613,7 +1622,7 @@ export function VacationModule({
                 </div>
               </div>
 
-              <div className="bg-white rounded-[2.5rem] border-2 border-slate-50 shadow-sm overflow-hidden flex flex-col">
+              <div className="bg-white rounded-[2.5rem] border-2 border-slate-50 shadow-sm overflow-visible flex flex-col">
                 <div className="p-6 sm:p-8 border-b border-slate-50 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">
@@ -1780,7 +1789,7 @@ export function VacationModule({
       ) : selectedMilitar ? (
         <div className="bg-white p-6 rounded-3xl border-2 border-slate-50 shadow-sm flex flex-col md:flex-row md:items-center gap-6 animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center gap-6 flex-1">
-            <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center font-black text-slate-400 text-xl overflow-hidden p-2">
+            <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center font-black text-slate-400 text-xl overflow-visible p-2">
               <RankInsignia rankStr={selectedMilitar.rank} />
             </div>
             <div className="flex-1">
@@ -1830,7 +1839,7 @@ export function VacationModule({
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
           {/* Sidebar Stats */}
           <div className="xl:col-span-1 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-6">
-            <div className="bg-slate-900 rounded-2xl p-5 sm:p-6 text-white shadow-xl relative overflow-hidden flex flex-col items-center justify-center text-center">
+            <div className="bg-slate-900 rounded-2xl p-5 sm:p-6 text-white shadow-xl relative overflow-visible flex flex-col items-center justify-center text-center">
               <div className="absolute -top-10 -right-10 w-32 h-32 bg-orange-600/20 rounded-full blur-3xl"></div>
               <h3 className="text-orange-400 font-black text-[10px] sm:text-xs uppercase tracking-[0.3em] mb-4">
                 Resumo Anual
@@ -1925,7 +1934,7 @@ export function VacationModule({
             {selectedMilitar && (
               <div
                 className={cn(
-                  "bg-white rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 border-2 border-dashed shadow-sm relative group overflow-hidden transition-all",
+                  "bg-white rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 border-2 border-dashed shadow-sm relative group overflow-visible transition-all",
                   preferencesEnabled
                     ? "border-indigo-200"
                     : "border-slate-100 opacity-80",
@@ -2056,7 +2065,7 @@ export function VacationModule({
             )}
 
             {/* History Table */}
-            <div className="bg-white rounded-[2.5rem] border-2 border-slate-50 shadow-sm overflow-hidden flex flex-col h-full">
+            <div className="bg-white rounded-[2.5rem] border-2 border-slate-50 shadow-sm overflow-visible flex flex-col">
               <div className="p-6 sm:p-8 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50/50 gap-4">
                 <div>
                   <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">

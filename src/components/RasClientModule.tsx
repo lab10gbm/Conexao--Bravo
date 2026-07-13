@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile, RasOpportunity, RasApplication } from '../types';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot, addDoc, getDocs } from 'firebase/firestore';
-import { BriefcaseBusiness, Clock, Users, ArrowRight, CheckCircle2, History, ChevronDown } from 'lucide-react';
+import { BriefcaseBusiness, Clock, Users, ArrowRight, CheckCircle2, History, ChevronDown, XCircle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { getAuth } from 'firebase/auth';
 import { parsePromotionDate, ALL_RANKS_IN_ORDER, parseRank } from '../lib/rankUtils';
@@ -188,6 +188,16 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
                         <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
                           <Users className="w-3.5 h-3.5 text-indigo-500" /> {opp.functionVacancies ? Object.values(opp.functionVacancies).reduce((a, b) => a + b, 0) : opp.vacancies || 0} Vagas
                         </div>
+                        {opp.deadline && (
+                          <div className={cn(
+                            "flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border",
+                            new Date() > new Date(opp.deadline) 
+                              ? "bg-red-50 text-red-500 border-red-100" 
+                              : "bg-slate-50 text-slate-500 border-slate-100"
+                          )}>
+                            <Clock className="w-3.5 h-3.5" /> Prazo: {new Date(opp.deadline).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -199,6 +209,7 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
                       const sortedApps = getSortedApplications(funcApps);
                       const applied = hasAppliedForFunction(opp.id!, f);
                       const funcLabel = availableFunctions.find(af => af.id === f)?.label || f;
+                      const isPastDeadline = opp.deadline ? new Date() > new Date(opp.deadline) : false;
 
                       return (
                         <div key={f} className="bg-slate-50 border border-slate-100 rounded-xl p-4">
@@ -212,6 +223,11 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
                                 <div className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100 w-max">
                                   <CheckCircle2 className="w-4 h-4" />
                                   <span className="text-[9px] font-black uppercase tracking-widest">Inscrito</span>
+                                </div>
+                              ) : isPastDeadline ? (
+                                <div className="flex items-center gap-1 text-red-500 bg-red-50 px-3 py-1.5 rounded-lg border border-red-100 w-max opacity-80">
+                                  <XCircle className="w-4 h-4" />
+                                  <span className="text-[9px] font-black uppercase tracking-widest">Prazo Encerrado</span>
                                 </div>
                               ) : (
                                 <button 

@@ -357,7 +357,7 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
         if (!aIsSemPlaceholder && bIsSemPlaceholder) return -1;
         
         // For rank, we might want to sort by rank logic, but natural sort is a fallback
-        return a.name.localeCompare(b.name);
+        return (a.name || '').localeCompare(b.name || '');
       });
 
       return result;

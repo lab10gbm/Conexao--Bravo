@@ -6,7 +6,7 @@ import { Plus, BriefcaseBusiness, Calendar, Clock, Users, ChevronDown, CheckCirc
 import { motion, AnimatePresence } from 'motion/react';
 import { createPortal } from 'react-dom';
 import { cn, normalizeObm, getUserObmAccess } from '../lib/utils';
-import { parsePromotionDate, ALL_RANKS_IN_ORDER, parseRank } from '../lib/rankUtils';
+import { parsePromotionDate, ALL_RANKS_IN_ORDER, parseRank, sortAllBySeniority } from '../lib/rankUtils';
 import { useMilitars } from '../contexts/MilitarContext';
 
 interface RasManagerModuleProps {
@@ -31,6 +31,7 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
     description: '',
     functions: [] as string[],
     functionVacancies: {} as Record<string, number>,
+    deadline: '',
   });
 
   const availableFunctions = [
@@ -106,6 +107,7 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
         description: '',
         functions: [],
         functionVacancies: {},
+        deadline: '',
       });
     } catch (err) {
       console.error(err);
@@ -121,6 +123,7 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
       description: opp.description || '',
       functions: opp.functions || [],
       functionVacancies: opp.functionVacancies || {},
+      deadline: opp.deadline || '',
     });
     setEditingId(opp.id!);
     setIsCreating(true);
@@ -210,24 +213,11 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
       
       if (hoursA !== hoursB) return hoursA - hoursB; // Less hours gets priority
       
-      // Tie breaker 1: Rank (Graduação)
-      const rankA = ALL_RANKS_IN_ORDER.indexOf(parseRank(a.militarRank));
-      const rankB = ALL_RANKS_IN_ORDER.indexOf(parseRank(b.militarRank));
-      const rA = rankA >= 0 ? rankA : 99;
-      const rB = rankB >= 0 ? rankB : 99;
-      if (rA !== rB) return rA - rB;
-
-      // Tie breaker 2: Seniority (Data de Promoção)
-      const dateA = a.militarPromotionDate || '';
-      const dateB = b.militarPromotionDate || '';
-      const timeA = parsePromotionDate(dateA);
-      const timeB = parsePromotionDate(dateB);
-      if (timeA !== timeB && timeA !== 0 && timeB !== 0) return timeA - timeB; // Older promotion date first
+      const mObjA = militars.find(m => m.rg === a.militarRg);
+      const mObjB = militars.find(m => m.rg === b.militarRg);
+      if (mObjA && mObjB) return sortAllBySeniority(mObjA, mObjB);
       
-      // Tie breaker 3: RG
-      const rgA = parseInt((a.militarRg || '').replace(/\D/g, '') || '0', 10);
-      const rgB = parseInt((b.militarRg || '').replace(/\D/g, '') || '0', 10);
-      return rgA - rgB;
+      return 0;
     });
   };
 
@@ -254,7 +244,7 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
   const { militars } = useMilitars();
 
   const bancoDeHoras = useMemo(() => {
-    const hoursMap: Record<string, { nome: string, rank: string, quadro: string, rg: string, horas: number, numServicos: number }> = {};
+    const hoursMap: Record<string, { nome: string, rank: string, quadro: string, rg: string, horas: number, numServicos: number, militarObj?: UserProfile }> = {};
 
     // Initialize with all militaries in this OBM
     militars.forEach(m => {
@@ -265,7 +255,8 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
           quadro: m.quadro || '',
           rg: m.rg!,
           horas: 0,
-          numServicos: 0
+          numServicos: 0,
+          militarObj: m
         };
       }
     });
@@ -283,13 +274,15 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
 
           const addHours = (app: RasApplication) => {
             if (!hoursMap[app.militarRg]) {
+              const mObj = militars.find(m => m.rg === app.militarRg);
               hoursMap[app.militarRg] = {
                 nome: app.militarWarName || app.militarName,
                 rank: app.militarRank,
                 quadro: app.militarQuadro || '',
                 rg: app.militarRg,
                 horas: 0,
-                numServicos: 0
+                numServicos: 0,
+                militarObj: mObj
               };
             }
             hoursMap[app.militarRg].horas += opp.duration;
@@ -316,11 +309,18 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
     });
 
     return Object.values(hoursMap).sort((a, b) => {
-      if (b.horas !== a.horas) return b.horas - a.horas;
-      const rankA = ALL_RANKS_IN_ORDER.indexOf(a.rank as any);
-      const rankB = ALL_RANKS_IN_ORDER.indexOf(b.rank as any);
-      if (rankA !== rankB) return rankB - rankA; // Higher rank first
-      return a.nome.localeCompare(b.nome);
+      if (a.militarObj && b.militarObj) {
+        return sortAllBySeniority(a.militarObj, b.militarObj);
+      }
+      const parsedA = parseRank(a.rank);
+      const parsedB = parseRank(b.rank);
+      const rankA = ALL_RANKS_IN_ORDER.indexOf(parsedA);
+      const rankB = ALL_RANKS_IN_ORDER.indexOf(parsedB);
+      const rA = rankA >= 0 ? rankA : 99;
+      const rB = rankB >= 0 ? rankB : 99;
+      
+      if (rA !== rB) return rA - rB; // Higher rank first (smaller index)
+      return (a.nome || '').localeCompare(b.nome || '');
     });
   }, [opportunities, applications, militars, obmContext]);
 
@@ -354,7 +354,7 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
               if (isCreating) {
                 setIsCreating(false);
                 setEditingId(null);
-                setFormData({ date: '', duration: 24, local: '', description: '', functions: [], functionVacancies: {} });
+                setFormData({ date: '', duration: 24, local: '', description: '', functions: [], functionVacancies: {}, deadline: '' });
               } else {
                 setIsCreating(true);
               }
@@ -394,7 +394,17 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
                     </div>
                     <div>
                       <div className="font-black text-slate-800">{m.rank} {m.quadro} {m.nome}</div>
-                      <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">RG: {m.rg}</div>
+                      <div className="flex items-center gap-3 text-[10px] text-slate-500 uppercase tracking-widest font-bold mt-0.5">
+                        <span>RG: {m.rg}</span>
+                        {m.militarObj && (m.militarObj.promotionDate || (m.militarObj.promotions && m.militarObj.promotions.length > 0)) && (
+                          <>
+                            <span className="w-1 h-1 rounded-full bg-slate-300" />
+                            <span>
+                              Promoção: {m.militarObj.promotionDate || m.militarObj.promotions?.[0]?.dataPromocao}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
@@ -460,6 +470,16 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
                   onChange={e => setFormData({...formData, description: e.target.value})}
                   placeholder="Ex: Reforço ABT, Apoio Evento..."
                   className="w-full px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-indigo-400 outline-none text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Prazo de Inscrição</label>
+                <input 
+                  type="datetime-local" 
+                  value={formData.deadline}
+                  onChange={e => setFormData({...formData, deadline: e.target.value})}
+                  className="w-full px-3 py-2 border-2 border-slate-200 rounded-xl focus:border-indigo-400 outline-none text-sm"
+                  required
                 />
               </div>
             </div>
@@ -546,6 +566,9 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
                     <div className="flex gap-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">
                       <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {opp.duration}h</span>
                       <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {opp.functionVacancies ? Object.values(opp.functionVacancies).reduce((a, b) => a + b, 0) : opp.vacancies || 0} VAGAS</span>
+                      {opp.deadline && (
+                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> Prazo: {new Date(opp.deadline).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                      )}
                       <span className={cn(
                         "px-2 py-0.5 rounded-full text-white",
                         opp.status === 'open' ? 'bg-emerald-500' : opp.status === 'closed' ? 'bg-slate-500' : 'bg-indigo-500'

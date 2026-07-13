@@ -990,7 +990,7 @@ export default function App() {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 1.05 }}
                     transition={{ duration: 0.3 }}
-                    className="h-screen w-full fixed inset-0 z-50 bg-slate-50 overflow-y-auto"
+                    className="min-h-screen w-full fixed inset-0 z-50 bg-slate-50 overflow-y-auto"
                   >
                     <OfficerConfigModule onClose={() => navigate("/")} />
                   </motion.div>
@@ -1166,7 +1166,7 @@ export default function App() {
       {currentPath.includes("permutas") && !isPermutaModalOpen && (
         <button
           onClick={() => openPermutaRequest()}
-          className={`fixed bottom-24 md:bottom-8 right-4 md:right-8 bg-[var(--color-brand-red)] text-white p-4 rounded-full shadow-2xl hover:bg-black transition-all duration-1000 ease-in-out flex items-center font-bold z-50 group hover:scale-110 active:scale-95 overflow-hidden ${
+          className={`fixed bottom-24 md:bottom-8 right-4 md:right-8 bg-[var(--color-brand-red)] text-white p-4 rounded-full shadow-2xl hover:bg-black transition-all duration-1000 ease-in-out flex items-center font-bold z-50 group hover:scale-110 active:scale-95 overflow-visible ${
             isPermutaButtonExpanded ? "gap-2 max-w-[300px]" : "gap-0 max-w-[60px]"
           }`}
         >
@@ -1202,7 +1202,7 @@ export default function App() {
             exit={{ opacity: 0, scale: 1.1 }}
             className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-md p-6"
           >
-            <div className="bg-rose-600 rounded-[3rem] p-12 max-w-2xl w-full text-center shadow-[0_0_100px_rgba(225,29,72,0.8)] border-4 border-rose-400 relative overflow-hidden">
+            <div className="bg-rose-600 rounded-[3rem] p-12 max-w-2xl w-full text-center shadow-[0_0_100px_rgba(225,29,72,0.8)] border-4 border-rose-400 relative overflow-visible">
               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 mix-blend-overlay pointer-events-none"></div>
 
               <motion.div

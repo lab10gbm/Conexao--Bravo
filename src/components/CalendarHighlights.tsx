@@ -10,6 +10,7 @@ import { format, startOfWeek, endOfWeek, eachDayOfInterval, startOfMonth, endOfM
 import { AlertTriangle, Shield } from 'lucide-react';
 
 import { useAppConfig } from '../contexts/ConfigContext';
+import { getAlaForDate, cn, getUserObmAccess, normalizeObm, getAlaColor } from '../lib/utils';
 
 interface CalendarHighlightsProps {
   user: UserProfile;

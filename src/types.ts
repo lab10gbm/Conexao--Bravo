@@ -92,6 +92,7 @@ export interface UserProfile {
     AR?: boolean;
     ARC?: boolean;
   };
+  dynamicFunctions?: Record<string, boolean>;
   rasHours?: number; // Total hours accumulated from RAS
 }
 
@@ -105,6 +106,7 @@ export interface RasOpportunity {
   functions: string[]; // Required functions
   vacancies?: number;
   functionVacancies?: { [key: string]: number };
+  deadline?: string;
   status: 'open' | 'closed' | 'completed';
   createdBy: string;
   createdAt: number;

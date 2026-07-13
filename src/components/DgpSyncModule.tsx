@@ -114,15 +114,16 @@ export function DgpSyncModule({ user, onBack }: DgpSyncModuleProps) {
   const handleProcess = async () => {
     if (preview.length > 0 && targetRg) {
       try {
+         const cleanTargetRg = targetRg.replace(/\D/g, "");
          for (const v of preview) {
-            const docId = `${targetRg}_${v.anoRef}_${v.dataInicio?.replace(/\//g, "")}`;
+            const docId = `${cleanTargetRg}_${v.anoRef}_${v.dataInicio?.replace(/\//g, "")}`;
             const savedData = {
                ...v,
-               militarRg: targetRg,
+               militarRg: cleanTargetRg,
                updatedAt: new Date().toISOString()
             };
             await setDoc(doc(db, "vacations", docId), savedData, { merge: true });
-            await setDoc(doc(db, "militaries", targetRg, "ferias", docId), savedData, { merge: true });
+            await setDoc(doc(db, "militaries", cleanTargetRg, "ferias", docId), savedData, { merge: true });
          }
          alert("Dados de férias importados com sucesso!");
          setInputText('');

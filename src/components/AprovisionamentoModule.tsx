@@ -1097,11 +1097,11 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
 
   const materiaisFiltrados = materiais.filter(m => 
     m.categoria === filtroCategoria &&
-    m.nome.toLowerCase().includes(cadastroFiltroMsg.toLowerCase())
+    (m.nome || '').toLowerCase().includes(cadastroFiltroMsg.toLowerCase())
   ).sort((a, b) => {
     if (a.favorito && !b.favorito) return -1;
     if (!a.favorito && b.favorito) return 1;
-    return a.nome.localeCompare(b.nome);
+    return (a.nome || '').localeCompare(b.nome || '');
   });
 
   return (
@@ -1817,7 +1817,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                 .sort((a, b) => {
                   if (a.favorito && !b.favorito) return -1;
                   if (!a.favorito && b.favorito) return 1;
-                  return a.nome.localeCompare(b.nome);
+                  return (a.nome || '').localeCompare(b.nome || '');
                 });
 
               if (catItems.length === 0) return null;

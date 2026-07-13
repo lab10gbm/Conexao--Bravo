@@ -114,7 +114,7 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
         </div>
 
         <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative">
-           <div className="absolute inset-0 overflow-hidden flex flex-col">
+           <div className="absolute inset-0 overflow-y-auto overflow-x-hidden p-2 sm:p-6">
              <ControleDeFuncoes obmContext={obmContext} />
            </div>
         </div>
@@ -139,7 +139,7 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
         </div>
 
         <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative">
-           <div className="absolute inset-0 overflow-hidden flex flex-col">
+           <div className="absolute inset-0 overflow-y-auto overflow-x-hidden p-2 sm:p-6">
              <EscalaEspelhoModule obmContext={obmContext} />
            </div>
         </div>
@@ -189,7 +189,7 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
         </div>
 
         <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative">
-           <div className="absolute inset-0 overflow-hidden flex flex-col">
+           <div className="absolute inset-0 overflow-y-auto overflow-x-hidden p-2 sm:p-6">
              <VacationModule user={user} isSadMode={true} onBackToPortal={() => setActiveApp(null)} />
            </div>
         </div>

@@ -9,24 +9,10 @@ import { ptBR } from "date-fns/locale";
 import { parseRank } from "../lib/rankUtils";
 import { RankInsignia } from "./RankInsignia";
 import { EscalaPrintView } from "./EscalaPrintView";
-import {
-  Calendar as CalendarIcon,
-  Users,
-  ArrowRightLeft,
-  Shield,
-  CheckCircle2,
-  AlertCircle,
-  Truck,
-  ChevronDown,
-  Check,
-  X,
-  Clock,
-  Printer,
-  Shuffle
-} from "lucide-react";
+import { Calendar as CalendarIcon, Users, ArrowRightLeft, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, Check, X, Clock, Printer, Shuffle } from 'lucide-react';
 
 import { motion } from "framer-motion";
-import { cleanUndefined, getUserObmAccess, normalizeObm } from "../lib/utils";
+import { cleanUndefined, getUserObmAccess, normalizeObm, getAlaForDate, cn, getAlaColor, getAlaName, formatMilitaryName } from '../lib/utils';
 
 function FuncoesMultiSelect({
   selected,
