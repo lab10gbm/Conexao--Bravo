@@ -46,22 +46,22 @@ function initFirestore() {
 export const db = initFirestore();
 export const auth = getAuth();
 
-// Suppress Firestore WebChannelConnection warnings since it's operating offline/disabled
-setLogLevel('error');
+// Suppress internal Firestore connection reset/retry noise (Code 14 UNAVAILABLE / ECONNRESET)
+setLogLevel('silent');
 
 // Test connection on boot (Skill guideline)
-import { doc, getDocFromCache, getDocFromServer } from 'firebase/firestore';
+import { doc, getDocFromServer } from 'firebase/firestore';
 async function testConnection() {
   try {
     // Attempt server fetch to check sync
     await getDocFromServer(doc(db, 'test', 'connection')).catch(() => {});
   } catch (error) {
-    if(error instanceof Error && error.message.includes('the client is offline')) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
       console.warn("[Firebase] Client appears to be offline. Data may be stale.");
     }
   }
 }
-testConnection();
+testConnection().catch(() => {});
 
 // --- Firestore Error Handling ---
 export enum OperationType {

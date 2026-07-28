@@ -59,7 +59,7 @@ export function AdminPanel({ adminModeActive, onToggleAdminMode }: AdminPanelPro
   const handleSave = async () => {
     setSaving(true);
     try {
-      const sortedMonths = openMonths.sort((a, b) => a - b);
+      const sortedMonths = [...openMonths].sort((a, b) => a - b);
       await setDoc(doc(db, 'config', 'active_months'), cleanUndefined({
               months: sortedMonths,
               updatedAt: new Date().toISOString()

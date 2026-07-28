@@ -85,7 +85,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshConfigs = async () => {
-    setLoading(true);
+    // We rely entirely on onSnapshot, no need to manually refresh or set loading state.
     await loadConfigs(true);
   };
 
