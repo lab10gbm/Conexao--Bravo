@@ -15,8 +15,43 @@ import { UserProfile } from "../types";
 import { RankInsignia } from "./RankInsignia";
 import { MultiSelectFilter } from "./ui/MultiSelectFilter";
 import { CorrelacaoFuncoesModal } from "./CorrelacaoFuncoesModal";
-import { ControleCategoriasModal, CategoryConfig, DEFAULT_CATEGORIES } from "./ControleCategoriasModal";
+import { ControleCategoriasModal, CategoryConfig, DEFAULT_CATEGORIES, FunctionCondition } from "./ControleCategoriasModal";
 import { cleanUndefined } from "../lib/utils";
+
+export function checkConditions(militar: UserProfile, conditions?: FunctionCondition[]): { valid: boolean; reason?: string } {
+  if (!conditions || conditions.length === 0) return { valid: true };
+  
+  for (const cond of conditions) {
+    const { field, operator, value } = cond;
+    if (!value) continue; // skip empty conditions
+    
+    let mVal = String((militar as any)[field] || "").toUpperCase();
+    const targetVal = value.toUpperCase().trim();
+    
+    if (operator === "equals") {
+      if (mVal !== targetVal) {
+         return { valid: false, reason: `Requisito não atendido: ${field} deve ser exatamente "${value}"` };
+      }
+    } else if (operator === "contains") {
+      if (!mVal.includes(targetVal)) {
+         return { valid: false, reason: `Requisito não atendido: ${field} deve conter "${value}"` };
+      }
+    } else if (operator === "in") {
+      const targets = targetVal.split(',').map(s => s.trim());
+      let isMatch = false;
+      if (field === 'cnhCat') {
+         const chars = mVal.split('');
+         isMatch = chars.some(c => targets.includes(c));
+      } else {
+         isMatch = targets.some(t => mVal.includes(t) || t === mVal);
+      }
+      if (!isMatch) {
+         return { valid: false, reason: `Requisito não atendido: ${field} deve ser um de: "${value}"` };
+      }
+    }
+  }
+  return { valid: true };
+}
 
 interface ControleDeFuncoesProps {
   obmContext: string;
@@ -218,6 +253,29 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
 
   const toggleValue = async (militar: UserProfile, path: string) => {
     if (!militar.rg || !path) return;
+    
+    const currentState = getValue(militar, path);
+    
+    if (!currentState) {
+      // Find function config to check conditions when turning ON
+      let fnConfig = null;
+      for (const cat of categories) {
+        const found = cat.functions.find(f => f.id === path);
+        if (found) {
+          fnConfig = found;
+          break;
+        }
+      }
+      
+      if (fnConfig && fnConfig.conditions) {
+        const res = checkConditions(militar, fnConfig.conditions);
+        if (!res.valid) {
+          alert(`Não é possível habilitar esta função para ${militar.name || militar.warName}:\n\n${res.reason}`);
+          return;
+        }
+      }
+    }
+
     const safeRg = String(militar.rg).replace(/^0+/, "").replace(/\D/g, "");
     setProcessing(safeRg);
 
@@ -225,14 +283,11 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
 
     if (path.startsWith("viaturas.")) {
       const key = path.split(".")[1];
-      const currentState = !!militar.viaturas?.[key as keyof typeof militar.viaturas];
       newData = { viaturas: { ...(militar.viaturas || {}), [key]: !currentState } };
     } else if (path.startsWith("dynamicFunctions.")) {
       const key = path.split(".")[1];
-      const currentState = !!militar.dynamicFunctions?.[key];
       newData = { dynamicFunctions: { ...(militar.dynamicFunctions || {}), [key]: !currentState } };
     } else {
-      const currentState = !!militar[path as keyof UserProfile];
       newData = { [path]: !currentState };
     }
 
@@ -266,25 +321,47 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
     const allChecked = displayMilitars.every((m) => getValue(m, path));
     const newState = !allChecked;
 
-    displayMilitars.forEach((m) => {
-      if (m.rg) {
-        const safeRg = String(m.rg).replace(/^0+/, "").replace(/\D/g, "");
-        let newData: Partial<UserProfile> = {};
-        if (path.startsWith("viaturas.")) {
-          const key = path.split(".")[1];
-          newData = { viaturas: { ...(m.viaturas || {}), [key]: newState } };
-        } else if (path.startsWith("dynamicFunctions.")) {
-          const key = path.split(".")[1];
-          newData = { dynamicFunctions: { ...(m.dynamicFunctions || {}), [key]: newState } };
-        } else {
-          newData = { [path]: newState };
+    let fnConfig = null;
+    if (newState) {
+      for (const cat of categories) {
+        const found = cat.functions.find(f => f.id === path);
+        if (found) {
+          fnConfig = found;
+          break;
         }
-        updateMilitarLocal(safeRg, newData);
       }
+    }
+
+    const militarsToUpdate = displayMilitars.filter(m => {
+      if (!m.rg) return false;
+      if (newState && fnConfig && fnConfig.conditions) {
+        return checkConditions(m, fnConfig.conditions).valid;
+      }
+      return true;
+    });
+
+    if (militarsToUpdate.length === 0) {
+      if (newState) alert("Nenhum militar atende aos requisitos desta função na visualização atual.");
+      return;
+    }
+
+    militarsToUpdate.forEach((m) => {
+      const safeRg = String(m.rg).replace(/^0+/, "").replace(/\D/g, "");
+      let newData: Partial<UserProfile> = {};
+      if (path.startsWith("viaturas.")) {
+        const key = path.split(".")[1];
+        newData = { viaturas: { ...(m.viaturas || {}), [key]: newState } };
+      } else if (path.startsWith("dynamicFunctions.")) {
+        const key = path.split(".")[1];
+        newData = { dynamicFunctions: { ...(m.dynamicFunctions || {}), [key]: newState } };
+      } else {
+        newData = { [path]: newState };
+      }
+      updateMilitarLocal(safeRg, newData);
     });
 
     await Promise.all(
-      displayMilitars.map(async (m) => {
+      militarsToUpdate.map(async (m) => {
         if (!m.rg) return Promise.resolve();
         const safeRg = String(m.rg).replace(/^0+/, "").replace(/\D/g, "");
         if (db) {

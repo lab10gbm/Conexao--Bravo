@@ -1,13 +1,20 @@
 import React, { useState, useEffect } from "react";
-import { X, Save, Plus, Trash2, Loader2, GripVertical } from "lucide-react";
+import { X, Save, Plus, Trash2, Loader2, GripVertical, Settings } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "../lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
 import { cleanUndefined, cn } from "../lib/utils";
 
+export interface FunctionCondition {
+  field: string;
+  operator: 'equals' | 'contains' | 'in';
+  value: string;
+}
+
 export interface FunctionConfig {
   id: string;
   name: string;
+  conditions?: FunctionCondition[];
 }
 
 export interface CategoryConfig {
@@ -122,6 +129,7 @@ interface ControleCategoriasModalProps {
 export function ControleCategoriasModal({ isOpen, onClose, obmContext, initialCategories }: ControleCategoriasModalProps) {
   const [categories, setCategories] = useState<CategoryConfig[]>(DEFAULT_CATEGORIES);
   const [saving, setSaving] = useState(false);
+  const [editingConditionsFn, setEditingConditionsFn] = useState<{catId: string, fnId: string} | null>(null);
   
   useEffect(() => {
     if (isOpen) {
@@ -217,6 +225,18 @@ export function ControleCategoriasModal({ isOpen, onClose, obmContext, initialCa
     }));
   };
 
+  const updateFunctionConditions = (catId: string, fnId: string, conditions: FunctionCondition[]) => {
+    setCategories(categories.map(c => {
+      if (c.id === catId) {
+        return {
+          ...c,
+          functions: c.functions.map(f => f.id === fnId ? { ...f, conditions } : f)
+        };
+      }
+      return c;
+    }));
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -280,22 +300,112 @@ export function ControleCategoriasModal({ isOpen, onClose, obmContext, initialCa
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                      {cat.functions.map(fn => (
-                        <div key={fn.id} className="flex items-center bg-slate-50 border border-slate-200 rounded-lg overflow-hidden group">
-                          <input
-                            type="text"
-                            value={fn.name}
-                            onChange={(e) => updateFunctionName(cat.id, fn.id, e.target.value)}
-                            className="bg-transparent text-sm font-semibold text-slate-600 outline-none w-full px-3 py-1.5 border-r border-slate-200 focus:bg-white"
-                          />
-                          <button
-                            onClick={() => removeFunction(cat.id, fn.id)}
-                            className="px-2 py-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors shrink-0"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
+                      {cat.functions.map(fn => {
+                        const isEditingConditions = editingConditionsFn?.catId === cat.id && editingConditionsFn?.fnId === fn.id;
+                        return (
+                          <div key={fn.id} className="flex flex-col bg-slate-50 border border-slate-200 rounded-lg overflow-hidden group">
+                            <div className="flex items-center">
+                              <input
+                                type="text"
+                                value={fn.name}
+                                onChange={(e) => updateFunctionName(cat.id, fn.id, e.target.value)}
+                                className="bg-transparent text-sm font-semibold text-slate-600 outline-none w-full px-3 py-1.5 focus:bg-white"
+                              />
+                              <button
+                                onClick={() => isEditingConditions ? setEditingConditionsFn(null) : setEditingConditionsFn({ catId: cat.id, fnId: fn.id })}
+                                className={cn("px-2 py-1.5 transition-colors shrink-0 border-l border-slate-200", 
+                                  isEditingConditions || (fn.conditions && fn.conditions.length > 0) ? "text-indigo-600 bg-indigo-50" : "text-slate-400 hover:text-indigo-600 hover:bg-slate-100"
+                                )}
+                                title="Condições / Regras"
+                              >
+                                <Settings className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => removeFunction(cat.id, fn.id)}
+                                className="px-2 py-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors shrink-0 border-l border-slate-200"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                            
+                            {isEditingConditions && (
+                              <div className="p-3 bg-white border-t border-slate-200 space-y-2">
+                                <div className="text-[10px] font-black uppercase text-slate-500 mb-1">
+                                  Condições Opcionais para a Função
+                                </div>
+                                
+                                {(fn.conditions || []).map((cond, idx) => (
+                                  <div key={idx} className="flex flex-col gap-1.5 bg-slate-50 p-2 rounded border border-slate-100">
+                                    <div className="flex gap-1.5">
+                                      <select
+                                        value={cond.field}
+                                        onChange={e => {
+                                          const newConds = [...(fn.conditions || [])];
+                                          newConds[idx] = { ...cond, field: e.target.value };
+                                          updateFunctionConditions(cat.id, fn.id, newConds);
+                                        }}
+                                        className="text-xs bg-white border border-slate-200 rounded px-1.5 py-1 outline-none flex-1 font-medium"
+                                      >
+                                        <option value="rank">Posto/Grad (ex: SARGENTO)</option>
+                                        <option value="cnhCat">Cat. CNH (ex: C, D)</option>
+                                        <option value="cursos">Cursos (ex: CMA)</option>
+                                        <option value="quadro">Quadro (ex: QBMG-1)</option>
+                                      </select>
+                                      
+                                      <select
+                                        value={cond.operator}
+                                        onChange={e => {
+                                          const newConds = [...(fn.conditions || [])];
+                                          newConds[idx] = { ...cond, operator: e.target.value as any };
+                                          updateFunctionConditions(cat.id, fn.id, newConds);
+                                        }}
+                                        className="text-xs bg-white border border-slate-200 rounded px-1.5 py-1 outline-none w-20 font-medium"
+                                      >
+                                        <option value="contains">Contém</option>
+                                        <option value="equals">Igual a</option>
+                                        <option value="in">Um de</option>
+                                      </select>
+                                    </div>
+                                    <div className="flex gap-1.5">
+                                      <input
+                                        type="text"
+                                        placeholder="Valor..."
+                                        value={cond.value}
+                                        onChange={e => {
+                                          const newConds = [...(fn.conditions || [])];
+                                          newConds[idx] = { ...cond, value: e.target.value.toUpperCase() };
+                                          updateFunctionConditions(cat.id, fn.id, newConds);
+                                        }}
+                                        className="text-xs bg-white border border-slate-200 rounded px-1.5 py-1 outline-none flex-1 font-mono uppercase"
+                                      />
+                                      <button
+                                        onClick={() => {
+                                          const newConds = [...(fn.conditions || [])];
+                                          newConds.splice(idx, 1);
+                                          updateFunctionConditions(cat.id, fn.id, newConds);
+                                        }}
+                                        className="text-slate-400 hover:text-rose-500 p-1"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                                
+                                <button
+                                  onClick={() => {
+                                    const newConds = [...(fn.conditions || []), { field: 'rank', operator: 'contains', value: '' } as FunctionCondition];
+                                    updateFunctionConditions(cat.id, fn.id, newConds);
+                                  }}
+                                  className="text-[10px] font-bold text-indigo-600 flex items-center gap-1 hover:underline w-full py-1"
+                                >
+                                  <Plus className="w-3 h-3" /> Adicionar Condição
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                   
