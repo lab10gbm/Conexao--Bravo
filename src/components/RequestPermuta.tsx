@@ -341,7 +341,7 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
                     <input
                       type="date"
                       required
-                      min={format(addHours(new Date(), 48), 'yyyy-MM-dd')}
+                      min={format((user.isAdmin || user.isEscalante) ? new Date() : addHours(new Date(), 48), 'yyyy-MM-dd')}
                       value={date}
                       onChange={(e) => setDate(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded focus:border-[var(--color-brand-dark)] focus:ring-0 transition-all font-mono text-xs text-slate-700"

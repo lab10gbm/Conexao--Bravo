@@ -9,7 +9,8 @@ import { ptBR } from "date-fns/locale";
 import { parseRank } from "../lib/rankUtils";
 import { RankInsignia } from "./RankInsignia";
 import { EscalaPrintView } from "./EscalaPrintView";
-import { Calendar as CalendarIcon, Users, ArrowRightLeft, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, Check, X, Clock, Printer, Shuffle } from 'lucide-react';
+import { RequestPermuta } from "./RequestPermuta";
+import { Calendar as CalendarIcon, Users, ArrowRightLeft, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, Check, X, Clock, Printer, Shuffle, Plus } from 'lucide-react';
 
 import { motion } from "framer-motion";
 import { cleanUndefined, getUserObmAccess, normalizeObm, getAlaForDate, cn, getAlaColor, getAlaName, formatMilitaryName } from '../lib/utils';
@@ -103,8 +104,11 @@ function FuncoesMultiSelect({
   );
 }
 
+import { UserProfile } from "../types";
+
 interface EscalaEspelhoModuleProps {
   obmContext: string;
+  user: UserProfile;
 }
 
 const DEFAULT_VIATURAS = [
@@ -119,13 +123,14 @@ const DEFAULT_VIATURAS = [
   { id: "ABT-12", vtr: "ABT-12", ativa: false, condutor: false, g1: false, g2: false, g3: false, g4: false, cg: false, blocked: [] },
 ];
 
-export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
+export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModuleProps) {
   const [selectedDate, setSelectedDate] = useState<string>(
     format(new Date(), "yyyy-MM-dd"),
   );
   const { militars, loading: militarsLoading } = useMilitars();
   const [permutas, setPermutas] = useState<PermutaRequest[]>([]);
   const [afastamentos, setAfastamentos] = useState<any[]>([]);
+  const [isPermutaModalOpen, setIsPermutaModalOpen] = useState(false);
   const [loadingPermutas, setLoadingPermutas] = useState(false);
   const [manuallyAddedRgs, setManuallyAddedRgs] = useState<Record<string, string[]>>({});
   const [expedienteRgs, setExpedienteRgs] = useState<string[]>([]);
@@ -699,7 +704,7 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
   };
 
   return (
-    <div className="h-full flex flex-col bg-slate-50 relative overflow-hidden">
+    <div className="flex flex-col bg-slate-50 relative">
       {/* Top Control Bar */}
       <div className="bg-white border-b-2 border-slate-200 p-4 shrink-0 flex flex-col sm:flex-row items-center justify-between gap-4 z-10 shadow-sm relative">
         <div className="flex items-center gap-4">
@@ -759,6 +764,13 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
             </div>
           </div>
           <button
+            onClick={() => setIsPermutaModalOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-widest text-[10px] px-4 py-2.5 rounded-lg shadow-sm flex items-center gap-2 transition-colors"
+          >
+            <ArrowRightLeft className="w-4 h-4" />
+            Gerar Permuta
+          </button>
+          <button
             onClick={() => {
               if (window.confirm("Tem certeza que deseja limpar todas as funções selecionadas?")) {
                 setSelectedFunctions({});
@@ -786,7 +798,7 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-6">
         {/* SECTION 1: IMPORT_PERMUTA (Permutas Deferidas) */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="bg-emerald-50 border-b border-emerald-100 p-3 px-4 flex items-center justify-between">
@@ -794,13 +806,22 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
               <ArrowRightLeft className="w-4 h-4 text-emerald-600" />
               Import Permuta (Substituições Aprovadas)
             </h3>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsPermutaModalOpen(true)}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-widest text-[10px] px-3 py-1.5 rounded shadow-sm flex items-center gap-1 transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+                Nova Permuta
+              </button>
+            </div>
             {loadingPermutas && (
               <span className="text-[10px] font-bold text-emerald-600 animate-pulse uppercase tracking-widest">
                 Sincronizando...
               </span>
             )}
           </div>
-          <div className="overflow-x-auto pb-4 no-scrollbar relative min-h-[150px]">
+          <div className=" pb-4 no-scrollbar relative min-h-[150px]">
             <table className="w-full table-fixed border-collapse border-2 shadow-xl text-[10px] uppercase font-bold min-w-[500px] border-[#1e293b]">
               <colgroup>
                 <col className="w-[30px]" />
@@ -1084,7 +1105,7 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
               </span>
             </div>
           </div>
-          <div className="overflow-x-auto relative min-h-[300px]">
+          <div className=" relative min-h-[300px]">
             {militarsLoading && (
               <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center">
                 <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest animate-pulse">
@@ -1273,7 +1294,7 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
             </span>
           </div>
 
-          <div className="overflow-x-auto p-4 sm:p-6 bg-slate-50 relative">
+          <div className=" p-4 sm:p-6 bg-slate-50 relative">
             <div className="max-w-xl mx-auto">
               <table className="w-full text-left text-[10px] font-bold uppercase tracking-wider bg-white rounded-lg overflow-hidden border border-slate-200 shadow-sm">
                 <thead className="bg-[#1e293b] text-white text-[11px]">
@@ -1355,7 +1376,7 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
             </span>
           </div>
 
-          <div className="overflow-x-auto p-4 sm:p-6 bg-slate-50 relative">
+          <div className=" p-4 sm:p-6 bg-slate-50 relative">
             <table className="w-full text-left text-[10px] font-bold uppercase tracking-wider bg-white rounded-lg overflow-hidden border border-slate-200 shadow-sm min-w-[700px]">
               <thead className="bg-[#1e293b] text-white text-[11px]">
                 <tr>
@@ -1509,6 +1530,13 @@ export function EscalaEspelhoModule({ obmContext }: EscalaEspelhoModuleProps) {
           onClose={() => setShowPrintView(false)}
         />
       )}
+      <RequestPermuta 
+        isOpen={isPermutaModalOpen}
+        setIsOpen={setIsPermutaModalOpen}
+        user={user}
+        obmContext={obmContext}
+        initialDate={selectedDate ? new Date(selectedDate + "T00:00:00") : null}
+      />
     </div>
   );
 }

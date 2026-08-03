@@ -74,7 +74,7 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
 
   if (activeApp === 'alas') {
     return (
-      <div className="flex flex-col h-[calc(100vh-140px)] animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col  animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <Users className="w-8 h-8 text-emerald-600 p-1.5 bg-emerald-100 rounded-lg" />
@@ -88,8 +88,8 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
           {renderHeaderActions(() => setActiveApp(null))}
         </div>
 
-        <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative">
-           <div className="absolute inset-0 overflow-y-auto">
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col">
+           <div className="w-full">
              <EscalanteAlasConfig obmContext={obmContext} />
            </div>
         </div>
@@ -99,7 +99,7 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
 
   if (activeApp === 'funcoes') {
     return (
-      <div className="flex flex-col h-[calc(100vh-140px)] animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col  animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <Truck className="w-8 h-8 text-amber-600 p-1.5 bg-amber-100 rounded-lg" />
@@ -113,8 +113,8 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
           {renderHeaderActions(() => setActiveApp(null))}
         </div>
 
-        <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative">
-           <div className="absolute inset-0 overflow-y-auto overflow-x-hidden p-2 sm:p-6">
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col">
+           <div className="w-full p-2 sm:p-6">
              <ControleDeFuncoes obmContext={obmContext} />
            </div>
         </div>
@@ -124,7 +124,7 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
 
   if (activeApp === 'escala') {
     return (
-      <div className="flex flex-col h-[calc(100vh-140px)] animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col  animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <CalendarRange className="w-8 h-8 text-indigo-600 p-1.5 bg-indigo-100 rounded-lg" />
@@ -138,9 +138,9 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
           {renderHeaderActions(() => setActiveApp(null))}
         </div>
 
-        <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative">
-           <div className="absolute inset-0 overflow-y-auto overflow-x-hidden p-2 sm:p-6">
-             <EscalaEspelhoModule obmContext={obmContext} />
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col">
+           <div className="w-full p-2 sm:p-6">
+             <EscalaEspelhoModule obmContext={obmContext} user={user} />
            </div>
         </div>
       </div>
@@ -149,7 +149,7 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
 
   if (activeApp === 'afastamentos') {
     return (
-      <div className="flex flex-col h-[calc(100vh-140px)] animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col  animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <Palmtree className="w-8 h-8 text-teal-600 p-1.5 bg-teal-100 rounded-lg" />
@@ -163,8 +163,8 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
           {renderHeaderActions(() => setActiveApp(null))}
         </div>
 
-        <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative p-6">
-           <div className="absolute inset-0 overflow-y-auto p-6">
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col p-6">
+           <div className="w-full p-6">
              <AfastamentosAlaModule obmContext={obmContext} type="anual" />
            </div>
         </div>
@@ -174,7 +174,7 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
 
   if (activeApp === 'ferias-sad') {
     return (
-      <div className="flex flex-col h-[calc(100vh-140px)] animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col  animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <CalendarOff className="w-8 h-8 text-sky-600 p-1.5 bg-sky-100 rounded-lg" />
@@ -188,8 +188,8 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
           {renderHeaderActions(() => setActiveApp(null))}
         </div>
 
-        <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative">
-           <div className="absolute inset-0 overflow-y-auto overflow-x-hidden p-2 sm:p-6">
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col">
+           <div className="w-full p-2 sm:p-6">
              <VacationModule user={user} isSadMode={true} onBackToPortal={() => setActiveApp(null)} />
            </div>
         </div>
@@ -199,7 +199,7 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
 
   if (activeApp === 'grd') {
     return (
-      <div className="flex flex-col h-[calc(100vh-140px)] animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col  animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <Shield className="w-8 h-8 text-cyan-600 p-1.5 bg-cyan-100 rounded-lg" />
@@ -213,8 +213,8 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
           {renderHeaderActions(() => setActiveApp(null))}
         </div>
 
-        <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative">
-           <div className="absolute inset-0 overflow-hidden">
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col">
+           <div className="w-full">
              <GrdModule obmContext={obmContext} />
            </div>
         </div>
@@ -224,7 +224,7 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
 
   if (activeApp === 'expediente') {
     return (
-      <div className="flex flex-col h-[calc(100vh-140px)] animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col  animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <CalendarRange className="w-8 h-8 text-indigo-400 p-1.5 bg-indigo-50 rounded-lg" />
@@ -238,8 +238,8 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
           {renderHeaderActions(() => setActiveApp(null))}
         </div>
 
-        <div className="flex-1 overflow-hidden flex flex-col relative">
-           <div className="absolute inset-0 overflow-y-auto custom-scrollbar pr-2">
+        <div className="flex flex-col">
+           <div className="w-full pr-2">
              <ExpedienteScheduler user={user} obmContext={obmContext} forceExpanded={true} />
            </div>
         </div>
@@ -249,7 +249,7 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
 
   if (activeApp === 'permutas_mobile') {
     return (
-      <div className="flex flex-col h-[calc(100vh-140px)] animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col  animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <Smartphone className="w-8 h-8 text-pink-600 p-1.5 bg-pink-100 rounded-lg" />
@@ -263,8 +263,8 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
           {renderHeaderActions(() => setActiveApp(null))}
         </div>
 
-        <div className="flex-1 bg-slate-50 rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative justify-center items-center">
-           <div className="absolute inset-0 overflow-y-auto w-full h-full flex justify-center bg-slate-900 sm:rounded-3xl">
+        <div className="bg-slate-50 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-center items-center">
+           <div className="w-full flex justify-center bg-slate-900 sm:rounded-3xl">
              <ControlePermutasMobile obmContext={obmContext} user={user} />
            </div>
         </div>
@@ -274,7 +274,7 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
 
   if (activeApp === 'ras') {
     return (
-      <div className="flex flex-col h-[calc(100vh-140px)] animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col  animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
             <BriefcaseBusiness className="w-8 h-8 text-amber-600 p-1.5 bg-amber-100 rounded-lg" />
@@ -288,8 +288,8 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
           {renderHeaderActions(() => setActiveApp(null))}
         </div>
 
-        <div className="flex-1 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative">
-           <div className="absolute inset-0 overflow-y-auto w-full h-full p-4 sm:p-6">
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col">
+           <div className="w-full p-4 sm:p-6">
              <RasManagerModule obmContext={obmContext} user={user} />
            </div>
         </div>
@@ -298,7 +298,7 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="flex flex-col  animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
