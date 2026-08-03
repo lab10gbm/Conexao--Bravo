@@ -138,7 +138,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
     
     try {
       const dateObj = new Date(signPermuta.date + 'T00:00:00');
-      if (!user.isAdmin && new Date() > calculateDeadline(dateObj)) {
+      if (!(user.isAdmin || user.isEscalante) && new Date() > calculateDeadline(dateObj)) {
         alert("O prazo para assinatura desta permuta expirou.");
         setSignPermuta(null);
         return;
@@ -175,7 +175,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
     if (!permuta.id || !user?.rg) return;
 
     const dateObj = new Date(permuta.date + 'T00:00:00');
-    if (!user.isAdmin && new Date() > calculateDeadline(dateObj)) {
+    if (!(user.isAdmin || user.isEscalante) && new Date() > calculateDeadline(dateObj)) {
        alert("O prazo para preenchimento de vaga nesta permuta já expirou.");
        return;
     }
@@ -291,7 +291,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
     if (!cancelPermuta?.id) return;
     try {
       const dateObj = new Date(cancelPermuta.date + 'T00:00:00');
-      if (!user.isAdmin && new Date() > calculateDeadline(dateObj)) {
+      if (!(user.isAdmin || user.isEscalante) && new Date() > calculateDeadline(dateObj)) {
         alert("O prazo para cancelamento desta permuta já expirou.");
         setCancelPermuta(null);
         return;
@@ -754,7 +754,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
                                  <button 
                                    onClick={() => {
                                      const dateObj = new Date(permuta.date + 'T00:00:00');
-                                     if (!user.isAdmin && new Date() > calculateDeadline(dateObj)) {
+                                     if (!(user.isAdmin || user.isEscalante) && new Date() > calculateDeadline(dateObj)) {
                                        alert("O prazo para cancelamento desta permuta expirou.");
                                        return;
                                      }
@@ -828,7 +828,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
                              <button
                                onClick={() => {
                                  const dateObj = new Date(permuta.date + 'T00:00:00');
-                                 if (!user.isAdmin && new Date() > calculateDeadline(dateObj)) {
+                                 if (!(user.isAdmin || user.isEscalante) && new Date() > calculateDeadline(dateObj)) {
                                    alert("O prazo para assinatura desta permuta expirou.");
                                    return;
                                  }

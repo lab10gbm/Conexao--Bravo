@@ -131,7 +131,7 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
   const alaOnDateVal = selectedDateObj ? getAlaForDate(selectedDateObj) : null;
   const isDifferentAla = alaOnDateVal !== null && alaOnDateVal.toString() !== user.ala?.toString();
   
-  const isLate = selectedDateObj && !user.isAdmin && (new Date() > calculateDeadline(selectedDateObj));
+  const isLate = selectedDateObj && !(user.isAdmin || user.isEscalante) && (new Date() > calculateDeadline(selectedDateObj));
   
   const isMonthOpen = React.useMemo(() => {
     if (!date) return true;
@@ -221,7 +221,7 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
     }
 
     // Validação de envolvimento: militar deve ser uma das partes
-    if (!user.isAdmin) {
+    if (!(user.isAdmin || user.isEscalante)) {
        const userRgClean = normalizeRg(user.rg || '');
        if (!isRequesterMissing && normalizeRg(requesterRg) === userRgClean) {} // passes
        else if (!isSubstituteMissing && normalizeRg(substituteRg) === userRgClean) {} // passes
