@@ -167,7 +167,7 @@ const AgendaPessoal = React.lazy(() => import("./components/AgendaPessoal").then
 const PermutaBoard = React.lazy(() => import("./components/PermutaBoard").then((m) => ({ default: m.PermutaBoard })));
 const RequestPermuta = React.lazy(() => import("./components/RequestPermuta").then((m) => ({ default: m.RequestPermuta })));
 const CalendarHighlights = React.lazy(() => import("./components/CalendarHighlights").then((m) => ({ default: m.CalendarHighlights })));
-const AdminPanel = React.lazy(() => import("./components/AdminPanel").then((m) => ({ default: m.AdminPanel })));
+const ConfiguracoesModule = React.lazy(() => import("./components/ConfiguracoesModule").then((m) => ({ default: m.ConfiguracoesModule })));
 const ExpedienteScheduler = React.lazy(() => import("./components/ExpedienteScheduler").then((m) => ({ default: m.ExpedienteScheduler })));
 const BuscarMilitarModule = React.lazy(() => import("./components/BuscarMilitarModule").then((m) => ({ default: m.BuscarMilitarModule })));
 const HomePortal = React.lazy(() => import("./components/HomePortal").then((m) => ({ default: m.HomePortal })));
@@ -1154,6 +1154,19 @@ export default function App() {
                         obmContext={obmContext}
                       />
                     </div>
+                  </motion.div>
+                }
+              />
+              <Route
+                path="/configuracoes"
+                element={
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.05 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <ConfiguracoesModule onBack={() => navigate("/")} />
                   </motion.div>
                 }
               />

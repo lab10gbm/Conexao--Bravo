@@ -233,15 +233,57 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     const loadState = async () => {
        try {
            const snap = await getDoc(docRef);
+           let savedViaturas: any[] | null = null;
+
            if (snap.exists() && isMounted) {
                const data = snap.data();
                if (data.selectedFunctions) setSelectedFunctions(data.selectedFunctions);
-               if (data.viaturasInfo) setViaturasInfo(data.viaturasInfo);
                if (data.manuallyAddedRgs) {
                    setManuallyAddedRgs(prev => ({...prev, [selectedDate]: data.manuallyAddedRgs}));
                }
+               if (data.viaturasInfo) {
+                   savedViaturas = data.viaturasInfo;
+               }
            }
-           if (isMounted) isFirstLoad.current = false;
+           
+           if (isMounted) {
+               const settingsRef = doc(db, "obm_settings", obmContext);
+               const settingsSnap = await getDoc(settingsRef);
+               let baseVtrs = DEFAULT_VIATURAS;
+               
+               if (settingsSnap.exists() && settingsSnap.data()?.viaturas_config) {
+                   const vtrs = settingsSnap.data().viaturas_config;
+                   const filtered = vtrs.filter((v: any) => 
+                       v.tipo !== 'administrativa' && 
+                       (!v.obm || normalizeObm(v.obm) === normalizeObm(obmContext))
+                   );
+                   if (filtered.length > 0) baseVtrs = filtered;
+               }
+
+               if (savedViaturas) {
+                   const merged = baseVtrs.map(base => {
+                       const saved = savedViaturas!.find((s: any) => s.id === base.id);
+                       if (saved) {
+                           return { 
+                               ...base, 
+                               ativa: saved.ativa !== undefined ? saved.ativa : base.ativa,
+                               condutor: saved.condutor !== undefined ? saved.condutor : base.condutor,
+                               g1: saved.g1 !== undefined ? saved.g1 : base.g1,
+                               g2: saved.g2 !== undefined ? saved.g2 : base.g2,
+                               g3: saved.g3 !== undefined ? saved.g3 : base.g3,
+                               g4: saved.g4 !== undefined ? saved.g4 : base.g4,
+                               cg: saved.cg !== undefined ? saved.cg : base.cg
+                           };
+                       }
+                       return base;
+                   });
+                   setViaturasInfo(merged);
+               } else {
+                   setViaturasInfo(baseVtrs);
+               }
+               
+               isFirstLoad.current = false;
+           }
        } catch (e) {
            console.error("Error loading escala24h state:", e);
            if (isMounted) isFirstLoad.current = false;
@@ -573,7 +615,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
         return count;
     };
 
-    reqs.push({ name: "CONDUTOR AR", req: roleQtds["CONDUTOR AR"] ?? getReq("AR-583", "condutor") });
+    reqs.push({ name: "CONDUTOR AR", req: roleQtds["CONDUTOR AR"] ?? countCondutor("AR-") });
     reqs.push({ name: "CONDUTOR ABSL", req: roleQtds["CONDUTOR ABSL"] ?? countCondutor("ABSL") });
     reqs.push({ name: "CONDUTOR ABT", req: roleQtds["CONDUTOR ABT"] ?? countCondutor("ABT") });
     reqs.push({ name: "CONDUTOR ASE", req: roleQtds["CONDUTOR ASE"] ?? countCondutor("ASE") });

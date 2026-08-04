@@ -431,6 +431,14 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       icon: Radio,
       color: 'bg-rose-600 shadow-rose-200',
       defaultGroups: ['ADMIN', 'ESCALANTE']
+    },
+    {
+      id: 'configuracoes',
+      label: 'Configurações',
+      description: 'Sistema e App',
+      icon: Settings2,
+      color: 'bg-slate-800 shadow-slate-200',
+      defaultGroups: ['ADMIN']
     }
   ];
 
@@ -691,27 +699,6 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
                </div>
             </div>
          </div>
-
-         {isAdmin && (
-           <div className="mt-8 animate-in fade-in slide-in-from-bottom-4 duration-700 bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm">
-              <div className="flex flex-col sm:flex-row border-b border-slate-200 mb-6 pb-2 gap-4">
-                 <button
-                   onClick={() => setAdminTab('apps')}
-                   className={cn("px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors", adminTab === 'apps' ? "bg-indigo-50 text-indigo-700" : "text-slate-400 hover:bg-slate-50")}
-                 >
-                   Visibilidade de Apps
-                 </button>
-                 <button
-                   onClick={() => setAdminTab('roles')}
-                   className={cn("px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors", adminTab === 'roles' ? "bg-emerald-50 text-emerald-700" : "text-slate-400 hover:bg-slate-50")}
-                 >
-                   Cargos e Perfis
-                 </button>
-              </div>
-              
-              {adminTab === 'apps' ? <AppVisibilityConfig /> : <SystemRolesConfig />}
-           </div>
-         )}
       </div>
    );
 }

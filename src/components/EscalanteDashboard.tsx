@@ -10,6 +10,7 @@ import { ControlePermutasMobile } from './ControlePermutasMobile';
 import { AfastamentosAlaModule } from './AfastamentosAlaModule';
 import { VacationModule } from './VacationModule';
 import { RasManagerModule } from './RasManagerModule';
+import { ControleViaturasModule } from './ControleViaturasModule';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -23,8 +24,10 @@ interface EscalanteDashboardProps {
 
 const ESCALANTE_APPS = [
   { id: 'alas', label: 'Controle de Ala', description: 'Configurar e Distribuir', icon: Users, color: 'bg-emerald-600 shadow-emerald-200' },
-  { id: 'funcoes', label: 'Controle de Função', description: 'Viaturas e Condutores', icon: Truck, color: 'bg-amber-600 shadow-amber-200' },
+  { id: 'funcoes', label: 'Controle de Função', description: 'Viaturas e Condutores', icon: Shield, color: 'bg-amber-600 shadow-amber-200' },
+  { id: 'viaturas', label: 'Controle de Viaturas', description: 'Cadastro de Socorro', icon: Truck, color: 'bg-rose-600 shadow-rose-200' },
   { id: 'escala', label: 'Escala 24h', description: 'Geração e Ajustes', icon: CalendarRange, color: 'bg-indigo-600 shadow-indigo-200' },
+
   { id: 'expediente', label: 'Escala do Expediente', description: 'Gestão de Serviços EXP', icon: CalendarRange, color: 'bg-indigo-400 shadow-indigo-100' },
   { id: 'afastamentos', label: 'Afastamentos', description: 'Controle Anual', icon: Palmtree, color: 'bg-teal-600 shadow-teal-200' },
   { id: 'ferias-sad', label: 'Controle Férias SAD', description: 'Gestão Geral de Férias', icon: CalendarOff, color: 'bg-sky-600 shadow-sky-200' },
@@ -118,6 +121,27 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
              <ControleDeFuncoes obmContext={obmContext} />
            </div>
         </div>
+      </div>
+    );
+  }
+
+  if (activeApp === 'viaturas') {
+    return (
+      <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <Truck className="w-8 h-8 text-rose-600 p-1.5 bg-rose-100 rounded-lg" />
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                Controle de Viaturas <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded uppercase tracking-widest ml-2">{obmContext}</span>
+              </h2>
+              <p className="text-sm font-medium text-slate-500 mt-1">Cadastro e configuração de viaturas de socorro.</p>
+            </div>
+          </div>
+          {renderHeaderActions(() => setActiveApp(null))}
+        </div>
+
+        <ControleViaturasModule obmContext={obmContext} />
       </div>
     );
   }

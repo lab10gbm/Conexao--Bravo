@@ -13,9 +13,18 @@ export function EscalaPrintView({
   permutasOut,
   militars,
   selectedFunctions,
+  viaturasInfo,
   onClose
 }: any) {
   const [showVisualMode, setShowVisualMode] = useState(false);
+
+  // Helper to get active viaturas dynamically
+  const getActiveVtr = (prefix: string, index: number = 0) => {
+     if (!viaturasInfo) return prefix;
+     const activeVtrs = viaturasInfo.filter((v: any) => v.ativa && (prefix === 'AR' ? v.vtr.startsWith('AR-') : v.vtr.startsWith(prefix)));
+     if (activeVtrs.length > index) return activeVtrs[index].vtr;
+     return `${prefix}-???`; 
+  };
 
   // Determine color class based on Ala
   const getPrintColor = (ala: number | string) => {
@@ -167,11 +176,11 @@ export function EscalaPrintView({
         <table className="w-full border-collapse border-2 border-black text-left mb-2 table-fixed text-[11px]">
            <thead>
               <tr className={`${headerColorClass} font-bold border-b-2 border-black text-center text-xs`}>
-                 <th className="border-2 border-black py-1 px-1">ABT-183</th>
-                 <th className="border-2 border-black py-1 px-1">ABSL-152</th>
-                 <th className="border-2 border-black py-1 px-1">ASE-404</th>
-                 <th className="border-2 border-black py-1 px-1">ARC-162</th>
-                 <th className="border-2 border-black py-1 px-1">L-09</th>
+                 <th className="border-2 border-black py-1 px-1">{getActiveVtr('ABT')}</th>
+                 <th className="border-2 border-black py-1 px-1">{getActiveVtr('ABSL')}</th>
+                 <th className="border-2 border-black py-1 px-1">{getActiveVtr('ASE')}</th>
+                 <th className="border-2 border-black py-1 px-1">{getActiveVtr('ARC')}</th>
+                 <th className="border-2 border-black py-1 px-1">{getActiveVtr('L-')}</th>
               </tr>
            </thead>
            <tbody>
@@ -213,7 +222,7 @@ export function EscalaPrintView({
                           <div className="flex gap-1 items-center min-h-[20px] opacity-0"><span className="font-bold shrink-0">Guarnição:</span> <span className="truncate">{renderMilitar(arcGuar[1])}</span></div>
                           <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">Mot:</span> <span className="truncate">{renderMilitar(arcMot[0])}</span></div>
                        </div>
-                       <div className={`border-y-2 border-black ${headerColorClass} font-bold text-center py-0.5 mt-auto`}>AR-583</div>
+                       <div className={`border-y-2 border-black ${headerColorClass} font-bold text-center py-0.5 mt-auto`}>{getActiveVtr('AR')}</div>
                        <div className="p-2 flex flex-col justify-end">
                           <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">Mot:</span> <span className="truncate">{renderMilitar(arMot[0])}</span></div>
                        </div>
@@ -226,12 +235,12 @@ export function EscalaPrintView({
                           <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">MS:</span> <span className="truncate">{renderMilitar(l09Ms[0])}</span></div>
                           <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">MN:</span> <span className="truncate">{renderMilitar(l09Mn[0])}</span></div>
                        </div>
-                       <div className={`border-y-2 border-black ${headerColorClass} font-bold text-center py-0.5`}>BIA-006</div>
+                       <div className={`border-y-2 border-black ${headerColorClass} font-bold text-center py-0.5`}>{getActiveVtr('BIA', 0)}</div>
                        <div className="p-2 flex-1 flex flex-col justify-center gap-1">
                           <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">MS:</span> <span className="truncate">{renderMilitar(bia006Ms[0] || l09Ms[1])}</span></div>
                           <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">MN:</span> <span className="truncate">{renderMilitar(bia006Mn[0] || l09Mn[1])}</span></div>
                        </div>
-                       <div className={`border-y-2 border-black ${headerColorClass} font-bold text-center py-0.5`}>BIA-013</div>
+                       <div className={`border-y-2 border-black ${headerColorClass} font-bold text-center py-0.5`}>{getActiveVtr('BIA', 1)}</div>
                        <div className="p-2 flex-1 flex flex-col justify-center gap-1">
                           <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">MS:</span> <span className="truncate">{renderMilitar(bia013Ms[0] || l09Ms[2])}</span></div>
                           <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">MN:</span> <span className="truncate">{renderMilitar(l09Mn[2])}</span></div>

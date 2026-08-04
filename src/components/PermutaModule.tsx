@@ -2,7 +2,6 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { UserProfile } from '../types';
 import { WeeklyMonitor } from './WeeklyMonitor';
-import { AdminPanel } from './AdminPanel';
 import { ExpedienteScheduler } from './ExpedienteScheduler';
 import { CalendarHighlights } from './CalendarHighlights';
 import { OfficerDashboard } from './OfficerDashboard';
@@ -58,12 +57,6 @@ export function PermutaModule({
           <WeeklyMonitor user={user} obmContext={obmContext} onRequestPermuta={onDateClick} />
           
           <div className="grid grid-cols-1 gap-6 sm:gap-12 mt-6 sm:mt-12">
-            {user.isAdmin && (
-              <section id="admin-panel">
-                 <AdminPanel adminModeActive={adminModeActive} onToggleAdminMode={onToggleAdminMode} />
-              </section>
-            )}
-
             <section id="expediente-scheduler">
                <ExpedienteScheduler user={user} obmContext={obmContext} />
             </section>

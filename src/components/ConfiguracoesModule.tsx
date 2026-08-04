@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { PermutaRequest } from '../types';
 import { AppVisibilityConfig } from './AppVisibilityConfig';
+import { SystemRolesConfig } from './SystemRolesConfig';
 import { useAppConfig } from '../contexts/ConfigContext';
 import { cleanUndefined } from "../lib/utils";
 
@@ -21,12 +22,11 @@ const normalizeRg = (rg: string | undefined): string => {
   return clean.replace(/^0+/, '') || clean;
 };
 
-interface AdminPanelProps {
-  adminModeActive: boolean;
-  onToggleAdminMode: () => void;
+interface ConfiguracoesModuleProps {
+  onBack: () => void;
 }
 
-export function AdminPanel({ adminModeActive, onToggleAdminMode }: AdminPanelProps) {
+export function ConfiguracoesModule({ onBack }: ConfiguracoesModuleProps) {
   const { activeMonths: ctxActiveMonths, alaConfig: ctxAlaConfig, escalanteRGs: ctxEscalanteRGs, refreshConfigs: ctxRefreshConfigs } = useAppConfig();
 
   const [openMonths, setOpenMonths] = useState<number[]>([]);
@@ -241,10 +241,21 @@ export function AdminPanel({ adminModeActive, onToggleAdminMode }: AdminPanelPro
 
   return (
     <motion.div 
-      initial={false}
-      animate={{ height: adminModeActive ? 'auto' : 0, opacity: adminModeActive ? 1 : 0, marginBottom: adminModeActive ? 48 : 0 }}
-      className="overflow-hidden"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="max-w-7xl mx-auto w-full px-4"
     >
+      <div className="mb-4 pt-12">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors uppercase font-black text-[10px] tracking-[0.2em] group mt-6"
+        >
+          <span className="w-4 h-4 group-hover:-translate-x-1 transition-transform">
+            &larr;
+          </span>
+          Voltar ao Portal Principal
+        </button>
+      </div>
       <div className="border-2 border-slate-200 shadow-sm bg-amber-50 rounded-xl overflow-hidden mt-4">
         <div className="w-full flex items-center justify-between p-4 border-b-2 border-amber-100 mix-blend-multiply">
           <div className="flex items-center gap-3 relative">
@@ -254,42 +265,7 @@ export function AdminPanel({ adminModeActive, onToggleAdminMode }: AdminPanelPro
                 Painel Administrativo
              </h3>
           </div>
-          <button 
-            onClick={onToggleAdminMode}
-            className="bg-amber-100/50 text-amber-700 p-1.5 rounded hover:bg-amber-200 transition-colors"
-            title="Fechar"
-          >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        </div>
-
-        <div className="bg-white p-6 space-y-6">
-          {/* Seção 1: Sincronização de Banco de Dados */}
-      <div className="bg-slate-900 border border-slate-800 rounded-lg p-6 shadow-xl text-white">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-slate-800 p-2 rounded-lg">
-              <ShieldCheck className="w-5 h-5 text-amber-400" />
-            </div>
-            <div>
-              <h3 className="text-sm font-black uppercase tracking-tight">Vincular Efetivo (Modo Direto)</h3>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                Sincronizando com: <span className="text-amber-500 font-black">{dbInfoStr}</span>
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-col items-end gap-2">
-            <button 
-              onClick={handleSync}
-              disabled={syncing}
-              className="bg-amber-600 text-white px-6 py-3 rounded text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-amber-700 disabled:opacity-50 transition-all border-b-4 border-amber-800 active:border-b-0 active:translate-y-1 min-w-[200px] justify-center"
-            >
-              {syncing ? syncStatus : 'Executar Sincronização Direta'}
-            </button>
-            {syncing && <div className="text-[8px] text-amber-500 font-black animate-pulse">GRAVANDO NO FIREBASE...</div>}
-          </div>
-        </div>
-      </div>
+        </div>        <div className="bg-white p-6 space-y-6">
 
       {/* Seção 2: Configuração de Calendário */}
       <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
@@ -389,71 +365,7 @@ export function AdminPanel({ adminModeActive, onToggleAdminMode }: AdminPanelPro
         </p>
       </div>
 
-      {/* Seção 4: Configuração de Escalantes */}
-      <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-          <div className="flex items-center gap-3">
-            <Users className="w-5 h-5 text-blue-600" />
-            <div>
-              <h3 className="text-sm font-black text-blue-900 uppercase tracking-tight">Gerenciar Escalantes</h3>
-              <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest">Atribua permissões de aprovação de permuta para outros militares</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-6">
-           <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Digite o RG (ex: 23609)"
-                value={newEscalante}
-                onChange={(e) => setNewEscalante(e.target.value)}
-                className="flex-1 border-2 border-slate-200 rounded p-2 text-sm font-bold text-slate-700 outline-none focus:border-blue-400"
-              />
-              <button 
-                onClick={handleAddEscalante}
-                disabled={savingEscalantes || !newEscalante.trim()}
-                className="bg-blue-600 text-white px-4 py-2 rounded text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50 transition-all"
-              >
-                {savingEscalantes ? 'Gravando...' : (
-                  <>
-                    <Plus className="w-4 h-4" />
-                    Adicionar à lista
-                  </>
-                )}
-              </button>
-           </div>
-           
-           <div className="flex flex-col gap-2">
-             {escalanteRGs.length === 0 ? (
-               <div className="p-4 bg-slate-50 border border-slate-200 border-dashed rounded text-center text-xs font-bold text-slate-400 uppercase tracking-widest">
-                 Nenhum escalante cadastrado
-               </div>
-             ) : (
-               <ul className="divide-y divide-slate-100 border border-slate-200 rounded overflow-hidden">
-                 {escalanteRGs.map((rg) => (
-                   <li key={rg} className="flex items-center justify-between p-3 bg-white hover:bg-slate-50 transition-colors">
-                     <span className="text-sm font-black text-slate-700 tracking-wide">RG: {rg}</span>
-                     <button
-                       onClick={() => handleRemoveEscalante(rg)}
-                       disabled={savingEscalantes}
-                       className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-                       title="Remover Escalante"
-                     >
-                       <Trash2 className="w-4 h-4" />
-                     </button>
-                   </li>
-                 ))}
-               </ul>
-             )}
-           </div>
-        </div>
-        <p className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed border-l-2 border-blue-200 pl-3">
-          Militares nesta lista terão acesso a um Modo Escalante. Ao ativarem esse modo, poderão gerenciar as tabelas de permuta na Dashboard (Aprovar, Reprovar e Arquivar) assim como o Administrador faz, porém continuarão não tendo acesso a este Painel de Administração.
-        </p>
-      </div>
-
-      {/* Seção 5: Configuração de Visibilidade */}
+      <SystemRolesConfig />
       <AppVisibilityConfig />
 
       {/* Seção 6: ZONA DE PERIGO */}

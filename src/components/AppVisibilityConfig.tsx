@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../lib/firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
-import { LayoutGrid, Save, Lock } from 'lucide-react';
+import { LayoutGrid, Save, Lock, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAppConfig } from '../contexts/ConfigContext';
 import { cleanUndefined } from "../lib/utils";
+import { motion } from 'motion/react';
 
 export interface ModuleVisibilityConfig {
   [moduleId: string]: string[];
@@ -56,6 +57,7 @@ export function AppVisibilityConfig() {
   const { refreshConfigs } = useAppConfig();
   const [config, setConfig] = useState<ModuleVisibilityConfig>(DEFAULT_CONFIG);
   const [saving, setSaving] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'config', 'app_visibility'), (snap) => {
@@ -135,30 +137,43 @@ export function AppVisibilityConfig() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm flex flex-col gap-6">
+      <div 
+        className="flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer"
+        onClick={() => setExpanded(!expanded)}
+      >
         <div className="flex items-center gap-3">
           <LayoutGrid className="w-5 h-5 text-indigo-600" />
           <div>
-            <h3 className="text-sm font-black text-indigo-900 uppercase tracking-tight">Visibilidade de Aplicativos (Home)</h3>
+            <h3 className="text-sm font-black text-indigo-900 uppercase tracking-tight flex items-center gap-2">
+              Visibilidade de Aplicativos (Home)
+              {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </h3>
             <p className="text-[10px] text-indigo-600 font-bold uppercase tracking-widest">Defina para quais grupos cada módulo é exibido</p>
           </div>
         </div>
-        <button 
-          onClick={handleSave}
-          disabled={saving}
-          className="bg-indigo-600 text-white px-4 py-2 rounded text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-indigo-700 disabled:opacity-50 transition-all"
-        >
-          {saving ? 'Gravando...' : (
-            <>
-              <Save className="w-3.5 h-3.5" />
-              Salvar Visibilidades
-            </>
-          )}
-        </button>
+        {expanded && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); handleSave(); }}
+            disabled={saving}
+            className="bg-indigo-600 text-white px-4 py-2 rounded text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-indigo-700 disabled:opacity-50 transition-all"
+          >
+            {saving ? 'Gravando...' : (
+              <>
+                <Save className="w-3.5 h-3.5" />
+                Salvar Visibilidades
+              </>
+            )}
+          </button>
+        )}
       </div>
 
-      <div className="flex flex-col gap-4">
+      <motion.div
+        initial={false}
+        animate={{ height: expanded ? 'auto' : 0, opacity: expanded ? 1 : 0 }}
+        className="overflow-hidden"
+      >
+        <div className="flex flex-col gap-4 mt-2">
         {Object.entries(MODULE_NAMES).map(([id, name]) => {
           const activeGroups = config[id] || [];
           const activeRGs = activeGroups.filter(g => g.startsWith('RG:')).map(g => g.replace('RG:', ''));
@@ -205,10 +220,11 @@ export function AppVisibilityConfig() {
             </div>
           );
         })}
-      </div>
-      <p className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed border-l-2 border-indigo-200 pl-3">
-        Defina os grupos. Se "Somente Oficiais" ou "Administradores" estiver marcado, militares de outras qualificações não visualizarão o aplicativo em sua Home.
-      </p>
+        </div>
+        <p className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed border-l-2 border-indigo-200 pl-3">
+          Defina os grupos. Se "Somente Oficiais" ou "Administradores" estiver marcado, militares de outras qualificações não visualizarão o aplicativo em sua Home.
+        </p>
+      </motion.div>
     </div>
   );
 }
