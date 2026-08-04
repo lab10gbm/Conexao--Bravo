@@ -267,7 +267,8 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
              selectedFunctions,
              viaturasInfo,
              manuallyAddedRgs: manuallyAddedRgs[selectedDate] || []
-          }, { merge: true });
+          });
+          
           setSavingState('saved');
           setTimeout(() => setSavingState('idle'), 2000);
       } catch(e) {
@@ -319,18 +320,21 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
   }, [selectedDate, obmContext]);
 
   // Sincroniza funções pré-definidas nas permutas quando elas carregam
+  const autoFilledPermutas = useRef(new Set<string>());
+
   useEffect(() => {
     if (permutas.length > 0) {
       setSelectedFunctions(prev => {
         const next = { ...prev };
         let changed = false;
         permutas.forEach(p => {
-          if (p.status === 'accepted' && p.substituteFunctions && p.substituteFunctions.length > 0 && p.requesterRg) {
+          if (p.id && !autoFilledPermutas.current.has(p.id) && p.status === 'accepted' && p.substituteFunctions && p.substituteFunctions.length > 0 && p.requesterRg) {
             // Só aplica se ainda não houver função definida manualmente para este RG nesta sessão ou se queremos que a permuta mande
             // Como é um dashboard de triagem, faz sentido a permuta mandar no valor inicial
             if (!next[p.requesterRg] || next[p.requesterRg].length === 0) {
                next[p.requesterRg] = p.substituteFunctions;
                changed = true;
+               autoFilledPermutas.current.add(p.id);
             }
           }
         });
@@ -622,7 +626,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     });
 
     if (missingSlots.length === 0) {
-      alert("Todas as funções obrigatórias já estão preenchidas!");
+      // Todas as funções obrigatórias já estão preenchidas
       return;
     }
 
@@ -652,7 +656,9 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
              const existingRoles = newSelected[m.rg] || [];
              if (existingRoles.includes(slot)) return false; // Prevent assigning same role twice to the same person
              for (const role of existingRoles) {
-               if (correlation[slot]?.[role] === 1 || correlation[role]?.[slot] === 1) {
+               const val1 = correlation[slot]?.[role] ?? 0;
+               const val2 = correlation[role]?.[slot] ?? 0;
+               if (val1 === 0 || val2 === 0) {
                  return false; // incompatible according to rules
                }
              }
@@ -697,9 +703,8 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     
     if (slotsFilledCount > 0) {
        setSelectedFunctions(newSelected);
-       alert(`Sorteio concluído! ${slotsFilledCount} função(ões) preenchida(s) respeitando as restrições.`);
     } else {
-       alert("Não foi possível sortear funções adicionais com o efetivo disponível e as restrições impostas.");
+       // Não foi possível sortear funções adicionais
     }
   };
 
@@ -772,9 +777,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
           </button>
           <button
             onClick={() => {
-              if (window.confirm("Tem certeza que deseja limpar todas as funções selecionadas?")) {
-                setSelectedFunctions({});
-              }
+              setSelectedFunctions({});
             }}
             className="bg-red-500 hover:bg-red-400 text-white font-black uppercase tracking-widest text-[10px] px-4 py-2.5 rounded-lg shadow-sm flex items-center gap-2 transition-colors"
           >
@@ -825,11 +828,12 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
             <table className="w-full table-fixed border-collapse border-2 shadow-xl text-[10px] uppercase font-bold min-w-[500px] border-[#1e293b]">
               <colgroup>
                 <col className="w-[30px]" />
-                <col className="w-auto" />
+                <col className="w-[160px]" />
                 <col className="w-[30px]" />
-                <col className="w-auto" />
+                <col className="w-[160px]" />
                 <col className="w-[30px]" />
-                <col className="w-[120px]" />
+                <col className="w-[180px]" />
+                <col className="w-[130px]" />
                 <col className="w-[40px]" />
               </colgroup>
               <thead className="bg-[#1e293b] text-white">

@@ -60,7 +60,7 @@ export function CorrelacaoFuncoesModal({
   onClose,
   obmContext,
 }: CorrelacaoFuncoesModalProps) {
-  // Matriz de correlação: correlation[funcao1][funcao2] = 0 (compatível) ou 1 (incompatível)
+  // Matriz de correlação: correlation[funcao1][funcao2] = 1 (compatível) ou 0 (incompatível)
   const [correlation, setCorrelation] = useState<
     Record<string, Record<string, number>>
   >({});
@@ -197,7 +197,7 @@ export function CorrelacaoFuncoesModal({
                   Matriz de Correlação de Funções
                 </h2>
                 <p className="text-xs font-semibold text-slate-400 tracking-wider">
-                  Configure Incompatibilidades (1) e Compatibilidades (0)
+                  Configure Incompatibilidades (0) e Compatibilidades (1)
                 </p>
               </div>
             </div>
@@ -269,7 +269,7 @@ export function CorrelacaoFuncoesModal({
                       {INITIAL_FUNCOES.map((col) => {
                         const isSelf = row === col;
                         const val = correlation[row]?.[col] ?? 0;
-                        const isIncompatible = val === 1;
+                        const isCompatible = val === 1;
 
                         const isIntersecting =
                           hoveredCell.row === row || hoveredCell.col === col;
@@ -287,12 +287,12 @@ export function CorrelacaoFuncoesModal({
                               "border-r border-b p-0 m-0 w-8 h-8 transition-colors cursor-pointer relative",
                               isSelf
                                 ? "bg-slate-200 cursor-not-allowed"
-                                : isIncompatible
+                                : isCompatible
                                   ? isIntersecting
-                                    ? "bg-rose-200 text-rose-800"
-                                    : "bg-rose-100 text-rose-700"
+                                    ? "bg-emerald-200 text-emerald-800"
+                                    : "bg-emerald-100 text-emerald-700"
                                   : isIntersecting
-                                    ? "bg-indigo-50 text-indigo-700"
+                                    ? "bg-slate-100 text-slate-600"
                                     : "bg-white text-slate-400",
                               isHovered &&
                                 !isSelf &&
@@ -332,8 +332,8 @@ export function CorrelacaoFuncoesModal({
 
           <div className="bg-white p-4 shrink-0 border-t border-slate-200 flex items-center justify-between shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
             <div className="text-xs font-medium text-slate-500 max-w-lg">
-              <strong>0</strong> = Compatível (Pode acumular) |{" "}
-              <strong>1</strong> = Incompatível (Restrito). Alterações nesta
+              <strong>0</strong> = Incompatível (Restrito) |{" "}
+              <strong>1</strong> = Compatível (Pode acumular). Alterações nesta
               matriz impactarão a validação da Escala Espelho.
             </div>
             <button
