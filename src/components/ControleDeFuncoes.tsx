@@ -297,21 +297,25 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
       if (db) {
         let updatePayload: any = {};
         if (path.startsWith("viaturas.")) {
-          updatePayload = { [`viaturas.${path.split(".")[1]}`]: !getValue(militar, path) };
+          const key = path.split(".")[1];
+          updatePayload = { viaturas: { ...(militar.viaturas || {}), [key]: !getValue(militar, path) } };
         } else if (path.startsWith("dynamicFunctions.")) {
-          updatePayload = { [`dynamicFunctions.${path.split(".")[1]}`]: !getValue(militar, path) };
+          const key = path.split(".")[1];
+          updatePayload = { dynamicFunctions: { ...(militar.dynamicFunctions || {}), [key]: !getValue(militar, path) } };
         } else {
           updatePayload = { [path]: !getValue(militar, path) };
         }
-        await setDoc(doc(db, "militaries", safeRg), cleanUndefined(updatePayload), { merge: true });
+        await fetch('/api/militar/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rg: safeRg, data: cleanUndefined(updatePayload) })
+        });
       }
       setTimeout(() => {
-        refreshMilitars();
         setProcessing(null);
       }, 300);
     } catch (e) {
       console.error(e);
-      refreshMilitars();
       setProcessing(null);
     }
   };
@@ -367,13 +371,19 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
         if (db) {
             let updatePayload: any = {};
             if (path.startsWith("viaturas.")) {
-               updatePayload = { [`viaturas.${path.split('.')[1]}`]: newState };
+               const key = path.split('.')[1];
+               updatePayload = { viaturas: { ...(m.viaturas || {}), [key]: newState } };
             } else if (path.startsWith("dynamicFunctions.")) {
-               updatePayload = { [`dynamicFunctions.${path.split('.')[1]}`]: newState };
+               const key = path.split('.')[1];
+               updatePayload = { dynamicFunctions: { ...(m.dynamicFunctions || {}), [key]: newState } };
             } else {
                updatePayload = { [path]: newState };
             }
-            return setDoc(doc(db, 'militaries', safeRg), cleanUndefined(updatePayload), { merge: true }).catch(() => {});
+            return fetch('/api/militar/update', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ rg: safeRg, data: cleanUndefined(updatePayload) })
+            }).catch(() => {});
         }
         return Promise.resolve();
       }),

@@ -873,6 +873,35 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
 
   }, [baseRoster, permutasOut, militars, dynamicRequirements]);
 
+  const handleAddViaturaExtra = () => {
+     const name = window.prompt("Qual o nome/prefixo da viatura extra? (ex: ABT-999)");
+     if (!name || name.trim() === '') return;
+     const id = name.trim().toUpperCase();
+     if (viaturasInfo.some(v => v.id === id)) {
+        alert("Viatura já existe na lista!");
+        return;
+     }
+     
+     const maritima = id.startsWith("L-") || id.startsWith("BIA-");
+     
+     const newVtr = {
+        id,
+        vtr: id,
+        ativa: true,
+        exibir: true,
+        maritima,
+        condutor: true,
+        g1: true,
+        g2: true,
+        g3: true,
+        g4: false,
+        cg: true,
+        blocked: []
+     };
+     
+     setViaturasInfo([...viaturasInfo, newVtr]);
+  };
+
   const handleSortear = () => {
     const newSelected = { ...selectedFunctions };
     
@@ -952,9 +981,23 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
           return { slot, index, eligible };
        });
        
-       // Sort slots by number of eligible candidates (ascending).
-       // We must fill the hardest-to-fill slots first (fewer candidates).
-       slotOptions.sort((a, b) => a.eligible.length - b.eligible.length);
+       const getSlotPriority = (slotName: string) => {
+          const req = dynamicRequirements.find(r => r.name === slotName);
+          if (!req) return 99;
+          if (req.category === 'condutor' || req.category === 'condutor_maritimo') return 1;
+          if (req.category === 'chefe' || req.category === 'chefe_maritimo' || slotName === 'COMUNICANTE' || slotName === 'ENFERMEIRO') return 2;
+          if (req.category === 'auxiliar' || req.category === 'auxiliar_maritimo') return 3;
+          return 4; // admin / other
+       };
+
+       // Sort slots by priority first, then by number of eligible candidates (ascending).
+       // We must fill the most important and hardest-to-fill slots first.
+       slotOptions.sort((a, b) => {
+          const pA = getSlotPriority(a.slot);
+          const pB = getSlotPriority(b.slot);
+          if (pA !== pB) return pA - pB;
+          return a.eligible.length - b.eligible.length;
+       });
        
        const toFill = slotOptions[0];
        remainingSlots.splice(toFill.index, 1);
@@ -1585,11 +1628,23 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                           }
                         />
                       </td>
-                      <td
-                        className="p-2 px-4 text-[8px] text-slate-500 truncate max-w-[200px]"
-                        title={getMostruario(isSwapped ? (militars.find(m => m.rg === permuta.substituteRg) || militar) : militar)}
-                      >
-                        {getMostruario(isSwapped ? (militars.find(m => m.rg === permuta.substituteRg) || militar) : militar)}
+                      <td className="p-2 px-4 text-[8px] text-slate-500 max-w-[200px]">
+                        <div className="flex flex-wrap gap-1">
+                          {(() => {
+                             const actualMilitar = isSwapped ? (militars.find(m => m.rg === permuta.substituteRg) || militar) : militar;
+                             const allowed = getAllowedOptions(actualMilitar);
+                             const selected = selectedFunctions[rg] || [];
+                             if (!allowed || allowed.length === 0) return <span>NÃO CONFIGURADO</span>;
+                             return allowed.map(opt => {
+                                const isSelected = selected.includes(opt);
+                                return (
+                                  <span key={opt} className={cn("px-1.5 py-0.5 rounded uppercase tracking-tighter whitespace-nowrap", isSelected ? "bg-indigo-100 text-indigo-700 font-black border border-indigo-200" : "bg-slate-100 text-slate-500 font-medium")}>
+                                    {opt}
+                                  </span>
+                                );
+                             });
+                          })()}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1642,18 +1697,20 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {dynamicRequirements.filter(f => {
-                      const isOperacional = f.category !== 'admin';
-                      if (!isOperacional) return false;
-                      const currentCount = Object.values(selectedFunctions)
-                        .flat()
-                        .filter((v) => v === f.name).length;
-                      return f.req > 0 || currentCount > 0;
-                    }).map((funcao) => {
-                      const currentCount = Object.values(selectedFunctions)
-                        .flat()
-                        .filter((v) => v === funcao.name).length;
-                      const isOk = currentCount >= funcao.req;
+                    {dynamicRequirements
+                      .filter(f => f.category !== 'admin')
+                      .map(f => {
+                        const currentCount = Object.values(selectedFunctions).flat().filter((v) => v === f.name).length;
+                        return { ...f, currentCount, isOk: currentCount >= f.req };
+                      })
+                      .filter(f => f.req > 0 || f.currentCount > 0)
+                      .sort((a, b) => {
+                        if (a.isOk === b.isOk) return 0;
+                        return a.isOk ? 1 : -1;
+                      })
+                      .map((funcao) => {
+                      const currentCount = funcao.currentCount;
+                      const isOk = funcao.isOk;
                       return (
                         <tr key={funcao.name} className="hover:bg-slate-50 transition-colors">
                           <td className="p-2.5 px-4 tracking-tighter text-slate-800 text-[11px]">{funcao.name}</td>
@@ -1697,18 +1754,20 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {dynamicRequirements.filter(f => {
-                      const isAdmin = f.category === 'admin';
-                      if (!isAdmin) return false;
-                      const currentCount = Object.values(selectedFunctions)
-                        .flat()
-                        .filter((v) => v === f.name).length;
-                      return f.req > 0 || currentCount > 0;
-                    }).map((funcao) => {
-                      const currentCount = Object.values(selectedFunctions)
-                        .flat()
-                        .filter((v) => v === funcao.name).length;
-                      const isOk = currentCount >= funcao.req;
+                    {dynamicRequirements
+                      .filter(f => f.category === 'admin')
+                      .map(f => {
+                        const currentCount = Object.values(selectedFunctions).flat().filter((v) => v === f.name).length;
+                        return { ...f, currentCount, isOk: currentCount >= f.req };
+                      })
+                      .filter(f => f.req > 0 || f.currentCount > 0)
+                      .sort((a, b) => {
+                        if (a.isOk === b.isOk) return 0;
+                        return a.isOk ? 1 : -1;
+                      })
+                      .map((funcao) => {
+                      const currentCount = funcao.currentCount;
+                      const isOk = funcao.isOk;
                       return (
                         <tr key={funcao.name} className="hover:bg-slate-50 transition-colors">
                           <td className="p-2.5 px-4 tracking-tighter text-slate-800 text-[11px]">{funcao.name}</td>
@@ -1906,9 +1965,18 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
               <Truck className="w-4 h-4 text-slate-400" />
               Distribuição (Viaturas)
             </h3>
-            <span className="text-[10px] font-bold text-slate-300 bg-slate-700 px-2 py-0.5 rounded-full uppercase tracking-widest">
-              Manual
-            </span>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={handleAddViaturaExtra}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-400/10 hover:bg-emerald-400/20 rounded-md transition-colors border border-emerald-400/20"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Adicionar VTR Extra
+              </button>
+              <span className="text-[10px] font-bold text-slate-300 bg-slate-700 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                Manual
+              </span>
+            </div>
           </div>
 
           <div className=" p-4 sm:p-6 bg-slate-50 relative">
