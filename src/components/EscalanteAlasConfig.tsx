@@ -31,6 +31,7 @@ function normalizeAlaField(ala: string | number | undefined): string {
 export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
   const { militars, loading, refreshMilitars } = useMilitars();
   const [searchTerm, setSearchTerm] = useState('');
+  const [localSearch, setLocalSearch] = useState('');
   const [assigningRg, setAssigningRg] = useState<string | null>(null);
 
   // Filter by OBM
@@ -106,6 +107,7 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
           const members = getMilitarsByAla(ala).filter(m => 
             !searchTerm || 
             (m.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+            (m.warName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             normalizeRg(m.rg || '').includes(normalizeRg(searchTerm))
           );
           const isAdding = targetAlaToAdd === ala;
@@ -118,7 +120,15 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
                   <p className="text-[9px] font-bold opacity-80 uppercase tracking-widest">{members.length} Militares</p>
                 </div>
                 <button 
-                  onClick={() => setTargetAlaToAdd(isAdding ? null : ala)}
+                  onClick={() => {
+                    if (isAdding) {
+                      setTargetAlaToAdd(null);
+                      setLocalSearch('');
+                    } else {
+                      setTargetAlaToAdd(ala);
+                      setLocalSearch('');
+                    }
+                  }}
                   className="p-1 hover:bg-white/20 rounded-lg transition-colors"
                 >
                   {isAdding ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
@@ -128,8 +138,19 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
               {isAdding && (
                 <div className="p-3 border-b-2 border-slate-200 bg-white">
                   <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Adicionar à Ala {ala}</div>
+                  <div className="relative mb-2">
+                    <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input 
+                      type="text"
+                      placeholder="Buscar militar..."
+                      value={localSearch}
+                      onChange={(e) => setLocalSearch(e.target.value)}
+                      className="pl-7 pr-2 py-1.5 border border-slate-200 focus:border-indigo-400 rounded-lg text-[10px] uppercase font-bold tracking-wider outline-none w-full transition-all"
+                      autoFocus
+                    />
+                  </div>
                   <div className="max-h-40 overflow-y-auto pr-1">
-                    {militarsInObm.filter(m => normalizeAlaField(m.ala) !== ala && (!searchTerm || (m.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || normalizeRg(m.rg || '').includes(normalizeRg(searchTerm)))).slice(0, 10).map(m => (
+                    {militarsInObm.filter(m => normalizeAlaField(m.ala) !== ala && (!localSearch || (m.name || '').toLowerCase().includes(localSearch.toLowerCase()) || (m.warName || '').toLowerCase().includes(localSearch.toLowerCase()) || normalizeRg(m.rg || '').includes(normalizeRg(localSearch)))).slice(0, 10).map(m => (
                       <button
                         key={m.rg}
                         onClick={() => assignAla(m.rg!, ala)}

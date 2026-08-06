@@ -742,7 +742,12 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
                                   <>
                                     <span className="text-[10px] sm:text-[11px] font-black uppercase text-indigo-500 tracking-widest leading-none mb-0.5 whitespace-nowrap">{reqRank || 'MIL'}</span>
                                     <span className="text-[12px] sm:text-[15px] font-black uppercase tracking-tight text-slate-800 leading-none truncate block mt-0.5">{displayReqName}</span>
-                                    <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-slate-400 font-mono leading-none mt-1 whitespace-nowrap">RG: {permuta.requesterRg}</span>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-slate-400 font-mono leading-none whitespace-nowrap">RG: {permuta.requesterRg}</span>
+                                      <span className="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-1.5 py-0.5 rounded leading-none">
+                                        {requesterData?.quadro?.split('/')[0] || 'S/Q'}
+                                      </span>
+                                    </div>
                                   </>
                                 )}
                               </div>
@@ -805,7 +810,12 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
                                     <span className="text-[10px] sm:text-[11px] font-black uppercase text-indigo-500 tracking-widest leading-none mb-0.5 whitespace-nowrap">{subRank || 'MIL'}</span>
                                     <span className="text-[12px] sm:text-[15px] font-black uppercase tracking-tight text-slate-800 leading-none truncate block mt-0.5">{displaySubName}</span>
                                     {permuta.substituteRg && (
-                                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-slate-400 font-mono leading-none mt-1 whitespace-nowrap">RG: {permuta.substituteRg}</span>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-slate-400 font-mono leading-none whitespace-nowrap">RG: {permuta.substituteRg}</span>
+                                        <span className="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-widest bg-emerald-50 px-1.5 py-0.5 rounded leading-none">
+                                          {substituteData?.quadro?.split('/')[0] || 'S/Q'}
+                                        </span>
+                                      </div>
                                     )}
                                   </>
                                 )}

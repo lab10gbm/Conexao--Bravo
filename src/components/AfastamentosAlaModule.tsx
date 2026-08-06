@@ -114,11 +114,12 @@ interface Afastamento {
 interface AfastamentosAlaModuleProps {
   obmContext: string;
   type: 'atuais' | 'anual';
+  filterAla?: string;
 }
 
 const SITUACOES = ['FERIAS', 'LICENÇA', 'CURSO', 'NÚPCIAS', 'LUTO', 'DISPENSA', 'OUTROS'];
 
-export function AfastamentosAlaModule({ obmContext, type }: AfastamentosAlaModuleProps) {
+export function AfastamentosAlaModule({ obmContext, type, filterAla }: AfastamentosAlaModuleProps) {
   const { militars } = useMilitars();
   const [afastamentos, setAfastamentos] = useState<Afastamento[]>([]);
   const [loading, setLoading] = useState(true);
@@ -336,6 +337,8 @@ export function AfastamentosAlaModule({ obmContext, type }: AfastamentosAlaModul
   const proximos: Afastamento[] = [];
 
   afastamentos.forEach(a => {
+    if (filterAla && a.ala !== filterAla) return; // Filtra por ala se fornecido
+    
     if (now > a.retorno) {
       passados.push(a);
     } else if (now >= a.inicio && now <= a.retorno) {
@@ -351,10 +354,6 @@ export function AfastamentosAlaModule({ obmContext, type }: AfastamentosAlaModul
   proximos.sort(sortByInicioDesc);
 
   const filtered = type === 'atuais' ? atuais : afastamentos;
-
-  if (type === 'atuais' && filtered.length === 0) {
-      return null;
-  }
 
   const renderRow = (a: Afastamento) => {
     const militar = militars.find(m => normalizeRg(m.rg) === a.rg);

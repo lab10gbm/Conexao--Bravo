@@ -10,7 +10,8 @@ import { parseRank } from "../lib/rankUtils";
 import { RankInsignia } from "./RankInsignia";
 import { EscalaPrintView } from "./EscalaPrintView";
 import { RequestPermuta } from "./RequestPermuta";
-import { Calendar as CalendarIcon, Users, ArrowRightLeft, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, Check, X, Clock, Printer, Shuffle, Plus } from 'lucide-react';
+import { AfastamentosAlaModule } from "./AfastamentosAlaModule";
+import { Calendar as CalendarIcon, Users, ArrowRightLeft, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, Check, X, Clock, Printer, Shuffle, Plus, Settings, Activity, TrendingDown, PieChart } from 'lucide-react';
 
 import { motion } from "framer-motion";
 import { cleanUndefined, getUserObmAccess, normalizeObm, getAlaForDate, cn, getAlaColor, getAlaName, formatMilitaryName } from '../lib/utils';
@@ -32,18 +33,16 @@ function FuncoesMultiSelect({
     'ADJUNTO', 'ENCARREGADO DE MOTORISTA', 'CONDUTOR AR', 'CONDUTOR ABSL', 'CONDUTOR ABT', 
     'CONDUTOR ASE', 'CONDUTOR ARC', 'CHEFE ABSL', 'CHEFE ABT', 'AUXILIAR / CHEFE ARC', 
     'AUXILIAR ABT', 'AUXILIAR ABSL', 'ENFERMEIRO', 'MESTRE AL', 'MESTRE BIA', 
-    'MARINHEIRO', 'OPERADOR AMA', 'GV AMA', 'AUXILIAR RANCHO', 'TOQUE DE FOGO', 
+    'MARINHEIRO L', 'MARINHEIRO BIA', 'OPERADOR AMA', 'GV AMA', 'AUXILIAR RANCHO', 'TOQUE DE FOGO', 
     'DIA AO DEPOSITO', 'RESP FAXINA', 'ABASTECEDOR', 'SGT DIA', 'CMT GUARDA', 
     'CB GUARDA', 'CB DIA', 'COMUNICANTE', 'PRECARIO', 'ESCALANTE', 'PRECARIO ADM', 
     'SENTINELA'
   ];
 
-  let filteredOptions = allOptions;
-  if (allowedOptions) {
-    filteredOptions = allOptions.filter(o => allowedOptions.includes(o) || selected.includes(o));
-  }
+  const options = search ? allOptions.filter(o => o.toLowerCase().includes(search.toLowerCase())) : allOptions;
 
-  const options = search ? filteredOptions.filter(o => o.toLowerCase().includes(search.toLowerCase())) : filteredOptions;
+  const qualifiedOptions = options.filter(o => allowedOptions?.includes(o) || selected.includes(o));
+  const otherOptions = options.filter(o => !allowedOptions?.includes(o) && !selected.includes(o));
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -79,24 +78,57 @@ function FuncoesMultiSelect({
             />
           </div>
           <div className="overflow-y-auto p-1 flex-1">
-            {options.map((opt) => (
-              <button
-                key={opt}
-                onClick={() => {
-                  if (selected.includes(opt))
-                    onChange(selected.filter((x) => x !== opt));
-                  else onChange([...selected, opt]);
-                }}
-                className="flex items-center justify-between px-2 py-1.5 hover:bg-slate-50 rounded w-full"
-              >
-                <span className="text-[9px] font-black uppercase tracking-wider text-slate-700">
-                  {opt}
-                </span>
-                {selected.includes(opt) && (
-                  <Check className="w-3 h-3 text-indigo-600 shrink-0 ml-1" />
-                )}
-              </button>
-            ))}
+            {qualifiedOptions.length > 0 && (
+               <>
+                 <div className="px-2 py-1 text-[8px] font-black text-emerald-600 bg-emerald-50 rounded uppercase tracking-widest mt-1 mb-1">
+                    Qualificado / Atual
+                 </div>
+                 {qualifiedOptions.map((opt) => (
+                   <button
+                     key={opt}
+                     onClick={() => {
+                       if (selected.includes(opt))
+                         onChange(selected.filter((x) => x !== opt));
+                       else onChange([...selected, opt]);
+                     }}
+                     className="flex items-center justify-between px-2 py-1.5 hover:bg-slate-50 rounded w-full"
+                   >
+                     <span className="text-[9px] font-black uppercase tracking-wider text-slate-700">
+                       {opt}
+                     </span>
+                     {selected.includes(opt) && (
+                       <Check className="w-3 h-3 text-indigo-600 shrink-0 ml-1" />
+                     )}
+                   </button>
+                 ))}
+               </>
+            )}
+            
+            {otherOptions.length > 0 && (
+               <>
+                 <div className="px-2 py-1 text-[8px] font-black text-slate-400 bg-slate-50 rounded uppercase tracking-widest mt-2 mb-1">
+                    Outras Funções
+                 </div>
+                 {otherOptions.map((opt) => (
+                   <button
+                     key={opt}
+                     onClick={() => {
+                       if (selected.includes(opt))
+                         onChange(selected.filter((x) => x !== opt));
+                       else onChange([...selected, opt]);
+                     }}
+                     className="flex items-center justify-between px-2 py-1.5 hover:bg-slate-50 rounded w-full opacity-60 hover:opacity-100 transition-opacity"
+                   >
+                     <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">
+                       {opt}
+                     </span>
+                     {selected.includes(opt) && (
+                       <Check className="w-3 h-3 text-indigo-600 shrink-0 ml-1" />
+                     )}
+                   </button>
+                 ))}
+               </>
+            )}
           </div>
         </div>
       )}
@@ -111,16 +143,16 @@ interface EscalaEspelhoModuleProps {
   user: UserProfile;
 }
 
-const DEFAULT_VIATURAS = [
-  { id: "ABT-183", vtr: "ABT-183", ativa: true, condutor: true, g1: true, g2: true, g3: true, g4: false, cg: true, blocked: [] },
-  { id: "ABSL-152", vtr: "ABSL-152", ativa: true, condutor: true, g1: true, g2: true, g3: false, g4: false, cg: true, blocked: [] },
-  { id: "ASE-404", vtr: "ASE-404", ativa: true, condutor: true, g1: true, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
-  { id: "ARC-162", vtr: "ARC-162", ativa: true, condutor: true, g1: true, g2: null, g3: null, g4: null, cg: null, blocked: ["g2", "g3", "g4", "cg"] },
-  { id: "AR-583", vtr: "AR-583", ativa: true, condutor: true, g1: null, g2: null, g3: null, g4: null, cg: null, blocked: ["g1", "g2", "g3", "g4", "cg"] },
-  { id: "L-09", vtr: "L-09", ativa: true, condutor: true, g1: true, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
-  { id: "BIA-006", vtr: "BIA-006", ativa: true, condutor: true, g1: true, g2: true, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
-  { id: "BIA-013", vtr: "BIA-013", ativa: false, condutor: false, g1: false, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
-  { id: "ABT-12", vtr: "ABT-12", ativa: false, condutor: false, g1: false, g2: false, g3: false, g4: false, cg: false, blocked: [] },
+const DEFAULT_VIATURAS: any[] = [
+  { id: "ABT-183", vtr: "ABT-183", ativa: true, exibir: true, maritima: false, condutor: true, g1: true, g2: true, g3: true, g4: false, cg: true, blocked: [] },
+  { id: "ABSL-152", vtr: "ABSL-152", ativa: true, exibir: true, maritima: false, condutor: true, g1: true, g2: true, g3: false, g4: false, cg: true, blocked: [] },
+  { id: "ASE-404", vtr: "ASE-404", ativa: true, exibir: true, maritima: false, condutor: true, g1: true, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "ARC-162", vtr: "ARC-162", ativa: true, exibir: true, maritima: false, condutor: true, g1: true, g2: null, g3: null, g4: null, cg: null, blocked: ["g2", "g3", "g4", "cg"] },
+  { id: "AR-583", vtr: "AR-583", ativa: true, exibir: true, maritima: false, condutor: true, g1: null, g2: null, g3: null, g4: null, cg: null, blocked: ["g1", "g2", "g3", "g4", "cg"] },
+  { id: "L-09", vtr: "L-09", ativa: true, exibir: true, maritima: true, condutor: true, g1: true, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "BIA-006", vtr: "BIA-006", ativa: true, exibir: true, maritima: true, condutor: true, g1: true, g2: true, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "BIA-013", vtr: "BIA-013", ativa: false, exibir: false, maritima: true, condutor: false, g1: false, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "ABT-12", vtr: "ABT-12", ativa: false, exibir: false, maritima: false, condutor: false, g1: false, g2: false, g3: false, g4: false, cg: false, blocked: [] },
 ];
 
 export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModuleProps) {
@@ -136,6 +168,26 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
   const [expedienteRgs, setExpedienteRgs] = useState<string[]>([]);
   const [addMilitarSearch, setAddMilitarSearch] = useState('');
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [globalSearchResults, setGlobalSearchResults] = useState<any[]>([]);
+  const [extraMilitars, setExtraMilitars] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (addMilitarSearch.length >= 2) {
+      const delay = setTimeout(() => {
+        fetch(`/api/militar/search?q=${encodeURIComponent(addMilitarSearch)}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.success && data.militaries) {
+              setGlobalSearchResults(data.militaries);
+            }
+          })
+          .catch(err => console.error("Global search failed:", err));
+      }, 400);
+      return () => clearTimeout(delay);
+    } else {
+      setGlobalSearchResults([]);
+    }
+  }, [addMilitarSearch]);
   const addMenuRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -183,7 +235,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     Record<string, string[]>
   >({});
 
-  const [viaturasInfo, setViaturasInfo] = useState(DEFAULT_VIATURAS);
+  const [viaturasInfo, setViaturasInfo] = useState<any[]>(DEFAULT_VIATURAS);
 
   const isFirstLoad = useRef(true);
   const previousDate = useRef(selectedDate);
@@ -191,26 +243,40 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
   const [showPrintView, setShowPrintView] = useState(false);
   const [correlation, setCorrelation] = useState<Record<string, Record<string, number>>>({});
   const [roleQtds, setRoleQtds] = useState<Record<string, number>>({});
+  const [predefinicoes, setPredefinicoes] = useState<Record<string, string[]>>({});
+  const [isPreferenciasModalOpen, setIsPreferenciasModalOpen] = useState(false);
 
-  // Load correlation matrix and quantities
+  // Load correlation matrix, quantities and predefinicoes
   useEffect(() => {
     if (!obmContext || obmContext === 'GLOBAL') return;
-    const loadCorrelation = async () => {
+    const loadSettings = async () => {
       try {
         const docRef = doc(db, "obm_settings", obmContext);
         const snap = await getDoc(docRef);
-        if (snap.exists() && snap.data()?.escala_regras) {
-          setCorrelation(snap.data().escala_regras.correlation || {});
-          setRoleQtds(snap.data().escala_regras.qtds || {});
+        if (snap.exists()) {
+          const data = snap.data();
+          if (data.escala_regras) {
+            setCorrelation(data.escala_regras.correlation || {});
+            setRoleQtds(data.escala_regras.qtds || {});
+          } else {
+            setCorrelation({});
+            setRoleQtds({});
+          }
+          if (data.escala_preferencias) {
+            setPredefinicoes(data.escala_preferencias || {});
+          } else {
+            setPredefinicoes({});
+          }
         } else {
           setCorrelation({});
           setRoleQtds({});
+          setPredefinicoes({});
         }
       } catch (e) {
-        console.error("Error loading correlation rules", e);
+        console.error("Error loading obm settings", e);
       }
     };
-    loadCorrelation();
+    loadSettings();
   }, [obmContext]);
 
   // Sync state from Firebase when date changes
@@ -412,21 +478,22 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     return "";
   }
 
-  const militarsInObm = militars.filter((m) => {
-    const rawObm = m.obm ? m.obm.trim().toUpperCase() : "10º GBM";
-    const ctx = (obmContext || "").trim().toUpperCase();
-    if (ctx === "GLOBAL") return true;
-    return rawObm === ctx;
-  });
-
   // Base Roster for the identified Ala
   const baseRoster = useMemo(() => {
     const manualRgs = manuallyAddedRgs[selectedDate] || [];
-    return militarsInObm
+    const allMilitarsPool = [...militars, ...extraMilitars];
+    // Remove duplicates
+    const uniquePool = Array.from(new Map(allMilitarsPool.map(m => [m.rg, m])).values());
+    
+    return uniquePool
       .filter((m) => {
-        const isAla = normalizeAlaField(m.ala) === identifiedAlaStr;
+        const rawObm = m.obm ? m.obm.trim().toUpperCase() : "10º GBM";
+        const ctx = (obmContext || "").trim().toUpperCase();
+        const isInCtx = ctx === "GLOBAL" || rawObm === ctx;
+
+        const isAla = isInCtx && normalizeAlaField(m.ala) === identifiedAlaStr;
         const isManual = manualRgs.includes(m.rg || '');
-        const isExpediente = expedienteRgs.includes(m.rg || '');
+        const isExpediente = isInCtx && expedienteRgs.includes(m.rg || '');
         if (!isAla && !isManual && !isExpediente) return false;
         
         // Verifica se há afastamento para o militar na data selecionada
@@ -440,11 +507,17 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
         return !hasAfastamento;
       })
       .sort((a, b) => {
+        const isManualA = manualRgs.includes(a.rg || '');
+        const isManualB = manualRgs.includes(b.rg || '');
+        
+        if (isManualA && !isManualB) return 1;
+        if (!isManualA && isManualB) return -1;
+
         const rgA = parseInt((a.rg || "").replace(/\D/g, "") || "0");
         const rgB = parseInt((b.rg || "").replace(/\D/g, "") || "0");
         return rgA - rgB;
       });
-  }, [militarsInObm, identifiedAlaStr, afastamentos, selectedDate, manuallyAddedRgs, expedienteRgs]);
+  }, [militars, extraMilitars, identifiedAlaStr, afastamentos, selectedDate, manuallyAddedRgs, expedienteRgs, obmContext]);
 
   // Map to easily find if a militar is swapping out
   const permutasOut = useMemo(() => {
@@ -487,7 +560,10 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
       funcs.push("MARITIMO");
       if (militar.mestreAl) funcs.push("MESTRE AL");
       if (militar.mestreBia) funcs.push("MESTRE BIA");
-      if (militar.marinheiros) funcs.push("MARINHEIRO");
+      if (militar.marinheiros) {
+        funcs.push("MARINHEIRO L");
+        funcs.push("MARINHEIRO BIA");
+      }
       if (militar.opAma) funcs.push("OP AMA");
       if (militar.gvAma) funcs.push("GV AMA");
     }
@@ -553,7 +629,10 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     if (militar.ativoMaritimo) {
       if (militar.mestreAl) allowed.add('MESTRE AL');
       if (militar.mestreBia) allowed.add('MESTRE BIA');
-      if (militar.marinheiros) allowed.add('MARINHEIRO');
+      if (militar.marinheiros) {
+        allowed.add('MARINHEIRO L');
+        allowed.add('MARINHEIRO BIA');
+      }
       if (militar.opAma) allowed.add('OPERADOR AMA');
       if (militar.gvAma) allowed.add('GV AMA');
     }
@@ -581,77 +660,218 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
       allowed.add('COMUNICANTE');
     }
     
-    allowed.add('PRECARIO');
-    allowed.add('PRECARIO ADM');
-    allowed.add('ESCALANTE');
+    if (militar.isEscalante) {
+      allowed.add('ESCALANTE');
+    }
 
+    
+    const allowedArr = Array.from(allowed);
+    viaturasInfo.forEach(v => {
+      if (!v.ativa) return;
+      ['condutor', 'g1', 'g2', 'g3', 'g4', 'cg'].forEach(slot => {
+         if (v.customNames?.[slot]?.trim()) {
+            const baseName = getDefaultName(v, slot);
+            if (allowedArr.includes(baseName)) {
+               allowed.add(getSlotDisplayName(v, slot));
+            }
+         }
+      });
+    });
     return Array.from(allowed);
+
   };
 
+  
+  const isVtrType = (vtrName: string, prefix: string) => {
+    const name = (vtrName || "").trim().toUpperCase();
+    const p = prefix.trim().toUpperCase();
+    if (p === 'AR-' || p === 'AR') return (name.startsWith('AR-') || name.startsWith('AR ') || name === 'AR') && !name.startsWith('ARC');
+    if (p === 'L-' || p === 'L') return name.startsWith('L-') || name.startsWith('L ') || name === 'L';
+    if (p === 'BIA-' || p === 'BIA') return name.startsWith('BIA');
+    return name.startsWith(p) || name.includes(p);
+  };
+
+  const isMaritima = (v: any) => {
+    if (v.maritima !== undefined) return v.maritima;
+    return isVtrType(v.vtr, "L-") || isVtrType(v.vtr, "BIA-");
+  };
+
+  const getDefaultName = (v: any, slot: string) => {
+    const vtrName = (v.vtr || "").toUpperCase();
+    const maritima = isMaritima(v);
+    
+    if (slot === 'condutor') {
+      if (maritima) return vtrName.startsWith('BIA') ? 'MESTRE BIA' : 'MESTRE AL';
+      if (isVtrType(vtrName, 'AR')) return 'CONDUTOR AR';
+      if (isVtrType(vtrName, 'ABSL')) return 'CONDUTOR ABSL';
+      if (isVtrType(vtrName, 'ABT')) return 'CONDUTOR ABT';
+      if (isVtrType(vtrName, 'ASE')) return 'CONDUTOR ASE';
+      if (isVtrType(vtrName, 'ARC')) return 'CONDUTOR ARC';
+      return 'CONDUTOR';
+    }
+    if (slot === 'cg') {
+      if (isVtrType(vtrName, 'ABSL')) return 'CHEFE ABSL';
+      if (isVtrType(vtrName, 'ABT')) return 'CHEFE ABT';
+      if (isVtrType(vtrName, 'ARC')) return 'AUXILIAR / CHEFE ARC';
+      return 'CHEFE GUA';
+    }
+    // Auxiliares (g1, g2, g3, g4)
+    if (maritima) return vtrName.startsWith('BIA') ? 'MARINHEIRO BIA' : 'MARINHEIRO L';
+    if (isVtrType(vtrName, 'ARC')) return 'AUXILIAR / CHEFE ARC';
+    if (isVtrType(vtrName, 'ABT')) return 'AUXILIAR ABT';
+    if (isVtrType(vtrName, 'ABSL')) return 'AUXILIAR ABSL';
+    if (isVtrType(vtrName, 'ASE')) return 'ENFERMEIRO';
+    return 'AUXILIAR GUA';
+  };
+
+  const getSlotDisplayName = (v: any, slot: string) => {
+    if (v.customNames?.[slot]?.trim()) {
+      const custom = v.customNames[slot].trim().toUpperCase();
+      const sigla = (v.vtr || "").split('-')[0].trim();
+      if (slot === 'cg' && custom === 'CHEFE') return `CHEFE ${sigla}`;
+      return `${custom} ${sigla}`.trim();
+    }
+    return getDefaultName(v, slot);
+  };
+
+  
   const dynamicRequirements = useMemo(() => {
-    let reqs = [
-      { name: "ADJUNTO", req: roleQtds["ADJUNTO"] ?? 1 },
-      { name: "ENCARREGADO DE MOTORISTA", req: roleQtds["ENCARREGADO DE MOTORISTA"] ?? 1 },
+    let reqs: {name: string, req: number, category: string}[] = [
+      { name: "ADJUNTO", req: roleQtds["ADJUNTO"] ?? 1, category: 'admin' },
+      { name: "ENCARREGADO DE MOTORISTA", req: roleQtds["ENCARREGADO DE MOTORISTA"] ?? 1, category: 'admin' },
     ];
+    
+    const vtrReqs: Record<string, {req: number, category: string}> = {};
+    viaturasInfo.forEach(v => {
+      if (!v.ativa) return;
+      ['condutor', 'g1', 'g2', 'g3', 'g4', 'cg'].forEach(slot => {
+        if (v[slot as keyof typeof v] === true) {
+          const roleName = getSlotDisplayName(v, slot);
+          let cat = 'auxiliar';
+          const isMar = isMaritima(v);
+          if (slot === 'condutor') cat = isMar ? 'condutor_maritimo' : 'condutor';
+          else if (slot === 'cg') cat = isMar ? 'chefe_maritimo' : 'chefe';
+          else cat = isMar ? 'auxiliar_maritimo' : 'auxiliar';
+          
+          if (!vtrReqs[roleName]) {
+             vtrReqs[roleName] = { req: 0, category: cat };
+          }
+          vtrReqs[roleName].req += 1;
+        }
+      });
+    });
 
-    const getReq = (vtrId: string, type: 'condutor' | 'cg' | 'g1' | 'g2' | 'g3' | 'g4', defaultVal: number = 0) => {
-       const vtr = viaturasInfo.find(v => v.id === vtrId || v.vtr === vtrId);
-       if (!vtr || !vtr.ativa) return 0;
-       if (vtr[type] === true) return 1;
-       if (vtr[type] === false) return 0;
-       return defaultVal; 
-    };
+    Object.entries(vtrReqs).forEach(([name, data]) => {
+      reqs.push({ name, req: data.req, category: data.category });
+    });
 
-    const countCondutor = (prefix: string) => viaturasInfo.filter(v => v.ativa && v.vtr.startsWith(prefix) && v.condutor).length;
-    const countChefe = (prefix: string) => viaturasInfo.filter(v => v.ativa && v.vtr.startsWith(prefix) && v.cg).length;
-    const countAux = (prefix: string) => {
-        let count = 0;
-        viaturasInfo.filter(v => v.ativa && v.vtr.startsWith(prefix)).forEach(v => {
-            if (v.g1) count++;
-            if (v.g2) count++;
-            if (v.g3) count++;
-            if (v.g4) count++;
-        });
-        return count;
-    };
+    reqs.push({ name: "AUXILIAR RANCHO", req: roleQtds["AUXILIAR RANCHO"] ?? 1, category: 'admin' });
+    reqs.push({ name: "TOQUE DE FOGO", req: roleQtds["TOQUE DE FOGO"] ?? 1, category: 'admin' });
+    reqs.push({ name: "DIA AO DEPOSITO", req: roleQtds["DIA AO DEPOSITO"] ?? 2, category: 'admin' });
+    reqs.push({ name: "RESP FAXINA", req: roleQtds["RESP FAXINA"] ?? 1, category: 'admin' });
+    reqs.push({ name: "ABASTECEDOR", req: roleQtds["ABASTECEDOR"] ?? 1, category: 'admin' });
 
-    reqs.push({ name: "CONDUTOR AR", req: roleQtds["CONDUTOR AR"] ?? countCondutor("AR-") });
-    reqs.push({ name: "CONDUTOR ABSL", req: roleQtds["CONDUTOR ABSL"] ?? countCondutor("ABSL") });
-    reqs.push({ name: "CONDUTOR ABT", req: roleQtds["CONDUTOR ABT"] ?? countCondutor("ABT") });
-    reqs.push({ name: "CONDUTOR ASE", req: roleQtds["CONDUTOR ASE"] ?? countCondutor("ASE") });
-    reqs.push({ name: "CONDUTOR ARC", req: roleQtds["CONDUTOR ARC"] ?? countCondutor("ARC") });
-    
-    reqs.push({ name: "CHEFE ABSL", req: roleQtds["CHEFE ABSL"] ?? countChefe("ABSL") });
-    reqs.push({ name: "CHEFE ABT", req: roleQtds["CHEFE ABT"] ?? countChefe("ABT") });
-    
-    reqs.push({ name: "AUXILIAR / CHEFE ARC", req: roleQtds["AUXILIAR / CHEFE ARC"] ?? countAux("ARC") });
-    
-    reqs.push({ name: "AUXILIAR ABT", req: roleQtds["AUXILIAR ABT"] ?? countAux("ABT") });
-    reqs.push({ name: "AUXILIAR ABSL", req: roleQtds["AUXILIAR ABSL"] ?? countAux("ABSL") });
-    
-    reqs.push({ name: "ENFERMEIRO", req: roleQtds["ENFERMEIRO"] ?? countAux("ASE") });
-    
-    reqs.push({ name: "MESTRE AL", req: roleQtds["MESTRE AL"] ?? countCondutor("L-") });
-    reqs.push({ name: "MESTRE BIA", req: roleQtds["MESTRE BIA"] ?? countCondutor("BIA-") });
-    
-    reqs.push({ name: "MARINHEIRO", req: roleQtds["MARINHEIRO"] ?? (countAux("L-") + countAux("BIA-")) });
-    
-    reqs.push({ name: "AUXILIAR RANCHO", req: roleQtds["AUXILIAR RANCHO"] ?? 1 });
-    reqs.push({ name: "TOQUE DE FOGO", req: roleQtds["TOQUE DE FOGO"] ?? 1 });
-    reqs.push({ name: "DIA AO DEPOSITO", req: roleQtds["DIA AO DEPOSITO"] ?? 2 });
-    reqs.push({ name: "RESP FAXINA", req: roleQtds["RESP FAXINA"] ?? 1 });
-    reqs.push({ name: "ABASTECEDOR", req: roleQtds["ABASTECEDOR"] ?? 1 });
-
-    reqs.push({ name: "SGT DIA", req: roleQtds["SGT DIA"] ?? 1 });
-    reqs.push({ name: "CMT GUARDA", req: roleQtds["CMT GUARDA"] ?? 1 });
-    reqs.push({ name: "CB GUARDA", req: roleQtds["CB GUARDA"] ?? 1 });
-    reqs.push({ name: "CB DIA", req: roleQtds["CB DIA"] ?? 1 });
-    reqs.push({ name: "COMUNICANTE", req: roleQtds["COMUNICANTE"] ?? 2 });
-    reqs.push({ name: "ESCALANTE", req: roleQtds["ESCALANTE"] ?? 1 });
-    reqs.push({ name: "SENTINELA", req: roleQtds["SENTINELA"] ?? 4 });
+    reqs.push({ name: "SGT DIA", req: roleQtds["SGT DIA"] ?? 1, category: 'admin' });
+    reqs.push({ name: "CMT GUARDA", req: roleQtds["CMT GUARDA"] ?? 1, category: 'admin' });
+    reqs.push({ name: "CB GUARDA", req: roleQtds["CB GUARDA"] ?? 1, category: 'admin' });
+    reqs.push({ name: "CB DIA", req: roleQtds["CB DIA"] ?? 1, category: 'admin' });
+    reqs.push({ name: "COMUNICANTE", req: roleQtds["COMUNICANTE"] ?? 2, category: 'admin' });
+    reqs.push({ name: "ESCALANTE", req: roleQtds["ESCALANTE"] ?? 1, category: 'admin' });
+    reqs.push({ name: "SENTINELA", req: roleQtds["SENTINELA"] ?? 4, category: 'admin' });
 
     return reqs;
+
   }, [viaturasInfo, roleQtds]);
+
+  
+  const estudoTecnico = useMemo(() => {
+    const realRoster = baseRoster.map(m => {
+       const isSwapped = permutasOut.has(m.rg || '');
+       return isSwapped ? (militars.find(x => x.rg === permutasOut.get(m.rg || '')?.substituteRg) || m) : m;
+    });
+
+    const allSlots: {name: string, category: string}[] = [];
+    dynamicRequirements.forEach(req => {
+      for (let i = 0; i < req.req; i++) {
+        allSlots.push({ name: req.name, category: req.category });
+      }
+    });
+
+    const militarCapabilities = realRoster.map(m => ({
+      rg: m.rg || '',
+      allowed: getAllowedOptions(m) || [],
+      used: false
+    }));
+
+    let unfulfilledCondutores = 0;
+    let unfulfilledCondutoresMaritimos = 0;
+    let unfulfilledChefes = 0;
+    let unfulfilledChefesMaritimos = 0;
+    let unfulfilledAuxiliares = 0;
+    let unfulfilledAuxiliaresMaritimos = 0;
+    let unfulfilledAdmin = 0;
+    let unfulfilledEfetivo = 0;
+
+    let reqCondutores = 0;
+    let reqCondutoresMaritimos = 0;
+    let reqChefes = 0;
+    let reqChefesMaritimos = 0;
+    let reqAuxiliares = 0;
+    let reqAuxiliaresMaritimos = 0;
+    let reqAdmin = 0;
+    const reqEfetivo = allSlots.length;
+
+    const slotOptionsCount = allSlots.map(slot => {
+       const count = militarCapabilities.filter(m => m.allowed.includes(slot.name)).length;
+       return { slot, count };
+    });
+    slotOptionsCount.sort((a, b) => a.count - b.count);
+
+    const unfulfilledSlots: {name: string, category: string}[] = [];
+
+    slotOptionsCount.forEach(({ slot }) => {
+       if (slot.category === 'admin') reqAdmin++;
+       else if (slot.category === 'condutor') reqCondutores++;
+       else if (slot.category === 'condutor_maritimo') reqCondutoresMaritimos++;
+       else if (slot.category === 'chefe') reqChefes++;
+       else if (slot.category === 'chefe_maritimo') reqChefesMaritimos++;
+       else if (slot.category === 'auxiliar') reqAuxiliares++;
+       else if (slot.category === 'auxiliar_maritimo') reqAuxiliaresMaritimos++;
+
+       const available = militarCapabilities.filter(m => !m.used && m.allowed.includes(slot.name));
+       if (available.length > 0) {
+          available.sort((a, b) => a.allowed.length - b.allowed.length);
+          available[0].used = true;
+       } else {
+          unfulfilledSlots.push(slot);
+       }
+    });
+
+    unfulfilledSlots.forEach(slot => {
+       unfulfilledEfetivo++;
+       if (slot.category === 'admin') unfulfilledAdmin++;
+       else if (slot.category === 'condutor') unfulfilledCondutores++;
+       else if (slot.category === 'condutor_maritimo') unfulfilledCondutoresMaritimos++;
+       else if (slot.category === 'chefe') unfulfilledChefes++;
+       else if (slot.category === 'chefe_maritimo') unfulfilledChefesMaritimos++;
+       else if (slot.category === 'auxiliar') unfulfilledAuxiliares++;
+       else if (slot.category === 'auxiliar_maritimo') unfulfilledAuxiliaresMaritimos++;
+    });
+
+    const calcChance = (deficit: number, req: number) => req > 0 ? Math.min(100, Math.round((deficit / req) * 100)) : 0;
+
+    return {
+      efetivo: { req: reqEfetivo, deficit: unfulfilledEfetivo, chance: calcChance(unfulfilledEfetivo, reqEfetivo) },
+      condutores: { req: reqCondutores, deficit: unfulfilledCondutores, chance: calcChance(unfulfilledCondutores, reqCondutores) },
+      condutores_maritimos: { req: reqCondutoresMaritimos, deficit: unfulfilledCondutoresMaritimos, chance: calcChance(unfulfilledCondutoresMaritimos, reqCondutoresMaritimos) },
+      chefes: { req: reqChefes, deficit: unfulfilledChefes, chance: calcChance(unfulfilledChefes, reqChefes) },
+      chefes_maritimos: { req: reqChefesMaritimos, deficit: unfulfilledChefesMaritimos, chance: calcChance(unfulfilledChefesMaritimos, reqChefesMaritimos) },
+      auxiliares: { req: reqAuxiliares, deficit: unfulfilledAuxiliares, chance: calcChance(unfulfilledAuxiliares, reqAuxiliares) },
+      auxiliares_maritimos: { req: reqAuxiliaresMaritimos, deficit: unfulfilledAuxiliaresMaritimos, chance: calcChance(unfulfilledAuxiliaresMaritimos, reqAuxiliaresMaritimos) },
+      admin: { req: reqAdmin, deficit: unfulfilledAdmin, chance: calcChance(unfulfilledAdmin, reqAdmin) }
+    };
+
+  }, [baseRoster, permutasOut, militars, dynamicRequirements]);
 
   const handleSortear = () => {
     const newSelected = { ...selectedFunctions };
@@ -670,6 +890,29 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     if (missingSlots.length === 0) {
       // Todas as funções obrigatórias já estão preenchidas
       return;
+    }
+    
+    // 1.5 Aplicar Predefinições
+    baseRoster.forEach(m => {
+       const isSwapped = permutasOut.has(m.rg || '');
+       const actualMilitar = isSwapped ? (militars.find(x => x.rg === permutasOut.get(m.rg || '')?.substituteRg) || m) : m;
+       const rg = m.rg || '';
+       const pref = predefinicoes[rg] || [];
+       if ((!newSelected[rg] || newSelected[rg].length === 0) && pref.length > 0) {
+          const allowed = getAllowedOptions(actualMilitar) || [];
+          pref.forEach(p => {
+             if (allowed.includes(p) && missingSlots.includes(p)) {
+                newSelected[rg] = [...(newSelected[rg] || []), p];
+                const idx = missingSlots.indexOf(p);
+                if (idx !== -1) missingSlots.splice(idx, 1);
+             }
+          });
+       }
+    });
+
+    if (missingSlots.length === 0) {
+       setSelectedFunctions(newSelected);
+       return;
     }
 
     // 2. Pre-calculate eligible militars for each role
@@ -750,6 +993,25 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     }
   };
 
+  const addMenuOptions = useMemo(() => {
+    if (addMilitarSearch.length < 2) return [];
+    const s = addMilitarSearch.toLowerCase();
+    
+    // Combine local militars and globalSearchResults
+    const combinedPool = [...militars, ...globalSearchResults];
+    // Remove duplicates by rg
+    const uniquePool = Array.from(new Map(combinedPool.map(m => [m.rg, m])).values());
+
+    return uniquePool
+      .filter(m => {
+        return (m.name || '').toLowerCase().includes(s) || 
+               (m.warName || '').toLowerCase().includes(s) || 
+               (m.rg || '').toString().includes(addMilitarSearch);
+      })
+      .filter(m => !baseRoster.some(br => br.rg === m.rg))
+      .slice(0, 10);
+  }, [addMilitarSearch, militars, globalSearchResults, baseRoster]);
+
   return (
     <div className="flex flex-col bg-slate-50 relative">
       {/* Top Control Bar */}
@@ -827,6 +1089,13 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
             Limpar
           </button>
           <button
+            onClick={() => setIsPreferenciasModalOpen(true)}
+            className="bg-slate-800 hover:bg-slate-700 text-white font-black uppercase tracking-widest text-[10px] px-3 py-2.5 rounded-lg shadow-sm flex items-center justify-center transition-colors"
+            title="Pré-definições de Sorteio"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+          <button
             onClick={handleSortear}
             className="bg-orange-500 hover:bg-orange-400 text-white font-black uppercase tracking-widest text-[10px] px-4 py-2.5 rounded-lg shadow-sm flex items-center gap-2 transition-colors"
           >
@@ -845,8 +1114,8 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
 
       <div className="p-4 sm:p-6 space-y-6">
         {/* SECTION 1: IMPORT_PERMUTA (Permutas Deferidas) */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="bg-emerald-50 border-b border-emerald-100 p-3 px-4 flex items-center justify-between">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative z-40">
+          <div className="bg-emerald-50 rounded-t-2xl border-b border-emerald-100 p-3 px-4 flex items-center justify-between">
             <h3 className="text-xs font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
               <ArrowRightLeft className="w-4 h-4 text-emerald-600" />
               Import Permuta (Substituições Aprovadas)
@@ -866,7 +1135,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
               </span>
             )}
           </div>
-          <div className=" pb-4 no-scrollbar relative min-h-[150px]">
+          <div className=" pb-48 no-scrollbar relative min-h-[150px]">
             <table className="w-full table-fixed border-collapse border-2 shadow-xl text-[10px] uppercase font-bold min-w-[500px] border-[#1e293b]">
               <colgroup>
                 <col className="w-[30px]" />
@@ -978,7 +1247,12 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                           <div className="flex flex-col text-left justify-center py-1 min-w-0">
                             <span className="text-[11px] font-black uppercase text-indigo-500 tracking-widest leading-none mb-0.5 whitespace-nowrap">{reqRank || 'MIL'}</span>
                             <span className="text-[15px] font-black uppercase tracking-tight text-slate-800 leading-none truncate block mt-0.5">{displayReqName}</span>
-                            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 font-mono leading-none mt-1 whitespace-nowrap">RG: {p.requesterRg}</span>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 font-mono leading-none whitespace-nowrap">RG: {p.requesterRg}</span>
+                              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-1.5 py-0.5 rounded leading-none">
+                                {requesterData?.quadro?.split('/')[0] || 'S/Q'}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -997,7 +1271,12 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                           <div className="flex flex-col text-left justify-center py-1 min-w-0">
                             <span className="text-[11px] font-black uppercase text-indigo-500 tracking-widest leading-none mb-0.5 whitespace-nowrap">{subRank || 'MIL'}</span>
                             <span className="text-[15px] font-black uppercase tracking-tight text-slate-800 leading-none truncate block mt-0.5">{displaySubName}</span>
-                            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 font-mono leading-none mt-1 whitespace-nowrap">RG: {p.substituteRg}</span>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 font-mono leading-none whitespace-nowrap">RG: {p.substituteRg}</span>
+                              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest bg-emerald-50 px-1.5 py-0.5 rounded leading-none">
+                                {substituteData?.quadro?.split('/')[0] || 'S/Q'}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -1082,8 +1361,8 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
         </div>
 
         {/* SECTION 2: TAB_PERMUTA (Escala Espelho Base) */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="bg-indigo-50 border-b border-indigo-100 p-3 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative z-30">
+          <div className="bg-indigo-50 rounded-t-2xl border-b border-indigo-100 p-3 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h3 className="text-xs font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2 shrink-0">
               <Users className="w-4 h-4 text-indigo-600" />
               Tab Permuta (Construção da Escala)
@@ -1104,19 +1383,13 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                 />
                 {showAddMenu && addMilitarSearch.length >= 2 && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-xl max-h-48 overflow-y-auto">
-                    {militars
-                      .filter(m => {
-                        const s = addMilitarSearch.toLowerCase();
-                        return (m.name || '').toLowerCase().includes(s) || 
-                               (m.warName || '').toLowerCase().includes(s) || 
-                               (m.rg || '').toString().includes(addMilitarSearch);
-                      })
-                      .filter(m => !baseRoster.some(br => br.rg === m.rg))
-                      .slice(0, 10)
-                      .map((m) => (
+                    {addMenuOptions.map((m) => (
                         <button
                           key={m.rg}
                           onClick={() => {
+                            if (!militars.some(local => local.rg === m.rg) && !extraMilitars.some(extra => extra.rg === m.rg)) {
+                                setExtraMilitars(prev => [...prev, m]);
+                            }
                             setManuallyAddedRgs(prev => {
                               const curr = prev[selectedDate] || [];
                               return {
@@ -1129,16 +1402,14 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                           }}
                           className="w-full text-left px-3 py-2 text-[10px] font-bold text-slate-700 hover:bg-indigo-50 border-b border-slate-100 last:border-0 flex flex-col"
                         >
-                          <span className="uppercase">{parseRank(m.rank)} {m.warName}</span>
+                          <div className="flex items-center justify-between">
+                            <span className="uppercase">{parseRank(m.rank)} {m.warName}</span>
+                            <span className="text-[8px] font-black uppercase text-slate-400 bg-slate-100 px-1 py-0.5 rounded">{m.obm?.split(' ')[0] || 'S/Q'}</span>
+                          </div>
                           <span className="text-[9px] text-slate-400 font-medium">RG: {m.rg}</span>
                         </button>
                     ))}
-                    {militars.filter(m => {
-                        const s = addMilitarSearch.toLowerCase();
-                        return (m.name || '').toLowerCase().includes(s) || 
-                               (m.warName || '').toLowerCase().includes(s) || 
-                               (m.rg || '').toString().includes(addMilitarSearch);
-                      }).filter(m => !baseRoster.some(br => br.rg === m.rg)).length === 0 && (
+                    {addMenuOptions.length === 0 && (
                         <div className="px-3 py-2 text-[10px] font-medium text-slate-500 text-center">
                           Nenhum militar encontrado
                         </div>
@@ -1151,7 +1422,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
               </span>
             </div>
           </div>
-          <div className=" relative min-h-[300px]">
+          <div className=" relative min-h-[300px] pb-48">
             {militarsLoading && (
               <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center">
                 <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest animate-pulse">
@@ -1231,9 +1502,14 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                             >
                               {militar.warName?.toUpperCase() || formatMilitaryName(militar.name || "")}
                             </span>
-                            <span className="text-[9px] text-slate-400 font-mono tracking-widest leading-none">
-                              RG: {rg}
-                            </span>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[9px] text-slate-400 font-mono tracking-widest leading-none">
+                                RG: {rg}
+                              </span>
+                              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-1.5 py-0.5 rounded">
+                                {militar.quadro?.split('/')[0] || 'S/Q'}
+                              </span>
+                            </div>
                             {expedienteRgs.includes(rg) && (
                               <span className="mt-1 text-[8px] font-bold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded w-max uppercase tracking-widest">
                                 EXPEDIENTE
@@ -1282,9 +1558,14 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                                   return subData?.warName?.toUpperCase() || formatMilitaryName(permuta.substituteName || "");
                                 })()}
                               </span>
-                              <span className="text-[9px] text-indigo-400/80 font-mono tracking-widest leading-none">
-                                RG: {permuta.substituteRg}
-                              </span>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[9px] text-indigo-400/80 font-mono tracking-widest leading-none">
+                                  RG: {permuta.substituteRg}
+                                </span>
+                                <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-100/50 px-1.5 py-0.5 rounded">
+                                  {militars.find(m => m.rg === permuta.substituteRg)?.quadro?.split('/')[0] || 'S/Q'}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         ) : (
@@ -1328,9 +1609,12 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
           </div>
         </div>
 
+        {/* SECTION 2.5: AFASTAMENTOS DA ALA */}
+        <AfastamentosAlaModule obmContext={obmContext} type="atuais" filterAla={identifiedAlaStr} />
+
         {/* SECTION 3: QUANT_MILITARES1 */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="bg-amber-50 border-b border-amber-100 p-3 px-4 flex items-center justify-between">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative z-20">
+          <div className="bg-amber-50 rounded-t-2xl border-b border-amber-100 p-3 px-4 flex items-center justify-between">
             <h3 className="text-xs font-black text-amber-900 uppercase tracking-widest flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-amber-600" />
               Prontidão Operacional (Quant_Militares1)
@@ -1339,80 +1623,285 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
               Resumo Automático
             </span>
           </div>
-
-          <div className=" p-4 sm:p-6 bg-slate-50 relative">
-            <div className="max-w-xl mx-auto">
-              <table className="w-full text-left text-[10px] font-bold uppercase tracking-wider bg-white rounded-lg overflow-hidden border border-slate-200 shadow-sm">
-                <thead className="bg-[#1e293b] text-white text-[11px]">
-                  <tr>
-                    <th className="p-2.5 px-4 border-b border-slate-700">
-                      Função
-                    </th>
-                    <th className="p-2.5 px-4 border-b border-slate-700 w-24 text-center">
-                      Atual
-                    </th>
-                    <th className="p-2.5 px-4 border-b border-slate-700 w-24 text-center">
-                      Necessária
-                    </th>
-                    <th className="p-2.5 px-4 border-b border-slate-700 w-24 text-center">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {dynamicRequirements.filter(f => f.req > 0).map((funcao) => {
-                    const currentCount = Object.values(selectedFunctions)
-                      .flat()
-                      .filter((v) => v === funcao.name).length;
-                    const isOk = currentCount >= funcao.req;
-                    return (
-                      <tr
-                        key={funcao.name}
-                        className="hover:bg-slate-50 transition-colors"
-                      >
-                        <td className="p-2.5 px-4 tracking-tighter text-slate-800 text-[11px]">
-                          {funcao.name}
-                        </td>
-                        <td className="p-2.5 px-4 text-center">
-                          <span
-                            className={cn(
-                              "px-2 py-1 rounded-md text-[10px] font-black",
-                              currentCount > 0
-                                ? "bg-indigo-100 text-indigo-700"
-                                : "bg-slate-100 text-slate-400",
+          <div className="p-4 sm:p-6 bg-slate-50 relative">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
+              
+              {/* OPERACIONAIS */}
+              <div>
+                <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-indigo-500" />
+                  Funções Operacionais
+                </h4>
+                <table className="w-full text-left text-[10px] font-bold uppercase tracking-wider bg-white rounded-lg overflow-hidden border border-slate-200 shadow-sm">
+                  <thead className="bg-[#1e293b] text-white text-[11px]">
+                    <tr>
+                      <th className="p-2.5 px-4 border-b border-slate-700">Função</th>
+                      <th className="p-2.5 px-4 border-b border-slate-700 w-20 text-center">Atual</th>
+                      <th className="p-2.5 px-4 border-b border-slate-700 w-20 text-center">Nec.</th>
+                      <th className="p-2.5 px-4 border-b border-slate-700 w-20 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {dynamicRequirements.filter(f => {
+                      const isOperacional = f.category !== 'admin';
+                      if (!isOperacional) return false;
+                      const currentCount = Object.values(selectedFunctions)
+                        .flat()
+                        .filter((v) => v === f.name).length;
+                      return f.req > 0 || currentCount > 0;
+                    }).map((funcao) => {
+                      const currentCount = Object.values(selectedFunctions)
+                        .flat()
+                        .filter((v) => v === funcao.name).length;
+                      const isOk = currentCount >= funcao.req;
+                      return (
+                        <tr key={funcao.name} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-2.5 px-4 tracking-tighter text-slate-800 text-[11px]">{funcao.name}</td>
+                          <td className="p-2.5 px-4 text-center">
+                            <span className={cn("px-2 py-1 rounded-md text-[10px] font-black", currentCount > 0 ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400")}>
+                              {currentCount}
+                            </span>
+                          </td>
+                          <td className="p-2.5 px-4 text-center text-slate-500 font-black">{funcao.req}</td>
+                          <td className="p-2.5 px-4 text-center">
+                            {isOk ? (
+                              <span className="text-emerald-500 font-black flex items-center justify-center gap-1">
+                                <CheckCircle2 className="w-3.5 h-3.5 stroke-[3]" /> OK
+                              </span>
+                            ) : (
+                              <span className="text-rose-500 font-black flex items-center justify-center gap-1">
+                                <AlertCircle className="w-3.5 h-3.5 stroke-[3]" /> DEF
+                              </span>
                             )}
-                          >
-                            {currentCount}
-                          </span>
-                        </td>
-                        <td className="p-2.5 px-4 text-center text-slate-500 font-black">
-                          {funcao.req}
-                        </td>
-                        <td className="p-2.5 px-4 text-center">
-                          {isOk ? (
-                            <span className="text-emerald-500 font-black flex items-center justify-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5 stroke-[3]" />{" "}
-                              OK
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* ADMINISTRATIVAS */}
+              <div>
+                <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <Printer className="w-4 h-4 text-slate-500" />
+                  Funções Administrativas
+                </h4>
+                <table className="w-full text-left text-[10px] font-bold uppercase tracking-wider bg-white rounded-lg overflow-hidden border border-slate-200 shadow-sm">
+                  <thead className="bg-[#1e293b] text-white text-[11px]">
+                    <tr>
+                      <th className="p-2.5 px-4 border-b border-slate-700">Função</th>
+                      <th className="p-2.5 px-4 border-b border-slate-700 w-20 text-center">Atual</th>
+                      <th className="p-2.5 px-4 border-b border-slate-700 w-20 text-center">Nec.</th>
+                      <th className="p-2.5 px-4 border-b border-slate-700 w-20 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {dynamicRequirements.filter(f => {
+                      const isAdmin = f.category === 'admin';
+                      if (!isAdmin) return false;
+                      const currentCount = Object.values(selectedFunctions)
+                        .flat()
+                        .filter((v) => v === f.name).length;
+                      return f.req > 0 || currentCount > 0;
+                    }).map((funcao) => {
+                      const currentCount = Object.values(selectedFunctions)
+                        .flat()
+                        .filter((v) => v === funcao.name).length;
+                      const isOk = currentCount >= funcao.req;
+                      return (
+                        <tr key={funcao.name} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-2.5 px-4 tracking-tighter text-slate-800 text-[11px]">{funcao.name}</td>
+                          <td className="p-2.5 px-4 text-center">
+                            <span className={cn("px-2 py-1 rounded-md text-[10px] font-black", currentCount > 0 ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400")}>
+                              {currentCount}
                             </span>
-                          ) : (
-                            <span className="text-rose-500 font-black flex items-center justify-center gap-1">
-                              <AlertCircle className="w-3.5 h-3.5 stroke-[3]" />{" "}
-                              DEF
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          </td>
+                          <td className="p-2.5 px-4 text-center text-slate-500 font-black">{funcao.req}</td>
+                          <td className="p-2.5 px-4 text-center">
+                            {isOk ? (
+                              <span className="text-emerald-500 font-black flex items-center justify-center gap-1">
+                                <CheckCircle2 className="w-3.5 h-3.5 stroke-[3]" /> OK
+                              </span>
+                            ) : (
+                              <span className="text-rose-500 font-black flex items-center justify-center gap-1">
+                                <AlertCircle className="w-3.5 h-3.5 stroke-[3]" /> DEF
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* ESTUDO TÉCNICO */}
+              <div className="lg:col-span-1">
+                <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-rose-500" />
+                  Estudo Técnico (Lacunas)
+                </h4>
+                <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm flex flex-col h-full">
+                   <div className="p-4 bg-slate-800 text-white flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+                         <TrendingDown className="w-4 h-4 text-rose-400" />
+                         Risco de Déficit
+                      </span>
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-700/50">
+                         PREVISÃO
+                      </span>
+                   </div>
+                   <div className="p-4 space-y-4 flex-1">
+                      {/* Efetivo Global */}
+                      <div>
+                        <div className="flex justify-between items-end mb-1">
+                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Efetivo Global</span>
+                           <span className={cn("text-[11px] font-black", estudoTecnico.efetivo.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                             {estudoTecnico.efetivo.chance}% Vazio
+                           </span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                           <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.efetivo.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.efetivo.chance}%` }} />
+                        </div>
+                        <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                           <span>Lacunas: {estudoTecnico.efetivo.deficit}</span>
+                           <span>Nec: {estudoTecnico.efetivo.req}</span>
+                        </div>
+                      </div>
+                      
+                      {/* Condutores */}
+                      <div>
+                        <div className="flex justify-between items-end mb-1">
+                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Condutores</span>
+                           <span className={cn("text-[11px] font-black", estudoTecnico.condutores.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                             {estudoTecnico.condutores.chance}% Vazio
+                           </span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                           <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.condutores.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.condutores.chance}%` }} />
+                        </div>
+                        <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                           <span>Lacunas: {estudoTecnico.condutores.deficit}</span>
+                           <span>Nec: {estudoTecnico.condutores.req}</span>
+                        </div>
+                      </div>
+
+                      {estudoTecnico.condutores_maritimos.req > 0 && (
+                      <div>
+                        <div className="flex justify-between items-end mb-1">
+                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Mestres (Marítimo)</span>
+                           <span className={cn("text-[11px] font-black", estudoTecnico.condutores_maritimos.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                             {estudoTecnico.condutores_maritimos.chance}% Vazio
+                           </span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                           <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.condutores_maritimos.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.condutores_maritimos.chance}%` }} />
+                        </div>
+                        <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                           <span>Lacunas: {estudoTecnico.condutores_maritimos.deficit}</span>
+                           <span>Nec: {estudoTecnico.condutores_maritimos.req}</span>
+                        </div>
+                      </div>
+                      )}
+
+                      {/* Chefes */}
+                      <div>
+                        <div className="flex justify-between items-end mb-1">
+                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Chefes de Guarnição</span>
+                           <span className={cn("text-[11px] font-black", estudoTecnico.chefes.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                             {estudoTecnico.chefes.chance}% Vazio
+                           </span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                           <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.chefes.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.chefes.chance}%` }} />
+                        </div>
+                        <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                           <span>Lacunas: {estudoTecnico.chefes.deficit}</span>
+                           <span>Nec: {estudoTecnico.chefes.req}</span>
+                        </div>
+                      </div>
+
+                      {estudoTecnico.chefes_maritimos.req > 0 && (
+                      <div>
+                        <div className="flex justify-between items-end mb-1">
+                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Chefes (Marítimo)</span>
+                           <span className={cn("text-[11px] font-black", estudoTecnico.chefes_maritimos.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                             {estudoTecnico.chefes_maritimos.chance}% Vazio
+                           </span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                           <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.chefes_maritimos.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.chefes_maritimos.chance}%` }} />
+                        </div>
+                        <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                           <span>Lacunas: {estudoTecnico.chefes_maritimos.deficit}</span>
+                           <span>Nec: {estudoTecnico.chefes_maritimos.req}</span>
+                        </div>
+                      </div>
+                      )}
+
+                      {/* Auxiliares */}
+                      <div>
+                        <div className="flex justify-between items-end mb-1">
+                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Auxiliares / Geral</span>
+                           <span className={cn("text-[11px] font-black", estudoTecnico.auxiliares.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                             {estudoTecnico.auxiliares.chance}% Vazio
+                           </span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                           <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.auxiliares.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.auxiliares.chance}%` }} />
+                        </div>
+                        <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                           <span>Lacunas: {estudoTecnico.auxiliares.deficit}</span>
+                           <span>Nec: {estudoTecnico.auxiliares.req}</span>
+                        </div>
+                      </div>
+
+                      {estudoTecnico.auxiliares_maritimos.req > 0 && (
+                      <div>
+                        <div className="flex justify-between items-end mb-1">
+                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Marinheiros (Marítimo)</span>
+                           <span className={cn("text-[11px] font-black", estudoTecnico.auxiliares_maritimos.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                             {estudoTecnico.auxiliares_maritimos.chance}% Vazio
+                           </span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                           <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.auxiliares_maritimos.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.auxiliares_maritimos.chance}%` }} />
+                        </div>
+                        <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                           <span>Lacunas: {estudoTecnico.auxiliares_maritimos.deficit}</span>
+                           <span>Nec: {estudoTecnico.auxiliares_maritimos.req}</span>
+                        </div>
+                      </div>
+                      )}
+
+                      {/* Admin */}
+                      <div>
+                        <div className="flex justify-between items-end mb-1">
+                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Serviços Internos</span>
+                           <span className={cn("text-[11px] font-black", estudoTecnico.admin.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                             {estudoTecnico.admin.chance}% Vazio
+                           </span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                           <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.admin.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.admin.chance}%` }} />
+                        </div>
+                        <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                           <span>Lacunas: {estudoTecnico.admin.deficit}</span>
+                           <span>Nec: {estudoTecnico.admin.req}</span>
+                        </div>
+                      </div>
+
+                   </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
         {/* SECTION 4: CONTROLE DE VIATURAS */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="bg-slate-800 border-b border-slate-700 p-3 px-4 flex items-center justify-between">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative z-10">
+          <div className="bg-slate-800 rounded-t-2xl border-b border-slate-700 p-3 px-4 flex items-center justify-between">
             <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
               <Truck className="w-4 h-4 text-slate-400" />
               Distribuição (Viaturas)
@@ -1426,6 +1915,12 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
             <table className="w-full text-left text-[10px] font-bold uppercase tracking-wider bg-white rounded-lg overflow-hidden border border-slate-200 shadow-sm min-w-[700px]">
               <thead className="bg-[#1e293b] text-white text-[11px]">
                 <tr>
+                  <th
+                    className="p-3 px-2 border-b border-r border-[#334155] w-12 text-center"
+                    title="Exibir VTR na escala gerada?"
+                  >
+                    Exibição
+                  </th>
                   <th
                     className="p-3 px-2 border-b border-r border-[#334155] w-12 text-center"
                     title="Ativar VTR?"
@@ -1461,11 +1956,20 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
               <tbody className="divide-y divide-slate-100">
                 {viaturasInfo.map((vtr) => {
                   const isAtiva = vtr.ativa;
+                  const isExibir = vtr.exibir ?? vtr.ativa;
 
                   const toggleVtr = () => {
                     setViaturasInfo((prev) =>
                       prev.map((v) =>
                         v.id === vtr.id ? { ...v, ativa: !v.ativa } : v,
+                      ),
+                    );
+                  };
+
+                  const toggleExibir = () => {
+                    setViaturasInfo((prev) =>
+                      prev.map((v) =>
+                        v.id === vtr.id ? { ...v, exibir: !(v.exibir ?? v.ativa) } : v,
                       ),
                     );
                   };
@@ -1510,6 +2014,18 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                       key={vtr.id}
                       className="hover:bg-slate-50 transition-colors group"
                     >
+                      <td
+                        className="p-1 border-r border-slate-200 text-center align-middle"
+                        onClick={toggleExibir}
+                      >
+                        {isExibir ? (
+                          <div className="w-3.5 h-3.5 bg-slate-700/80 rounded-[3px] text-white flex items-center justify-center mx-auto shadow-sm cursor-pointer hover:bg-slate-800 transition">
+                            <span className="text-[10px]">✓</span>
+                          </div>
+                        ) : (
+                          <div className="w-3.5 h-3.5 border border-slate-300 rounded-[3px] mx-auto cursor-pointer hover:border-slate-500 transition" />
+                        )}
+                      </td>
                       <td
                         className="p-1 border-r border-slate-200 text-center align-middle"
                         onClick={toggleVtr}
@@ -1561,7 +2077,100 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
             </table>
           </div>
         </div>
+
+        {/* SECTION 5: AFASTAMENTOS DA ALA */}
       </div>
+
+      {isPreferenciasModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
+              <div>
+                <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-indigo-600" />
+                  Pré-definições de Funções (Fixo)
+                </h2>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
+                  Defina as funções preferenciais para o sorteio automático
+                </p>
+              </div>
+              <button onClick={() => setIsPreferenciasModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-500">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-4 border-b border-slate-100 shrink-0">
+               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Busque o militar e selecione a função que ele deve assumir prioritariamente no sorteio.</p>
+            </div>
+
+            <div className="p-0 overflow-y-auto flex-1 bg-slate-50 pb-48">
+              <table className="w-full text-left text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
+                <thead className="bg-[#1e293b] text-white sticky top-0 z-10">
+                   <tr>
+                     <th className="p-3 px-4 border-r border-slate-700 w-1/2">Militar</th>
+                     <th className="p-3 px-4 border-r border-slate-700 w-1/2">Função Predefinida</th>
+                   </tr>
+                </thead>
+                <tbody>
+                  {baseRoster.map((militar) => (
+                    <tr key={militar.rg} className="border-b border-slate-200 bg-white hover:bg-slate-50">
+                      <td className="p-3 px-4 border-r border-slate-200">
+                        <div className="flex items-center gap-3">
+                          <RankInsignia rankStr={militar.rank} className="w-5 h-5 flex-shrink-0" />
+                          <div className="flex flex-col text-left">
+                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">
+                              {parseRank(militar.rank)}
+                            </span>
+                            <span className="text-[14px] font-black leading-none mb-1 uppercase tracking-tight text-slate-800">
+                              {militar.warName?.toUpperCase() || formatMilitaryName(militar.name || "")}
+                            </span>
+                            <span className="text-[9px] text-slate-400 font-mono tracking-widest leading-none">
+                              RG: {militar.rg}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-3 px-4 relative" style={{ overflow: 'visible' }}>
+                         <FuncoesMultiSelect
+                            selected={predefinicoes[militar.rg || ''] || []}
+                            allowedOptions={getAllowedOptions(militar)}
+                            onChange={async (newVal) => {
+                               const newPref = { ...predefinicoes, [militar.rg || '']: newVal };
+                               setPredefinicoes(newPref);
+                               try {
+                                 await updateDoc(doc(db, "obm_settings", obmContext), cleanUndefined({
+                                    escala_preferencias: newPref
+                                 }));
+                               } catch(e) {
+                                 console.error("Error saving predefinicoes", e);
+                               }
+                            }}
+                         />
+                      </td>
+                    </tr>
+                  ))}
+                  {baseRoster.length === 0 && (
+                     <tr>
+                        <td colSpan={2} className="p-8 text-center text-slate-400 font-black text-xs uppercase tracking-widest">
+                           NENHUM MILITAR CADASTRADO NESTA ALA
+                        </td>
+                     </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            
+            <div className="p-4 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
+              <button
+                onClick={() => setIsPreferenciasModalOpen(false)}
+                className="px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showPrintView && (
         <EscalaPrintView

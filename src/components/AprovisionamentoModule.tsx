@@ -387,6 +387,7 @@ const MOCK_CARDAPIO: CardapioDia[] = [
 
 export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfile | null }) {
   const [activeTab, setActiveTab] = useState<'CADASTRO' | 'RECEITAS' | 'CARDAPIO' | 'PREVISAO' | 'CATALOGO' | 'LISTA_COMPRAS'>('CADASTRO');
+  const [showArquivadas, setShowArquivadas] = useState(false);
   
   const [materiais, setMateriais] = useState<Material[]>(() => {
     try {
@@ -1962,14 +1963,15 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                     <p className="text-xs font-semibold text-slate-400">Crie sua primeira lista para organizar as compras.</p>
                  </div>
               ) : (
-                 <div className="space-y-4">
-                    {listasDeCompras.map(lista => {
-                       const isExpanded = expandedListaId === lista.id;
-                       const totalValue = lista.itens.reduce((acc, item) => acc + (item.valorPago || 0), 0);
-                       const completedCount = lista.itens.filter(i => i.concluido).length;
-                       
-                       return (
-                          <div key={lista.id} className={cn("bg-white border transition-all overflow-hidden relative", isExpanded ? "border-indigo-200 shadow-md rounded-2xl" : "border-slate-200 hover:border-slate-300 rounded-2xl", lista.arquivada && !isExpanded && "opacity-70 bg-slate-50")}>
+                 <div className="space-y-8">
+                    {(() => {
+                       const renderLista = (lista: ListaDeCompras) => {
+                          const isExpanded = expandedListaId === lista.id;
+                          const totalValue = lista.itens.reduce((acc, item) => acc + (item.valorPago || 0), 0);
+                          const completedCount = lista.itens.filter(i => i.concluido).length;
+                          
+                          return (
+                             <div key={lista.id} className={cn("bg-white border transition-all overflow-hidden relative", isExpanded ? "border-indigo-200 shadow-md rounded-2xl" : "border-slate-200 hover:border-slate-300 rounded-2xl", lista.arquivada && !isExpanded && "opacity-70 bg-slate-50")}>
                              {lista.arquivada && <div className="absolute top-0 left-0 w-1 h-full bg-slate-300"></div>}
                              {!lista.arquivada && <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>}
                              
@@ -2111,7 +2113,52 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                              </AnimatePresence>
                           </div>
                        );
-                    })}
+                    };
+
+                    const listasAtivas = listasDeCompras.filter(l => !l.arquivada);
+                    const listasArquivadas = listasDeCompras.filter(l => l.arquivada);
+
+                    return (
+                       <>
+                          {listasAtivas.length > 0 ? (
+                             <div className="space-y-4">
+                                {listasAtivas.map(renderLista)}
+                             </div>
+                          ) : (
+                             <div className="py-8 text-center text-slate-400 font-bold text-xs uppercase tracking-widest bg-white border border-dashed rounded-3xl">Nenhuma lista ativa.</div>
+                          )}
+                          
+                          {listasArquivadas.length > 0 && (
+                             <div className="pt-8">
+                                <button 
+                                  onClick={() => setShowArquivadas(!showArquivadas)}
+                                  className="w-full flex items-center justify-between gap-4 mb-2 p-4 bg-slate-50 hover:bg-slate-100 rounded-2xl border border-slate-200 transition-colors"
+                                >
+                                   <div className="flex items-center gap-3">
+                                      <h3 className="text-sm font-black text-slate-500 uppercase tracking-widest">Listas Arquivadas ({listasArquivadas.length})</h3>
+                                   </div>
+                                   {showArquivadas ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
+                                </button>
+                                
+                                <AnimatePresence>
+                                   {showArquivadas && (
+                                      <motion.div 
+                                         initial={{ height: 0, opacity: 0 }}
+                                         animate={{ height: "auto", opacity: 1 }}
+                                         exit={{ height: 0, opacity: 0 }}
+                                         className="overflow-hidden"
+                                      >
+                                         <div className="space-y-4 opacity-80 pt-4">
+                                            {listasArquivadas.map(renderLista)}
+                                         </div>
+                                      </motion.div>
+                                   )}
+                                </AnimatePresence>
+                             </div>
+                          )}
+                       </>
+                    );
+                 })()}
                  </div>
               )}
           </motion.div>

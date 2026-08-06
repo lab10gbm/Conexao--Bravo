@@ -293,7 +293,7 @@ app.get('/api/militar/:rg', async (req, res) => {
   });
 
 app.post('/api/militar/update', async (req, res) => {
-    const { isDbHealthy, db, militaryCache, normalizeRg, OBM_HIERARCHY, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
+    const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, OBM_HIERARCHY, isCacheLoaded, cachePromise, setDbUnhealthy, cacheEvents, incrementCacheVersion } = getDeps();
     const { rg, data } = req.body;
     if (!rg || !data) return res.status(400).json({ success: false });
 
@@ -307,6 +307,10 @@ app.post('/api/militar/update', async (req, res) => {
             console.error('[API] Failed to update militar data in Firestore:', e);
           }
         }
+      } else if (clientDb) {
+        try {
+          await setDoc(doc(clientDb, 'militaries', safeRg), data, { merge: true });
+        } catch (e: any) {}
       }
 
       const existing = militaryCache.get(safeRg) || {};
@@ -317,7 +321,7 @@ app.post('/api/militar/update', async (req, res) => {
       }
       
       militaryCache.set(safeRg, mergedData);
-      
+      if (cacheEvents) cacheEvents.emit('update', incrementCacheVersion ? incrementCacheVersion() : Date.now());
       return res.json({ success: true });
     } catch (e) {
       return res.status(500).json({ success: false });
@@ -325,7 +329,7 @@ app.post('/api/militar/update', async (req, res) => {
   });
 
 app.post('/api/militar/role', async (req, res) => {
-    const { isDbHealthy, db, militaryCache, normalizeRg, OBM_HIERARCHY, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
+    const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, OBM_HIERARCHY, isCacheLoaded, cachePromise, setDbUnhealthy, cacheEvents, incrementCacheVersion } = getDeps();
     const { rg, role, value } = req.body;
     if (!rg || !role) return res.status(400).json({ success: false });
 
@@ -339,11 +343,15 @@ app.post('/api/militar/role', async (req, res) => {
             console.error('[API] Failed to update role in Firestore:', e);
           }
         }
+      } else if (clientDb) {
+        try {
+          await setDoc(doc(clientDb, 'militaries', safeRg), { [role]: value }, { merge: true });
+        } catch (e: any) {}
       }
 
       const existing = militaryCache.get(safeRg) || {};
       militaryCache.set(safeRg, { ...existing, [role]: value });
-      
+      if (cacheEvents) cacheEvents.emit('update', incrementCacheVersion ? incrementCacheVersion() : Date.now());
       return res.json({ success: true });
     } catch (e) {
       return res.status(500).json({ success: false });
@@ -351,7 +359,7 @@ app.post('/api/militar/role', async (req, res) => {
   });
 
 app.post('/api/militar/emprestar', async (req, res) => {
-    const { isDbHealthy, db, militaryCache, normalizeRg, OBM_HIERARCHY, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
+    const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, OBM_HIERARCHY, isCacheLoaded, cachePromise, setDbUnhealthy, cacheEvents, incrementCacheVersion } = getDeps();
     const { lentTo, rg } = req.body;
     
     if (!rg) return res.status(400).json({ success: false, error: 'RG obrigatório' });
@@ -367,6 +375,10 @@ app.post('/api/militar/emprestar', async (req, res) => {
             console.error('[API] Failed to update lentTo in Firestore:', e);
           }
         }
+      } else if (clientDb) {
+        try {
+          await setDoc(doc(clientDb, 'militaries', safeRg), { lentTo: lentTo || null }, { merge: true });
+        } catch (e: any) {}
       }
       
       // Update cache
@@ -376,6 +388,7 @@ app.post('/api/militar/emprestar', async (req, res) => {
         militaryCache.set(safeRg, cached);
       }
       
+      if (cacheEvents) cacheEvents.emit('update', incrementCacheVersion ? incrementCacheVersion() : Date.now());
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ success: false, error: e.message });

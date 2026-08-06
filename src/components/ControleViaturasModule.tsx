@@ -15,6 +15,7 @@ export interface ViaturaConfig {
   ativa: boolean;
   obm?: string;
   tipo?: 'operacional' | 'administrativa';
+  maritima?: boolean;
   condutor: boolean | null;
   g1: boolean | null;
   g2: boolean | null;
@@ -22,6 +23,14 @@ export interface ViaturaConfig {
   g4: boolean | null;
   cg: boolean | null;
   blocked: string[];
+  customNames?: {
+    condutor?: string;
+    g1?: string;
+    g2?: string;
+    g3?: string;
+    g4?: string;
+    cg?: string;
+  };
 }
 
 const OBM_OPTIONS = [
@@ -35,26 +44,23 @@ const OBM_OPTIONS = [
 ];
 
 const DEFAULT_VIATURAS: ViaturaConfig[] = [
-  { id: "ABT-183", vtr: "ABT-183", ativa: true, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: true, g3: true, g4: false, cg: true, blocked: [] },
-  { id: "ABSL-152", vtr: "ABSL-152", ativa: true, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: true, g3: false, g4: false, cg: true, blocked: [] },
-  { id: "ASE-404", vtr: "ASE-404", ativa: true, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
-  { id: "ARC-162", vtr: "ARC-162", ativa: true, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: null, g3: null, g4: null, cg: null, blocked: ["g2", "g3", "g4", "cg"] },
-  { id: "AR-583", vtr: "AR-583", ativa: true, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: null, g2: null, g3: null, g4: null, cg: null, blocked: ["g1", "g2", "g3", "g4", "cg"] },
-  { id: "L-09", vtr: "L-09", ativa: true, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
-  { id: "BIA-006", vtr: "BIA-006", ativa: true, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: true, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
-  { id: "BIA-013", vtr: "BIA-013", ativa: false, obm: "10º GBM", tipo: 'operacional', condutor: false, g1: false, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
-  { id: "ABT-12", vtr: "ABT-12", ativa: false, obm: "10º GBM", tipo: 'operacional', condutor: false, g1: false, g2: false, g3: false, g4: false, cg: false, blocked: [] },
+  { id: "ABT-183", vtr: "ABT-183", ativa: true, obm: "10º GBM", tipo: 'operacional', maritima: false, condutor: true, g1: true, g2: true, g3: true, g4: false, cg: true, blocked: [] },
+  { id: "ABSL-152", vtr: "ABSL-152", ativa: true, obm: "10º GBM", tipo: 'operacional', maritima: false, condutor: true, g1: true, g2: true, g3: false, g4: false, cg: true, blocked: [] },
+  { id: "ASE-404", vtr: "ASE-404", ativa: true, obm: "10º GBM", tipo: 'operacional', maritima: false, condutor: true, g1: true, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "ARC-162", vtr: "ARC-162", ativa: true, obm: "10º GBM", tipo: 'operacional', maritima: false, condutor: true, g1: true, g2: null, g3: null, g4: null, cg: null, blocked: ["g2", "g3", "g4", "cg"] },
+  { id: "AR-583", vtr: "AR-583", ativa: true, obm: "10º GBM", tipo: 'operacional', maritima: false, condutor: true, g1: null, g2: null, g3: null, g4: null, cg: null, blocked: ["g1", "g2", "g3", "g4", "cg"] },
+  { id: "L-09", vtr: "L-09", ativa: true, obm: "10º GBM", tipo: 'operacional', maritima: true, condutor: true, g1: true, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "BIA-006", vtr: "BIA-006", ativa: true, obm: "10º GBM", tipo: 'operacional', maritima: true, condutor: true, g1: true, g2: true, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "BIA-013", vtr: "BIA-013", ativa: false, obm: "10º GBM", tipo: 'operacional', maritima: true, condutor: false, g1: false, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "ABT-12", vtr: "ABT-12", ativa: false, obm: "10º GBM", tipo: 'operacional', maritima: false, condutor: false, g1: false, g2: false, g3: false, g4: false, cg: false, blocked: [] },
 ];
 
 export function ControleViaturasModule({ obmContext }: ControleViaturasModuleProps) {
   const [viaturas, setViaturas] = useState<ViaturaConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [newVtrName, setNewVtrName] = useState('');
-  const [newVtrTipo, setNewVtrTipo] = useState<'operacional' | 'administrativa'>('operacional');
-  
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingValue, setEditingValue] = useState('');
+  const [editingVtr, setEditingVtr] = useState<ViaturaConfig | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
   
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [confirmRestore, setConfirmRestore] = useState(false);
@@ -134,41 +140,24 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
     setViaturas(prev => prev.map(v => v.id === vtrId ? { ...v, obm: newObm } : v));
   };
 
-  const handleAddVtr = () => {
-    if (!newVtrName.trim()) return;
-    const name = newVtrName.trim().toUpperCase();
-    if (viaturas.some(v => v.vtr === name)) {
-      alert("Viatura já existe.");
-      return;
-    }
-    const newVtr: ViaturaConfig = {
+  const handleOpenAddVtr = () => {
+    setEditingVtr({
       id: Date.now().toString(),
-      vtr: name,
+      vtr: '',
       ativa: true,
       obm: "10º GBM",
-      tipo: newVtrTipo,
+      tipo: 'operacional',
+      maritima: false,
       condutor: false,
       g1: false,
       g2: false,
       g3: false,
       g4: false,
       cg: false,
-      blocked: []
-    };
-    setViaturas([...viaturas, newVtr]);
-    setNewVtrName('');
-  };
-
-  const saveEdit = (id: string) => {
-    if (editingValue.trim() !== "") {
-      const formatted = editingValue.trim().toUpperCase();
-      if (viaturas.some(v => v.vtr === formatted && v.id !== id)) {
-        alert("Já existe outra viatura com este nome.");
-        return;
-      }
-      setViaturas(prev => prev.map(v => v.id === id ? { ...v, vtr: formatted } : v));
-    }
-    setEditingId(null);
+      blocked: [],
+      customNames: {}
+    });
+    setIsAdding(true);
   };
 
   const handleDeleteVtr = (id: string) => {
@@ -246,22 +235,7 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
                   />
                 </td>
                 <td className="p-2 border-r border-slate-100 text-center font-black text-slate-800">
-                  {editingId === vtr.id ? (
-                    <div className="flex items-center gap-1">
-                      <input 
-                        type="text" 
-                        value={editingValue} 
-                        onChange={(e) => setEditingValue(e.target.value)} 
-                        className="w-full text-[10px] p-1 border border-indigo-300 rounded outline-none uppercase" 
-                        autoFocus
-                        onKeyDown={e => e.key === 'Enter' && saveEdit(vtr.id)}
-                      />
-                      <button onClick={() => saveEdit(vtr.id)} className="text-emerald-600 bg-emerald-50 p-1 rounded hover:bg-emerald-100"><Check className="w-3 h-3" /></button>
-                      <button onClick={() => setEditingId(null)} className="text-slate-400 bg-slate-100 p-1 rounded hover:bg-slate-200"><X className="w-3 h-3" /></button>
-                    </div>
-                  ) : (
-                    vtr.vtr
-                  )}
+                  {vtr.vtr}
                 </td>
                 <td className="p-2 border-r border-slate-100 text-center">
                   <select
@@ -318,8 +292,8 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
                   <div className="flex items-center justify-center gap-1">
                     <button
                       onClick={() => {
-                        setEditingId(vtr.id);
-                        setEditingValue(vtr.vtr);
+                        setEditingVtr(vtr);
+                        setIsAdding(false);
                       }}
                       className="p-1.5 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                       title="Editar viatura"
@@ -369,42 +343,130 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
     </div>
   );
 
+
   return (
     <div className="flex flex-col gap-6">
+      {editingVtr && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative flex flex-col max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <button 
+              onClick={() => {
+                setEditingVtr(null);
+                setIsAdding(false);
+              }}
+              className="absolute top-6 right-6 p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="text-xl font-black uppercase tracking-tight text-slate-800 mb-4">
+              {isAdding ? "Adicionar Viatura" : "Editar Viatura"}
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Nome da Viatura</label>
+                <input 
+                  type="text" 
+                  value={editingVtr.vtr}
+                  onChange={(e) => setEditingVtr({...editingVtr, vtr: e.target.value.toUpperCase()})}
+                  className="w-full p-2 mt-1 border border-slate-200 rounded-xl uppercase font-bold outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+                  placeholder="Ex: ABT-999"
+                />
+              </div>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Tipo</label>
+                  <select 
+                    value={editingVtr.tipo || 'operacional'}
+                    onChange={(e) => setEditingVtr({...editingVtr, tipo: e.target.value as 'operacional' | 'administrativa'})}
+                    className="w-full p-2 mt-1 border border-slate-200 rounded-xl uppercase font-bold bg-white text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+                  >
+                    <option value="operacional">Operacional</option>
+                    <option value="administrativa">Administrativa</option>
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <label className="flex items-center gap-2 p-2 px-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors h-[42px] mb-[1px]">
+                    <input
+                      type="checkbox"
+                      checked={editingVtr.maritima || false}
+                      onChange={e => setEditingVtr({...editingVtr, maritima: e.target.checked})}
+                      className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-bold text-slate-700 uppercase">Marítima</span>
+                  </label>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-slate-100">
+                <h3 className="text-xs font-black uppercase text-slate-700 mb-2">Nomes Customizados das Funções</h3>
+                <p className="text-[10px] text-slate-400 mb-4">
+                  O texto escrito será somado à sigla da viatura. Ex: (ABT-999) a função de G1 preenchida como "AUXILIAR" será lida como "AUXILIAR ABT". O chefe preenchido como "CHEFE" será lido como "CHEFE-ABT". Se deixado em branco, o sistema usará o nome padrão.
+                </p>
+                
+                {['condutor', 'g1', 'g2', 'g3', 'g4', 'cg'].map(slot => {
+                  if (editingVtr.blocked.includes(slot)) return null;
+                  
+                  let ph = slot.toUpperCase();
+                  if (slot === 'condutor') ph = 'CONDUTOR, MESTRE, OPERADOR, ETC';
+                  else if (slot === 'g1') ph = 'AUXILIAR, MARINHEIRO, ENFERMEIRO';
+                  else if (['g2', 'g3', 'g4'].includes(slot)) ph = 'AUXILIAR, MARINHEIRO, ETC';
+                  else if (slot === 'cg') ph = 'CHEFE';
+
+                  return (
+                    <div key={slot} className="mb-3">
+                      <label className="text-[10px] font-bold text-slate-500 uppercase">Nome p/ {slot === 'cg' ? 'Chefe Guarnição' : slot}</label>
+                      <input 
+                        type="text" 
+                        value={editingVtr.customNames?.[slot as keyof typeof editingVtr.customNames] || ''}
+                        onChange={(e) => {
+                          const newNames = { ...(editingVtr.customNames || {}) };
+                          newNames[slot as keyof typeof newNames] = e.target.value.toUpperCase();
+                          setEditingVtr({...editingVtr, customNames: newNames});
+                        }}
+                        placeholder={`Ex: ${ph}`}
+                        className="w-full p-2 mt-1 bg-slate-50 border border-slate-200 rounded-lg text-xs uppercase outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+              <button
+                onClick={() => {
+                  if (!editingVtr.vtr.trim()) {
+                    alert("O nome da viatura é obrigatório.");
+                    return;
+                  }
+                  if (viaturas.some(v => v.vtr === editingVtr.vtr && v.id !== editingVtr.id)) {
+                    alert("Já existe outra viatura com este nome.");
+                    return;
+                  }
+                  if (isAdding) {
+                    setViaturas(prev => [...prev, editingVtr]);
+                  } else {
+                    setViaturas(prev => prev.map(v => v.id === editingVtr.id ? editingVtr : v));
+                  }
+                  setEditingVtr(null);
+                  setIsAdding(false);
+                }}
+                className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold uppercase text-xs tracking-widest hover:bg-indigo-700 transition-colors"
+              >
+                {isAdding ? "Adicionar" : "Salvar Alterações"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       
-      <div className="bg-slate-50 rounded-2xl p-4 sm:p-5 border border-slate-200 flex flex-col lg:flex-row gap-6 items-start lg:items-end justify-between">
+      <div className="bg-slate-50 rounded-2xl p-4 sm:p-5 border border-slate-200 flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
          <div className="flex-1 w-full max-w-xl">
-           <label className="text-xs font-black uppercase tracking-widest text-slate-500 mb-3 block">
-             Adicionar Nova Viatura
-           </label>
-           <div className="flex flex-col sm:flex-row gap-3">
-             <div className="flex-1 flex flex-col gap-2">
-               <input
-                 type="text"
-                 value={newVtrName}
-                 onChange={e => setNewVtrName(e.target.value)}
-                 placeholder="Ex: ABT-999"
-                 className="w-full px-3 py-2 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-700 uppercase focus:border-rose-400 focus:ring-4 focus:ring-rose-100 outline-none transition-all"
-                 onKeyDown={e => e.key === 'Enter' && handleAddVtr()}
-               />
-             </div>
-             <div className="flex-1 flex gap-2">
-               <select 
-                 value={newVtrTipo} 
-                 onChange={(e) => setNewVtrTipo(e.target.value as 'operacional' | 'administrativa')}
-                 className="flex-1 px-3 py-2 border-2 border-slate-200 rounded-xl text-xs font-bold text-slate-700 uppercase focus:border-rose-400 focus:ring-4 focus:ring-rose-100 outline-none transition-all bg-white"
-               >
-                 <option value="operacional">Operacional</option>
-                 <option value="administrativa">Administrativa</option>
-               </select>
-               <button
-                 onClick={handleAddVtr}
-                 className="bg-rose-600 hover:bg-rose-700 text-white p-2 px-6 rounded-xl font-bold uppercase tracking-widest text-xs transition-all shadow-sm"
-               >
-                 Adicionar
-               </button>
-             </div>
-           </div>
+           <button
+             onClick={handleOpenAddVtr}
+             className="bg-rose-600 hover:bg-rose-700 text-white py-2.5 px-6 rounded-xl font-bold uppercase tracking-widest text-xs transition-all shadow-sm flex items-center justify-center gap-2"
+           >
+             <Plus className="w-4 h-4" /> Adicionar Viatura
+           </button>
          </div>
 
          <div className="flex gap-3 w-full lg:w-auto">

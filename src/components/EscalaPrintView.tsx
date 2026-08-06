@@ -21,7 +21,7 @@ export function EscalaPrintView({
   // Helper to get active viaturas dynamically
   const getActiveVtr = (prefix: string, index: number = 0) => {
      if (!viaturasInfo) return prefix;
-     const activeVtrs = viaturasInfo.filter((v: any) => v.ativa && (prefix === 'AR' ? v.vtr.startsWith('AR-') : v.vtr.startsWith(prefix)));
+     const activeVtrs = viaturasInfo.filter((v: any) => (v.exibir ?? v.ativa) && (prefix === 'AR' ? v.vtr.startsWith('AR-') : v.vtr.startsWith(prefix)));
      if (activeVtrs.length > index) return activeVtrs[index].vtr;
      return `${prefix}-???`; 
   };
@@ -73,29 +73,52 @@ export function EscalaPrintView({
     return `${militar.rank} ${militar.warName || militar.name.split(' ')[0]}`;
   };
 
-  const abtCg = getByFunc('CHEFE ABT');
-  const abtAux = getByFunc('AUXILIAR ABT');
-  const abtMot = getByFunc('CONDUTOR ABT');
+  
+  let usedMilitars = new Set<string>();
+  const getVtrByPrefix = (prefix: string, index: number = 0) => {
+     if (!viaturasInfo) return null;
+     const activeVtrs = viaturasInfo.filter((v: any) => (v.exibir ?? v.ativa) && (prefix === 'AR' ? v.vtr.startsWith('AR-') : v.vtr.startsWith(prefix)));
+     return activeVtrs[index] || null;
+  };
 
-  const abslCg = getByFunc('CHEFE ABSL');
-  const abslAux = getByFunc('AUXILIAR ABSL');
-  const abslMot = getByFunc('CONDUTOR ABSL');
+  const getSlotName = (v: any, slot: string, defaultName: string) => {
+     if (!v) return defaultName;
+     if (v.customNames?.[slot]?.trim()) {
+        const custom = v.customNames[slot].trim().toUpperCase();
+        const sigla = (v.vtr || "").split('-')[0].trim();
+        if (slot === 'cg' && custom === 'CHEFE') return `CHEFE-${sigla}`;
+        return `${custom} ${sigla}`.trim();
+     }
+     return defaultName;
+  };
 
-  const aseEnf = getByFunc('ENFERMEIRO');
-  const aseAux = getByFunc('OPERADOR AMA');
-  const aseMot = getByFunc('CONDUTOR ASE');
+  const getVtrSlotMilitar = (v: any, slot: string, defaultName: string) => {
+     if (!v || v[slot] === false || v.blocked?.includes(slot)) return null;
+     const funcName = getSlotName(v, slot, defaultName);
+     const candidates = getByFunc(funcName);
+     const unused = candidates.find((m: any) => !usedMilitars.has(m.rg));
+     if (unused) {
+        usedMilitars.add(unused.rg);
+        return unused;
+     }
+     return null;
+  };
 
-  const arcGuar = getByFunc('AUXILIAR / CHEFE ARC');
-  const arcMot = getByFunc('CONDUTOR ARC');
+  const renderVtrSlot = (v: any, slot: string, defaultName: string, fallbackLabel: string, forceRender = false, invisible = false) => {
+     if (!forceRender && (!v || v[slot] === false || v.blocked?.includes(slot))) return null;
+     const m = getVtrSlotMilitar(v, slot, defaultName);
+     const label = getSlotName(v, slot, defaultName);
+     // Shorten label if it's too long, or just use it.
+     const displayLabel = v?.customNames?.[slot] ? v.customNames[slot].substring(0, 15) : fallbackLabel;
+     
+     return (
+       <div className={`flex gap-1 items-center min-h-[20px] ${invisible ? 'opacity-0' : ''}`}>
+         <span className="font-bold shrink-0">{displayLabel}:</span> 
+         <span className="truncate">{renderMilitar(m)}</span>
+       </div>
+     );
+  };
 
-  const arMot = getByFunc('CONDUTOR AR');
-
-  const l09Ms = getByFunc('MESTRE AL');
-  const l09Mn = getByFunc('MARINHEIRO');
-
-  const bia006Ms = getByFunc('MESTRE BIA');
-  const bia006Mn = []; 
-  const bia013Ms = [];
 
   const adminRoles = {
     'ADJUNTO:': getByFunc('ADJUNTO'),
@@ -118,6 +141,14 @@ export function EscalaPrintView({
   const toqueFogo = getByFunc('TOQUE DE FOGO');
 
   const dateStr = selectedDate ? format(new Date(`${selectedDate}T12:00:00`), "dd 'DE' MMMM 'DE' yyyy", { locale: ptBR }).toUpperCase() : '';
+  const shortDateStr = selectedDate ? format(new Date(`${selectedDate}T12:00:00`), "dd/MM/yyyy") : '';
+
+  const renderInativaMsg = () => (
+     <div className="flex-1 flex flex-col items-center justify-center text-center font-black text-slate-500 px-2 leading-tight py-4 opacity-60">
+        <span>INATIVA NO SERVIÇO</span>
+        <span className="text-[10px]">({shortDateStr})</span>
+     </div>
+  );
 
   // Get active members list
   const activeMembersList = baseRoster.map((m: any) => {
@@ -183,48 +214,64 @@ export function EscalaPrintView({
                  <th className="border-2 border-black py-1 px-1">{getActiveVtr('L-')}</th>
               </tr>
            </thead>
-           <tbody>
+           
+            <tbody>
               <tr>
-                 {/* ABT-183 */}
+                 {/* ABT */}
                  <td className="border border-black p-0 align-top">
                     <div className="flex flex-col h-full min-h-[180px] p-2 justify-between">
-                       <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">CG:</span> <span className="truncate">{renderMilitar(abtCg[0])}</span></div>
-                       <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">P1:</span> <span className="truncate">{renderMilitar(abtAux[0])}</span></div>
-                       <div className="flex gap-1 items-center min-h-[20px] opacity-0"><span className="font-bold shrink-0">P1:</span> <span className="truncate">{renderMilitar(abtAux[1])}</span></div>
-                       <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">P2:</span> <span className="truncate">{renderMilitar(abtAux[2])}</span></div>
-                       <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">Mot:</span> <span className="truncate">{renderMilitar(abtMot[0])}</span></div>
+                       {(() => { const v = getVtrByPrefix('ABT'); return v && !v.ativa && (v.exibir ?? v.ativa) ? renderInativaMsg() : <>
+                          {renderVtrSlot(v, 'cg', 'CHEFE ABT', 'CG')}
+                          {renderVtrSlot(v, 'g1', 'AUXILIAR ABT', 'P1')}
+                          {renderVtrSlot(v, 'g2', 'AUXILIAR ABT', 'P2')}
+                          {renderVtrSlot(v, 'g3', 'AUXILIAR ABT', 'P3')}
+                          {renderVtrSlot(v, 'g4', 'AUXILIAR ABT', 'P4')}
+                          {renderVtrSlot(v, 'condutor', 'CONDUTOR ABT', 'Mot')}
+                       </>})()}
                     </div>
                  </td>
-                 {/* ABSL-152 */}
+                 {/* ABSL */}
                  <td className="border border-black p-0 align-top">
                     <div className="flex flex-col h-full min-h-[180px] p-2 justify-between">
-                       <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">CG:</span> <span className="truncate">{renderMilitar(abslCg[0])}</span></div>
-                       <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">Guarnição:</span> <span className="truncate">{renderMilitar(abslAux[0])}</span></div>
-                       <div className="flex gap-1 items-center min-h-[20px] opacity-0"><span className="font-bold shrink-0">Guarnição:</span> <span className="truncate">{renderMilitar(abslAux[1])}</span></div>
-                       <div className="flex gap-1 items-center min-h-[20px] opacity-0"><span className="font-bold shrink-0">Guarnição:</span> <span className="truncate">{renderMilitar(abslAux[2])}</span></div>
-                       <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">Mot:</span> <span className="truncate">{renderMilitar(abslMot[0])}</span></div>
+                       {(() => { const v = getVtrByPrefix('ABSL'); return v && !v.ativa && (v.exibir ?? v.ativa) ? renderInativaMsg() : <>
+                          {renderVtrSlot(v, 'cg', 'CHEFE ABSL', 'CG')}
+                          {renderVtrSlot(v, 'g1', 'AUXILIAR ABSL', 'Guarnição')}
+                          {renderVtrSlot(v, 'g2', 'AUXILIAR ABSL', 'Guarnição')}
+                          {renderVtrSlot(v, 'g3', 'AUXILIAR ABSL', 'Guarnição')}
+                          {renderVtrSlot(v, 'g4', 'AUXILIAR ABSL', 'Guarnição')}
+                          {renderVtrSlot(v, 'condutor', 'CONDUTOR ABSL', 'Mot')}
+                       </>})()}
                     </div>
                  </td>
-                 {/* ASE-404 */}
+                 {/* ASE */}
                  <td className="border border-black p-0 align-top">
                     <div className="flex flex-col h-full min-h-[180px] p-2 justify-between">
-                       <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">Enfermeiro (a):</span> <span className="truncate">{renderMilitar(aseEnf[0])}</span></div>
-                       <div className="flex gap-1 items-center min-h-[20px] opacity-0"><span className="font-bold shrink-0">Enfermeiro (a):</span> <span className="truncate">{renderMilitar(aseEnf[1])}</span></div>
-                       <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">Auxiliar:</span> <span className="truncate">{renderMilitar(aseAux[0])}</span></div>
-                       <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">Mot:</span> <span className="truncate">{renderMilitar(aseMot[0])}</span></div>
+                       {(() => { const v = getVtrByPrefix('ASE'); return v && !v.ativa && (v.exibir ?? v.ativa) ? renderInativaMsg() : <>
+                          {renderVtrSlot(v, 'g1', 'ENFERMEIRO', 'Enfermeiro(a)')}
+                          {renderVtrSlot(v, 'g2', 'ENFERMEIRO', 'Enfermeiro(a)')}
+                          {renderVtrSlot(v, 'g3', 'AUXILIAR ASE', 'Auxiliar')}
+                          {renderVtrSlot(v, 'g4', 'AUXILIAR ASE', 'Auxiliar')}
+                          {renderVtrSlot(v, 'cg', 'CHEFE ASE', 'CG')}
+                          {renderVtrSlot(v, 'condutor', 'CONDUTOR ASE', 'Mot')}
+                       </>})()}
                     </div>
                  </td>
-                 {/* ARC-162 & AR-583 */}
+                 {/* ARC & AR */}
                  <td className="border border-black p-0 align-top">
                     <div className="flex flex-col h-full min-h-[180px]">
                        <div className="p-2 flex-1 flex flex-col justify-between">
-                          <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">Guarnição:</span> <span className="truncate">{renderMilitar(arcGuar[0])}</span></div>
-                          <div className="flex gap-1 items-center min-h-[20px] opacity-0"><span className="font-bold shrink-0">Guarnição:</span> <span className="truncate">{renderMilitar(arcGuar[1])}</span></div>
-                          <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">Mot:</span> <span className="truncate">{renderMilitar(arcMot[0])}</span></div>
+                       {(() => { const v = getVtrByPrefix('ARC'); return v && !v.ativa && (v.exibir ?? v.ativa) ? renderInativaMsg() : <>
+                          {renderVtrSlot(v, 'cg', 'AUXILIAR / CHEFE ARC', 'Guarnição')}
+                          {renderVtrSlot(v, 'g1', 'AUXILIAR / CHEFE ARC', 'Guarnição')}
+                          {renderVtrSlot(v, 'g2', 'AUXILIAR / CHEFE ARC', 'Guarnição')}
+                          {renderVtrSlot(v, 'condutor', 'CONDUTOR ARC', 'Mot')}
+                       </>})()}
                        </div>
                        <div className={`border-y-2 border-black ${headerColorClass} font-bold text-center py-0.5 mt-auto`}>{getActiveVtr('AR')}</div>
                        <div className="p-2 flex flex-col justify-end">
-                          <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">Mot:</span> <span className="truncate">{renderMilitar(arMot[0])}</span></div>
+                       {(() => { const v = getVtrByPrefix('AR'); return v && !v.ativa && (v.exibir ?? v.ativa) ? renderInativaMsg() : <>
+                          {renderVtrSlot(v, 'condutor', 'CONDUTOR AR', 'Mot', true)}
+                       </>})()}
                        </div>
                     </div>
                  </td>
@@ -232,23 +279,32 @@ export function EscalaPrintView({
                  <td className="border border-black p-0 align-top">
                     <div className="flex flex-col h-full min-h-[180px]">
                        <div className="p-2 flex-1 flex flex-col justify-center gap-1">
-                          <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">MS:</span> <span className="truncate">{renderMilitar(l09Ms[0])}</span></div>
-                          <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">MN:</span> <span className="truncate">{renderMilitar(l09Mn[0])}</span></div>
+                       {(() => { const v = getVtrByPrefix('L-'); return v && !v.ativa && (v.exibir ?? v.ativa) ? renderInativaMsg() : <>
+                          {renderVtrSlot(v, 'condutor', 'MESTRE AL', 'MS', true)}
+                          {renderVtrSlot(v, 'g1', 'MARINHEIRO', 'MN', true)}
+                          {renderVtrSlot(v, 'g2', 'MARINHEIRO', 'MN')}
+                       </>})()}
                        </div>
                        <div className={`border-y-2 border-black ${headerColorClass} font-bold text-center py-0.5`}>{getActiveVtr('BIA', 0)}</div>
                        <div className="p-2 flex-1 flex flex-col justify-center gap-1">
-                          <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">MS:</span> <span className="truncate">{renderMilitar(bia006Ms[0] || l09Ms[1])}</span></div>
-                          <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">MN:</span> <span className="truncate">{renderMilitar(bia006Mn[0] || l09Mn[1])}</span></div>
+                       {(() => { const v = getVtrByPrefix('BIA', 0); return v && !v.ativa && (v.exibir ?? v.ativa) ? renderInativaMsg() : <>
+                          {renderVtrSlot(v, 'condutor', 'MESTRE BIA', 'MS', true)}
+                          {renderVtrSlot(v, 'g1', 'MARINHEIRO', 'MN', true)}
+                          {renderVtrSlot(v, 'g2', 'MARINHEIRO', 'MN')}
+                       </>})()}
                        </div>
                        <div className={`border-y-2 border-black ${headerColorClass} font-bold text-center py-0.5`}>{getActiveVtr('BIA', 1)}</div>
                        <div className="p-2 flex-1 flex flex-col justify-center gap-1">
-                          <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">MS:</span> <span className="truncate">{renderMilitar(bia013Ms[0] || l09Ms[2])}</span></div>
-                          <div className="flex gap-1 items-center min-h-[20px]"><span className="font-bold shrink-0">MN:</span> <span className="truncate">{renderMilitar(l09Mn[2])}</span></div>
+                       {(() => { const v = getVtrByPrefix('BIA', 1); return v && !v.ativa && (v.exibir ?? v.ativa) ? renderInativaMsg() : <>
+                          {renderVtrSlot(v, 'condutor', 'MESTRE BIA', 'MS', true)}
+                          {renderVtrSlot(v, 'g1', 'MARINHEIRO', 'MN')}
+                       </>})()}
                        </div>
                     </div>
                  </td>
               </tr>
-           </tbody>
+            </tbody>
+
         </table>
 
         {/* ADMIN ROLES */}
