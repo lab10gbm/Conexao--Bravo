@@ -27,6 +27,7 @@ import {
   isWeekend,
   getDay
 } from 'date-fns';
+import { sortAllBySeniority } from '../lib/rankUtils';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 import { UserProfile } from '../types';
@@ -674,7 +675,7 @@ export function OfficerGrdModule({ user, obmContext, setObmContext, availableObm
                                     
                                     return match && (isOff ? isCombatente : (searchTerm.length > 3));
                                   })
-                                  .sort((a,b) => (a.rank||'').localeCompare(b.rank||'') || (a.name || '').localeCompare(b.name || ''))
+                                  .sort(sortAllBySeniority)
                                   .slice(0, 15)
                                   .map(mil => (
                                     <button

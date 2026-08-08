@@ -7,16 +7,22 @@ import { UserProfile } from '../types';
 interface ViaturaManagerModalProps {
   viatura: string;
   militars: UserProfile[];
-  assignedRgs: string[];
+  assignedRgs: { rg: string, role?: string }[];
   onClose: () => void;
-  onToggleMilitar: (rg: string, viatura: string, isAdding: boolean) => void;
+  onToggleMilitar: (rg: string, viatura: string, isAdding: boolean, role?: string) => void;
 }
 
 export function ViaturaManagerModal({ viatura, militars, assignedRgs, onClose, onToggleMilitar }: ViaturaManagerModalProps) {
   const [search, setSearch] = useState('');
+  const [selectedRole, setSelectedRole] = useState('G1');
+  const roles = ['Chefe de Guarnição', 'Condutor', 'G1', 'G2', 'G3', 'G4', 'Auxiliar'];
 
   const assignedMilitars = useMemo(() => {
-    return assignedRgs.map(rg => militars.find(m => m.rg === rg)).filter(Boolean) as UserProfile[];
+    return assignedRgs.map(item => {
+      const m = militars.find(m => m.rg === item.rg);
+      if (!m) return null;
+      return { ...m, role: item.role };
+    }).filter(Boolean) as (UserProfile & { role?: string })[];
   }, [militars, assignedRgs]);
 
   const availableMilitars = useMemo(() => {
@@ -25,7 +31,7 @@ export function ViaturaManagerModal({ viatura, militars, assignedRgs, onClose, o
     
     return militars.filter(m => {
       // Not already assigned
-      if (assignedRgs.includes(m.rg)) return false;
+      if (assignedRgs.find(a => a.rg === m.rg)) return false;
       
       const matchName = (m.name || '').toLowerCase().includes(term);
       const matchWarName = (m.warName || '').toLowerCase().includes(term);
@@ -72,9 +78,16 @@ export function ViaturaManagerModal({ viatura, militars, assignedRgs, onClose, o
                     <p className="font-black text-slate-800 text-sm uppercase tracking-tight">
                       {parseRank(m.rank)} {m.warName || m.name.split(' ')[0]}
                     </p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      RG: {m.rg}
-                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        RG: {m.rg}
+                      </p>
+                      {m.role && (
+                        <span className="bg-indigo-100 text-indigo-700 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md">
+                          {m.role}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <button
                     onClick={() => onToggleMilitar(m.rg, viatura, false)}
@@ -96,15 +109,26 @@ export function ViaturaManagerModal({ viatura, militars, assignedRgs, onClose, o
           <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3">
             Adicionar Militar
           </h3>
-          <div className="relative mb-4">
-            <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Buscar por nome ou RG..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all uppercase tracking-tight"
-            />
+          <div className="flex gap-2 mb-4">
+             <div className="relative flex-1">
+               <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+               <input
+                 type="text"
+                 placeholder="Buscar por nome ou RG..."
+                 value={search}
+                 onChange={e => setSearch(e.target.value)}
+                 className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all uppercase tracking-tight"
+               />
+             </div>
+             <select
+               value={selectedRole}
+               onChange={e => setSelectedRole(e.target.value)}
+               className="w-1/3 px-3 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all uppercase tracking-tight"
+             >
+               {roles.map(r => (
+                 <option key={r} value={r}>{r}</option>
+               ))}
+             </select>
           </div>
 
           <div className="space-y-2">
@@ -116,7 +140,7 @@ export function ViaturaManagerModal({ viatura, militars, assignedRgs, onClose, o
                   </p>
                 </div>
                 <button
-                  onClick={() => onToggleMilitar(m.rg, viatura, true)}
+                  onClick={() => onToggleMilitar(m.rg, viatura, true, selectedRole)}
                   disabled={isFull}
                   className={`p-2 rounded-xl transition-colors ${
                     isFull 

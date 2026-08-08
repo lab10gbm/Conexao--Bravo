@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { parseRank } from "../lib/rankUtils";
+import { parseRank, sortAllBySeniority } from "../lib/rankUtils";
 import { useMilitars } from '../contexts/MilitarContext';
 import { Search, Loader2, Plus, X, ArrowRight, Users } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -45,7 +45,7 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
   });
 
   const getMilitarsByAla = (alaId: string) => {
-    return militarsInObm.filter(m => normalizeAlaField(m.ala) === alaId).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    return militarsInObm.filter(m => normalizeAlaField(m.ala) === alaId).sort(sortAllBySeniority);
   };
 
   const [targetAlaToAdd, setTargetAlaToAdd] = useState<string | null>(null);
@@ -104,12 +104,14 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {ALAS.map(ala => {
-          const members = getMilitarsByAla(ala).filter(m => 
-            !searchTerm || 
-            (m.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-            (m.warName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            normalizeRg(m.rg || '').includes(normalizeRg(searchTerm))
-          );
+          const members = getMilitarsByAla(ala).filter(m => {
+            if (!searchTerm) return true;
+            const searchRg = normalizeRg(searchTerm);
+            const matchesRg = searchRg ? normalizeRg(m.rg || '').includes(searchRg) : false;
+            return (m.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                   (m.warName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                   matchesRg;
+          });
           const isAdding = targetAlaToAdd === ala;
 
           return (
@@ -150,7 +152,15 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
                     />
                   </div>
                   <div className="max-h-40 overflow-y-auto pr-1">
-                    {militarsInObm.filter(m => normalizeAlaField(m.ala) !== ala && (!localSearch || (m.name || '').toLowerCase().includes(localSearch.toLowerCase()) || (m.warName || '').toLowerCase().includes(localSearch.toLowerCase()) || normalizeRg(m.rg || '').includes(normalizeRg(localSearch)))).slice(0, 10).map(m => (
+                    {militarsInObm.filter(m => {
+                      if (normalizeAlaField(m.ala) === ala) return false;
+                      if (!localSearch) return true;
+                      const searchRg = normalizeRg(localSearch);
+                      const matchesRg = searchRg ? normalizeRg(m.rg || '').includes(searchRg) : false;
+                      return (m.name || '').toLowerCase().includes(localSearch.toLowerCase()) || 
+                             (m.warName || '').toLowerCase().includes(localSearch.toLowerCase()) || 
+                             matchesRg;
+                    }).slice(0, 10).map(m => (
                       <button
                         key={m.rg}
                         onClick={() => assignAla(m.rg!, ala)}
@@ -217,6 +227,92 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
       </div>
 
       <div className="mt-8">
+        {searchTerm && (
+          <div className="mb-8 border-2 border-slate-200 rounded-2xl overflow-hidden bg-slate-50">
+            <div className="p-4 bg-slate-300 text-slate-800">
+              <h4 className="text-[14px] font-black tracking-wider">Militares de outras OBMs</h4>
+              <p className="text-[9px] font-bold opacity-80 uppercase tracking-widest">
+                Exibindo resultados da busca
+              </p>
+            </div>
+            <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 max-h-96 overflow-y-auto">
+              {militars
+                .filter((m) => {
+                  const rawObm = m.obm ? m.obm.trim().toUpperCase() : "10º GBM";
+                  const ctx = (obmContext || "").trim().toUpperCase();
+                  if (ctx === "GLOBAL") return false;
+                  if (rawObm === ctx) return false;
+                  
+                  const searchRg = normalizeRg(searchTerm);
+                  const matchesRg = searchRg ? normalizeRg(m.rg || "").includes(searchRg) : false;
+                  return (
+                    (m.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (m.warName || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    matchesRg
+                  );
+                })
+                .sort(sortAllBySeniority)
+                .map((m) => (
+                  <div key={m.rg} className="bg-white p-3 rounded-xl border border-slate-200 hover:border-indigo-300 transition-colors shadow-sm flex items-start flex-col gap-1">
+                    <div className="flex items-center gap-2 w-full justify-between">
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="text-[11px] font-black text-slate-700 truncate" title={m.name}>
+                          {parseRank(m.rank)} {m.warName || (m.name || "").split(" ")[0]}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 w-full text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                      <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">{m.rg}</span>
+                      <span className="truncate">{m.obm || "Sem OBM"}</span>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mb-8 border-2 border-slate-200 rounded-2xl overflow-hidden bg-slate-50">
+          <div className="p-4 bg-slate-200 text-slate-800">
+            <h4 className="text-[14px] font-black tracking-wider">Militares Desta OBM não cadastrados (Sem Ala)</h4>
+            <p className="text-[9px] font-bold opacity-80 uppercase tracking-widest">
+              Militares do efetivo atual sem ala definida
+            </p>
+          </div>
+          <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 max-h-96 overflow-y-auto">
+            {militarsInObm
+              .filter((m) => normalizeAlaField(m.ala) === "")
+              .filter((m) => {
+                if (!searchTerm) return true;
+                const searchRg = normalizeRg(searchTerm);
+                const matchesRg = searchRg ? normalizeRg(m.rg || "").includes(searchRg) : false;
+                return (
+                  (m.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  (m.warName || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  matchesRg
+                );
+              })
+              .sort(sortAllBySeniority)
+              .map((m, idx) => (
+                <div key={m.rg} className="bg-white p-3 rounded-xl border border-slate-200 hover:border-indigo-300 transition-colors shadow-sm relative group flex items-start flex-col gap-1">
+                  <div className="flex items-center gap-2 w-full justify-between">
+                    <div className="flex items-center gap-2 truncate">
+                      <div className="w-5 h-5 bg-slate-100 rounded-md flex items-center justify-center text-[9px] font-black text-slate-400">
+                        {idx + 1}
+                      </div>
+                      <span className="text-[11px] font-black text-slate-700 truncate" title={m.name}>
+                        {parseRank(m.rank)} {m.warName || (m.name || "").split(" ")[0]}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 pl-7 w-full text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                    <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">{m.rg}</span>
+                    <span className="truncate">{m.quadro || "-"}</span>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+
         <AfastamentosAlaModule obmContext={obmContext} type="anual" />
       </div>
     </div>

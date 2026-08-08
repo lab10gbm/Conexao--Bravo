@@ -23,7 +23,7 @@ export function ComunicanteDashboard({ user, onBack }: ComunicanteDashboardProps
   const [managingViatura, setManagingViatura] = useState<string | null>(null);
   
   // Real-time estado das guarnições para o dia atual (ou contínuo até ser limpo)
-  const [guarnicoesAtuais, setGuarnicoesAtuais] = useState<Record<string, string[]>>({});
+  const [guarnicoesAtuais, setGuarnicoesAtuais] = useState<Record<string, { rg: string, role?: string }[]>>({});
 
   useEffect(() => {
     // Escuta presenças (heartbeat).
@@ -51,7 +51,17 @@ export function ComunicanteDashboard({ user, onBack }: ComunicanteDashboardProps
     // Documento fixo "guarnicoes/ativas" para manter o estado em tempo real.
     const unsub = onSnapshot(doc(db, 'guarnicoes', 'ativas'), (docSnap) => {
       if (docSnap.exists()) {
-        setGuarnicoesAtuais(docSnap.data() as Record<string, string[]>);
+        const data = docSnap.data();
+        const normalizedData: Record<string, {rg: string, role?: string}[]> = {};
+        for (const [vtr, list] of Object.entries(data)) {
+           if (Array.isArray(list)) {
+              normalizedData[vtr] = list.map(item => {
+                 if (typeof item === 'string') return { rg: item };
+                 return item;
+              });
+           }
+        }
+        setGuarnicoesAtuais(normalizedData);
       } else {
         setGuarnicoesAtuais({});
       }
@@ -92,14 +102,14 @@ export function ComunicanteDashboard({ user, onBack }: ComunicanteDashboardProps
     }
   };
 
-  const handleToggleMilitar = async (rg: string, viatura: string, isAdding: boolean) => {
+  const handleToggleMilitar = async (rg: string, viatura: string, isAdding: boolean, role?: string) => {
     const currentList = guarnicoesAtuais[viatura] || [];
     let newList = [...currentList];
     
     if (isAdding) {
-      if (!newList.includes(rg)) newList.push(rg);
+      if (!newList.find(i => i.rg === rg)) newList.push({ rg, role });
     } else {
-      newList = newList.filter(id => id !== rg);
+      newList = newList.filter(i => i.rg !== rg);
     }
     
     // Update local state instantly
@@ -155,13 +165,15 @@ export function ComunicanteDashboard({ user, onBack }: ComunicanteDashboardProps
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {VIATURAS.map(viatura => {
-          const alerting = isAlerting[viatura];
-          const assignedRgs = guarnicoesAtuais[viatura] || [];
+        {(() => {
+          const dynamicViaturas = Object.keys(guarnicoesAtuais).length > 0 ? Object.keys(guarnicoesAtuais) : VIATURAS;
+          return dynamicViaturas.map(viatura => {
+            const alerting = isAlerting[viatura];
+            const assignedRgs = guarnicoesAtuais[viatura] || [];
 
-          return (
-            <motion.div 
-              key={viatura}
+            return (
+              <motion.div 
+                key={viatura}
               whileHover={{ y: -5 }}
               className={`relative overflow-hidden rounded-3xl p-6 sm:p-8 flex flex-col items-center justify-center text-center transition-all ${
                 alerting 
@@ -208,7 +220,7 @@ export function ComunicanteDashboard({ user, onBack }: ComunicanteDashboardProps
               </button>
             </motion.div>
           );
-        })}
+        })})()}
       </div>
 
       <AnimatePresence>

@@ -1036,6 +1036,43 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     }
   };
 
+  const handleGerarEscala = async () => {
+    // Check if the scale is for the current day
+    const today = format(new Date(), "yyyy-MM-dd");
+    if (selectedDate === today) {
+      try {
+        const ativasData: Record<string, { rg: string, role: string }[]> = {};
+        const activeVtrs = viaturasInfo.filter(v => v.ativa);
+        
+        activeVtrs.forEach(v => {
+           const vtrName = (v.vtr || "").toUpperCase();
+           if (!vtrName) return;
+           const rgsForVtr: { rg: string, role: string }[] = [];
+           
+           ['condutor', 'g1', 'g2', 'g3', 'g4', 'cg'].forEach(slot => {
+              if (v[slot as keyof typeof v] === true) {
+                 const roleName = getSlotDisplayName(v, slot);
+                 // find any RGs that have this role
+                 Object.entries(selectedFunctions).forEach(([rg, roles]) => {
+                    if (roles.includes(roleName) && !rgsForVtr.find(r => r.rg === rg)) {
+                       rgsForVtr.push({ rg, role: roleName });
+                    }
+                 });
+              }
+           });
+           
+           ativasData[vtrName] = rgsForVtr;
+        });
+
+        await setDoc(doc(db, 'guarnicoes', 'ativas'), cleanUndefined(ativasData), { merge: false });
+      } catch (e) {
+        console.error("Erro ao sincronizar com Painel do Comunicante:", e);
+      }
+    }
+    
+    setShowPrintView(true);
+  };
+
   const addMenuOptions = useMemo(() => {
     if (addMilitarSearch.length < 2) return [];
     const s = addMilitarSearch.toLowerCase();
@@ -1146,7 +1183,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
             Sortear Funções
           </button>
           <button
-            onClick={() => setShowPrintView(true)}
+            onClick={handleGerarEscala}
             className="bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest text-[10px] px-4 py-2.5 rounded-lg shadow-sm flex items-center gap-2 transition-colors"
           >
             <Printer className="w-4 h-4" />

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { parseRank } from "../lib/rankUtils";
+import { parseRank, sortAllBySeniority } from "../lib/rankUtils";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { UserProfile } from '../types';
@@ -137,21 +137,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
        }
     });
 
-    setExpedienteUsers(usersList.sort((a, b) => {
-      const numA = parseInt(String(a.rg || '0').replace(/\D/g, ''), 10);
-      const numB = parseInt(String(b.rg || '0').replace(/\D/g, ''), 10);
-      const validA = !isNaN(numA) && numA !== 0;
-      const validB = !isNaN(numB) && numB !== 0;
-
-      if (validA && validB) {
-          return numA - numB;
-      } else if (validA && !validB) {
-          return -1;
-      } else if (!validA && validB) {
-          return 1;
-      }
-      return (a.name || '').localeCompare(b.name || '');
-    }));
+    setExpedienteUsers(usersList.sort(sortAllBySeniority));
   }, [militars, selectedObm, data]);
 
   const [adminTargetRg, setAdminTargetRg] = useState<string | null>(null);
@@ -985,7 +971,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                            m.warName?.toLowerCase().includes(memberSearchTerm.toLowerCase()) || 
                                            m.rg?.includes(memberSearchTerm)
                                         )
-                                        .sort((a,b) => (a.name||'').localeCompare(b.name||''))
+                                        .sort(sortAllBySeniority)
                                         .map((m, i) => (
                                           <button
                                               key={(m.uid||m.rg||`m-${i}`)}

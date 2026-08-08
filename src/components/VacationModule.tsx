@@ -1166,13 +1166,17 @@ export function VacationModule({
               {targetRg && !selectedMilitar && (
                 <div className="absolute top-full mt-2 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-xl z-[200] max-h-48 overflow-y-auto">
                   {militars
-                    .filter(
-                      (m) =>
-                        normalizeRg(m.rg).includes(normalizeRg(targetRg)) ||
+                    .filter((m) => {
+                      if (!targetRg) return true;
+                      const searchRg = normalizeRg(targetRg);
+                      const matchesRg = searchRg ? normalizeRg(m.rg || '').includes(searchRg) : false;
+                      return (
+                        matchesRg ||
                         (m.name || "")
                           .toLowerCase()
-                          .includes(targetRg.toLowerCase()),
-                    )
+                          .includes(targetRg.toLowerCase())
+                      );
+                    })
                     .map((m) => (
                       <button
                         key={m.rg}

@@ -4,7 +4,7 @@ import { db } from '../lib/firebase';
 import { collection, query, getDocs, setDoc, doc, deleteDoc, where, onSnapshot } from 'firebase/firestore';
 import { Plus, Trash2, Calendar, Loader2, Lock, Edit2, Check, X } from 'lucide-react';
 import { cn, normalizeObm, getUserObmAccess } from '../lib/utils';
-import { parseRank } from '../lib/rankUtils';
+import { parseRank, sortAllBySeniority } from '../lib/rankUtils';
 
 export function normalizeRg(rg: string | number | undefined) {
   if (!rg) return '';
@@ -39,7 +39,7 @@ function SearchableMilitarSelect({
   const allowedObms = getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL');
   const filteredMilitars = militars
     .filter(m => !m.obm || allowedObms.includes(normalizeObm(m.obm)) || normalizeObm(obmContext) === 'GLOBAL')
-    .sort((a,b) => (a.name||'').localeCompare(b.name||''));
+    .sort(sortAllBySeniority);
 
   const selectedMilitar = filteredMilitars.find(m => normalizeRg(m.rg) === value);
   const displayValue = open 

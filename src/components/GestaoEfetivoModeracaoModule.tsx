@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { parseRank } from "../lib/rankUtils";
+import { parseRank, sortAllBySeniority } from "../lib/rankUtils";
 import { motion, AnimatePresence } from 'motion/react';
 import { Users, UserPlus, Search, Save, X, Trash2, ArrowLeft, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import { useMilitars } from '../contexts/MilitarContext';
@@ -8,14 +8,14 @@ import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { cn, cleanUndefined, normalizeObm } from '../lib/utils';
 import { UserProfile } from '../types';
 
-export function GestaoEfetivoModeracaoModule({ user, onBack }: { user: UserProfile; onBack: () => void }) {
+export function GestaoEfetivoModeracaoModule({ user, onBack, isEscalanteContext, obmContext }: { user: UserProfile; onBack: () => void; isEscalanteContext?: boolean; obmContext?: string }) {
   const { militars, refreshMilitars } = useMilitars();
   const [searchTerm, setSearchTerm] = useState('');
   
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingRg, setEditingRg] = useState<string | null>(null);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
-  const [selectedObmFilter, setSelectedObmFilter] = useState<string>('TODOS');
+  const [selectedObmFilter, setSelectedObmFilter] = useState<string>(isEscalanteContext && obmContext ? obmContext : 'TODOS');
   
   const [formData, setFormData] = useState({
     name: '',
@@ -58,7 +58,7 @@ export function GestaoEfetivoModeracaoModule({ user, onBack }: { user: UserProfi
              (m.cidade || '').toLowerCase().includes(s) ||
              (m.situacao || '').toLowerCase().includes(s);
       return matchObm && matchSearch;
-    });
+    }).sort(sortAllBySeniority);
   }, [militars, searchTerm, selectedObmFilter]);
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -229,7 +229,8 @@ export function GestaoEfetivoModeracaoModule({ user, onBack }: { user: UserProfi
                      <th className="px-4 py-4 border-r border-slate-100 w-24">RG</th>
                      <th className="px-4 py-4 border-r border-slate-100">Nome Completo</th>
                      <th className="px-4 py-4 border-r border-slate-100">Quadro</th>
-                     <th className="px-4 py-4 border-r border-slate-100 w-32">Situação</th>
+                     <th className="px-4 py-4 border-r border-slate-100 w-32 max-w-[12rem]">Situação</th>
+                     <th className="px-4 py-4 border-r border-slate-100">OBM</th>
                      <th className="px-4 py-4 border-r border-slate-100 w-24 text-center">Ala</th>
                      <th className="px-4 py-4 w-32 text-center">Ações</th>
                    </tr>
@@ -246,11 +247,12 @@ export function GestaoEfetivoModeracaoModule({ user, onBack }: { user: UserProfi
                          <td className="px-4 py-4 border-r border-slate-100 text-indigo-600 font-black">{m.rg}</td>
                          <td className="px-4 py-4 border-r border-slate-100 text-slate-800" title={m.name}>{m.name?.substring(0, 30)}{m.name?.length > 30 ? "..." : ""}</td>
                          <td className="px-4 py-4 border-r border-slate-100 text-slate-600">{m.quadro || '-'}</td>
-                         <td className="px-4 py-4 border-r border-slate-100 text-slate-600 whitespace-nowrap">
-                            <span className={cn("px-2 py-1 rounded", (m.situacao || 'ATIVO').includes('ATIVO') ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")}>
+                         <td className="px-4 py-4 border-r border-slate-100 text-slate-600 w-32 max-w-[12rem]">
+                            <span className={cn("px-2 py-1 rounded inline-block w-full break-words whitespace-normal", (m.situacao || 'ATIVO').includes('ATIVO') ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700")}>
                               {m.situacao || 'ATIVO'}
                             </span>
                          </td>
+                         <td className="px-4 py-4 border-r border-slate-100 text-slate-600">{m.obm || '-'}</td>
                          <td className="px-4 py-4 border-r border-slate-100 text-center text-slate-600">{m.ala}</td>
                          <td className="px-4 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                            <div className="flex items-center justify-center gap-2">
@@ -271,7 +273,7 @@ export function GestaoEfetivoModeracaoModule({ user, onBack }: { user: UserProfi
                        </tr>
                        {expandedRow === m.rg && (
                          <tr className="bg-slate-50/50 border-b-2 border-slate-200">
-                           <td colSpan={9} className="px-8 py-6">
+                           <td colSpan={10} className="px-8 py-6">
                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 text-[10px] sm:text-xs">
                                 <div><span className="text-slate-400 block mb-1">Nome Completo:</span> <span className="text-slate-700 font-black">{m.name || '-'}</span></div>
                                 <div><span className="text-slate-400 block mb-1">Nome de Guerra:</span> <span className="text-slate-700 font-black">{m.warName || '-'}</span></div>
@@ -292,7 +294,7 @@ export function GestaoEfetivoModeracaoModule({ user, onBack }: { user: UserProfi
                    ))}
                    {paginatedMilitars.length === 0 && (
                      <tr>
-                       <td colSpan={9} className="px-6 py-12 text-center text-slate-400">
+                       <td colSpan={10} className="px-6 py-12 text-center text-slate-400">
                          <Users className="w-8 h-8 opacity-20 mx-auto mb-2" />
                          Nenhum militar encontrado.
                        </td>

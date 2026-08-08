@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../lib/utils";
-import { parseRank } from "../lib/rankUtils";
+import { parseRank, sortAllBySeniority } from "../lib/rankUtils";
 import { RankInsignia } from "./RankInsignia";
 
 const abbrevRank = (rankStr?: string): string => {
@@ -624,8 +624,8 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
       if (!searchTerm) return false;
       const term = searchTerm.toLowerCase();
       return (
-        m.rg.toLowerCase().includes(term) ||
-        m.name.toLowerCase().includes(term) ||
+        (m.rg?.toString() || "").toLowerCase().includes(term) ||
+        (m.name || "").toLowerCase().includes(term) ||
         (m.warName || "").toLowerCase().includes(term)
       );
     })
@@ -1412,12 +1412,7 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
                     }
                   });
 
-                  subscribedList.sort((a, b) => {
-                    const rankDiff =
-                      getRankSeniority(a.rank) - getRankSeniority(b.rank);
-                    if (rankDiff !== 0) return rankDiff;
-                    return (a.name || '').localeCompare(b.name || '');
-                  });
+                  subscribedList.sort(sortAllBySeniority);
 
                   const totalOccupied =
                     (tripData.driver ? 1 : 0) +

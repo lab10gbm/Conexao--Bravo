@@ -312,15 +312,7 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
       if (a.militarObj && b.militarObj) {
         return sortAllBySeniority(a.militarObj, b.militarObj);
       }
-      const parsedA = parseRank(a.rank);
-      const parsedB = parseRank(b.rank);
-      const rankA = ALL_RANKS_IN_ORDER.indexOf(parsedA);
-      const rankB = ALL_RANKS_IN_ORDER.indexOf(parsedB);
-      const rA = rankA >= 0 ? rankA : 99;
-      const rB = rankB >= 0 ? rankB : 99;
-      
-      if (rA !== rB) return rA - rB; // Higher rank first (smaller index)
-      return (a.nome || '').localeCompare(b.nome || '');
+      return 0;
     });
   }, [opportunities, applications, militars, obmContext]);
 

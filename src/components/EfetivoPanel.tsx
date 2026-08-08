@@ -387,7 +387,7 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
       return {
         id: g.id,
         name: g.label,
-        members: membersAtGroup,
+        members: [...membersAtGroup].sort(sortAllBySeniority),
         totalOriginal: membersOriginallyAtGroup.length,
         lentIn,
         lentOut,

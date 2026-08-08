@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { parseRank } from "../lib/rankUtils";
+import { parseRank, sortAllBySeniority } from "../lib/rankUtils";
 import { useMilitars } from '../contexts/MilitarContext';
 import { db } from '../lib/firebase';
 import { doc, setDoc, onSnapshot, getDoc, updateDoc } from 'firebase/firestore';
@@ -193,7 +193,7 @@ export function GrdModule({ obmContext, setObmContext, availableObms = [], reado
       if (ctxObm && ctxObm !== 'GLOBAL' && mObm !== ctxObm) return false;
       
       return isAllowedAla;
-    }).sort((a, b) => (a.rank || '').localeCompare(b.rank || '') || (a.name || '').localeCompare(b.name || ''));
+    }).sort(sortAllBySeniority);
   };
 
   const autoFillMayOfficers = async () => {
@@ -1002,7 +1002,7 @@ export function GrdModule({ obmContext, setObmContext, availableObms = [], reado
                                               
                                               return matchesSearch && (isOfficer || searchValue.length > 2);
                                             })
-                                            .sort((a, b) => (a.rank || '').localeCompare(b.rank || '') || (a.name || '').localeCompare(b.name || ''));
+                                            .sort(sortAllBySeniority);
                                             
                                           if (filteredMilitars.length === 0) {
                                             return (

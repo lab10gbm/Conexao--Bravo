@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { parseRank } from "../lib/rankUtils";
+import { parseRank, sortAllBySeniority } from "../lib/rankUtils";
 import { Search, ShieldAlert, CheckSquare, Square, Loader2, Settings, X, Tag } from 'lucide-react';
 import { useMilitars } from '../contexts/MilitarContext';
 import { doc, setDoc } from 'firebase/firestore';
@@ -192,7 +192,7 @@ export function SystemRolesConfig() {
        return true;
     }).sort((a, b) => {
        if (a.obm !== b.obm) return (a.obm || '').localeCompare(b.obm || '');
-       return (a.name || '').localeCompare(b.name || '');
+       return sortAllBySeniority(a, b);
     }).slice(0, 100);
   }, [militars, search, selectedObm, showOnlyPrivileged]);
 

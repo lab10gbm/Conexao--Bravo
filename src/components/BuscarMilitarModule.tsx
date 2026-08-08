@@ -4,7 +4,7 @@ import { Search, ChevronLeft, User, Building2 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { useMilitars } from '../contexts/MilitarContext';
 import { RankInsignia } from './RankInsignia';
-import { parseRank } from '../lib/rankUtils';
+import { parseRank, sortAllBySeniority } from '../lib/rankUtils';
 import { cn } from '../lib/utils';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
@@ -27,14 +27,6 @@ export function BuscarMilitarModule({ viewer, onBack }: BuscarMilitarModuleProps
     
     const term = deferredSearchTerm.toLowerCase();
     
-    const order = ['CORONEL', 'TENENTE CORONEL', 'MAJOR', 'CAPITÃO', '1º TENENTE', '2º TENENTE', 'ASP OF', 'SUBTENENTE', '1º SARGENTO', '2º SARGENTO', '3º SARGENTO', 'CABO', 'SOLDADO'];
-    const rankMap = new Map(order.map((r, i) => [r, i]));
-    const getRankIdx = (rankStr: string | undefined) => {
-       const mapped = parseRank(rankStr || '');
-       const idx = rankMap.get(mapped);
-       return idx !== undefined ? idx : 99;
-    };
-
     const results = [];
     for (const m of militars) {
       if (
@@ -46,13 +38,8 @@ export function BuscarMilitarModule({ viewer, onBack }: BuscarMilitarModuleProps
         results.push(m);
       }
     }
-
-    results.sort((a, b) => {
-      const idxA = getRankIdx(a.rank);
-      const idxB = getRankIdx(b.rank);
-      if (idxA !== idxB) return idxA - idxB;
-      return (a.name || '').localeCompare(b.name || '');
-    });
+    
+    results.sort(sortAllBySeniority);
 
     return results.slice(0, 50); // limit for fast DOM render
   }, [militars, deferredSearchTerm]);

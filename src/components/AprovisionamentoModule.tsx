@@ -26,12 +26,14 @@ import {
   Store,
   MapPin,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Settings
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { RefeitorioModule } from './RefeitorioModule';
+import { AprovisionamentoGerenciarCategoriasModal } from './AprovisionamentoGerenciarCategoriasModal';
 import { AprovisionamentoCatalogo, GastoIngrediente } from './AprovisionamentoCatalogo';
 import { cleanUndefined } from '../lib/utils';
 import { db } from '../lib/firebase';
@@ -40,7 +42,7 @@ import { useRefeitorioData } from '../hooks/useRefeitorioData';
 import { RefeitorioEditModal } from './RefeitorioEditModal';
 
 
-type CategoriaMaterial = 'MERCADO' | 'PROTEINA' | 'SACOLAO' | 'LIMPEZA';
+type CategoriaMaterial = string;
 type TipoUso = 'imediato' | 'prolongado';
 
 interface ItemListaCompras {
@@ -389,6 +391,17 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   const [activeTab, setActiveTab] = useState<'CADASTRO' | 'RECEITAS' | 'CARDAPIO' | 'PREVISAO' | 'CATALOGO' | 'LISTA_COMPRAS'>('CADASTRO');
   const [showArquivadas, setShowArquivadas] = useState(false);
   
+  const [categoriasAbas, setCategoriasAbas] = useState<string[]>(() => {
+    try {
+      const cached = localStorage.getItem('aprovisionamento_dados_cache');
+      if (cached) {
+         const parsed = JSON.parse(cached);
+         if (parsed.categoriasAbas && parsed.categoriasAbas.length > 0) return parsed.categoriasAbas;
+      }
+    } catch(e) {}
+    return ['MERCADO', 'PROTEINA', 'SACOLAO', 'LIMPEZA', 'OPERACIONALIZACAO'];
+  });
+
   const [materiais, setMateriais] = useState<Material[]>(() => {
     try {
       const cached = localStorage.getItem('aprovisionamento_dados_cache');
@@ -493,6 +506,12 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   const [manualItemSuggestions, setManualItemSuggestions] = useState<Material[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   
+  const [showNovoProdutoModal, setShowNovoProdutoModal] = useState(false);
+  const [novoProdutoNome, setNovoProdutoNome] = useState('');
+  const [novoProdutoUndMedida, setNovoProdutoUndMedida] = useState('UND');
+
+  const [showGerenciarCategoriasModal, setShowGerenciarCategoriasModal] = useState(false);
+
   const [showNovaListaModal, setShowNovaListaModal] = useState(false);
   const [expandedListaId, setExpandedListaId] = useState<string | null>(null);
   const [archiveForm, setArchiveForm] = useState({
@@ -575,6 +594,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
             const loadedListasDeCompras = data.listasDeCompras || listasDeCompras;
             const loadedPaxDefaults = data.paxDefaults || paxDefaults;
             const loadedPrevisaoDias = data.previsaoDiasOptions || previsaoDiasOptions;
+            const loadedCategoriasAbas = data.categoriasAbas && data.categoriasAbas.length > 0 ? data.categoriasAbas : categoriasAbas;
 
             setMateriais(loadedMateriais);
             setReceitas(loadedReceitas);
@@ -583,6 +603,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
             setListasDeCompras(loadedListasDeCompras);
             setPaxDefaults(loadedPaxDefaults);
             setPrevisaoDiasOptions(loadedPrevisaoDias);
+            setCategoriasAbas(loadedCategoriasAbas);
             
             const fullDataToCache = {
               ...data,
@@ -592,7 +613,8 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
               datasEstoque: loadedDatasEstoque,
               listasDeCompras: loadedListasDeCompras,
               paxDefaults: loadedPaxDefaults,
-              previsaoDiasOptions: loadedPrevisaoDias
+              previsaoDiasOptions: loadedPrevisaoDias,
+              categoriasAbas: loadedCategoriasAbas
             };
             dataRef.current = fullDataToCache;
             localStorage.setItem('aprovisionamento_dados_cache', JSON.stringify(fullDataToCache));
@@ -605,7 +627,8 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
               datasEstoque, 
               listasDeCompras,
               paxDefaults,
-              previsaoDiasOptions
+              previsaoDiasOptions,
+              categoriasAbas
             };
             setDoc(docRefDados, cleanUndefined(initialData)).catch(e => console.warn('Could not seed initial db', e));
           }
@@ -791,7 +814,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   };
 
   const pendingSaveRef = useRef<NodeJS.Timeout | null>(null);
-  const dataRef = useRef({ materiais, receitas, cardapio, datasEstoque, listasDeCompras, paxDefaults, previsaoDiasOptions });
+  const dataRef = useRef({ materiais, receitas, cardapio, datasEstoque, listasDeCompras, paxDefaults, previsaoDiasOptions, categoriasAbas });
 
   const syncAndSave = (newData: Partial<typeof dataRef.current>) => {
     dataRef.current = { ...dataRef.current, ...newData };
@@ -857,7 +880,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
     if (datasEstoque.length > 1) {
       const newDatas = datasEstoque.filter(dt => dt !== dataToRemove);
       setDatasEstoque(newDatas);
-      if (isDataLoaded) syncAndSave({ datasEstoque: newDatas });
+      syncAndSave({ datasEstoque: newDatas });
     }
   };
 
@@ -1050,20 +1073,65 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   const updateMaterial = (id: string, updates: Partial<Material>) => {
     setMateriais(prev => {
       const next = prev.map(m => m.id === id ? { ...m, ...updates } : m);
-      if (isDataLoaded) syncAndSave({ materiais: next });
+      syncAndSave({ materiais: next });
+      return next;
+    });
+  };
+
+  const handleAddCategoria = (novaCategoria: string) => {
+    if (categoriasAbas.includes(novaCategoria)) return;
+    setCategoriasAbas(prev => {
+      const next = [...prev, novaCategoria];
+      syncAndSave({ categoriasAbas: next });
+      return next;
+    });
+  };
+
+  const handleRenameCategoria = (oldName: string, newName: string) => {
+    if (categoriasAbas.includes(newName)) return;
+    
+    setCategoriasAbas(prev => prev.map(c => c === oldName ? newName : c));
+    setMateriais(prev => prev.map(m => m.categoria === oldName ? { ...m, categoria: newName } : m));
+    
+    if (filtroCategoria === oldName) setFiltroCategoria(newName);
+    if (filtroCategoriaPrevisao === oldName) setFiltroCategoriaPrevisao(newName);
+    
+    syncAndSave({
+      categoriasAbas: categoriasAbas.map(c => c === oldName ? newName : c),
+      materiais: materiais.map(m => m.categoria === oldName ? { ...m, categoria: newName } : m)
+    });
+  };
+
+  const handleDeleteCategoria = (nome: string) => {
+    const temProdutos = materiais.some(m => m.categoria === nome);
+    if (temProdutos) {
+      alert('Existem produtos cadastrados nesta categoria. Mude-os de categoria ou exclua-os antes de deletar a categoria.');
+      return;
+    }
+    setCategoriasAbas(prev => {
+      const next = prev.filter(c => c !== nome);
+      syncAndSave({ categoriasAbas: next });
+      if (filtroCategoria === nome) setFiltroCategoria(next[0] || 'OUTROS');
+      if (filtroCategoriaPrevisao === nome) setFiltroCategoriaPrevisao(next[0] || 'OUTROS');
       return next;
     });
   };
 
   const handleAddNewMaterial = () => {
-    const nome = prompt("Digite o nome do novo material:");
-    if (!nome?.trim()) return;
+    setNovoProdutoNome('');
+    setNovoProdutoUndMedida('UND');
+    setShowNovoProdutoModal(true);
+  };
+
+  const handleAddNewMaterialSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!novoProdutoNome?.trim()) return;
 
     const newMat: Material = {
       id: `mat_${Date.now()}`,
-      nome: nome.trim().toUpperCase(),
+      nome: novoProdutoNome.trim().toUpperCase(),
       categoria: filtroCategoria,
-      undMedida: 'KG',
+      undMedida: novoProdutoUndMedida,
       tipoUso: 'imediato',
       estoque: 0,
       estoquesPorData: {},
@@ -1072,9 +1140,10 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
 
     setMateriais(prev => {
       const next = [...prev, newMat];
-      if (isDataLoaded) syncAndSave({ materiais: next });
+      syncAndSave({ materiais: next });
       return next;
     });
+    setShowNovoProdutoModal(false);
   };
 
   const handleRemoveMaterial = (id: string, nome: string) => {
@@ -1082,7 +1151,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
     
     setMateriais(prev => {
       const next = prev.filter(m => m.id !== id);
-      if (isDataLoaded) syncAndSave({ materiais: next });
+      syncAndSave({ materiais: next });
       return next;
     });
   };
@@ -1171,41 +1240,49 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
           {activeTab === 'CADASTRO' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
             <div className="flex flex-col sm:flex-row gap-4 justify-between">
-              <div className="flex rounded-xl bg-slate-100 p-1">
-                {(['MERCADO', 'PROTEINA', 'SACOLAO', 'LIMPEZA'] as CategoriaMaterial[]).map(cat => (
+              <div className="flex flex-wrap rounded-xl bg-slate-100 p-1 items-center gap-1">
+                {(categoriasAbas).map(cat => (
                   <button
                     key={cat}
                     onClick={() => setFiltroCategoria(cat)}
                     className={cn(
                       "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors",
-                      filtroCategoria === cat ? `${
-                        cat === 'MERCADO' ? 'bg-[#2A2B4C] text-white' :
-                        cat === 'PROTEINA' ? 'bg-[#821D21] text-white' :
-                        cat === 'SACOLAO' ? 'bg-[#315629] text-white' :
-                        'bg-[#5C3224] text-white'
-                      } shadow-sm` : "text-slate-500 hover:text-slate-700 hover:bg-slate-200"
+                      filtroCategoria === cat ? `bg-indigo-600 text-white shadow-sm` : "text-slate-500 hover:text-slate-700 hover:bg-slate-200"
                     )}
                   >
                     {cat}
                   </button>
                 ))}
+                <button
+                  onClick={() => setShowGerenciarCategoriasModal(true)}
+                  className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-dashed border-slate-300"
+                  title="Gerenciar Categorias"
+                >
+                  <Settings className="w-3 h-3" />
+                </button>
               </div>
               <div className="flex gap-2">
                 <div className="relative">
                   <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Buscar material..."
+                    placeholder="Buscar produto..."
                     value={cadastroFiltroMsg}
                     onChange={e => setCadastroFiltroMsg(e.target.value)}
                     className="pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all w-full sm:w-64"
                   />
                 </div>
                 <button 
+                  onClick={() => setShowGerenciarCategoriasModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-sm font-bold uppercase transition-colors whitespace-nowrap"
+                >
+                  <Settings className="w-4 h-4" /> Categorias
+                </button>
+                <button 
                   onClick={handleAddNewMaterial}
                   className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-bold uppercase transition-colors whitespace-nowrap"
                 >
-                  <Plus className="w-4 h-4" /> Adicionar
+                  <Plus className="w-4 h-4" /> Adicionar Produto
                 </button>
               </div>
             </div>
@@ -1218,10 +1295,11 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                     filtroCategoria === 'MERCADO' ? 'bg-[#2A2B4C]' :
                     filtroCategoria === 'PROTEINA' ? 'bg-[#821D21]' :
                     filtroCategoria === 'SACOLAO' ? 'bg-[#315629]' :
-                    'bg-[#5C3224]'
+                    filtroCategoria === 'LIMPEZA' ? 'bg-[#5C3224]' :
+                    'bg-[#1E3A8A]'
                   )}>
                     <th className="py-3 px-4 font-black">Fav</th>
-                    <th className="py-3 px-4 font-black">Material ({filtroCategoria})</th>
+                    <th className="py-3 px-4 font-black">Produto ({filtroCategoria})</th>
                     {filtroCategoria === 'PROTEINA' && <th className="py-3 px-4 font-black text-center">Porção (KG)</th>}
                     <th className="py-3 px-4 font-black text-center">Und. Medida</th>
                     <th className="py-3 px-4 font-black text-center">Tipo Uso</th>
@@ -1320,6 +1398,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                           <option value="PCT">PCT.</option>
                           <option value="DZ">DZ.</option>
                           <option value="BDJ">BDJ.</option>
+                          <option value="BTJ">BTJ.</option>
                         </select>
                       </td>
                       <td className="py-2.5 px-4 text-center">
@@ -1380,7 +1459,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                   ))}
                   {materiaisFiltrados.length === 0 && (
                     <tr>
-                      <td colSpan={7 + (filtroCategoria === 'PROTEINA' ? 1 : 0)} className="py-8 text-center text-slate-400 font-bold uppercase text-xs">Nenhum material encontrado.</td>
+                      <td colSpan={7 + (filtroCategoria === 'PROTEINA' ? 1 : 0)} className="py-8 text-center text-slate-400 font-bold uppercase text-xs">Nenhum produto encontrado.</td>
                     </tr>
                   )}
                 </tbody>
@@ -1391,7 +1470,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
               onClick={handleAddNewMaterial}
               className="flex items-center gap-2 px-4 py-2 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 text-xs font-bold uppercase hover:bg-slate-50 hover:border-slate-400 hover:text-slate-700 transition-colors w-full justify-center"
             >
-              <Plus className="w-4 h-4" /> Adicionar Novo Material
+              <Plus className="w-4 h-4" /> Adicionar Novo Produto
             </button>
           </motion.div>
         )}
@@ -1791,19 +1870,14 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                 </div>
               </div>
 
-              <div className="flex rounded-xl bg-slate-100 p-1 mb-6 inline-flex">
-                {(['MERCADO', 'PROTEINA', 'SACOLAO', 'LIMPEZA'] as CategoriaMaterial[]).map(cat => (
+              <div className="flex flex-wrap rounded-xl bg-slate-100 p-1 mb-6 items-center gap-1">
+                {(categoriasAbas).map(cat => (
                   <button
                     key={cat}
                     onClick={() => setFiltroCategoriaPrevisao(cat)}
                     className={cn(
                       "px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors",
-                      filtroCategoriaPrevisao === cat ? `${
-                        cat === 'MERCADO' ? 'bg-[#2A2B4C] text-white' :
-                        cat === 'PROTEINA' ? 'bg-[#821D21] text-white' :
-                        cat === 'SACOLAO' ? 'bg-[#315629] text-white' :
-                        'bg-[#5C3224] text-white'
-                      } shadow-sm` : "text-slate-500 hover:text-slate-700 hover:bg-slate-200"
+                      filtroCategoriaPrevisao === cat ? `bg-indigo-600 text-white shadow-sm` : "text-slate-500 hover:text-slate-700 hover:bg-slate-200"
                     )}
                   >
                     {cat}
@@ -2299,6 +2373,77 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
                   Salvar Item
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+
+        <AprovisionamentoGerenciarCategoriasModal
+          isOpen={showGerenciarCategoriasModal}
+          onClose={() => setShowGerenciarCategoriasModal(false)}
+          categorias={categoriasAbas}
+          materiais={materiais}
+          onAddCategoria={handleAddCategoria}
+          onRenameCategoria={handleRenameCategoria}
+          onDeleteCategoria={handleDeleteCategoria}
+        />
+
+        {showNovoProdutoModal && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200"
+            >
+              <div className="p-6 border-b border-slate-100 bg-slate-50">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Novo Produto</h3>
+                    <p className="text-xs font-semibold text-slate-500">Adicionar produto na categoria {filtroCategoria}.</p>
+                  </div>
+                  <button onClick={() => setShowNovoProdutoModal(false)} className="p-2 hover:bg-slate-200 rounded-xl transition-colors">
+                    <X className="w-5 h-5 text-slate-400" />
+                  </button>
+                </div>
+              </div>
+              <form onSubmit={handleAddNewMaterialSubmit}>
+                <div className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Nome do Produto</label>
+                    <input 
+                      type="text"
+                      autoFocus
+                      required
+                      placeholder="Ex: ARROZ AGULHINHA..."
+                      className="w-full bg-slate-100 border-none rounded-2xl p-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-500/20 uppercase"
+                      value={novoProdutoNome}
+                      onChange={e => setNovoProdutoNome(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Unidade de Medida</label>
+                    <select
+                      className="w-full bg-slate-100 border-none rounded-2xl p-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-500/20 uppercase"
+                      value={novoProdutoUndMedida}
+                      onChange={e => setNovoProdutoUndMedida(e.target.value)}
+                    >
+                      <option value="KG">KG.</option>
+                      <option value="UND">UND.</option>
+                      <option value="LT">LT.</option>
+                      <option value="PCT">PCT.</option>
+                      <option value="DZ">DZ.</option>
+                      <option value="BDJ">BDJ.</option>
+                      <option value="BTJ">BTJ.</option>
+                    </select>
+                  </div>
+                  <button 
+                    type="submit"
+                    className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl text-sm font-bold uppercase tracking-widest transition-colors shadow-md hover:shadow-lg"
+                  >
+                    Salvar Produto
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}

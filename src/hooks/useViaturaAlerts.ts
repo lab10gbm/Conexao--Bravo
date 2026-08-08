@@ -47,11 +47,13 @@ export function useViaturaAlerts(user: UserProfile | null) {
     const unsubAlerts = onSnapshot(q, async (snapshot) => {
       if (!active || snapshot.empty) return;
       
+      // Check for actual new documents to avoid re-triggering old alerts
+      const hasNew = snapshot.docChanges().some(change => change.type === 'added');
       const docData = snapshot.docs[0].data();
-      const time = docData.timestamp?.toMillis?.() || 0;
+      const time = docData.timestamp?.toMillis?.() || Date.now();
 
-      // se o alerta for de menos de 15 segundos atrás
-      if (Date.now() - time < 15000) {
+      // Relax the time check to 60 seconds or just rely on 'hasNew' if it's not the initial load
+      if (hasNew && (Date.now() - time < 60000 || !docData.timestamp)) {
         const viatura = docData.viatura;
 
         let isAssigned = false;
@@ -63,12 +65,13 @@ export function useViaturaAlerts(user: UserProfile | null) {
              const safeRg = String(user.rg)
                 .replace(/^0+/, "")
                 .replace(/\D/g, "");
-             const formattedRgForSearch = safeRg.length < 5 ? safeRg.padStart(5, "0") : safeRg;
-
+             
              if (
-                rgsInViatura.includes(formattedRgForSearch) ||
-                rgsInViatura.includes(user.rg) ||
-                rgsInViatura.includes(safeRg)
+                Array.isArray(rgsInViatura) && rgsInViatura.some((item: any) => {
+                   const itemRg = String(typeof item === 'string' ? item : item.rg);
+                   const safeItemRg = itemRg.replace(/^0+/, "").replace(/\D/g, "");
+                   return safeItemRg === safeRg || itemRg === user.rg;
+                })
              ) {
                 isAssigned = true;
              }

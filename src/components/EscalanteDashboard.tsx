@@ -11,6 +11,8 @@ import { AfastamentosAlaModule } from './AfastamentosAlaModule';
 import { VacationModule } from './VacationModule';
 import { RasManagerModule } from './RasManagerModule';
 import { ControleViaturasModule } from './ControleViaturasModule';
+import { EfetivoPanel } from './EfetivoPanel';
+import { GestaoEfetivoModeracaoModule } from './GestaoEfetivoModeracaoModule';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -34,7 +36,7 @@ const ESCALANTE_APPS = [
   { id: 'grd', label: 'GRD', description: 'Atendimento de Reforço', icon: Shield, color: 'bg-cyan-600 shadow-cyan-200' },
   { id: 'permutas_mobile', label: 'Permutas Mobile', description: 'Triagem Rápida', icon: Smartphone, color: 'bg-pink-600 shadow-pink-200' },
   { id: 'ras', label: 'Controle de RAS', description: 'Regime Adicional de Serviço', icon: BriefcaseBusiness, color: 'bg-amber-500 shadow-amber-200' },
-  { id: 'efetivo', label: 'Efetivo Geral', description: 'Relacionamento', icon: UserCheck, color: 'bg-violet-600 shadow-violet-200', disabled: true },
+  { id: 'efetivo', label: 'Efetivo Geral', description: 'Relacionamento', icon: UserCheck, color: 'bg-violet-600 shadow-violet-200' },
   { id: 'relatorios', label: 'Relatórios', description: 'Estatísticas', icon: LayoutGrid, color: 'bg-rose-600 shadow-rose-200', disabled: true },
 ];
 
@@ -316,6 +318,16 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
            <div className="w-full p-4 sm:p-6">
              <RasManagerModule obmContext={obmContext} user={user} />
            </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeApp === 'efetivo') {
+    return (
+      <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col min-h-[600px] overflow-hidden relative px-6 pb-6">
+           <EfetivoPanel user={user} obmContext={obmContext} onBack={() => setActiveApp(null)} />
         </div>
       </div>
     );
