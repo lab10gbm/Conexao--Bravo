@@ -15,6 +15,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { TagInput } from './TagInput';
 import { useRefeitorioData } from '../hooks/useRefeitorioData';
 import { RefeitorioEditModal } from './RefeitorioEditModal';
+import { exportToExcel } from '../lib/exportUtils';
 
 interface RefeitorioModuleProps {
   user: UserProfile;
@@ -67,9 +68,13 @@ export function RefeitorioModule({ user, onBack, initialTab = 'cardapio' }: Refe
         const mo = parseInt(parts[1]);
         if (!isNaN(d) && !isNaN(mo)) {
           let year = now.getFullYear();
-          // Adjust year for Dec/Jan wrap around
-          if (now.getMonth() === 0 && mo === 12) year--;
-          else if (now.getMonth() === 11 && mo === 1) year++;
+          if (parts.length >= 3 && !isNaN(parseInt(parts[2])) && parseInt(parts[2]) > 2000) {
+            year = parseInt(parts[2]);
+          } else {
+            // Adjust year for Dec/Jan wrap around
+            if (now.getMonth() === 0 && mo === 12) year--;
+            else if (now.getMonth() === 11 && mo === 1) year++;
+          }
           time = new Date(year, mo - 1, d).getTime();
         }
       }
@@ -292,8 +297,12 @@ export function RefeitorioModule({ user, onBack, initialTab = 'cardapio' }: Refe
           const mo = parseInt(parts[1]);
           if (!isNaN(d) && !isNaN(mo)) {
             let year = sy;
-            // Heuristic for year overlap: if the required end date is next year
-            if (ey > sy && mo <= em) year = ey;
+            if (parts.length >= 3 && !isNaN(parseInt(parts[2])) && parseInt(parts[2]) > 2000) {
+              year = parseInt(parts[2]);
+            } else {
+              // Heuristic for year overlap: if the required end date is next year
+              if (ey > sy && mo <= em) year = ey;
+            }
             time = new Date(year, mo - 1, d).getTime();
           }
         }
@@ -1174,7 +1183,7 @@ export function RefeitorioModule({ user, onBack, initialTab = 'cardapio' }: Refe
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-start justify-center p-2 sm:p-4 lg:p-8 overflow-y-auto print:bg-white print:p-0"
+            className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-start justify-center p-2 sm:p-4 lg:p-8 overflow-y-auto print:relative print:block print:inset-auto print:h-auto print:overflow-visible print:bg-white print:p-0"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -1189,19 +1198,36 @@ export function RefeitorioModule({ user, onBack, initialTab = 'cardapio' }: Refe
                   </div>
                   Relatório de Cardápios
                 </h2>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 sm:gap-4">
+                  <button
+                    onClick={() => {
+                      const exportData = reportMenus.map((m: any) => ({
+                        'DIA': `${m.date}\n${m.weekday.toUpperCase()}`,
+                        'ALMOÇO': `${m.almoco.principal ? m.almoco.principal.toUpperCase() : ''}\n${m.almoco.acompanhamentos || ''}\n${m.almoco.salada || ''}${m.almoco.sobremesa ? '\nSob: ' + m.almoco.sobremesa : ''}`.trim(),
+                        'JANTAR': `${m.jantar.principal ? m.jantar.principal.toUpperCase() : ''}\n${m.jantar.acompanhamentos || ''}\n${m.jantar.salada || ''}`.trim(),
+                        'CAFÉ / CEIA': `CAFÉ DA MANHÃ\n${m.cafeManha || ''}\n\nCEIA\n${m.ceia || ''}`.trim()
+                      }));
+                      exportToExcel(exportData, 'Cardapios', 'Relatorio_Cardapios');
+                    }}
+                    className="p-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl transition-colors flex items-center gap-2 text-sm font-bold"
+                    title="Exportar para Excel"
+                  >
+                    <Download className="w-5 h-5" />
+                    <span className="hidden sm:inline">XLS</span>
+                  </button>
                   <button
                     onClick={() => {
                         window.print();
                     }}
-                    className="p-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-xl transition-colors hidden sm:block"
+                    className="p-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-xl transition-colors hidden sm:flex items-center gap-2 text-sm font-bold"
                     title="Imprimir página visível (Dica: Use paisagem)"
                   >
                     <Printer className="w-5 h-5" />
+                    <span className="hidden sm:inline">Imprimir</span>
                   </button>
                   <button
                     onClick={() => setShowReport(false)}
-                    className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
+                    className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors ml-2"
                   >
                     <X className="w-5 h-5" />
                   </button>
@@ -1234,7 +1260,7 @@ export function RefeitorioModule({ user, onBack, initialTab = 'cardapio' }: Refe
                 <p className="text-sm font-bold text-slate-600 mt-1">Período: {reportStartDate ? new Date(reportStartDate + 'T12:00:00').toLocaleDateString('pt-BR') : '...'} a {reportEndDate ? new Date(reportEndDate + 'T12:00:00').toLocaleDateString('pt-BR') : '...'}</p>
               </div>
 
-              <div className="overflow-x-auto bg-white rounded-2xl border border-slate-100 print:border-slate-300 print:rounded-none">
+              <div className="overflow-x-auto overflow-y-visible bg-white rounded-2xl border border-slate-100 print:border-slate-300 print:rounded-none print:overflow-visible">
                 <table className="w-full text-left border-collapse min-w-[800px] print:min-w-full">
                   <thead>
                     <tr className="border-b border-slate-100 text-[10px] sm:text-xs uppercase tracking-widest text-slate-400 bg-slate-50 print:bg-white print:border-slate-800 print:text-black">

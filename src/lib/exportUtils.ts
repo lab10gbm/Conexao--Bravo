@@ -3,6 +3,37 @@ import { format } from 'date-fns';
 
 export function exportToExcel(data: any[], sheetName: string, fileName: string) {
   const ws = XLSX.utils.json_to_sheet(data);
+  
+  // Add styling and column widths if possible
+  const range = XLSX.utils.decode_range(ws['!ref'] || "A1");
+  for (let R = range.s.r; R <= range.e.r; ++R) {
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+      const cell_address = {c: C, r: R};
+      const cell_ref = XLSX.utils.encode_cell(cell_address);
+      if (!ws[cell_ref]) continue;
+      
+      // Initialize or update cell style to enable wrapText
+      ws[cell_ref].s = ws[cell_ref].s || {};
+      ws[cell_ref].s.alignment = {
+        wrapText: true,
+        vertical: 'top'
+      };
+      
+      // Make header bold
+      if (R === 0) {
+        ws[cell_ref].s.font = { bold: true };
+      }
+    }
+  }
+
+  // Set reasonable column widths
+  ws['!cols'] = [
+    { wch: 15 }, // DIA
+    { wch: 40 }, // ALMOÇO
+    { wch: 40 }, // JANTAR
+    { wch: 30 }  // CAFÉ / CEIA
+  ];
+
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
   XLSX.writeFile(wb, `${fileName}.xlsx`);
