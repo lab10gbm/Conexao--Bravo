@@ -16,6 +16,12 @@ import { Calendar as CalendarIcon, Users, ArrowRightLeft, Shield, CheckCircle2, 
 import { motion } from "framer-motion";
 import { cleanUndefined, getUserObmAccess, normalizeObm, getAlaForDate, cn, getAlaColor, getAlaName, formatMilitaryName } from '../lib/utils';
 
+
+const normalizeFnName = (s: string) => {
+  if (!s) return "";
+  return s.replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim().toUpperCase();
+};
+
 function FuncoesMultiSelect({
   selected,
   onChange,
@@ -31,8 +37,8 @@ function FuncoesMultiSelect({
 
   const allOptions = [
     'ADJUNTO', 'ENCARREGADO DE MOTORISTA', 'CONDUTOR AR', 'CONDUTOR ABSL', 'CONDUTOR ABT', 
-    'CONDUTOR ASE', 'CONDUTOR ARC', 'CHEFE ABSL', 'CHEFE ABT', 'AUXILIAR / CHEFE ARC', 
-    'AUXILIAR ABT', 'AUXILIAR ABSL', 'ENFERMEIRO', 'MESTRE AL', 'MESTRE BIA', 
+    'CONDUTOR ASE', 'CONDUTOR ARC', 'CHEFE ABSL', 'CHEFE ABT', 'AUXILIAR/CHEFE ARC', 
+    'AUXILIAR ABT', 'AUXILIAR ABSL', 'ENFERMEIRO', 'MESTRE L', 'MESTRE BIA', 
     'MARINHEIRO L', 'MARINHEIRO BIA', 'OPERADOR AMA', 'GV AMA', 'AUXILIAR RANCHO', 'TOQUE DE FOGO', 
     'DIA AO DEPOSITO', 'RESP FAXINA', 'ABASTECEDOR', 'SGT DIA', 'CMT GUARDA', 
     'CB GUARDA', 'CB DIA', 'COMUNICANTE', 'PRECARIO', 'ESCALANTE', 'PRECARIO ADM', 
@@ -558,7 +564,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     
     if (militar.ativoMaritimo) {
       funcs.push("MARITIMO");
-      if (militar.mestreAl) funcs.push("MESTRE AL");
+      if (militar.mestreAl) funcs.push("MESTRE L");
       if (militar.mestreBia) funcs.push("MESTRE BIA");
       if (militar.marinheiros) {
         funcs.push("MARINHEIRO L");
@@ -612,13 +618,13 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     if (militar.ativoChefeGua) {
       if (militar.chefeAbsl) allowed.add('CHEFE ABSL');
       if (militar.chefeAbt) allowed.add('CHEFE ABT');
-      allowed.add('AUXILIAR / CHEFE ARC');
+      allowed.add('AUXILIAR/CHEFE ARC');
     }
     
     if (militar.ativoAuxiliar) {
       if (militar.auxAbt) allowed.add('AUXILIAR ABT');
       if (militar.auxAbsl) allowed.add('AUXILIAR ABSL');
-      if (militar.auxArc) allowed.add('AUXILIAR / CHEFE ARC');
+      if (militar.auxArc) allowed.add('AUXILIAR/CHEFE ARC');
       if (militar.auxAse) allowed.add('AUXILIAR ASE');
     }
     
@@ -627,7 +633,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     }
     
     if (militar.ativoMaritimo) {
-      if (militar.mestreAl) allowed.add('MESTRE AL');
+      if (militar.mestreAl) allowed.add('MESTRE L');
       if (militar.mestreBia) allowed.add('MESTRE BIA');
       if (militar.marinheiros) {
         allowed.add('MARINHEIRO L');
@@ -701,7 +707,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     const maritima = isMaritima(v);
     
     if (slot === 'condutor') {
-      if (maritima) return vtrName.startsWith('BIA') ? 'MESTRE BIA' : 'MESTRE AL';
+      if (maritima) return vtrName.startsWith('BIA') ? 'MESTRE BIA' : 'MESTRE L';
       if (isVtrType(vtrName, 'AR')) return 'CONDUTOR AR';
       if (isVtrType(vtrName, 'ABSL')) return 'CONDUTOR ABSL';
       if (isVtrType(vtrName, 'ABT')) return 'CONDUTOR ABT';
@@ -712,12 +718,12 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     if (slot === 'cg') {
       if (isVtrType(vtrName, 'ABSL')) return 'CHEFE ABSL';
       if (isVtrType(vtrName, 'ABT')) return 'CHEFE ABT';
-      if (isVtrType(vtrName, 'ARC')) return 'AUXILIAR / CHEFE ARC';
+      if (isVtrType(vtrName, 'ARC')) return 'AUXILIAR/CHEFE ARC';
       return 'CHEFE GUA';
     }
     // Auxiliares (g1, g2, g3, g4)
     if (maritima) return vtrName.startsWith('BIA') ? 'MARINHEIRO BIA' : 'MARINHEIRO L';
-    if (isVtrType(vtrName, 'ARC')) return 'AUXILIAR / CHEFE ARC';
+    if (isVtrType(vtrName, 'ARC')) return 'AUXILIAR/CHEFE ARC';
     if (isVtrType(vtrName, 'ABT')) return 'AUXILIAR ABT';
     if (isVtrType(vtrName, 'ABSL')) return 'AUXILIAR ABSL';
     if (isVtrType(vtrName, 'ASE')) return 'ENFERMEIRO';
@@ -908,7 +914,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     // 1. Determine all missing slots based on dynamicRequirements
     const missingSlots: string[] = [];
     dynamicRequirements.forEach(req => {
-      const currentCount = Object.values(newSelected).flat().filter(f => f === req.name).length;
+      const currentCount = Object.values(newSelected).flat().filter(f => normalizeFnName(f) === normalizeFnName(req.name)).length;
       if (req.req > currentCount) {
         for (let i = 0; i < req.req - currentCount; i++) {
           missingSlots.push(req.name);
@@ -1737,7 +1743,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                     {dynamicRequirements
                       .filter(f => f.category !== 'admin')
                       .map(f => {
-                        const currentCount = Object.values(selectedFunctions).flat().filter((v) => v === f.name).length;
+                        const currentCount = Object.values(selectedFunctions).flat().filter((v) => normalizeFnName(v) === normalizeFnName(f.name)).length;
                         return { ...f, currentCount, isOk: currentCount >= f.req };
                       })
                       .filter(f => f.req > 0 || f.currentCount > 0)
@@ -1794,7 +1800,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                     {dynamicRequirements
                       .filter(f => f.category === 'admin')
                       .map(f => {
-                        const currentCount = Object.values(selectedFunctions).flat().filter((v) => v === f.name).length;
+                        const currentCount = Object.values(selectedFunctions).flat().filter((v) => normalizeFnName(v) === normalizeFnName(f.name)).length;
                         return { ...f, currentCount, isOk: currentCount >= f.req };
                       })
                       .filter(f => f.req > 0 || f.currentCount > 0)

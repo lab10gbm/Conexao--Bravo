@@ -53,7 +53,7 @@ export const DEFAULT_CATEGORIES: CategoryConfig[] = [
     name: "Marítimos",
     activeProperty: "ativoMaritimo",
     functions: [
-      { id: "mestreAl", name: "Mestre AL" },
+      { id: "mestreAl", name: "Mestre L" },
       { id: "mestreBia", name: "Mestre BIA" },
       { id: "opAma", name: "Op AMA" },
       { id: "gvAma", name: "GV AMA" },

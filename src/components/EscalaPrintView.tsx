@@ -261,9 +261,9 @@ export function EscalaPrintView({
                     <div className="flex flex-col h-full min-h-[180px]">
                        <div className="p-2 flex-1 flex flex-col justify-between">
                        {(() => { const v = getVtrByPrefix('ARC'); return v && !v.ativa && (v.exibir ?? v.ativa) ? renderInativaMsg() : <>
-                          {renderVtrSlot(v, 'cg', 'AUXILIAR / CHEFE ARC', 'Guarnição')}
-                          {renderVtrSlot(v, 'g1', 'AUXILIAR / CHEFE ARC', 'Guarnição')}
-                          {renderVtrSlot(v, 'g2', 'AUXILIAR / CHEFE ARC', 'Guarnição')}
+                          {renderVtrSlot(v, 'cg', 'AUXILIAR/CHEFE ARC', 'Guarnição')}
+                          {renderVtrSlot(v, 'g1', 'AUXILIAR/CHEFE ARC', 'Guarnição')}
+                          {renderVtrSlot(v, 'g2', 'AUXILIAR/CHEFE ARC', 'Guarnição')}
                           {renderVtrSlot(v, 'condutor', 'CONDUTOR ARC', 'Mot')}
                        </>})()}
                        </div>
@@ -280,7 +280,7 @@ export function EscalaPrintView({
                     <div className="flex flex-col h-full min-h-[180px]">
                        <div className="p-2 flex-1 flex flex-col justify-center gap-1">
                        {(() => { const v = getVtrByPrefix('L-'); return v && !v.ativa && (v.exibir ?? v.ativa) ? renderInativaMsg() : <>
-                          {renderVtrSlot(v, 'condutor', 'MESTRE AL', 'MS', true)}
+                          {renderVtrSlot(v, 'condutor', 'MESTRE L', 'MS', true)}
                           {renderVtrSlot(v, 'g1', 'MARINHEIRO', 'MN', true)}
                           {renderVtrSlot(v, 'g2', 'MARINHEIRO', 'MN')}
                        </>})()}

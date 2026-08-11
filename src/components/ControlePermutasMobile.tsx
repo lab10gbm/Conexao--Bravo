@@ -48,7 +48,7 @@ function getCapabilities(m: UserProfile) {
       label: "Marítimo",
       color: "bg-cyan-100 text-cyan-700 border-cyan-200",
       items: [
-        ...(m.mestreAl ? ["MESTRE AL"] : []),
+        ...(m.mestreAl ? ["MESTRE L"] : []),
         ...(m.mestreBia ? ["MESTRE BIA"] : []),
         ...(m.opAma ? ["OP. AMA"] : []),
         ...(m.gvAma ? ["GV AMA"] : []),
@@ -732,8 +732,8 @@ export function ControlePermutasMobile({ user, obmContext }: ControlePermutasMob
                               <div className="flex flex-wrap gap-1.5">
                                 {[
                                   'ADJUNTO', 'CONDUTOR ABT', 'CONDUTOR ABSL', 'CONDUTOR AR', 'CONDUTOR ASE', 'CONDUTOR ARC',
-                                  'CHEFE ABT', 'CHEFE ABSL', 'AUXILIAR ABT', 'AUXILIAR ABSL', 'AUXILIAR ARC', 'AUXILIAR ASE',
-                                  'ENFERMEIRO', 'MESTRE AL', 'MESTRE BIA', 'OPERADOR AMA', 'GV AMA', 'SGT DIA', 'CMT GUARDA',
+                                  'CHEFE ABT', 'CHEFE ABSL', 'AUXILIAR ABT', 'AUXILIAR ABSL', 'AUXILIAR/CHEFE ARC', 'AUXILIAR ASE',
+                                  'ENFERMEIRO', 'MESTRE L', 'MESTRE BIA', 'OPERADOR AMA', 'GV AMA', 'SGT DIA', 'CMT GUARDA',
                                   'CB GUARDA', 'CB DIA', 'COMUNICANTE', 'SENTINELA', 'AUX RANCHO', 'FAXINA'
                                 ].map(f => {
                                   const isSelected = selectedSubFunctions.includes(f);
