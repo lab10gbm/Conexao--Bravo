@@ -22,6 +22,25 @@ export function normalizeObm(obm?: string): string {
   return clean;
 }
 
+export function normalizeAlaField(ala: string | number | undefined): string {
+  if (!ala) return '';
+  const a = String(ala).toUpperCase().trim();
+  if (a.includes('EXP') || a === 'E' || a === 'EXPEDIENTE') return 'EXP';
+  if (a === '1' || a === '1ª ALA' || a === 'ALA 1' || a === 'A' || a.includes('ALPHA') || a.startsWith('AL')) return '1';
+  if (a === '2' || a === '2ª ALA' || a === 'ALA 2' || a === 'B' || a.includes('BRAVO') || a.startsWith('BR')) return '2';
+  if (a === '3' || a === '3ª ALA' || a === 'ALA 3' || a === 'C' || a.includes('CHARLIE') || a.startsWith('CH')) return '3';
+  if (a === '4' || a === '4ª ALA' || a === 'ALA 4' || a === 'D' || a.includes('DELTA') || a.startsWith('DE')) return '4';
+  
+  // Fallback if they contain the number but aren't an exact match, carefully avoiding 10, etc.
+  // Actually, let's just do exact matching or very safe matching to avoid OBMs being parsed as alas
+  if (/\b1\b/.test(a) && !a.includes('10')) return '1';
+  if (/\b2\b/.test(a)) return '2';
+  if (/\b3\b/.test(a)) return '3';
+  if (/\b4\b/.test(a)) return '4';
+  
+  return '';
+}
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -182,6 +201,13 @@ export function getAlaName(ala: number | string): string {
   const alaStr = ala.toString().toUpperCase();
   if (alaStr === 'EXP') return 'EXPEDIENTE';
   if (alaStr === 'ESCALANTE') return 'ESCALANTE';
+  
+  const alaNum = typeof ala === 'string' ? parseInt(ala.replace(/\D/g, ''), 10) : ala;
+  if (alaNum === 1) return 'ALA 1 (ALPHA)';
+  if (alaNum === 2) return 'ALA 2 (BRAVO)';
+  if (alaNum === 3) return 'ALA 3 (CHARLIE)';
+  if (alaNum === 4) return 'ALA 4 (DELTA)';
+
   return `ALA ${ala}`;
 }
 

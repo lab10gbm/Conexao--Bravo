@@ -1,0 +1,3 @@
+sed -i 's/const available = militarCapabilities.filter(m => m.allowed.includes(slot.name));/const available = militarCapabilities.filter(m => { if (!m.allowed.includes(slot.genericName)) return false; if (m.assignedRoles.includes(slot.genericName)) return false; for (const role of m.assignedRoles) { const val1 = correlation[slot.genericName]?.[role] ?? 0; const val2 = correlation[role]?.[slot.genericName] ?? 0; if (val1 === 0 || val2 === 0) return false; } return true; });/g' src/components/EscalaEspelhoModule.tsx
+
+sed -i 's/if (available.length > 0) {/if (available.length > 0) { available[0].assignedRoles.push(slot.genericName);/g' src/components/EscalaEspelhoModule.tsx

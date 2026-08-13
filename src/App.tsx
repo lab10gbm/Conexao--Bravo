@@ -83,6 +83,7 @@ const EscalanteDashboard = React.lazy(() =>
     default: m.EscalanteDashboard,
   })),
 );
+const EstudoTecnicoGuarnicoesModule = React.lazy(() => import("./components/EstudoTecnicoGuarnicoesModule").then(m => ({ default: m.EstudoTecnicoGuarnicoesModule })));
 const GestaoEfetivoModeracaoModule = React.lazy(() => import("./components/GestaoEfetivoModeracaoModule").then((m) => ({ default: m.GestaoEfetivoModeracaoModule })));
 const GestaoSadDashboard = React.lazy(() => import("./components/GestaoSadDashboard").then((m) => ({ default: m.GestaoSadDashboard })));
 const RasClientModule = React.lazy(() => import("./components/RasClientModule").then((m) => ({ default: m.RasClientModule })));
@@ -1167,6 +1168,19 @@ export default function App() {
                     transition={{ duration: 0.3 }}
                   >
                     <ConfiguracoesModule onBack={() => navigate("/")} />
+                  </motion.div>
+                }
+              />
+              <Route
+                path="/estudo-tecnico-guarnicoes"
+                element={
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.05 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <EstudoTecnicoGuarnicoesModule obmContext={obmContext} />
                   </motion.div>
                 }
               />

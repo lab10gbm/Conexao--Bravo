@@ -1,25 +1,22 @@
 import re
-
 with open('src/components/EscalaEspelhoModule.tsx', 'r') as f:
     content = f.read()
 
-# 1. Change dynamicRequirements type
+# Make sure reqs type is correct
 content = content.replace(
     "let reqs: {name: string, req: number, category: string}[] = [",
     "let reqs: {name: string, genericName: string, req: number, category: string}[] = ["
 )
-
 content = content.replace(
     "{ name: \"ADJUNTO\", req: roleQtds[\"ADJUNTO\"] ?? 1, category: 'admin' },",
     "{ name: \"ADJUNTO\", genericName: \"ADJUNTO\", req: roleQtds[\"ADJUNTO\"] ?? 1, category: 'admin' },"
 )
-
 content = content.replace(
     "{ name: \"ENCARREGADO DE MOTORISTA\", req: roleQtds[\"ENCARREGADO DE MOTORISTA\"] ?? 1, category: 'admin' },",
     "{ name: \"ENCARREGADO DE MOTORISTA\", genericName: \"ENCARREGADO DE MOTORISTA\", req: roleQtds[\"ENCARREGADO DE MOTORISTA\"] ?? 1, category: 'admin' },"
 )
 
-# 2. Add genericName to vtrReqs
+# VtrReqs
 content = content.replace(
     "const vtrReqs: Record<string, {req: number, category: string}> = {};",
     "const vtrReqs: Record<string, {req: number, category: string, genericName: string}> = {};"
@@ -40,18 +37,14 @@ content = content.replace(
     "reqs.push({ name, genericName: data.genericName, req: data.req, category: data.category });"
 )
 
-# 3. Add genericName to the rest of the admin requirements
-admin_roles = [
-    "AUXILIAR RANCHO", "TOQUE DE FOGO", "DIA AO DEPOSITO", "RESP FAXINA",
-    "ABASTECEDOR", "SGT DIA", "CMT GUARDA", "CB GUARDA", "CB DIA", "COMUNICANTE", "ESCALANTE"
-]
+# All the push for admin
+content = re.sub(
+    r"reqs\.push\(\{ name: \"([^\"]+)\", req: roleQtds\[\"[^\"]+\"\] \?\? (\d+), category: 'admin' \}\);",
+    r"reqs.push({ name: \"\1\", genericName: \"\1\", req: roleQtds[\"\1\"] ?? \2, category: 'admin' });",
+    content
+)
 
-for role in admin_roles:
-    pattern = r'reqs\.push\(\{ name: "' + role + r'", req: roleQtds\["' + role + r'"\] \?\? (\d+), category: \'admin\' \}\);'
-    replacement = r'reqs.push({ name: "' + role + r'", genericName: "' + role + r'", req: roleQtds["' + role + r'"] ?? \1, category: \'admin\' });'
-    content = re.sub(pattern, replacement, content)
-
-# 4. Change allSlots in estudoTecnico
+# allSlots
 content = content.replace(
     "const allSlots: {name: string, category: string}[] = [];",
     "const allSlots: {name: string, genericName: string, category: string}[] = [];"
@@ -62,33 +55,27 @@ content = content.replace(
     "allSlots.push({ name: req.name, genericName: req.genericName, category: req.category });"
 )
 
-# 5. Fix slotOptionsCount and available mapping in estudoTecnico
+# Finally, estudoTecnico filter logic
 content = content.replace(
-    "const count = militarCapabilities.filter(m => m.allowed.includes(slot.name)).length;",
-    "const count = militarCapabilities.filter(m => m.allowed.includes(slot.genericName)).length;"
+    "if (!m.allowed.includes(slot.name)) return false;",
+    "if (!m.allowed.includes(slot.genericName)) return false;"
 )
-
 content = content.replace(
-    "const available = militarCapabilities.filter(m => !m.used && m.allowed.includes(slot.name));",
-    "const available = militarCapabilities.filter(m => !m.used && m.allowed.includes(slot.genericName));"
+    "if (m.assignedRoles.includes(slot.name)) return false;",
+    "if (m.assignedRoles.includes(slot.genericName)) return false;"
 )
-
-# 6. Change unfulfilledSlots
 content = content.replace(
-    "const unfulfilledSlots: {name: string, category: string}[] = [];",
-    "const unfulfilledSlots: {name: string, genericName: string, category: string}[] = [];"
+    "correlation[slot.name]",
+    "correlation[slot.genericName]"
 )
-
-# 7. Check if ESCALANTE is in getAllowedOptions and add it if not
-if "allowed.add('ESCALANTE');" not in content:
-    content = content.replace(
-        "    return funcs.join(\", \") || \"NÃO CONFIGURADO\";\n  };",
-        "    if (militar.isEscalante) funcs.push(\"ESCALANTE\");\n    return funcs.join(\", \") || \"NÃO CONFIGURADO\";\n  };"
-    )
-    content = content.replace(
-        "    if (militar.ativoComunicante) {\n      allowed.add('COMUNICANTE');\n    }",
-        "    if (militar.ativoComunicante) {\n      allowed.add('COMUNICANTE');\n    }\n    if (militar.isEscalante) {\n      allowed.add('ESCALANTE');\n    }"
-    )
+content = content.replace(
+    "[slot.name]",
+    "[slot.genericName]"
+)
+content = content.replace(
+    "m.assignedRoles.push(slot.name);",
+    "m.assignedRoles.push(slot.genericName);"
+)
 
 with open('src/components/EscalaEspelhoModule.tsx', 'w') as f:
     f.write(content)

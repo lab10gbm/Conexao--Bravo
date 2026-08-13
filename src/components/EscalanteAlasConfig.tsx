@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { parseRank, sortAllBySeniority } from "../lib/rankUtils";
 import { useMilitars } from '../contexts/MilitarContext';
 import { Search, Loader2, Plus, X, ArrowRight, Users } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, normalizeAlaField } from '../lib/utils';
 import { UserProfile } from '../types';
 import { AfastamentosAlaModule } from './AfastamentosAlaModule';
 
@@ -16,17 +16,6 @@ interface EscalanteAlasConfigProps {
 }
 
 const ALAS = ['1', '2', '3', '4', 'EXP'];
-
-function normalizeAlaField(ala: string | number | undefined): string {
-  if (!ala) return '';
-  const a = String(ala).toUpperCase();
-  if (a.includes('EXP') || a === 'E' || a === 'EXPEDIENTE') return 'EXP';
-  if (a.includes('1')) return '1';
-  if (a.includes('2')) return '2';
-  if (a.includes('3')) return '3';
-  if (a.includes('4')) return '4';
-  return '';
-}
 
 export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
   const { militars, loading, refreshMilitars } = useMilitars();

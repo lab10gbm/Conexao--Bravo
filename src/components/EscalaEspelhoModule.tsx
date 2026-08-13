@@ -5,16 +5,17 @@ import { collection, query, where, onSnapshot, updateDoc, doc, serverTimestamp, 
 import { db } from "../lib/firebase";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useNavigate } from "react-router-dom";
 
 import { parseRank } from "../lib/rankUtils";
 import { RankInsignia } from "./RankInsignia";
 import { EscalaPrintView } from "./EscalaPrintView";
 import { RequestPermuta } from "./RequestPermuta";
 import { AfastamentosAlaModule } from "./AfastamentosAlaModule";
-import { Calendar as CalendarIcon, Users, ArrowRightLeft, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, Check, X, Clock, Printer, Shuffle, Plus, Settings, Activity, TrendingDown, PieChart } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, ArrowRightLeft, ArrowRight, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, Check, X, Clock, Printer, Shuffle, Plus, Settings, Activity, TrendingDown, PieChart } from 'lucide-react';
 
 import { motion } from "framer-motion";
-import { cleanUndefined, getUserObmAccess, normalizeObm, getAlaForDate, cn, getAlaColor, getAlaName, formatMilitaryName } from '../lib/utils';
+import { cleanUndefined, getUserObmAccess, normalizeObm, getAlaForDate, cn, getAlaColor, getAlaName, formatMilitaryName, normalizeAlaField } from '../lib/utils';
 
 
 const normalizeFnName = (s: string) => {
@@ -162,6 +163,7 @@ const DEFAULT_VIATURAS: any[] = [
 ];
 
 export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModuleProps) {
+  const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState<string>(
     format(new Date(), "yyyy-MM-dd"),
   );
@@ -473,17 +475,6 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
   const identifiedAla = getAlaForDate(targetDateObj);
   const identifiedAlaStr = identifiedAla.toString();
 
-  // Função helper
-  function normalizeAlaField(ala: string | number | undefined): string {
-    if (!ala) return "";
-    const a = String(ala).toUpperCase();
-    if (a.includes("1")) return "1";
-    if (a.includes("2")) return "2";
-    if (a.includes("3")) return "3";
-    if (a.includes("4")) return "4";
-    return "";
-  }
-
   // Base Roster for the identified Ala
   const baseRoster = useMemo(() => {
     const manualRgs = manuallyAddedRgs[selectedDate] || [];
@@ -605,6 +596,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     const allowed = new Set<string>();
     
     if (militar.ativoCondutor) {
+      allowed.add('CONDUTOR');
       if (militar.ativoEncarregado) allowed.add('ENCARREGADO DE MOTORISTA');
       if (militar.ativoAbastecedor) allowed.add('ABASTECEDOR');
       
@@ -616,12 +608,14 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     }
     
     if (militar.ativoChefeGua) {
+      allowed.add('CHEFE GUA');
       if (militar.chefeAbsl) allowed.add('CHEFE ABSL');
       if (militar.chefeAbt) allowed.add('CHEFE ABT');
       allowed.add('AUXILIAR/CHEFE ARC');
     }
     
     if (militar.ativoAuxiliar) {
+      allowed.add('AUXILIAR GUA');
       if (militar.auxAbt) allowed.add('AUXILIAR ABT');
       if (militar.auxAbsl) allowed.add('AUXILIAR ABSL');
       if (militar.auxArc) allowed.add('AUXILIAR/CHEFE ARC');
@@ -723,10 +717,6 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     }
     // Auxiliares (g1, g2, g3, g4)
     if (maritima) return vtrName.startsWith('BIA') ? 'MARINHEIRO BIA' : 'MARINHEIRO L';
-    if (isVtrType(vtrName, 'ARC')) return 'AUXILIAR/CHEFE ARC';
-    if (isVtrType(vtrName, 'ABT')) return 'AUXILIAR ABT';
-    if (isVtrType(vtrName, 'ABSL')) return 'AUXILIAR ABSL';
-    if (isVtrType(vtrName, 'ASE')) return 'ENFERMEIRO';
     return 'AUXILIAR GUA';
   };
 
@@ -734,6 +724,10 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     if (v.customNames?.[slot]?.trim()) {
       const custom = v.customNames[slot].trim().toUpperCase();
       const sigla = (v.vtr || "").split('-')[0].trim();
+      if (custom === 'ENFERMEIRO') return 'ENFERMEIRO';
+      if (custom === 'AUXILIAR/CHEFE ARC' || custom === 'AUXILIAR / CHEFE ARC') return 'AUXILIAR/CHEFE ARC';
+      if (custom === 'MESTRE L' || custom === 'MESTRE BIA') return custom;
+      if (custom.endsWith(sigla)) return custom;
       if (slot === 'cg' && custom === 'CHEFE') return `CHEFE ${sigla}`;
       return `${custom} ${sigla}`.trim();
     }
@@ -742,12 +736,12 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
 
   
   const dynamicRequirements = useMemo(() => {
-    let reqs: {name: string, req: number, category: string}[] = [
-      { name: "ADJUNTO", req: roleQtds["ADJUNTO"] ?? 1, category: 'admin' },
-      { name: "ENCARREGADO DE MOTORISTA", req: roleQtds["ENCARREGADO DE MOTORISTA"] ?? 1, category: 'admin' },
+    let reqs: {name: string, genericName: string, req: number, category: string}[] = [
+      { name: "ADJUNTO", genericName: "ADJUNTO", req: roleQtds["ADJUNTO"] ?? 1, category: 'admin' },
+      { name: "ENCARREGADO DE MOTORISTA", genericName: "ENCARREGADO DE MOTORISTA", req: roleQtds["ENCARREGADO DE MOTORISTA"] ?? 1, category: 'admin' },
     ];
     
-    const vtrReqs: Record<string, {req: number, category: string}> = {};
+    const vtrReqs: Record<string, {req: number, category: string, genericName: string}> = {};
     viaturasInfo.forEach(v => {
       if (!v.ativa) return;
       ['condutor', 'g1', 'g2', 'g3', 'g4', 'cg'].forEach(slot => {
@@ -759,8 +753,9 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
           else if (slot === 'cg') cat = isMar ? 'chefe_maritimo' : 'chefe';
           else cat = isMar ? 'auxiliar_maritimo' : 'auxiliar';
           
+          const genericName = getDefaultName(v, slot);
           if (!vtrReqs[roleName]) {
-             vtrReqs[roleName] = { req: 0, category: cat };
+             vtrReqs[roleName] = { req: 0, category: cat, genericName };
           }
           vtrReqs[roleName].req += 1;
         }
@@ -768,22 +763,22 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     });
 
     Object.entries(vtrReqs).forEach(([name, data]) => {
-      reqs.push({ name, req: data.req, category: data.category });
+      reqs.push({ name, genericName: data.genericName, req: data.req, category: data.category });
     });
 
-    reqs.push({ name: "AUXILIAR RANCHO", req: roleQtds["AUXILIAR RANCHO"] ?? 1, category: 'admin' });
-    reqs.push({ name: "TOQUE DE FOGO", req: roleQtds["TOQUE DE FOGO"] ?? 1, category: 'admin' });
-    reqs.push({ name: "DIA AO DEPOSITO", req: roleQtds["DIA AO DEPOSITO"] ?? 2, category: 'admin' });
-    reqs.push({ name: "RESP FAXINA", req: roleQtds["RESP FAXINA"] ?? 1, category: 'admin' });
-    reqs.push({ name: "ABASTECEDOR", req: roleQtds["ABASTECEDOR"] ?? 1, category: 'admin' });
+    reqs.push({ name: "AUXILIAR RANCHO", genericName: "AUXILIAR RANCHO", req: roleQtds["AUXILIAR RANCHO"] ?? 1, category: 'admin' });
+    reqs.push({ name: "TOQUE DE FOGO", genericName: "TOQUE DE FOGO", req: roleQtds["TOQUE DE FOGO"] ?? 1, category: 'admin' });
+    reqs.push({ name: "DIA AO DEPOSITO", genericName: "DIA AO DEPOSITO", req: roleQtds["DIA AO DEPOSITO"] ?? 2, category: 'admin' });
+    reqs.push({ name: "RESP FAXINA", genericName: "RESP FAXINA", req: roleQtds["RESP FAXINA"] ?? 1, category: 'admin' });
+    reqs.push({ name: "ABASTECEDOR", genericName: "ABASTECEDOR", req: roleQtds["ABASTECEDOR"] ?? 1, category: 'admin' });
 
-    reqs.push({ name: "SGT DIA", req: roleQtds["SGT DIA"] ?? 1, category: 'admin' });
-    reqs.push({ name: "CMT GUARDA", req: roleQtds["CMT GUARDA"] ?? 1, category: 'admin' });
-    reqs.push({ name: "CB GUARDA", req: roleQtds["CB GUARDA"] ?? 1, category: 'admin' });
-    reqs.push({ name: "CB DIA", req: roleQtds["CB DIA"] ?? 1, category: 'admin' });
-    reqs.push({ name: "COMUNICANTE", req: roleQtds["COMUNICANTE"] ?? 2, category: 'admin' });
-    reqs.push({ name: "ESCALANTE", req: roleQtds["ESCALANTE"] ?? 1, category: 'admin' });
-    reqs.push({ name: "SENTINELA", req: roleQtds["SENTINELA"] ?? 4, category: 'admin' });
+    reqs.push({ name: "SGT DIA", genericName: "SGT DIA", req: roleQtds["SGT DIA"] ?? 1, category: 'admin' });
+    reqs.push({ name: "CMT GUARDA", genericName: "CMT GUARDA", req: roleQtds["CMT GUARDA"] ?? 1, category: 'admin' });
+    reqs.push({ name: "CB GUARDA", genericName: "CB GUARDA", req: roleQtds["CB GUARDA"] ?? 1, category: 'admin' });
+    reqs.push({ name: "CB DIA", genericName: "CB DIA", req: roleQtds["CB DIA"] ?? 1, category: 'admin' });
+    reqs.push({ name: "COMUNICANTE", genericName: "COMUNICANTE", req: roleQtds["COMUNICANTE"] ?? 2, category: 'admin' });
+    reqs.push({ name: "ESCALANTE", genericName: "ESCALANTE", req: roleQtds["ESCALANTE"] ?? 1, category: 'admin' });
+    reqs.push({ name: "SENTINELA", genericName: "SENTINELA", req: roleQtds["SENTINELA"] ?? 4, category: 'admin' });
 
     return reqs;
 
@@ -796,44 +791,41 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
        return isSwapped ? (militars.find(x => x.rg === permutasOut.get(m.rg || '')?.substituteRg) || m) : m;
     });
 
-    const allSlots: {name: string, category: string}[] = [];
+    const allSlots: {name: string, genericName: string, category: string}[] = [];
     dynamicRequirements.forEach(req => {
       for (let i = 0; i < req.req; i++) {
-        allSlots.push({ name: req.name, category: req.category });
+        allSlots.push({ name: req.name, genericName: req.genericName, category: req.category });
       }
     });
 
     const militarCapabilities = realRoster.map(m => ({
       rg: m.rg || '',
       allowed: getAllowedOptions(m) || [],
-      used: false
+      assignedRoles: [] as string[]
     }));
 
-    let unfulfilledCondutores = 0;
-    let unfulfilledCondutoresMaritimos = 0;
-    let unfulfilledChefes = 0;
-    let unfulfilledChefesMaritimos = 0;
-    let unfulfilledAuxiliares = 0;
-    let unfulfilledAuxiliaresMaritimos = 0;
-    let unfulfilledAdmin = 0;
-    let unfulfilledEfetivo = 0;
-
-    let reqCondutores = 0;
-    let reqCondutoresMaritimos = 0;
-    let reqChefes = 0;
-    let reqChefesMaritimos = 0;
-    let reqAuxiliares = 0;
-    let reqAuxiliaresMaritimos = 0;
-    let reqAdmin = 0;
-    const reqEfetivo = allSlots.length;
-
     const slotOptionsCount = allSlots.map(slot => {
-       const count = militarCapabilities.filter(m => m.allowed.includes(slot.name)).length;
+       const count = militarCapabilities.filter(m => m.allowed.includes(slot.genericName)).length;
        return { slot, count };
     });
-    slotOptionsCount.sort((a, b) => a.count - b.count);
+
+    // Sort strategy for predictive assignment:
+    // 1. Priority to Operational over Admin
+    // 2. Fewest capable militars first (fill hardest slots first)
+    slotOptionsCount.sort((a, b) => {
+       const aIsAdmin = a.slot.category === 'admin';
+       const bIsAdmin = b.slot.category === 'admin';
+       if (aIsAdmin && !bIsAdmin) return 1;
+       if (!aIsAdmin && bIsAdmin) return -1;
+       return a.count - b.count;
+    });
 
     const unfulfilledSlots: {name: string, category: string}[] = [];
+    
+    let reqCondutores = 0, reqCondutoresMaritimos = 0, reqChefes = 0, reqChefesMaritimos = 0, reqAuxiliares = 0, reqAuxiliaresMaritimos = 0, reqAdmin = 0;
+    let unfulfilledCondutores = 0, unfulfilledCondutoresMaritimos = 0, unfulfilledChefes = 0, unfulfilledChefesMaritimos = 0, unfulfilledAuxiliares = 0, unfulfilledAuxiliaresMaritimos = 0, unfulfilledAdmin = 0;
+    let reqEfetivo = allSlots.length;
+    let unfulfilledEfetivo = 0;
 
     slotOptionsCount.forEach(({ slot }) => {
        if (slot.category === 'admin') reqAdmin++;
@@ -844,10 +836,24 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
        else if (slot.category === 'auxiliar') reqAuxiliares++;
        else if (slot.category === 'auxiliar_maritimo') reqAuxiliaresMaritimos++;
 
-       const available = militarCapabilities.filter(m => !m.used && m.allowed.includes(slot.name));
-       if (available.length > 0) {
-          available.sort((a, b) => a.allowed.length - b.allowed.length);
-          available[0].used = true;
+       const available = militarCapabilities.filter(m => { 
+          if (!m.allowed.includes(slot.genericName)) return false; 
+          if (m.assignedRoles.includes(slot.genericName)) return false; 
+          for (const role of m.assignedRoles) { 
+             const val1 = correlation[slot.genericName]?.[role] ?? 0; 
+             const val2 = correlation[role]?.[slot.genericName] ?? 0; 
+             if (val1 === 0 || val2 === 0) return false; 
+          } 
+          return true; 
+       });
+
+       if (available.length > 0) { 
+          // Advanced Selection: Pick the most specialized militar available (fewest total allowed roles)
+          available.sort((a, b) => {
+              if (a.allowed.length !== b.allowed.length) return a.allowed.length - b.allowed.length;
+              return a.assignedRoles.length - b.assignedRoles.length;
+          });
+          available[0].assignedRoles.push(slot.genericName);
        } else {
           unfulfilledSlots.push(slot);
        }
@@ -866,7 +872,12 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
 
     const calcChance = (deficit: number, req: number) => req > 0 ? Math.min(100, Math.round((deficit / req) * 100)) : 0;
 
+    let unfulfilledOperacional = unfulfilledCondutores + unfulfilledCondutoresMaritimos + unfulfilledChefes + unfulfilledChefesMaritimos + unfulfilledAuxiliares + unfulfilledAuxiliaresMaritimos;
+    let reqOperacional = reqCondutores + reqCondutoresMaritimos + reqChefes + reqChefesMaritimos + reqAuxiliares + reqAuxiliaresMaritimos;
+
     return {
+      efetivoOperacional: { req: reqOperacional, deficit: unfulfilledOperacional, chance: calcChance(unfulfilledOperacional, reqOperacional) },
+      efetivoAdministrativo: { req: reqAdmin, deficit: unfulfilledAdmin, chance: calcChance(unfulfilledAdmin, reqAdmin) },
       efetivo: { req: reqEfetivo, deficit: unfulfilledEfetivo, chance: calcChance(unfulfilledEfetivo, reqEfetivo) },
       condutores: { req: reqCondutores, deficit: unfulfilledCondutores, chance: calcChance(unfulfilledCondutores, reqCondutores) },
       condutores_maritimos: { req: reqCondutoresMaritimos, deficit: unfulfilledCondutoresMaritimos, chance: calcChance(unfulfilledCondutoresMaritimos, reqCondutoresMaritimos) },
@@ -877,7 +888,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
       admin: { req: reqAdmin, deficit: unfulfilledAdmin, chance: calcChance(unfulfilledAdmin, reqAdmin) }
     };
 
-  }, [baseRoster, permutasOut, militars, dynamicRequirements]);
+  }, [baseRoster, permutasOut, militars, dynamicRequirements, correlation]);
 
   const handleAddViaturaExtra = () => {
      const name = window.prompt("Qual o nome/prefixo da viatura extra? (ex: ABT-999)");
@@ -1840,10 +1851,18 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
 
               {/* ESTUDO TÉCNICO */}
               <div className="lg:col-span-1">
-                <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest mb-3 flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-rose-500" />
-                  Estudo Técnico (Lacunas)
-                </h4>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-rose-500" />
+                    Previsão Algorítmica
+                  </h4>
+                  <button 
+                    onClick={() => navigate('/estudo-tecnico-guarnicoes')}
+                    className="flex items-center gap-1.5 px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-md text-[10px] font-bold tracking-wider transition-colors"
+                  >
+                    Estudo Plurianual <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
                 <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm flex flex-col h-full">
                    <div className="p-4 bg-slate-800 text-white flex items-center justify-between">
                       <span className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
@@ -1858,7 +1877,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                       {/* Efetivo Global */}
                       <div>
                         <div className="flex justify-between items-end mb-1">
-                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Efetivo Global</span>
+                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Efetivo Global (Total)</span>
                            <span className={cn("text-[11px] font-black", estudoTecnico.efetivo.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
                              {estudoTecnico.efetivo.chance}% Vazio
                            </span>
@@ -1869,6 +1888,27 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                         <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
                            <span>Lacunas: {estudoTecnico.efetivo.deficit}</span>
                            <span>Nec: {estudoTecnico.efetivo.req}</span>
+                        </div>
+                      </div>
+
+                      <div className="pt-2">
+                        <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest border-b border-slate-200 block w-full pb-1 mb-2">Funções Operacionais</span>
+                      </div>
+                      
+                      {/* Efetivo Operacional */}
+                      <div>
+                        <div className="flex justify-between items-end mb-1">
+                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Global Operacional</span>
+                           <span className={cn("text-[11px] font-black", estudoTecnico.efetivoOperacional.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                             {estudoTecnico.efetivoOperacional.chance}% Vazio
+                           </span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                           <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.efetivoOperacional.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.efetivoOperacional.chance}%` }} />
+                        </div>
+                        <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                           <span>Lacunas: {estudoTecnico.efetivoOperacional.deficit}</span>
+                           <span>Nec: {estudoTecnico.efetivoOperacional.req}</span>
                         </div>
                       </div>
                       
@@ -1977,20 +2017,24 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                       </div>
                       )}
 
-                      {/* Admin */}
+                      <div className="pt-4">
+                        <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest border-b border-slate-200 block w-full pb-1 mb-2">Funções Administrativas</span>
+                      </div>
+
+                      {/* Efetivo Administrativo */}
                       <div>
                         <div className="flex justify-between items-end mb-1">
-                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Serviços Internos</span>
-                           <span className={cn("text-[11px] font-black", estudoTecnico.admin.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
-                             {estudoTecnico.admin.chance}% Vazio
+                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Global Administrativo</span>
+                           <span className={cn("text-[11px] font-black", estudoTecnico.efetivoAdministrativo.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                             {estudoTecnico.efetivoAdministrativo.chance}% Vazio
                            </span>
                         </div>
                         <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                           <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.admin.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.admin.chance}%` }} />
+                           <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.efetivoAdministrativo.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.efetivoAdministrativo.chance}%` }} />
                         </div>
                         <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
-                           <span>Lacunas: {estudoTecnico.admin.deficit}</span>
-                           <span>Nec: {estudoTecnico.admin.req}</span>
+                           <span>Lacunas: {estudoTecnico.efetivoAdministrativo.deficit}</span>
+                           <span>Nec: {estudoTecnico.efetivoAdministrativo.req}</span>
                         </div>
                       </div>
 
