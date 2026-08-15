@@ -800,6 +800,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
 
     const militarCapabilities = realRoster.map(m => ({
       rg: m.rg || '',
+      rank: m.rank || '',
       allowed: getAllowedOptions(m) || [],
       assignedRoles: [] as string[]
     }));
@@ -840,6 +841,20 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
           if (!m.allowed.includes(slot.genericName)) return false; 
           if (m.assignedRoles.includes(slot.genericName)) return false; 
           for (const role of m.assignedRoles) { 
+             const isSentinelaAux = (
+                (slot.genericName === 'SENTINELA' && ['AUXILIAR ABT', 'AUXILIAR ABSL', 'AUXILIAR/CHEFE ARC'].includes(role)) ||
+                (role === 'SENTINELA' && ['AUXILIAR ABT', 'AUXILIAR ABSL', 'AUXILIAR/CHEFE ARC'].includes(slot.genericName))
+             );
+             
+             if (isSentinelaAux) {
+                const arcRole = slot.genericName === 'AUXILIAR/CHEFE ARC' || role === 'AUXILIAR/CHEFE ARC';
+                if (arcRole) {
+                   if (m.rank === 'Soldado') continue;
+                } else {
+                   continue;
+                }
+             }
+
              const val1 = correlation[slot.genericName]?.[role] ?? 0; 
              const val2 = correlation[role]?.[slot.genericName] ?? 0; 
              if (val1 === 0 || val2 === 0) return false; 
@@ -986,13 +1001,31 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
              // Verify compatibility with already selected roles
              const existingRoles = newSelected[m.rg] || [];
              if (existingRoles.includes(slot)) return false; // Prevent assigning same role twice to the same person
+             
+             let isCompatible = true;
              for (const role of existingRoles) {
+               const isSentinelaAux = (
+                  (slot === 'SENTINELA' && ['AUXILIAR ABT', 'AUXILIAR ABSL', 'AUXILIAR/CHEFE ARC'].includes(role)) ||
+                  (role === 'SENTINELA' && ['AUXILIAR ABT', 'AUXILIAR ABSL', 'AUXILIAR/CHEFE ARC'].includes(slot))
+               );
+               
+               if (isSentinelaAux) {
+                  const arcRole = slot === 'AUXILIAR/CHEFE ARC' || role === 'AUXILIAR/CHEFE ARC';
+                  if (arcRole) {
+                     if (m.actualMilitar.rank === 'Soldado') continue;
+                  } else {
+                     continue;
+                  }
+               }
+
                const val1 = correlation[slot]?.[role] ?? 0;
                const val2 = correlation[role]?.[slot] ?? 0;
                if (val1 === 0 || val2 === 0) {
-                 return false; // incompatible according to rules
+                 isCompatible = false; // incompatible according to rules
+                 break;
                }
              }
+             if (!isCompatible) return false;
              return true;
           });
           return { slot, index, eligible };

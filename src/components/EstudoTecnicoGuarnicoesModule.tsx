@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useMilitars } from "../contexts/MilitarContext";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { 
   ArrowLeft, Activity, TrendingDown, Users, Shield, ShieldAlert,
-  Truck, Anchor
+  Truck, Anchor, Calendar
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn, getAlaColor, getAlaName, normalizeObm, normalizeAlaField } from '../lib/utils';
@@ -27,6 +27,11 @@ export function EstudoTecnicoGuarnicoesModule({ obmContext }: { obmContext: stri
   const [viaturasInfo, setViaturasInfo] = useState<any[]>(DEFAULT_VIATURAS);
   const [correlation, setCorrelation] = useState<Record<string, Record<string, number>>>({});
   const [roleQtds, setRoleQtds] = useState<Record<string, number>>({});
+  const [afastamentos, setAfastamentos] = useState<any[]>([]);
+  const [selectedDetailedMonth, setSelectedDetailedMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -57,6 +62,21 @@ export function EstudoTecnicoGuarnicoesModule({ obmContext }: { obmContext: stri
       }
     };
     loadSettings();
+  }, [obmContext]);
+
+  useEffect(() => {
+    if (!obmContext || obmContext === 'GLOBAL') return;
+    const q = query(collection(db, 'afastamentos_alas'), where('obm', '==', normalizeObm(obmContext)));
+    const unsub = onSnapshot(q, (snap) => {
+      const data: any[] = [];
+      snap.forEach(doc => {
+         data.push({ id: doc.id, ...doc.data() });
+      });
+      setAfastamentos(data);
+    }, (err) => {
+      console.error("Error fetching afastamentos:", err);
+    });
+    return () => unsub();
   }, [obmContext]);
 
   // --- Logic helpers copied from EscalaEspelhoModule ---
@@ -224,6 +244,7 @@ export function EstudoTecnicoGuarnicoesModule({ obmContext }: { obmContext: stri
       const ctx = (obmContext || '').trim().toUpperCase();
       const inObm = ctx === 'GLOBAL' ? true : (rawObm === ctx || normalizeObm(m.obm) === normalizeObm(obmContext));
       const isActive = !m.situacao || m.situacao.trim().toUpperCase() === 'ATIVO';
+      
       return inObm && isActive;
     });
     
@@ -241,6 +262,7 @@ export function EstudoTecnicoGuarnicoesModule({ obmContext }: { obmContext: stri
 
        const militarCapabilities = roster.map(m => ({
          rg: m.rg || '',
+         rank: m.rank || '',
          allowed: getAllowedOptions(m) || [],
          assignedRoles: [] as string[]
        }));
@@ -290,6 +312,17 @@ export function EstudoTecnicoGuarnicoesModule({ obmContext }: { obmContext: stri
              if (!m.allowed.includes(slot.genericName)) return false;
              if (m.assignedRoles.includes(slot.genericName)) return false;
              for (const role of m.assignedRoles) {
+                const isSentinelaAux = (
+                   (slot.genericName === 'SENTINELA' && ['AUXILIAR ABT', 'AUXILIAR ABSL', 'AUXILIAR/CHEFE ARC'].includes(role)) ||
+                   (role === 'SENTINELA' && ['AUXILIAR ABT', 'AUXILIAR ABSL', 'AUXILIAR/CHEFE ARC'].includes(slot.genericName))
+                );
+                if (isSentinelaAux) {
+                   if (slot.genericName === 'AUXILIAR/CHEFE ARC' || role === 'AUXILIAR/CHEFE ARC') {
+                      if (m.rank === 'Soldado') continue;
+                   } else {
+                      continue;
+                   }
+                }
                 const val1 = correlation[slot.genericName]?.[role] ?? 0;
                 const val2 = correlation[role]?.[slot.genericName] ?? 0;
                 if (val1 === 0 || val2 === 0) return false;
@@ -343,13 +376,195 @@ export function EstudoTecnicoGuarnicoesModule({ obmContext }: { obmContext: stri
     });
   }, [militars, obmContext, dynamicRequirements, correlation]);
 
+  const monthOptions = useMemo(() => {
+    const opts = [];
+    const d = new Date();
+    for (let i = 0; i <= 11; i++) {
+      const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = d.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+      opts.push({ value: val, label: label.charAt(0).toUpperCase() + label.slice(1).replace('.', '') });
+      d.setMonth(d.getMonth() + 1);
+    }
+    return opts;
+  }, []);
+
+  const detailedMonthStats = useMemo(() => {
+    if (!militars || militars.length === 0) return null;
+    
+    const [selYear, selMonth] = selectedDetailedMonth.split('-');
+    const startOfMonth = `${selectedDetailedMonth}-01`;
+    const endOfMonth = `${selectedDetailedMonth}-${new Date(parseInt(selYear), parseInt(selMonth), 0).getDate().toString().padStart(2, '0')}`;
+    
+    const monthOpt = monthOptions.find(o => o.value === selectedDetailedMonth) || monthOptions[0];
+
+    const alas = ['1', '2', '3', '4'];
+    const alasResult = alas.map(alaName => {
+       const allObmMilitarsInAla = militars.filter(m => {
+          const rawObm = m.obm ? m.obm.trim().toUpperCase() : '10º GBM';
+          const ctx = (obmContext || '').trim().toUpperCase();
+          const inObm = ctx === 'GLOBAL' ? true : (rawObm === ctx || normalizeObm(m.obm) === normalizeObm(obmContext));
+          const isActive = !m.situacao || m.situacao.trim().toUpperCase() === 'ATIVO';
+          return inObm && isActive && normalizeAlaField(m.ala) === alaName;
+       });
+
+       const afastadosList: any[] = [];
+       const disponiveisList: any[] = [];
+
+       allObmMilitarsInAla.forEach(m => {
+          const rgString = m.rg ? String(m.rg).replace(/^0+/, '').replace(/\D/g, '') : '';
+          const hasAfastamento = afastamentos.find(af => {
+              if (!af.inicio || !af.retorno) return false;
+              const afRg = String(af.rg).replace(/^0+/, '').replace(/\D/g, '');
+              if (afRg !== rgString) return false;
+              return af.inicio <= endOfMonth && af.retorno >= startOfMonth;
+          });
+
+          if (hasAfastamento) {
+              afastadosList.push({ ...m, afastamentoInfo: hasAfastamento });
+          } else {
+              disponiveisList.push(m);
+          }
+       });
+
+       const allSlots: {name: string, genericName: string, category: string}[] = [];
+       dynamicRequirements.forEach(req => {
+         for (let i = 0; i < req.req; i++) {
+           allSlots.push({ name: req.name, genericName: req.genericName, category: req.category });
+         }
+       });
+
+       const militarCapabilities = disponiveisList.map(m => ({
+         rg: m.rg || '',
+         rank: m.rank || '',
+         allowed: getAllowedOptions(m) || [],
+         assignedRoles: [] as string[]
+       }));
+
+       let unfulfilledEfetivo = 0;
+       let unfulfilledOperacional = 0;
+       let unfulfilledAdmin = 0;
+       let unfulfilledCondutores = 0;
+       let unfulfilledCondutoresMaritimos = 0;
+       let unfulfilledChefes = 0;
+       let unfulfilledChefesMaritimos = 0;
+       let unfulfilledAuxiliares = 0;
+       let unfulfilledAuxiliaresMaritimos = 0;
+
+       let reqEfetivo = allSlots.length;
+       let reqOperacional = 0;
+       let reqAdmin = 0;
+       let reqCondutores = 0;
+       let reqCondutoresMaritimos = 0;
+       let reqChefes = 0;
+       let reqChefesMaritimos = 0;
+       let reqAuxiliares = 0;
+       let reqAuxiliaresMaritimos = 0;
+
+       const slotOptionsCount = allSlots.map(slot => {
+         const count = militarCapabilities.filter(m => m.allowed.includes(slot.genericName)).length;
+         return { slot, count };
+       });
+
+       slotOptionsCount.sort((a, b) => {
+         const aIsAdmin = a.slot.category === 'admin';
+         const bIsAdmin = b.slot.category === 'admin';
+         if (aIsAdmin && !bIsAdmin) return 1;
+         if (!aIsAdmin && bIsAdmin) return -1;
+         return a.count - b.count;
+       });
+
+       slotOptionsCount.forEach(({ slot }) => {
+          if (slot.category === 'admin') reqAdmin++;
+          else {
+             reqOperacional++;
+             if (slot.category === 'condutor') reqCondutores++;
+             else if (slot.category === 'condutor_maritimo') reqCondutoresMaritimos++;
+             else if (slot.category === 'chefe') reqChefes++;
+             else if (slot.category === 'chefe_maritimo') reqChefesMaritimos++;
+             else if (slot.category === 'auxiliar') reqAuxiliares++;
+             else if (slot.category === 'auxiliar_maritimo') reqAuxiliaresMaritimos++;
+          }
+
+          const available = militarCapabilities.filter(m => {
+             if (!m.allowed.includes(slot.genericName)) return false;
+             if (m.assignedRoles.includes(slot.genericName)) return false;
+             for (const role of m.assignedRoles) {
+                const isSentinelaAux = (
+                   (slot.genericName === 'SENTINELA' && ['AUXILIAR ABT', 'AUXILIAR ABSL', 'AUXILIAR/CHEFE ARC'].includes(role)) ||
+                   (role === 'SENTINELA' && ['AUXILIAR ABT', 'AUXILIAR ABSL', 'AUXILIAR/CHEFE ARC'].includes(slot.genericName))
+                );
+                if (isSentinelaAux) {
+                   if (slot.genericName === 'AUXILIAR/CHEFE ARC' || role === 'AUXILIAR/CHEFE ARC') {
+                      if (m.rank === 'Soldado') continue;
+                   } else {
+                      continue;
+                   }
+                }
+                const val1 = correlation[slot.genericName]?.[role] ?? 0;
+                const val2 = correlation[role]?.[slot.genericName] ?? 0;
+                if (val1 === 0 || val2 === 0) return false;
+             }
+             return true;
+          });
+
+          if (available.length > 0) {
+             available.sort((a, b) => {
+                 if (a.allowed.length !== b.allowed.length) return a.allowed.length - b.allowed.length;
+                 return a.assignedRoles.length - b.assignedRoles.length;
+             });
+             available[0].assignedRoles.push(slot.genericName);
+          } else {
+             unfulfilledEfetivo++;
+             if (slot.category === 'admin') unfulfilledAdmin++;
+             else {
+                unfulfilledOperacional++;
+                if (slot.category === 'condutor') unfulfilledCondutores++;
+                else if (slot.category === 'condutor_maritimo') unfulfilledCondutoresMaritimos++;
+                else if (slot.category === 'chefe') unfulfilledChefes++;
+                else if (slot.category === 'chefe_maritimo') unfulfilledChefesMaritimos++;
+                else if (slot.category === 'auxiliar') unfulfilledAuxiliares++;
+                else if (slot.category === 'auxiliar_maritimo') unfulfilledAuxiliaresMaritimos++;
+             }
+          }
+       });
+
+       const calcChance = (deficit: number, req: number) => req > 0 ? Math.min(100, Math.round((deficit / req) * 100)) : 0;
+       
+       return {
+         ala: alaName,
+         rosterCount: allObmMilitarsInAla.length,
+         disponiveisCount: disponiveisList.length,
+         afastadosCount: afastadosList.length,
+         afastadosList,
+         stats: {
+             efetivoOperacional: { req: reqOperacional, deficit: unfulfilledOperacional, chance: calcChance(unfulfilledOperacional, reqOperacional) },
+             efetivoAdministrativo: { req: reqAdmin, deficit: unfulfilledAdmin, chance: calcChance(unfulfilledAdmin, reqAdmin) },
+             efetivo: { req: reqEfetivo, deficit: unfulfilledEfetivo, chance: calcChance(unfulfilledEfetivo, reqEfetivo) },
+             condutores: { req: reqCondutores, deficit: unfulfilledCondutores, chance: calcChance(unfulfilledCondutores, reqCondutores) },
+             condutores_maritimos: { req: reqCondutoresMaritimos, deficit: unfulfilledCondutoresMaritimos, chance: calcChance(unfulfilledCondutoresMaritimos, reqCondutoresMaritimos) },
+             chefes: { req: reqChefes, deficit: unfulfilledChefes, chance: calcChance(unfulfilledChefes, reqChefes) },
+             chefes_maritimos: { req: reqChefesMaritimos, deficit: unfulfilledChefesMaritimos, chance: calcChance(unfulfilledChefesMaritimos, reqChefesMaritimos) },
+             auxiliares: { req: reqAuxiliares, deficit: unfulfilledAuxiliares, chance: calcChance(unfulfilledAuxiliares, reqAuxiliares) },
+             auxiliares_maritimos: { req: reqAuxiliaresMaritimos, deficit: unfulfilledAuxiliaresMaritimos, chance: calcChance(unfulfilledAuxiliaresMaritimos, reqAuxiliaresMaritimos) },
+             admin: { req: reqAdmin, deficit: unfulfilledAdmin, chance: calcChance(unfulfilledAdmin, reqAdmin) }
+         }
+       };
+    });
+
+    return {
+       monthLabel: monthOpt?.label || '',
+       monthValue: selectedDetailedMonth,
+       alas: alasResult
+    };
+  }, [militars, obmContext, dynamicRequirements, correlation, selectedDetailedMonth, monthOptions, afastamentos]);
+
   if (loading || militarsLoading) {
      return <div className="p-8 flex justify-center items-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-900" /></div>;
   }
 
   return (
     <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
         <div>
           <button 
             onClick={() => navigate('/escala')}
@@ -577,6 +792,124 @@ export function EstudoTecnicoGuarnicoesModule({ obmContext }: { obmContext: stri
                </motion.div>
             )
          })}
+      </div>
+
+      <div className="mt-8">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
+           <div className="flex items-center gap-2">
+              <div className="p-2 bg-indigo-100 rounded-lg">
+                 <Calendar className="w-5 h-5 text-indigo-700" />
+              </div>
+              <div>
+                 <h2 className="text-lg font-black text-slate-800 uppercase tracking-tight">Análise Detalhada Mensal</h2>
+                 <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-0.5">Impacto de Férias e Afastamentos</p>
+              </div>
+           </div>
+           
+           <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Mês de Referência:</span>
+              <select 
+                 className="text-sm font-black text-indigo-700 bg-transparent outline-none cursor-pointer hover:text-indigo-800 transition-colors"
+                 value={selectedDetailedMonth}
+                 onChange={e => setSelectedDetailedMonth(e.target.value)}
+              >
+                 {monthOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                 ))}
+              </select>
+           </div>
+        </div>
+
+        {detailedMonthStats && (
+           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {detailedMonthStats.alas.map(alaData => (
+                 <div key={alaData.ala} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm flex flex-col">
+                    <div className={cn("p-4 border-b", `bg-${getAlaColor(alaData.ala as '1'|'2'|'3'|'4')}-50`, `border-${getAlaColor(alaData.ala as '1'|'2'|'3'|'4')}-100`)}>
+                       <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                             <div className={cn("w-3 h-3 rounded-full", `bg-${getAlaColor(alaData.ala as '1'|'2'|'3'|'4')}-500`)} />
+                             <span className={cn("text-base font-black uppercase tracking-widest", `text-${getAlaColor(alaData.ala as '1'|'2'|'3'|'4')}-800`)}>
+                                {getAlaName(alaData.ala as '1'|'2'|'3'|'4')}
+                             </span>
+                          </div>
+                          <div className="flex gap-4 text-xs font-bold">
+                             <div className="flex flex-col items-end">
+                                <span className="text-slate-500">Total Previsto</span>
+                                <span className="text-slate-800 text-sm">{alaData.rosterCount}</span>
+                             </div>
+                             <div className="flex flex-col items-end">
+                                <span className="text-emerald-600">Disponível</span>
+                                <span className="text-emerald-700 text-sm">{alaData.disponiveisCount}</span>
+                             </div>
+                             <div className="flex flex-col items-end">
+                                <span className="text-rose-500">Afastados</span>
+                                <span className="text-rose-600 text-sm">{alaData.afastadosCount}</span>
+                             </div>
+                          </div>
+                       </div>
+                    </div>
+
+                    <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-6 flex-1">
+                       {/* Estatísticas Críticas */}
+                       <div className="space-y-4">
+                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1">Análise de Funções (Pós-Férias)</h4>
+                          
+                          <div className="space-y-3">
+                             <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-600">Déficit Geral (Efetivo)</span>
+                                <span className={cn("text-xs font-black px-2 py-0.5 rounded-full", alaData.stats.efetivo.chance > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700")}>
+                                   {alaData.stats.efetivo.chance > 0 ? `-${alaData.stats.efetivo.deficit} func.` : 'OK'}
+                                </span>
+                             </div>
+                             
+                             {alaData.stats.condutores.req > 0 && (
+                             <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-600">Déficit Condutores</span>
+                                <span className={cn("text-xs font-black px-2 py-0.5 rounded-full", alaData.stats.condutores.chance > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700")}>
+                                   {alaData.stats.condutores.chance > 0 ? `-${alaData.stats.condutores.deficit} func.` : 'OK'}
+                                </span>
+                             </div>
+                             )}
+
+                             {alaData.stats.chefes.req > 0 && (
+                             <div className="flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-600">Déficit Chefes de Guarnição</span>
+                                <span className={cn("text-xs font-black px-2 py-0.5 rounded-full", alaData.stats.chefes.chance > 0 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700")}>
+                                   {alaData.stats.chefes.chance > 0 ? `-${alaData.stats.chefes.deficit} func.` : 'OK'}
+                                </span>
+                             </div>
+                             )}
+                          </div>
+                       </div>
+
+                       {/* Lista de Afastados */}
+                       <div>
+                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1 mb-2">Militares Afastados ({alaData.afastadosCount})</h4>
+                          {alaData.afastadosCount === 0 ? (
+                             <div className="text-xs font-medium text-slate-400 italic">Nenhum militar afastado neste mês.</div>
+                          ) : (
+                             <ul className="space-y-2 max-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
+                                {alaData.afastadosList.map((m: any, idx: number) => (
+                                   <li key={idx} className="bg-slate-50 border border-slate-100 rounded p-2">
+                                      <div className="flex justify-between items-start">
+                                         <div>
+                                            <div className="text-xs font-bold text-slate-700">{m.rank} {m.warName || m.name}</div>
+                                            <div className="text-[10px] font-medium text-slate-500">RG: {m.rg}</div>
+                                         </div>
+                                         <div className="text-[9px] font-black text-rose-500 uppercase bg-rose-50 px-1.5 py-0.5 rounded">
+                                            {m.afastamentoInfo.situacao || 'Afastado'}
+                                         </div>
+                                      </div>
+                                   </li>
+                                ))}
+                             </ul>
+                          )}
+                       </div>
+                    </div>
+                 </div>
+              ))}
+           </div>
+        )}
       </div>
     </div>
   );
