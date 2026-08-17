@@ -116,8 +116,8 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
 
     if (militars && militars.length > 0) {
       setAllMilitars(militars);
-    } else if (globalMilitars && globalMilitars.length > 0) {
-      setAllMilitars(globalMilitars);
+    } else {
+      setAllMilitars(globalMilitars || []);
     }
 
     return () => {

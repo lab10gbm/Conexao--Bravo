@@ -44,6 +44,7 @@ if (fs.existsSync(firebaseConfigPath)) {
 let db: any;
 let clientDb: any;
 let militaryCache: Map<string, any> = new Map();
+let deletedMilitaries: Set<string> = new Set();
 let militaryCacheVersion: number = Date.now();
 const cacheEvents = new EventEmitter();
 let isCacheLoaded = false;
@@ -566,6 +567,7 @@ async function startServer() {
 
       for (const m of injected) {
         const safeRg = normalizeRg(m.rg);
+        if (deletedMilitaries.has(safeRg)) continue;
         const data = { ...m, rg: safeRg, warName: m.name, situacao: 'Ativo' };
         if (!militaryCache.has(safeRg)) {
           militaryCache.set(safeRg, data);
@@ -646,6 +648,7 @@ async function startServer() {
     db: isDbHealthy ? db : null,
     clientDb,
     militaryCache,
+    deletedMilitaries,
     getCacheVersion: () => militaryCacheVersion,
     incrementCacheVersion: () => { militaryCacheVersion++; return militaryCacheVersion; },
     cacheEvents,

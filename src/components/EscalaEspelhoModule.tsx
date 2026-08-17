@@ -487,10 +487,14 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
         const rawObm = m.obm ? m.obm.trim().toUpperCase() : "10º GBM";
         const ctx = (obmContext || "").trim().toUpperCase();
         const isInCtx = ctx === "GLOBAL" || rawObm === ctx;
+        
+        const isActive = !m.situacao || m.situacao.trim().toUpperCase() === 'ATIVO';
 
         const isAla = isInCtx && normalizeAlaField(m.ala) === identifiedAlaStr;
         const isManual = manualRgs.includes(m.rg || '');
         const isExpediente = isInCtx && expedienteRgs.includes(m.rg || '');
+        
+        if (!isActive && !isManual) return false;
         if (!isAla && !isManual && !isExpediente) return false;
         
         // Verifica se há afastamento para o militar na data selecionada

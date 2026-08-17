@@ -1,5 +1,5 @@
 import express from 'express';
-import { collection, getDocs, getDoc, doc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, getDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
 
 export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
   app.get('/api/militar/version', (req, res) => {
@@ -40,6 +40,33 @@ export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
     req.on('close', () => {
       clearInterval(heartbeat);
       cacheEvents.off('update', onUpdate);
+    });
+  });
+
+  app.get('/api/militar/search', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const { militaryCache } = getDeps();
+    const query = ((req.query.q as string) || '').trim().toLowerCase();
+
+    if (!query) {
+      return res.json({ success: true, count: 0, militaries: [] });
+    }
+
+    const allMilitaries = Array.from(militaryCache.values());
+    const filtered = allMilitaries.filter((m: any) => {
+      const name = (m.name || '').toLowerCase();
+      const warName = (m.warName || '').toLowerCase();
+      const rg = (m.rg || '').toString().toLowerCase();
+      const rank = (m.rank || '').toLowerCase();
+      const quadro = (m.quadro || '').toLowerCase();
+      const obm = (m.obm || '').toLowerCase();
+      return name.includes(query) || warName.includes(query) || rg.includes(query) || rank.includes(query) || quadro.includes(query) || obm.includes(query);
+    });
+
+    return res.json({
+      success: true,
+      count: filtered.length,
+      militaries: filtered.slice(0, 50)
     });
   });
 
@@ -292,13 +319,70 @@ app.get('/api/militar/:rg', async (req, res) => {
     }
   });
 
-app.post('/api/militar/update', async (req, res) => {
-    const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, OBM_HIERARCHY, isCacheLoaded, cachePromise, setDbUnhealthy, cacheEvents, incrementCacheVersion } = getDeps();
+  const deleteMilitarInternal = async (req: express.Request, res: express.Response) => {
+    const { isDbHealthy, db, clientDb, militaryCache, deletedMilitaries, normalizeRg, cacheEvents, incrementCacheVersion } = getDeps();
+    const rawRg = req.params.rg || req.body.rg || req.query.rg;
+    if (!rawRg) return res.status(400).json({ success: false, error: 'RG é obrigatório' });
+
+    const safeRg = normalizeRg(rawRg);
+    console.log(`[API] Deleting military ${safeRg}...`);
+
+    try {
+      // 1. Delete from Firestore (Admin SDK)
+      if (db && isDbHealthy) {
+        try {
+          await db.collection('militaries').doc(safeRg).delete();
+          console.log(`[API] Deleted ${safeRg} from Firestore via Admin SDK.`);
+        } catch (e: any) {
+          if (!e.message.includes('PERMISSION_DENIED')) {
+            console.error('[API] Failed to delete militar in Firestore:', e);
+          }
+        }
+      }
+      // 2. Delete from Firestore (Client SDK)
+      if (clientDb) {
+        try {
+          await deleteDoc(doc(clientDb, 'militaries', safeRg));
+          console.log(`[API] Deleted ${safeRg} from Firestore via Client SDK.`);
+        } catch (e: any) {}
+      }
+
+      // 3. Mark as deleted so static injections never resurrect this militar
+      if (deletedMilitaries) {
+        deletedMilitaries.add(safeRg);
+      }
+
+      // 4. Remove from in-memory cache
+      militaryCache.delete(safeRg);
+
+      // 5. Increment cache version and notify all connected clients via SSE
+      const newVersion = incrementCacheVersion ? incrementCacheVersion() : Date.now();
+      if (cacheEvents) {
+        cacheEvents.emit('update', newVersion);
+      }
+
+      console.log(`[API] Militar ${safeRg} successfully deleted. Cache size: ${militaryCache.size}, newVersion: ${newVersion}`);
+      return res.json({ success: true, message: 'Militar excluído com sucesso', rg: safeRg, version: newVersion });
+    } catch (err: any) {
+      console.error(`[API] Error deleting militar ${safeRg}:`, err);
+      return res.status(500).json({ success: false, error: err.message || 'Erro ao excluir militar' });
+    }
+  };
+
+  app.delete('/api/militar/:rg', deleteMilitarInternal);
+  app.post('/api/militar/delete', deleteMilitarInternal);
+
+  app.post('/api/militar/update', async (req, res) => {
+    const { isDbHealthy, db, clientDb, militaryCache, deletedMilitaries, normalizeRg, cacheEvents, incrementCacheVersion } = getDeps();
     const { rg, data } = req.body;
     if (!rg || !data) return res.status(400).json({ success: false });
 
     const safeRg = normalizeRg(rg);
     try {
+      if (deletedMilitaries) {
+        deletedMilitaries.delete(safeRg);
+      }
+
       if (db && isDbHealthy) {
         try {
           await db.collection('militaries').doc(safeRg).set(data, { merge: true });
@@ -315,14 +399,15 @@ app.post('/api/militar/update', async (req, res) => {
 
       const existing = militaryCache.get(safeRg) || {};
       
-      const mergedData = { ...existing, ...data };
+      const mergedData = { ...existing, ...data, rg: safeRg };
       if (data.viaturas && existing.viaturas) {
         mergedData.viaturas = { ...existing.viaturas, ...data.viaturas };
       }
       
       militaryCache.set(safeRg, mergedData);
-      if (cacheEvents) cacheEvents.emit('update', incrementCacheVersion ? incrementCacheVersion() : Date.now());
-      return res.json({ success: true });
+      const newVer = incrementCacheVersion ? incrementCacheVersion() : Date.now();
+      if (cacheEvents) cacheEvents.emit('update', newVer);
+      return res.json({ success: true, version: newVer });
     } catch (e) {
       return res.status(500).json({ success: false });
     }

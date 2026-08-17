@@ -9,7 +9,7 @@ import { cn, cleanUndefined, normalizeObm } from '../lib/utils';
 import { UserProfile } from '../types';
 
 export function GestaoEfetivoModeracaoModule({ user, onBack, isEscalanteContext, obmContext }: { user: UserProfile; onBack: () => void; isEscalanteContext?: boolean; obmContext?: string }) {
-  const { militars, refreshMilitars } = useMilitars();
+  const { militars, refreshMilitars, deleteMilitar, addOrUpdateMilitar } = useMilitars();
   const [searchTerm, setSearchTerm] = useState('');
   
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -128,20 +128,20 @@ export function GestaoEfetivoModeracaoModule({ user, onBack, isEscalanteContext,
     if (!cleanRg) return;
 
     try {
-      const dbDoc = doc(db, 'militaries', cleanRg);
       const toSave = {
         ...formData,
         rg: cleanRg,
         name: formData.name.toUpperCase(),
-        warName: formData.warName.toUpperCase(),
+        warName: (formData.warName || formData.name).toUpperCase(),
         rank: formData.rank.toUpperCase(),
-        updatedAt: serverTimestamp()
       };
       
-      await setDoc(dbDoc, cleanUndefined(toSave), { merge: true });
-      
-      setIsFormOpen(false);
-      refreshMilitars();
+      const ok = await addOrUpdateMilitar(toSave as any);
+      if (ok) {
+        setIsFormOpen(false);
+      } else {
+        alert("Erro ao salvar militar.");
+      }
     } catch (e: any) {
       alert("Erro ao salvar: " + e.message);
     }
@@ -151,8 +151,10 @@ export function GestaoEfetivoModeracaoModule({ user, onBack, isEscalanteContext,
     if (window.confirm("ATENÇÃO: Deseja realmente excluir este militar permanentemente do sistema?")) {
       try {
         const cleanRg = rg.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-        await deleteDoc(doc(db, 'militaries', cleanRg));
-        refreshMilitars();
+        const ok = await deleteMilitar(cleanRg);
+        if (!ok) {
+          alert("Não foi possível excluir o militar.");
+        }
       } catch (e: any) {
         alert("Erro ao excluir: " + e.message);
       }
