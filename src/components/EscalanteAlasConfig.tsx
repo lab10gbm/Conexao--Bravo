@@ -27,7 +27,7 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
   const militarsInObm = militars.filter(m => {
     const rawObm = m.obm ? m.obm.trim().toUpperCase() : '10º GBM';
     const ctx = (obmContext || '').trim().toUpperCase();
-    const isActive = !m.situacao || m.situacao.trim().toUpperCase() === 'ATIVO';
+    const isActive = !m.situacao || m.situacao.trim().toUpperCase().startsWith('ATIVO');
     
     if (!isActive) return false;
     

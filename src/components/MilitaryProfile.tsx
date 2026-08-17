@@ -91,7 +91,7 @@ export function MilitaryProfile({ militar, viewer, onClose, onLendRequested, inl
               <h2 className="text-xl sm:text-2xl font-black text-slate-800 uppercase tracking-tight">
                 {parseRank(militar.rank)} {militar.warName || (militar.name || '').split(' ')[0]}
               </h2>
-              {militar.situacao?.toUpperCase() === 'ATIVO' && (
+              {militar.situacao?.toUpperCase().startsWith('ATIVO') && (
                 <span className="px-2 py-0.5 bg-green-50 text-green-700 border border-green-200 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3" /> <span className="hidden xs:inline">Ativo</span>
                 </span>
