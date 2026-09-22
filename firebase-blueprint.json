@@ -77,6 +77,21 @@
         "days": { "type": "object" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
+    },
+    "ExpedienteMonth": {
+      "title": "ExpedienteMonth",
+      "description": "Monthly duty schedule and weekly administrative roster with separate ordinary and weekly locks",
+      "type": "object",
+      "properties": {
+        "selections": { "type": "object" },
+        "expedienteDays": { "type": "object" },
+        "locked": { "type": "object" },
+        "lockedOrdinario": { "type": "object" },
+        "lockedWeekly": { "type": "object" },
+        "swapRequests": { "type": "array" },
+        "preferencesDetails": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "firestore": {
@@ -103,6 +118,10 @@
     "/grd_configs/{docId}": {
       "schema": "Escala",
       "description": "GRD configuration tables and calendars"
+    },
+    "/expediente_{obm}/{monthKey}": {
+      "schema": "ExpedienteMonth",
+      "description": "Monthly roster storing 24h operational duties, administrative expedientes, and distinct ordinary and weekly locks"
     }
   }
 }

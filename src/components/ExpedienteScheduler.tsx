@@ -42,6 +42,8 @@ interface ExpedienteData {
   sectors?: Record<string, string>;
   regimes?: Record<string, string>;
   locked?: Record<string, boolean>;
+  lockedOrdinario?: Record<string, boolean>;
+  lockedWeekly?: Record<string, Record<string, boolean>>;
   swapRequests?: SwapRequest[];
   preferencesDetails?: Record<string, Record<string, number>>;
   expedienteDays?: Record<string, string[]>;
@@ -423,6 +425,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
         requirements: globalData.requirements || {},
         selections: monthData.selections || {},
         locked: monthData.locked || {},
+        lockedOrdinario: monthData.lockedOrdinario || monthData.locked || {},
+        lockedWeekly: monthData.lockedWeekly || {},
         swapRequests: monthData.swapRequests || [],
         preferencesDetails: monthData.preferencesDetails || {},
         expedienteDays: monthData.expedienteDays || {},
@@ -525,7 +529,9 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
           try {
               const monthUpdates: any = {
                   [`selections.${rgToUpdate}`]: deleteField(),
-                  [`locked.${rgToUpdate}`]: deleteField()
+                  [`locked.${rgToUpdate}`]: deleteField(),
+                  [`lockedOrdinario.${rgToUpdate}`]: deleteField(),
+                  [`expedienteDays.${rgToUpdate}`]: deleteField()
               };
               await updateDoc(monthDocRef, monthUpdates);
           } catch (e: any) {
@@ -648,6 +654,12 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   };
 
   const handleCycleCellStatus = async (rg: string, dayStr: string) => {
+      const isLocked = isOrdinarioLockedForUser(rg, monthKey);
+      if (isLocked && !isAdmin && !user.isEscalante && rg !== 'ESCALANTE_PREF') {
+          alert("Sua escala ordinária (24h) deste mês já está confirmada e bloqueada. Para trocar de serviço, solicite uma Permuta.");
+          return;
+      }
+
       const userSels = safeArr(data.selections[rg]);
       const userExp = safeArr(data.expedienteDays?.[rg]);
       const isSel = userSels.includes(dayStr);
@@ -783,6 +795,22 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       return { servicoList, expedienteList };
   };
 
+  // Helper: Verifica se a escala ordinária (24h) mensal está bloqueada para o militar
+  const isOrdinarioLockedForUser = (rg: string, targetMonthKey: string = monthKey): boolean => {
+      if (!rg || rg === 'ESCALANTE_PREF') return false;
+      const source = targetMonthKey === monthKey ? data : (extraMonthData[targetMonthKey] || {});
+      return !!(source.lockedOrdinario?.[rg] ?? source.locked?.[rg]);
+  };
+
+  // Helper: Verifica se a semana de expediente específica está bloqueada para o militar
+  const isWeeklyLockedForUser = (rg: string, weekMonday: Date): boolean => {
+      if (!rg || rg === 'ESCALANTE_PREF') return false;
+      const weekKey = format(weekMonday, 'yyyy-MM-dd');
+      const weekMonthKey = format(weekMonday, 'yyyy-MM');
+      const source = weekMonthKey === monthKey ? data : (extraMonthData[weekMonthKey] || {});
+      return !!source.lockedWeekly?.[weekKey]?.[rg];
+  };
+
   const handleSetWeeklyDayStatus = async (
       rg: string, 
       dayStr: string, 
@@ -795,7 +823,15 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       const targetDocRef = dayMonthKey === monthKey ? monthDocRef : doc(db, `expediente_${normalizedObm}`, dayMonthKey);
       const dataSource = dayMonthKey === monthKey ? data : (extraMonthData[dayMonthKey] || {});
 
-      if (dataSource.locked?.[rg] && !isAdmin && !user.isEscalante) {
+      const dayDate = new Date(`${dayStr}T12:00:00`);
+      const dayMonday = startOfWeek(dayDate, { weekStartsOn: 1 });
+
+      const isWeekLocked = isWeeklyLockedForUser(rg, dayMonday);
+      const isOrd24hLocked = isOrdinarioLockedForUser(rg, dayMonthKey);
+
+      // Se a semana de expediente já foi bloqueada/confirmada e não é admin/escalante
+      if (isWeekLocked && !isAdmin && !user.isEscalante) {
+          alert("O expediente desta semana já foi confirmado e está bloqueado para edições.");
           return;
       }
 
@@ -807,6 +843,18 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       const isSel = userSels.includes(dayStr);
       const isExp = userExp.includes(dayStr);
 
+      // Se o dia já é um Serviço 24h e a escala ordinária 24h está bloqueada
+      if (isSel && isOrd24hLocked && !isAdmin && !user.isEscalante) {
+          alert("Este dia é um Serviço Ordinário (24h) homologado no mês. Não pode ser alterado diretamente; utilize a solicitação de Permuta se precisar trocar.");
+          return;
+      }
+
+      // Se o usuário tenta marcar como serviço 24h mas a escala ordinária está bloqueada
+      if (mode === 'servico' && isOrd24hLocked && !isAdmin && !user.isEscalante) {
+          alert("A escala ordinária (24h) deste mês já está bloqueada. Novos serviços 24h só podem ser lançados pelo Escalante.");
+          return;
+      }
+
       let newSels = [...userSels];
       let newExp = [...userExp];
       const req = getReqAmount(rg);
@@ -816,8 +864,10 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
               // FOLGA -> EXPEDIENTE
               newExp.push(dayStr);
           } else if (isExp) {
-              // EXPEDIENTE -> SERVIÇO (verificar cota)
-              if (req > 0 && userSels.length >= req) {
+              // EXPEDIENTE -> se escala 24h estiver bloqueada para o militar, pula direto para FOLGA!
+              if (isOrd24hLocked && !isAdmin && !user.isEscalante) {
+                  newExp = newExp.filter(d => d !== dayStr);
+              } else if (req > 0 && userSels.length >= req) {
                   // Cota atingida: pula para folga
                   newExp = newExp.filter(d => d !== dayStr);
               } else {
@@ -835,6 +885,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
           }
       } else if (mode === 'servico') {
           if (req > 0 && userSels.length >= req && !isSel) {
+              alert(`Você já selecionou todos os ${req} serviços permitidos.`);
               return;
           }
           newExp = newExp.filter(d => d !== dayStr);
@@ -1012,9 +1063,9 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       alert("Nenhum militar selecionado.");
       return;
     }
-    const isLocked = data.locked?.[rgSelection];
+    const isLocked = isOrdinarioLockedForUser(rgSelection, monthKey);
     if (isLocked && rgSelection !== 'ESCALANTE_PREF' && !isAdmin && !user.isEscalante) {
-      alert("Suas escolhas já foram enviadas e estão bloqueadas. Use a opção 'Solicitar Troca' se precisar alterar.");
+      alert("Sua escala ordinária (24h) deste mês já foi confirmada e está bloqueada. Use a opção 'Solicitar Troca' se precisar permutar.");
       return;
     }
 
@@ -2539,9 +2590,14 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                         const weekSvCount = weekStatusList.filter(s => s.type === 'servico').length;
                         const weekFolgaCount = weekStatusList.filter(s => s.type === 'folga').length;
 
+                        const currentWeekKey = format(selectedWeekMonday, 'yyyy-MM-dd');
+                        const weekMondayMonthKey = format(selectedWeekMonday, 'yyyy-MM');
+                        const weekDocRef = weekMondayMonthKey === monthKey ? monthDocRef : doc(db, `expediente_${normalizedObm}`, weekMondayMonthKey);
+
                         const userSels = safeArr(data.selections[activeRg]);
                         const userReq = getReqAmount(activeRg);
-                        const isLocked = !!data.locked?.[activeRg];
+                        const isWeekLocked = isWeeklyLockedForUser(activeRg, selectedWeekMonday);
+                        const isMonthOrdLocked = isOrdinarioLockedForUser(activeRg, weekMondayMonthKey);
                         const regimeText = getRegimeDisplay(activeRg);
 
                         return (
@@ -2556,9 +2612,24 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                 {regimeText}
                                             </span>
                                         )}
-                                        {isLocked && (
+                                        {/* Status de Bloqueio do Expediente Semanal */}
+                                        {isWeekLocked ? (
                                             <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30 flex items-center gap-1">
-                                                <Lock className="w-3 h-3" /> Escala Bloqueada
+                                                <Lock className="w-3 h-3" /> Expediente Semanal Homologado
+                                            </span>
+                                        ) : (
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 flex items-center gap-1">
+                                                <CheckCircle2 className="w-3 h-3" /> Expediente Semanal Aberto
+                                            </span>
+                                        )}
+                                        {/* Status de Bloqueio da Escala Ordinária 24h */}
+                                        {isMonthOrdLocked ? (
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-red-300 bg-red-500/20 px-2 py-0.5 rounded border border-red-500/30 flex items-center gap-1">
+                                                <Shield className="w-3 h-3" /> Escala 24h Mensal Fechada
+                                            </span>
+                                        ) : (
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-300 bg-white/10 px-2 py-0.5 rounded flex items-center gap-1">
+                                                <Clock className="w-3 h-3" /> Escala 24h Mensal em Aberto
                                             </span>
                                         )}
                                     </div>
@@ -2567,7 +2638,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                         {targetUserObj.rg && <span className="text-xs text-slate-400 font-bold">({targetUserObj.rg})</span>}
                                     </h3>
                                     <p className="text-xs text-slate-300 font-medium">
-                                        Clique no cartão do dia para alternar entre <strong className="text-white">Folga ➔ Expediente ➔ Serviço</strong>, ou use os seletores diretos em cada dia abaixo.
+                                        Preencha o expediente da semana. Dias com serviço ordinário de 24h mantêm o status definido na escala mensal.
                                     </p>
                                 </div>
 
@@ -2607,40 +2678,101 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                         </div>
                                     )}
 
-                                    {/* Botão de Bloqueio/Confirmação */}
+                                    {/* Botão de Bloqueio/Confirmação do Expediente Semanal */}
                                     {activeRg && activeRg !== 'ESCALANTE_PREF' && (
-                                        !isLocked ? (
+                                        !isWeekLocked ? (
                                             <button
                                                 onClick={async () => {
-                                                    const newMonthData = {
-                                                        locked: {
-                                                            [activeRg]: true
+                                                    const updatePayload = {
+                                                        lockedWeekly: {
+                                                            [currentWeekKey]: {
+                                                                [activeRg]: true
+                                                            }
                                                         }
                                                     };
-                                                    await setDoc(monthDocRef, cleanUndefined(newMonthData), { merge: true });
+                                                    if (weekMondayMonthKey === monthKey) {
+                                                        setData(prev => ({
+                                                            ...prev,
+                                                            lockedWeekly: {
+                                                                ...(prev.lockedWeekly || {}),
+                                                                [currentWeekKey]: {
+                                                                    ...((prev.lockedWeekly || {})[currentWeekKey] || {}),
+                                                                    [activeRg]: true
+                                                                }
+                                                            }
+                                                        }));
+                                                    } else {
+                                                        setExtraMonthData(prev => ({
+                                                            ...prev,
+                                                            [weekMondayMonthKey]: {
+                                                                ...(prev[weekMondayMonthKey] || {}),
+                                                                lockedWeekly: {
+                                                                    ...((prev[weekMondayMonthKey]?.lockedWeekly) || {}),
+                                                                    [currentWeekKey]: {
+                                                                        ...(((prev[weekMondayMonthKey]?.lockedWeekly) || {})[currentWeekKey] || {}),
+                                                                        [activeRg]: true
+                                                                    }
+                                                                }
+                                                            }
+                                                        }));
+                                                    }
+                                                    await setDoc(weekDocRef, cleanUndefined(updatePayload), { merge: true });
                                                 }}
                                                 className="px-3.5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
-                                                title="Confirmar e travar escolhas"
+                                                title="Confirmar e homologar expediente desta semana"
                                             >
-                                                <Save className="w-3.5 h-3.5" /> Confirmar Escala
+                                                <Save className="w-3.5 h-3.5" /> Confirmar Expediente da Semana
                                             </button>
                                         ) : (
-                                            (isAdmin || user.isEscalante) && (
-                                                <button
-                                                    onClick={async () => {
-                                                        const newMonthData = {
-                                                            locked: {
-                                                                [activeRg]: false
+                                            <div className="flex items-center gap-2">
+                                                <div className="px-3 py-2 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-200 text-xs font-bold flex items-center gap-1.5">
+                                                    <Lock className="w-3.5 h-3.5 text-amber-300" /> Semana Homologada
+                                                </div>
+                                                {(isAdmin || user.isEscalante) && (
+                                                    <button
+                                                        onClick={async () => {
+                                                            const updatePayload = {
+                                                                lockedWeekly: {
+                                                                    [currentWeekKey]: {
+                                                                        [activeRg]: false
+                                                                    }
+                                                                }
+                                                            };
+                                                            if (weekMondayMonthKey === monthKey) {
+                                                                setData(prev => ({
+                                                                    ...prev,
+                                                                    lockedWeekly: {
+                                                                        ...(prev.lockedWeekly || {}),
+                                                                        [currentWeekKey]: {
+                                                                            ...((prev.lockedWeekly || {})[currentWeekKey] || {}),
+                                                                            [activeRg]: false
+                                                                        }
+                                                                    }
+                                                                }));
+                                                            } else {
+                                                                setExtraMonthData(prev => ({
+                                                                    ...prev,
+                                                                    [weekMondayMonthKey]: {
+                                                                        ...(prev[weekMondayMonthKey] || {}),
+                                                                        lockedWeekly: {
+                                                                            ...((prev[weekMondayMonthKey]?.lockedWeekly) || {}),
+                                                                            [currentWeekKey]: {
+                                                                                ...(((prev[weekMondayMonthKey]?.lockedWeekly) || {})[currentWeekKey] || {}),
+                                                                                [activeRg]: false
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }));
                                                             }
-                                                        };
-                                                        await setDoc(monthDocRef, cleanUndefined(newMonthData), { merge: true });
-                                                    }}
-                                                    className="px-3.5 py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
-                                                    title="Desbloquear para edição"
-                                                >
-                                                    <Lock className="w-3.5 h-3.5" /> Desbloquear
-                                                </button>
-                                            )
+                                                            await setDoc(weekDocRef, cleanUndefined(updatePayload), { merge: true });
+                                                        }}
+                                                        className="px-3 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
+                                                        title="Desbloquear expediente da semana para edição"
+                                                    >
+                                                        <Lock className="w-3.5 h-3.5" /> Desbloquear Semana
+                                                    </button>
+                                                )}
+                                            </div>
                                         )
                                     )}
                                 </div>
@@ -2674,8 +2806,12 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                     const totalVagas = Object.values(prefDetails).reduce((sum: number, q: number) => sum + Number(q || 0), 0);
 
                                     const { servicoList, expedienteList } = getWorkersForDay(dayStr);
-                                    const isLocked = !!dataSource.locked?.[activeRg];
-                                    const canEdit = (isAdmin || user.isEscalante || (!isLocked && activeRg === (user.rg || user.uid))) && dayStatus.type !== 'afastamento';
+                                    const dayDate = new Date(`${dayStr}T12:00:00`);
+                                    const dayMonday = startOfWeek(dayDate, { weekStartsOn: 1 });
+                                    const isWeekLocked = isWeeklyLockedForUser(activeRg, dayMonday);
+                                    const isOrd24hLocked = isOrdinarioLockedForUser(activeRg, dayMonthKey);
+                                    const isDay24hLocked = isOrd24hLocked && dayStatus.type === 'servico';
+                                    const canEdit = (isAdmin || user.isEscalante || (!isWeekLocked && !isDay24hLocked && activeRg === (user.rg || user.uid))) && dayStatus.type !== 'afastamento';
 
                                     return (
                                         <div
@@ -2683,6 +2819,10 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                             onClick={() => {
                                                 if (canEdit) {
                                                     handleSetWeeklyDayStatus(activeRg, dayStr, 'cycle');
+                                                } else if (isDay24hLocked && !isAdmin && !user.isEscalante) {
+                                                    alert("Este dia é um Serviço Ordinário (24h) homologado no mês. Para trocá-lo, utilize uma Permuta de Serviço.");
+                                                } else if (isWeekLocked && !isAdmin && !user.isEscalante) {
+                                                    alert("O expediente desta semana já foi confirmado e está bloqueado.");
                                                 }
                                             }}
                                             className={cn(
@@ -2771,6 +2911,11 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                             <Shield className="w-3.5 h-3.5 text-red-600" /> SERVIÇO 24H
                                                         </div>
                                                         <span className="text-[9px] font-bold text-red-500">07h às 07h</span>
+                                                        {isOrd24hLocked && (
+                                                            <span className="text-[8px] font-black uppercase text-red-700 bg-red-100 px-1.5 py-0.5 rounded border border-red-200 flex items-center gap-1 mt-0.5">
+                                                                <Lock className="w-2.5 h-2.5" /> 24h Homologado
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 ) : dayStatus.type === 'afastamento' ? (
                                                     <div className="flex flex-col items-center gap-1">
@@ -2789,7 +2934,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                 )}
                                             </div>
 
-                                            {/* Controles Rápidos: Botões EXP / SV / FOLGA */}
+                                            {/* Controles Rápidos: Botões EXP / SV / FOLGA ou aviso de bloqueio */}
                                             {canEdit ? (
                                                 <div 
                                                     className="grid grid-cols-3 gap-1 mb-3 pt-1 border-t border-slate-100"
@@ -2808,14 +2953,22 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                         {dayStatus.type === 'expediente' && <Check className="w-2.5 h-2.5" />} EXP
                                                     </button>
                                                     <button
-                                                        onClick={() => handleSetWeeklyDayStatus(activeRg, dayStr, 'servico')}
+                                                        onClick={() => {
+                                                            if (isOrd24hLocked && !isAdmin && !user.isEscalante) {
+                                                                alert("A escala ordinária (24h) deste mês já está fechada. Apenas o Escalante pode alterar serviços operacionais de 24h.");
+                                                                return;
+                                                            }
+                                                            handleSetWeeklyDayStatus(activeRg, dayStr, 'servico');
+                                                        }}
                                                         className={cn(
                                                             "py-1.5 px-1 rounded text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-0.5 transition-colors cursor-pointer",
                                                             dayStatus.type === 'servico'
                                                                 ? "bg-red-600 text-white shadow-sm"
-                                                                : "bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-700"
+                                                                : isOrd24hLocked && !isAdmin && !user.isEscalante
+                                                                    ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                                                                    : "bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-700"
                                                         )}
-                                                        title="Marcar como Serviço"
+                                                        title={isOrd24hLocked && !isAdmin && !user.isEscalante ? "Escala 24h fechada" : "Marcar como Serviço"}
                                                     >
                                                         {dayStatus.type === 'servico' && <Check className="w-2.5 h-2.5" />} SV
                                                     </button>
@@ -2833,11 +2986,26 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                     </button>
                                                 </div>
                                             ) : (
-                                                isLocked && (
-                                                    <div className="mb-3 pt-1 border-t border-slate-100 text-center text-[9px] font-bold text-slate-400 flex items-center justify-center gap-1">
-                                                        <Lock className="w-3 h-3 text-slate-400" /> Escala travada
-                                                    </div>
-                                                )
+                                                <div className="mb-3 pt-1 border-t border-slate-100 text-center text-[9px] font-bold">
+                                                    {isDay24hLocked && !isAdmin && !user.isEscalante ? (
+                                                        <div className="py-1 px-1.5 bg-red-50 border border-red-200 rounded text-red-700 flex items-center justify-center gap-1">
+                                                            <Shield className="w-3 h-3 text-red-600 shrink-0" />
+                                                            <span>24h Homologado (Permuta)</span>
+                                                        </div>
+                                                    ) : isWeekLocked && !isAdmin && !user.isEscalante ? (
+                                                        <div className="py-1 px-1.5 bg-amber-50 border border-amber-200 rounded text-amber-800 flex items-center justify-center gap-1">
+                                                            <Lock className="w-3 h-3 text-amber-600 shrink-0" />
+                                                            <span>Semana Homologada</span>
+                                                        </div>
+                                                    ) : (
+                                                        dayStatus.type === 'afastamento' && (
+                                                            <div className="py-1 px-1.5 bg-orange-50 border border-orange-200 rounded text-orange-700 flex items-center justify-center gap-1">
+                                                                <AlertCircle className="w-3 h-3 text-orange-600 shrink-0" />
+                                                                <span>Afastamento</span>
+                                                            </div>
+                                                        )
+                                                    )}
+                                                </div>
                                             )}
 
                                             {/* Efetivo Escalado neste dia */}
@@ -3089,15 +3257,29 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                    </div>
                                )}
 
-                               {!outsideMonth && isTargetUserSelected && activeRg && activeRg !== 'ESCALANTE_PREF' && !data.locked?.[activeRg] && (
+                               {!outsideMonth && isTargetUserSelected && activeRg && activeRg !== 'ESCALANTE_PREF' && !isOrdinarioLockedForUser(activeRg, monthKey) && (
                                    <button 
                                       onClick={async (e) => {
                                           e.stopPropagation();
                                           const newMonthData = {
+                                              lockedOrdinario: {
+                                                  [activeRg]: true
+                                              },
                                               locked: {
                                                   [activeRg]: true
                                               }
                                           };
+                                          setData(prev => ({
+                                              ...prev,
+                                              lockedOrdinario: {
+                                                  ...(prev.lockedOrdinario || {}),
+                                                  [activeRg]: true
+                                              },
+                                              locked: {
+                                                  ...(prev.locked || {}),
+                                                  [activeRg]: true
+                                              }
+                                          }));
                                           await setDoc(monthDocRef, cleanUndefined(newMonthData), { merge: true });
                                       }}
                                       className="sm:hidden mt-3 w-full bg-indigo-600 active:bg-indigo-700 hover:bg-indigo-500 text-white py-2.5 px-2 rounded-lg text-[9px] items-center justify-center font-black uppercase tracking-widest flex gap-1 shadow-sm transition-colors"
@@ -3188,17 +3370,17 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
 
                              {activeRg && activeRg !== 'ESCALANTE_PREF' && userReq > 0 && userSels.length > 0 && (
                                 <div className="mt-4 pt-3 border-t border-white/20">
-                                   {!data.locked?.[activeRg] ? (
+                                   {!isOrdinarioLockedForUser(activeRg, monthKey) ? (
                                       !confirmLock ? (
                                           <button 
                                             onClick={() => setConfirmLock(true)}
                                             className="w-full flex items-center justify-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors shadow-sm"
                                           >
-                                            <Save className="w-3.5 h-3.5" /> Enviar Escolhas
+                                            <Save className="w-3.5 h-3.5" /> Enviar Escolhas (Escala 24h)
                                           </button>
                                       ) : (
                                           <div className="flex flex-col gap-2">
-                                              <span className="text-[10px] text-white/80 font-bold text-center">Confirmar o envio definitivo?</span>
+                                              <span className="text-[10px] text-white/80 font-bold text-center">Confirmar o envio definitivo da escala 24h?</span>
                                               <div className="flex gap-2">
                                                   <button 
                                                     onClick={() => setConfirmLock(false)}
@@ -3209,10 +3391,24 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                   <button 
                                                     onClick={async () => {
                                                         const newMonthData = {
+                                                            lockedOrdinario: {
+                                                                [activeRg!]: true
+                                                            },
                                                             locked: {
                                                                 [activeRg!]: true
                                                             }
                                                         };
+                                                        setData(prev => ({
+                                                            ...prev,
+                                                            lockedOrdinario: {
+                                                                ...(prev.lockedOrdinario || {}),
+                                                                [activeRg!]: true
+                                                            },
+                                                            locked: {
+                                                                ...(prev.locked || {}),
+                                                                [activeRg!]: true
+                                                            }
+                                                        }));
                                                         await setDoc(monthDocRef, cleanUndefined(newMonthData), { merge: true });
                                                         setConfirmLock(false);
                                                     }}
@@ -3227,8 +3423,38 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                       <div className="flex flex-col gap-2">
                                           <div className="bg-green-500/20 border border-green-500/30 rounded p-2 flex items-center justify-center gap-2 text-green-100 text-[10px] font-bold uppercase text-center">
                                               <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
-                                              <span>Enviado e Bloqueado</span>
+                                              <span>Escala 24h Homologada</span>
                                           </div>
+                                          {(isAdmin || user.isEscalante) && (
+                                              <button
+                                                  onClick={async () => {
+                                                      const newMonthData = {
+                                                          lockedOrdinario: {
+                                                              [activeRg!]: false
+                                                          },
+                                                          locked: {
+                                                              [activeRg!]: false
+                                                          }
+                                                      };
+                                                      setData(prev => ({
+                                                          ...prev,
+                                                          lockedOrdinario: {
+                                                              ...(prev.lockedOrdinario || {}),
+                                                              [activeRg!]: false
+                                                          },
+                                                          locked: {
+                                                              ...(prev.locked || {}),
+                                                              [activeRg!]: false
+                                                          }
+                                                      }));
+                                                      await setDoc(monthDocRef, cleanUndefined(newMonthData), { merge: true });
+                                                  }}
+                                                  className="w-full flex items-center justify-center gap-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors border border-amber-500/30 cursor-pointer"
+                                                  title="Desbloquear escala 24h para edição"
+                                              >
+                                                  <Lock className="w-3 h-3" /> Desbloquear 24h (Admin)
+                                              </button>
+                                          )}
                                           <button 
                                             onClick={() => setShowSwapModal(true)}
                                             className="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 text-white py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-white/20"
