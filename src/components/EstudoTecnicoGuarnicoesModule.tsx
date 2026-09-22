@@ -243,7 +243,7 @@ export function EstudoTecnicoGuarnicoesModule({ obmContext }: { obmContext: stri
       const rawObm = m.obm ? m.obm.trim().toUpperCase() : '10º GBM';
       const ctx = (obmContext || '').trim().toUpperCase();
       const inObm = ctx === 'GLOBAL' ? true : (rawObm === ctx || normalizeObm(m.obm) === normalizeObm(obmContext));
-      const isActive = !m.situacao || m.situacao.trim().toUpperCase().startsWith('ATIVO');
+      const isActive = !m.situacao || !['TRANSFERIDO', 'INATIVO', 'EXCLUÍDO', 'EXCLUIDO', 'DESLIGADO'].some(status => m.situacao.trim().toUpperCase().includes(status));
       
       return inObm && isActive;
     });
@@ -403,7 +403,7 @@ export function EstudoTecnicoGuarnicoesModule({ obmContext }: { obmContext: stri
           const rawObm = m.obm ? m.obm.trim().toUpperCase() : '10º GBM';
           const ctx = (obmContext || '').trim().toUpperCase();
           const inObm = ctx === 'GLOBAL' ? true : (rawObm === ctx || normalizeObm(m.obm) === normalizeObm(obmContext));
-          const isActive = !m.situacao || m.situacao.trim().toUpperCase().startsWith('ATIVO');
+          const isActive = !m.situacao || !['TRANSFERIDO', 'INATIVO', 'EXCLUÍDO', 'EXCLUIDO', 'DESLIGADO'].some(status => m.situacao.trim().toUpperCase().includes(status));
           return inObm && isActive && normalizeAlaField(m.ala) === alaName;
        });
 

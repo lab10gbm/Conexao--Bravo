@@ -488,7 +488,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
         const ctx = (obmContext || "").trim().toUpperCase();
         const isInCtx = ctx === "GLOBAL" || rawObm === ctx;
         
-        const isActive = !m.situacao || m.situacao.trim().toUpperCase().startsWith('ATIVO');
+        const isActive = !m.situacao || !['TRANSFERIDO', 'INATIVO', 'EXCLUÍDO', 'EXCLUIDO', 'DESLIGADO'].some(status => m.situacao.trim().toUpperCase().includes(status));
 
         const isAla = isInCtx && normalizeAlaField(m.ala) === identifiedAlaStr;
         const isManual = manualRgs.includes(m.rg || '');

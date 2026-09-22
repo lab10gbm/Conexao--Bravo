@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { parseRank, sortAllBySeniority } from "../lib/rankUtils";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths, addWeeks, subWeeks, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { UserProfile } from '../types';
 import { doc, onSnapshot, setDoc, updateDoc, query, collection, getDocs, deleteField, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { cn, formatMilitaryName, getAlaForDate, getAlaLightColor, getAlaColor, normalizeObm } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, Settings, CheckCircle2, User, AlertCircle, Save, CalendarRange, Table, ArrowUpDown, X, UserPlus, Trash2, List, Columns, Copy, Shield } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, CheckCircle2, User, AlertCircle, Save, CalendarRange, Table, ArrowUpDown, X, UserPlus, Trash2, List, Columns, Copy, Shield, FileSpreadsheet, Printer, Eye, Map as MapIcon, Briefcase, Clock, Coffee, Lock, Check, Calendar } from 'lucide-react';
 import { useMilitars } from '../contexts/MilitarContext';
 import { cleanUndefined } from "../lib/utils";
 
@@ -146,8 +146,21 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   const [showMemberDropdown, setShowMemberDropdown] = useState(false);
   const [isExpanded, setIsExpanded] = useState(forceExpanded || false);
   const [adminConfigMode, setAdminConfigMode] = useState(false);
-  const [viewMode, setViewMode] = useState<'calendar' | 'table' | 'lista' | 'escala_sv' | 'necessidades'>('calendar');
+  const [viewMode, setViewMode] = useState<'calendar' | 'semanal' | 'mapeamento' | 'necessidades' | 'relatorios'>('calendar');
+  const [weeklyFilterDays, setWeeklyFilterDays] = useState<'all' | 'weekdays'>('all');
+  const [mapeamentoSubView, setMapeamentoSubView] = useState<'table' | 'lista' | 'escala_sv'>('table');
   const [transposeTable, setTransposeTable] = useState(false);
+  const [reportType, setReportType] = useState<'mensal' | 'semanal'>('mensal');
+  const [selectedWeekMonday, setSelectedWeekMonday] = useState<Date>(() => {
+      const today = new Date();
+      const day = today.getDay(); // 0 is Sunday, 5 is Friday, 6 is Saturday
+      // Toda sexta-feira a publicação é referente à semana seguinte
+      if (day === 5 || day === 6 || day === 0) {
+          return startOfWeek(addWeeks(today, 1), { weekStartsOn: 1 });
+      }
+      return startOfWeek(today, { weekStartsOn: 1 });
+  });
+  const [extraMonthData, setExtraMonthData] = useState<Record<string, any>>({});
   const [copyStatus, setCopyStatus] = useState(false);
   const [autoExpStatus, setAutoExpStatus] = useState(false);
   const [showSwapModal, setShowSwapModal] = useState(false);
@@ -156,7 +169,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   const [removeMemberAla, setRemoveMemberAla] = useState('');
 
   const handleCopyTables = async () => {
-      const containerId = viewMode === 'table' ? 'table-view-container' : viewMode === 'escala_sv' ? 'escala-sv-container' : null;
+      const activeVisualMode = viewMode === 'mapeamento' ? mapeamentoSubView : viewMode;
+      const containerId = activeVisualMode === 'table' ? 'table-view-container' : activeVisualMode === 'escala_sv' ? 'escala-sv-container' : activeVisualMode === 'relatorios' ? 'relatorios-container' : null;
       if (!containerId) return;
       const el = document.getElementById(containerId);
       if (!el) return;
@@ -171,7 +185,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
             removeItems.forEach(item => item.remove());
 
             // Adicionar estilos inline para garantir que o LibreOffice/Word reconheça
-            if (viewMode === 'escala_sv') {
+            if (activeVisualMode === 'escala_sv') {
                 const tables = clone.querySelectorAll('table');
                 tables.forEach((table) => {
                     (table as HTMLElement).style.borderCollapse = 'collapse';
@@ -262,7 +276,40 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                     (wrapper as HTMLElement).style.width = '100%';
                     (wrapper as HTMLElement).style.display = 'block';
                 });
-            } else if (viewMode === 'table') {
+            } else if (activeVisualMode === 'relatorios') {
+                const headerEl = clone.querySelector('[data-report-header="true"]');
+                if (headerEl) {
+                    (headerEl as HTMLElement).style.textAlign = 'center';
+                    (headerEl as HTMLElement).style.fontFamily = 'Arial, sans-serif';
+                    (headerEl as HTMLElement).style.fontWeight = 'bold';
+                    (headerEl as HTMLElement).style.marginBottom = '20px';
+                    (headerEl as HTMLElement).style.textTransform = 'uppercase';
+                }
+                const tables = clone.querySelectorAll('table');
+                tables.forEach(table => {
+                    (table as HTMLElement).style.borderCollapse = 'collapse';
+                    (table as HTMLElement).style.width = '100%';
+                    (table as HTMLElement).style.border = '1px solid #000000';
+                    (table as HTMLElement).style.fontFamily = 'Arial, sans-serif';
+                    const ths = table.querySelectorAll('th');
+                    ths.forEach(th => {
+                        (th as HTMLElement).style.border = '1px solid #000000';
+                        (th as HTMLElement).style.padding = '8px 10px';
+                        (th as HTMLElement).style.backgroundColor = '#f1f5f9';
+                        (th as HTMLElement).style.fontWeight = 'bold';
+                        (th as HTMLElement).style.textAlign = 'center';
+                        (th as HTMLElement).style.fontSize = '12px';
+                        (th as HTMLElement).style.textTransform = 'uppercase';
+                    });
+                    const tds = table.querySelectorAll('td');
+                    tds.forEach(td => {
+                        (td as HTMLElement).style.border = '1px solid #000000';
+                        (td as HTMLElement).style.padding = '6px 10px';
+                        (td as HTMLElement).style.textAlign = 'center';
+                        (td as HTMLElement).style.fontSize = '12px';
+                    });
+                });
+            } else if (activeVisualMode === 'table') {
                 // Formatting for the general table view if needed
                 const tables = clone.querySelectorAll('table');
                 tables.forEach(table => {
@@ -306,6 +353,13 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   
   const isAdmin = user.isAdmin;
   const isEscalante = user.isEscalante;
+
+  useEffect(() => {
+    if (!isAdmin && !isEscalante && (viewMode === 'mapeamento' || viewMode === 'relatorios' || viewMode === 'necessidades')) {
+      setViewMode('calendar');
+    }
+  }, [isAdmin, isEscalante, viewMode]);
+
   const alaCheck = (user.ala?.toString() || '').toUpperCase();
   const isExp = alaCheck.includes('EXP') || alaCheck === 'E' || alaCheck === 'EXPEDIENTE';
   const canInteract = isAdmin || isExp || user.isEscalante;
@@ -532,6 +586,57 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       const val = data.sectors?.[rg];
       return typeof val === 'string' ? val : '';
   };
+
+  const getRegimeDisplay = (rg: string) => {
+      const raw = getRegime(rg);
+      if (raw) {
+          if (/3\s*Exped.*2\s*serv/i.test(raw)) return "03 Expedientes e 02 serviços";
+          if (/4\s*Exped.*1\s*serv/i.test(raw)) return "04 Expedientes e 01 serviço";
+          if (/4\s*Expedientes/i.test(raw)) return "04 Expedientes";
+          if (/1\s*Exped.*3\s*serv/i.test(raw)) return "01 Expediente e 03 serviços";
+          if (/2\s*(?:e\s*)?1\/2\s*Exped/i.test(raw)) return "02 e 1/2 Expedientes";
+          return raw;
+      }
+      const req = getReqAmount(rg);
+      if (req === 2) return "03 Expedientes e 02 serviços";
+      if (req === 1) return "04 Expedientes e 01 serviço";
+      if (req === 0) return "04 Expedientes";
+      if (req === 3) return "01 Expediente e 03 serviços";
+      return "-";
+  };
+
+  const getServicosOrdinariosDisplay = (u: UserProfile) => {
+      const rg = u.rg || u.uid;
+      const reqAmount = getReqAmount(rg);
+      const rawRegime = getRegime(rg);
+      const sels = safeArr(data.selections[rg]);
+
+      if (sels.length > 0) {
+          const sorted = [...sels].sort();
+          const formattedDays = sorted.map(dayStr => {
+              const dateObj = new Date(dayStr + 'T12:00:00');
+              const day = format(dateObj, 'dd');
+              const mon = format(dateObj, 'MMM', { locale: ptBR }).replace('.', '').toLowerCase();
+              return `${day} ${mon}`;
+          });
+
+          if (formattedDays.length === 1) return formattedDays[0];
+          if (formattedDays.length === 2) return `${formattedDays[0]} e ${formattedDays[1]}`;
+          return `${formattedDays.slice(0, -1).join(', ')} e ${formattedDays[formattedDays.length - 1]}`;
+      }
+
+      const isExento = reqAmount === 0 && (
+          rawRegime.includes('Readaptado') || 
+          rawRegime.includes('Redução') || 
+          rawRegime.includes('4 Expedientes')
+      );
+
+      if (reqAmount === 0 || isExento) {
+          return "DTS";
+      }
+
+      return "";
+  };
   
   const getExpQuota = (rg: string) => {
       if (data.expQuotas && data.expQuotas[rg] !== undefined) {
@@ -573,6 +678,242 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                 selections: { [rg]: newSels },
                 expedienteDays: { [rg]: newExp }
             }), { merge: true });
+  };
+
+  const fullWeekDays = useMemo(() => {
+      return [0, 1, 2, 3, 4, 5, 6].map(offset => addDays(selectedWeekMonday, offset));
+  }, [selectedWeekMonday]);
+
+  const weekDays = useMemo(() => {
+      return [0, 1, 2, 3, 4].map(offset => addDays(selectedWeekMonday, offset));
+  }, [selectedWeekMonday]);
+
+  const weekMonthKeys = useMemo(() => {
+      const keys = new Set<string>();
+      fullWeekDays.forEach(d => keys.add(format(d, 'yyyy-MM')));
+      return Array.from(keys);
+  }, [fullWeekDays]);
+
+  useEffect(() => {
+      const unsubs: (() => void)[] = [];
+      weekMonthKeys.forEach(mKey => {
+          if (mKey !== monthKey) {
+              const mRef = doc(db, `expediente_${normalizedObm}`, mKey);
+              const unsub = onSnapshot(mRef, (snap) => {
+                  if (snap.exists()) {
+                      setExtraMonthData(prev => ({ ...prev, [mKey]: snap.data() }));
+                  } else {
+                      setExtraMonthData(prev => ({ ...prev, [mKey]: { selections: {}, expedienteDays: {} } }));
+                  }
+              });
+              unsubs.push(unsub);
+          }
+      });
+      return () => {
+          unsubs.forEach(u => u());
+      };
+  }, [weekMonthKeys, monthKey, normalizedObm]);
+
+  const getDayStatus = (rg: string, dayStr: string) => {
+      const dayMonthKey = dayStr.substring(0, 7);
+      const dataSource = dayMonthKey === monthKey ? data : (extraMonthData[dayMonthKey] || {});
+      const sels = safeArr(dataSource.selections?.[rg]);
+      const expDays = safeArr(dataSource.expedienteDays?.[rg]);
+
+      const afastamento = afastamentos.find(a => a.rg === rg && dayStr >= a.inicio && dayStr <= a.retorno);
+      if (afastamento) {
+          return {
+              text: afastamento.situacao.toUpperCase(),
+              type: 'afastamento' as const,
+              label: afastamento.situacao.toUpperCase()
+          };
+      }
+
+      if (sels.includes(dayStr)) {
+          return {
+              text: 'SERVIÇO',
+              type: 'servico' as const,
+              label: 'SERVIÇO'
+          };
+      }
+
+      if (expDays.includes(dayStr)) {
+          return {
+              text: 'EXPEDIENTE',
+              type: 'expediente' as const,
+              label: 'EXPEDIENTE'
+          };
+      }
+
+      return {
+          text: 'FOLGA',
+          type: 'folga' as const,
+          label: 'FOLGA'
+      };
+  };
+
+  const getWorkersForDay = (dayStr: string) => {
+      const dayMonthKey = dayStr.substring(0, 7);
+      const dataSource = dayMonthKey === monthKey ? data : (extraMonthData[dayMonthKey] || {});
+      const selsObj = dataSource.selections || {};
+      const expObj = dataSource.expedienteDays || {};
+      const grdObj = dataSource.grdData || {};
+
+      const servicoList = Object.entries(selsObj)
+          .filter(([rg, sels]: [string, any]) => rg !== 'ESCALANTE_PREF' && Array.isArray(sels) && sels.includes(dayStr))
+          .map(([rg]) => {
+              const found = expedienteUsers.find(u => (u.rg || u.uid) === rg);
+              return {
+                  rg,
+                  name: found ? formatMilitaryName(found.rank ? `${found.rank} ${found.warName || found.name.split(' ')[0]}` : found.name) : (dataSource.userNames?.[rg] || rg),
+                  isGrd: !!grdObj[dayStr]?.includes(rg)
+              };
+          });
+
+      const expedienteList = Object.entries(expObj)
+          .filter(([rg, expDays]: [string, any]) => rg !== 'ESCALANTE_PREF' && Array.isArray(expDays) && expDays.includes(dayStr))
+          .map(([rg]) => {
+              const found = expedienteUsers.find(u => (u.rg || u.uid) === rg);
+              return {
+                  rg,
+                  name: found ? formatMilitaryName(found.rank ? `${found.rank} ${found.warName || found.name.split(' ')[0]}` : found.name) : (dataSource.userNames?.[rg] || rg)
+              };
+          });
+
+      return { servicoList, expedienteList };
+  };
+
+  const handleSetWeeklyDayStatus = async (
+      rg: string, 
+      dayStr: string, 
+      mode: 'cycle' | 'expediente' | 'servico' | 'folga' = 'cycle'
+  ) => {
+      const isSelf = user.rg === rg || user.uid === rg;
+      if (!isAdmin && !user.isEscalante && !isSelf) return;
+
+      const dayMonthKey = dayStr.substring(0, 7);
+      const targetDocRef = dayMonthKey === monthKey ? monthDocRef : doc(db, `expediente_${normalizedObm}`, dayMonthKey);
+      const dataSource = dayMonthKey === monthKey ? data : (extraMonthData[dayMonthKey] || {});
+
+      if (dataSource.locked?.[rg] && !isAdmin && !user.isEscalante) {
+          return;
+      }
+
+      const afastamento = afastamentos.find(a => a.rg === rg && dayStr >= a.inicio && dayStr <= a.retorno);
+      if (afastamento) return;
+
+      const userSels = safeArr(dataSource.selections?.[rg]);
+      const userExp = safeArr(dataSource.expedienteDays?.[rg]);
+      const isSel = userSels.includes(dayStr);
+      const isExp = userExp.includes(dayStr);
+
+      let newSels = [...userSels];
+      let newExp = [...userExp];
+      const req = getReqAmount(rg);
+
+      if (mode === 'cycle') {
+          if (!isSel && !isExp) {
+              // FOLGA -> EXPEDIENTE
+              newExp.push(dayStr);
+          } else if (isExp) {
+              // EXPEDIENTE -> SERVIÇO (verificar cota)
+              if (req > 0 && userSels.length >= req) {
+                  // Cota atingida: pula para folga
+                  newExp = newExp.filter(d => d !== dayStr);
+              } else {
+                  newExp = newExp.filter(d => d !== dayStr);
+                  newSels.push(dayStr);
+              }
+          } else if (isSel) {
+              // SERVIÇO -> FOLGA
+              newSels = newSels.filter(d => d !== dayStr);
+          }
+      } else if (mode === 'expediente') {
+          newSels = newSels.filter(d => d !== dayStr);
+          if (!newExp.includes(dayStr)) {
+              newExp.push(dayStr);
+          }
+      } else if (mode === 'servico') {
+          if (req > 0 && userSels.length >= req && !isSel) {
+              return;
+          }
+          newExp = newExp.filter(d => d !== dayStr);
+          if (!newSels.includes(dayStr)) {
+              newSels.push(dayStr);
+          }
+      } else if (mode === 'folga') {
+          newSels = newSels.filter(d => d !== dayStr);
+          newExp = newExp.filter(d => d !== dayStr);
+      }
+
+      if (dayMonthKey === monthKey) {
+          setData(prev => ({
+              ...prev,
+              selections: { ...prev.selections, [rg]: newSels },
+              expedienteDays: { ...(prev.expedienteDays || {}), [rg]: newExp }
+          }));
+      } else {
+          setExtraMonthData(prev => ({
+              ...prev,
+              [dayMonthKey]: {
+                  selections: { ...(prev[dayMonthKey]?.selections || {}), [rg]: newSels },
+                  expedienteDays: { ...(prev[dayMonthKey]?.expedienteDays || {}), [rg]: newExp }
+              }
+          }));
+      }
+
+      await setDoc(targetDocRef, cleanUndefined({
+          selections: { [rg]: newSels },
+          expedienteDays: { [rg]: newExp }
+      }), { merge: true });
+  };
+
+  const handleCycleWeeklyStatus = async (rg: string, dayStr: string) => {
+      if (!isAdmin && !user.isEscalante) return;
+      const dayMonthKey = dayStr.substring(0, 7);
+      const targetDocRef = dayMonthKey === monthKey ? monthDocRef : doc(db, `expediente_${normalizedObm}`, dayMonthKey);
+      const dataSource = dayMonthKey === monthKey ? data : (extraMonthData[dayMonthKey] || {});
+
+      const userSels = safeArr(dataSource.selections?.[rg]);
+      const userExp = safeArr(dataSource.expedienteDays?.[rg]);
+      const isSel = userSels.includes(dayStr);
+      const isExp = userExp.includes(dayStr);
+
+      let newSels = [...userSels];
+      let newExp = [...userExp];
+
+      if (!isSel && !isExp) {
+          // FOLGA -> EXPEDIENTE
+          newExp.push(dayStr);
+      } else if (isExp) {
+          // EXPEDIENTE -> SERVIÇO
+          newExp = newExp.filter(d => d !== dayStr);
+          newSels.push(dayStr);
+      } else if (isSel) {
+          // SERVIÇO -> FOLGA
+          newSels = newSels.filter(d => d !== dayStr);
+      }
+
+      if (dayMonthKey === monthKey) {
+          setData(prev => ({
+              ...prev,
+              selections: { ...prev.selections, [rg]: newSels },
+              expedienteDays: { ...(prev.expedienteDays || {}), [rg]: newExp }
+          }));
+      } else {
+          setExtraMonthData(prev => ({
+              ...prev,
+              [dayMonthKey]: {
+                  selections: { ...(prev[dayMonthKey]?.selections || {}), [rg]: newSels },
+                  expedienteDays: { ...(prev[dayMonthKey]?.expedienteDays || {}), [rg]: newExp }
+              }
+          }));
+      }
+
+      await setDoc(targetDocRef, cleanUndefined({
+          selections: { [rg]: newSels },
+          expedienteDays: { [rg]: newExp }
+      }), { merge: true });
   };
 
   const handleAutoFillExp = async () => {
@@ -828,86 +1169,72 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                   onClick={() => setViewMode('calendar')}
                                   className={cn(
                                       "px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1",
-                                      viewMode === 'calendar' ? "bg-white text-indigo-700 shadow-sm" : "text-transparent text-slate-500 hover:text-slate-700"
+                                      viewMode === 'calendar' ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
                                   )}
                               >
                                   <CalendarRange className="w-3 h-3" /> <span className="hidden sm:inline">Calendário</span>
                               </button>
                               <button
-                                  onClick={() => setViewMode('table')}
+                                  onClick={() => setViewMode('semanal')}
                                   className={cn(
                                       "px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1",
-                                      viewMode === 'table' ? "bg-white text-indigo-700 shadow-sm" : "text-transparent text-slate-500 hover:text-slate-700"
+                                      viewMode === 'semanal' ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
                                   )}
                               >
-                                  <Table className="w-3 h-3" /> <span className="hidden sm:inline">Tabela</span>
-                              </button>
-                              <button
-                                  onClick={() => setViewMode('lista')}
-                                  className={cn(
-                                      "px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1",
-                                      viewMode === 'lista' ? "bg-white text-indigo-700 shadow-sm" : "text-transparent text-slate-500 hover:text-slate-700"
-                                  )}
-                              >
-                                  <List className="w-3 h-3" /> <span className="hidden sm:inline">Lista</span>
-                              </button>
-                              <button
-                                  onClick={() => setViewMode('escala_sv')}
-                                  className={cn(
-                                      "px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1",
-                                      viewMode === 'escala_sv' ? "bg-white text-indigo-700 shadow-sm" : "text-transparent text-slate-500 hover:text-slate-700"
-                                  )}
-                              >
-                                  <Columns className="w-3 h-3" /> <span className="hidden sm:inline">Escala SV</span>
+                                  <Calendar className="w-3 h-3" /> <span className="hidden sm:inline">Semanal</span><span className="sm:hidden">Semana</span>
                               </button>
                               {(isAdmin || user.isEscalante) && (
-                                  <button
-                                      onClick={() => setViewMode('necessidades')}
-                                      className={cn(
-                                          "px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1",
-                                          viewMode === 'necessidades' ? "bg-white text-indigo-700 shadow-sm" : "text-transparent text-slate-500 hover:text-slate-700"
-                                      )}
-                                  >
-                                      <AlertCircle className="w-3 h-3" /> <span className="hidden sm:inline">Necessidades</span>
-                                  </button>
+                                  <>
+                                      <button
+                                          onClick={() => setViewMode('mapeamento')}
+                                          className={cn(
+                                              "px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1",
+                                              viewMode === 'mapeamento' ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                                          )}
+                                      >
+                                          <MapIcon className="w-3 h-3" /> <span className="hidden sm:inline">Mapeamento</span><span className="sm:hidden">Mapear</span>
+                                      </button>
+                                      <button
+                                          onClick={() => setViewMode('relatorios')}
+                                          className={cn(
+                                              "px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1",
+                                              viewMode === 'relatorios' ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                                          )}
+                                      >
+                                          <FileSpreadsheet className="w-3 h-3" /> <span className="hidden sm:inline">Relatórios</span>
+                                      </button>
+                                      <button
+                                          onClick={() => setViewMode('necessidades')}
+                                          className={cn(
+                                              "px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1",
+                                              viewMode === 'necessidades' ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                                          )}
+                                      >
+                                          <AlertCircle className="w-3 h-3" /> <span className="hidden sm:inline">Necessidades</span>
+                                      </button>
+                                  </>
                               )}
                           </div>
                           
-                          {viewMode === 'table' && (
-                              <button
-                                  onClick={() => setTransposeTable(!transposeTable)}
-                                  className={cn(
-                                      "ml-2 px-3 py-1.5 rounded-lg border-2 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5",
-                                      transposeTable ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "bg-white border-slate-200 text-slate-500 hover:border-indigo-200 hover:text-indigo-600"
-                                  )}
-                                  title="Inverter Tabela"
-                              >
-                                  <ArrowUpDown className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Inverter</span>
-                              </button>
-                          )}
-                          {(viewMode === 'escala_sv' || viewMode === 'table') && (
-                              <button
-                                  onClick={handleCopyTables}
-                                  className="ml-2 px-3 py-1.5 rounded-lg border-2 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5 bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 shrink-0 cursor-pointer"
-                                  title="Copiar Tabelas"
-                              >
-                                  {copyStatus ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />} 
-                                  <span className="hidden sm:inline">{copyStatus ? 'Copiado' : 'Copiar'}</span>
-                              </button>
-                          )}
-
-                          {(viewMode === 'escala_sv' || viewMode === 'table') && (isAdmin || user.isEscalante) && (
-                              <button
-                                  onClick={handleAutoFillExp}
-                                  className={cn(
-                                      "ml-2 px-3 py-1.5 rounded-lg border-2 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer",
-                                      autoExpStatus ? "bg-green-50 border-green-200 text-green-700" : "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
-                                  )}
-                                  title="Preencher Dias de Expediente Automaticamente"
-                              >
-                                  {autoExpStatus ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <CalendarRange className="w-3.5 h-3.5" />}
-                                  <span className="hidden sm:inline">{autoExpStatus ? 'Preenchido' : 'Auto EXP'}</span>
-                              </button>
+                          {viewMode === 'relatorios' && (isAdmin || user.isEscalante) && (
+                              <>
+                                  <button
+                                      onClick={handleCopyTables}
+                                      className="ml-2 px-3 py-1.5 rounded-lg border-2 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5 bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 shrink-0 cursor-pointer"
+                                      title="Copiar Relatórios"
+                                  >
+                                      {copyStatus ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />} 
+                                      <span className="hidden sm:inline">{copyStatus ? 'Copiado' : 'Copiar'}</span>
+                                  </button>
+                                  <button
+                                      onClick={() => window.print()}
+                                      className="ml-2 px-3 py-1.5 rounded-lg border-2 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5 bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 shrink-0 cursor-pointer"
+                                      title="Imprimir Relatório"
+                                  >
+                                      <Printer className="w-3.5 h-3.5" />
+                                      <span className="hidden sm:inline">Imprimir</span>
+                                  </button>
+                              </>
                           )}
                       </div>
                   )}
@@ -926,19 +1253,46 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                      </select>
                  )}
 
-                 {/* Month controls */}
-                 <div className="flex bg-white rounded-lg border-2 border-slate-200 p-1 shadow-sm h-[42px]">
-                   <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 hover:bg-slate-100 rounded-md transition-colors text-slate-600 flex items-center justify-center">
-                      <ChevronLeft className="w-4 h-4" />
-                   </button>
-                   <div className="text-center flex flex-col justify-center px-4 min-w-[120px]">
-                      <span className="text-sm font-black text-slate-800 uppercase tracking-widest leading-none">{format(currentMonth, 'MMMM', { locale: ptBR })}</span>
-                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mt-0.5">{format(currentMonth, 'yyyy')}</span>
+                 {/* Month / Week controls */}
+                 {viewMode === 'semanal' ? (
+                   <div className="flex bg-white rounded-lg border-2 border-slate-200 p-1 shadow-sm h-[42px] items-center">
+                     <button 
+                       onClick={() => setSelectedWeekMonday(subWeeks(selectedWeekMonday, 1))} 
+                       className="p-2 hover:bg-slate-100 rounded-md transition-colors text-slate-600 flex items-center justify-center cursor-pointer"
+                       title="Semana Anterior"
+                     >
+                        <ChevronLeft className="w-4 h-4" />
+                     </button>
+                     <div className="text-center flex flex-col justify-center px-3 min-w-[130px]">
+                        <span className="text-xs font-black text-slate-800 uppercase tracking-wider leading-none">
+                           {format(fullWeekDays[0], 'dd/MM')} a {format(fullWeekDays[6], 'dd/MM')}
+                        </span>
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">
+                           Semana • {format(selectedWeekMonday, 'MMM yyyy', { locale: ptBR })}
+                        </span>
+                     </div>
+                     <button 
+                       onClick={() => setSelectedWeekMonday(addWeeks(selectedWeekMonday, 1))} 
+                       className="p-2 hover:bg-slate-100 rounded-md transition-colors text-slate-600 flex items-center justify-center cursor-pointer"
+                       title="Próxima Semana"
+                     >
+                        <ChevronRight className="w-4 h-4" />
+                     </button>
                    </div>
-                   <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 hover:bg-slate-100 rounded-md transition-colors text-slate-600 flex items-center justify-center">
-                      <ChevronRight className="w-4 h-4" />
-                   </button>
-                 </div>
+                 ) : (
+                   <div className="flex bg-white rounded-lg border-2 border-slate-200 p-1 shadow-sm h-[42px]">
+                     <button onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 hover:bg-slate-100 rounded-md transition-colors text-slate-600 flex items-center justify-center">
+                        <ChevronLeft className="w-4 h-4" />
+                     </button>
+                     <div className="text-center flex flex-col justify-center px-4 min-w-[120px]">
+                        <span className="text-sm font-black text-slate-800 uppercase tracking-widest leading-none">{format(currentMonth, 'MMMM', { locale: ptBR })}</span>
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mt-0.5">{format(currentMonth, 'yyyy')}</span>
+                     </div>
+                     <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 hover:bg-slate-100 rounded-md transition-colors text-slate-600 flex items-center justify-center">
+                        <ChevronRight className="w-4 h-4" />
+                     </button>
+                   </div>
+                 )}
               </div>
            </div>
 
@@ -1134,7 +1488,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                      <td className="py-3 px-4 border-l-2 border-slate-50">
                                          <input 
                                              type="text"
-                                             placeholder="Ex: DGP, SOP..."
+                                             placeholder="Ex: SOp, SAd, DGP..."
                                              defaultValue={sector}
                                              key={`sec-${sector}`}
                                              onBlur={async (e) => {
@@ -1150,7 +1504,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                 }
                                                 await setDoc(globalDocRef, cleanUndefined(newGlobal), { merge: true });
                                              }}
-                                             className="w-full text-sm p-2 border-2 border-slate-200 rounded-md bg-white font-bold text-slate-700 hover:border-slate-300 focus:border-slate-500 outline-none transition-colors uppercase"
+                                             className="w-full text-sm p-2 border-2 border-slate-200 rounded-md bg-white font-bold text-slate-700 hover:border-slate-300 focus:border-slate-500 outline-none transition-colors"
                                          />
                                      </td>
                                      <td className="py-3 px-4 border-l-2 border-slate-50 text-center">
@@ -1168,13 +1522,95 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                        </tbody>
                     </table>
                </div>
-           ) : viewMode === 'table' ? (
+           ) : viewMode === 'mapeamento' && (isAdmin || user.isEscalante) ? (
+               <div className="flex flex-col gap-4 w-full">
+                   {/* Sub-navegação interna de Mapeamento */}
+                   <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-xl border-2 border-slate-200 shadow-sm">
+                       <div className="flex flex-wrap items-center gap-2">
+                           <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 mr-1 flex items-center gap-1.5">
+                               <MapIcon className="w-3.5 h-3.5 text-indigo-600" /> Modo:
+                           </span>
+                           <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+                               <button
+                                   onClick={() => setMapeamentoSubView('table')}
+                                   className={cn(
+                                       "px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer",
+                                       mapeamentoSubView === 'table' ? "bg-white text-indigo-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                                   )}
+                               >
+                                   <Table className="w-3.5 h-3.5" /> <span>Tabela</span>
+                               </button>
+                               <button
+                                   onClick={() => setMapeamentoSubView('lista')}
+                                   className={cn(
+                                       "px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer",
+                                       mapeamentoSubView === 'lista' ? "bg-white text-indigo-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                                   )}
+                               >
+                                   <List className="w-3.5 h-3.5" /> <span>Lista</span>
+                               </button>
+                               <button
+                                   onClick={() => setMapeamentoSubView('escala_sv')}
+                                   className={cn(
+                                       "px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5 cursor-pointer",
+                                       mapeamentoSubView === 'escala_sv' ? "bg-white text-indigo-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                                   )}
+                               >
+                                   <Columns className="w-3.5 h-3.5" /> <span>Escala SV</span>
+                               </button>
+                           </div>
+                       </div>
+
+                       {/* Ações contextuais de acordo com o sub-modo ativo */}
+                       <div className="flex flex-wrap items-center gap-2">
+                           {mapeamentoSubView === 'table' && (
+                               <button
+                                   onClick={() => setTransposeTable(!transposeTable)}
+                                   className={cn(
+                                       "px-3 py-1.5 rounded-lg border-2 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5 cursor-pointer",
+                                       transposeTable ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "bg-white border-slate-200 text-slate-600 hover:border-indigo-200 hover:text-indigo-600"
+                                   )}
+                                   title="Inverter Linhas e Colunas da Tabela"
+                               >
+                                   <ArrowUpDown className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Inverter Tabela</span><span className="sm:hidden">Inverter</span>
+                               </button>
+                           )}
+
+                           {(mapeamentoSubView === 'escala_sv' || mapeamentoSubView === 'table') && (
+                               <button
+                                   onClick={handleCopyTables}
+                                   className="px-3 py-1.5 rounded-lg border-2 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5 bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 shrink-0 cursor-pointer"
+                                   title={mapeamentoSubView === 'escala_sv' ? "Copiar Escala SV formatada" : "Copiar Tabela formatada"}
+                               >
+                                   {copyStatus ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />} 
+                                   <span>{copyStatus ? 'Copiado!' : mapeamentoSubView === 'escala_sv' ? 'Copiar Escala' : 'Copiar Tabela'}</span>
+                               </button>
+                           )}
+
+                           {(mapeamentoSubView === 'escala_sv' || mapeamentoSubView === 'table') && (isAdmin || user.isEscalante) && (
+                               <button
+                                   onClick={handleAutoFillExp}
+                                   className={cn(
+                                       "px-3 py-1.5 rounded-lg border-2 text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer",
+                                       autoExpStatus ? "bg-green-50 border-green-200 text-green-700" : "bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100"
+                                   )}
+                                   title="Preencher Dias de Expediente Automaticamente"
+                               >
+                                   {autoExpStatus ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <CalendarRange className="w-3.5 h-3.5" />}
+                                   <span>{autoExpStatus ? 'Preenchido' : 'Auto EXP'}</span>
+                               </button>
+                           )}
+                       </div>
+                   </div>
+
+                   {/* Renderização do sub-modo ativo */}
+                   {mapeamentoSubView === 'table' ? (
                  <div id="table-view-container" className="bg-white rounded-xl border-2 border-slate-200 shadow-sm overflow-x-auto custom-scrollbar">
                      {transposeTable ? (
                          <table className="w-full text-left border-collapse min-w-[max-content]">
                              <thead>
                                  <tr className="bg-slate-50 border-b-2 border-slate-200 text-slate-500">
-                                     <th className="py-2 px-4 sticky left-0 z-20 bg-slate-50 border-r-2 border-slate-200 text-[10px] font-black uppercase tracking-widest min-w-[70px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+                                     <th className="py-2 px-4 sticky left-0 z-30 bg-slate-100 border-r-2 border-slate-200 text-[10px] font-black uppercase tracking-widest min-w-[70px] shadow-[3px_0_6px_-2px_rgba(0,0,0,0.15)]">
                                          Dia
                                      </th>
                                      {expedienteUsers.map(u => {
@@ -1214,18 +1650,26 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                      return (
                                          <tr key={dayStr} className={cn(
                                              "border-b border-slate-100 transition-colors hover:bg-slate-200/50",
-                                             isWeekend ? "bg-slate-50/80 hover:bg-slate-200/50" : "",
+                                             isWeekend ? "bg-orange-50/80 hover:bg-orange-100/80" : "",
                                              isPreferredDate ? "bg-red-50/50 hover:bg-red-100/50" : ""
                                          )}>
                                              <td className={cn(
-                                                 "py-2 px-3 sticky left-0 z-10 border-r-2 border-slate-200 text-[11px] sm:text-[12px] font-black shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]",
-                                                 isWeekend ? "bg-slate-100 text-slate-500" : "bg-white text-slate-700",
-                                                 isPreferredDate ? "bg-red-50 text-red-900 border-r-red-300" : ""
+                                                 "py-2 px-3 sticky left-0 z-20 border-r-2 border-slate-200 text-[11px] sm:text-[12px] font-black shadow-[3px_0_6px_-2px_rgba(0,0,0,0.15)]",
+                                                 isWeekend ? "bg-orange-100 text-orange-950 border-r-orange-300" :
+                                                 isPreferredDate ? "bg-red-100 text-red-900 border-r-red-300" :
+                                                 isEven ? "bg-slate-100 text-slate-800" : "bg-white text-slate-800"
                                              )}>
                                                  <div className="flex items-center justify-between">
                                                      <div className="flex flex-col">
-                                                         <span className={cn("text-[9px] font-bold uppercase leading-none mb-0.5", isPreferredDate ? "text-red-500" : "text-slate-400")}>{format(day, 'eee', { locale: ptBR }).slice(0, 3)}</span>
-                                                         <span className={isPreferredDate ? "text-red-700" : ""}>{format(day, 'd')}</span>
+                                                         <span className={cn(
+                                                             "text-[9px] font-black uppercase leading-none mb-0.5",
+                                                             isPreferredDate ? "text-red-500" :
+                                                             isWeekend ? "text-orange-800" : "text-slate-400"
+                                                         )}>{format(day, 'eee', { locale: ptBR }).slice(0, 3)}</span>
+                                                         <span className={cn(
+                                                             isPreferredDate ? "text-red-700" :
+                                                             isWeekend ? "text-orange-950 font-black" : ""
+                                                         )}>{format(day, 'd')}</span>
                                                      </div>
                                                      {isPreferredDate && <span className="text-red-500 text-[14px]">★</span>}
                                                  </div>
@@ -1255,23 +1699,24 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                              }
                                                          }}
                                                          className={cn(
-                                                             "py-1 px-1 border-r border-slate-100 text-center relative select-none group",
+                                                             "py-1 px-1 border-r text-center relative select-none group",
                                                              isPreferredDate && !isSelected && !isEscalantePref ? "bg-red-50/70 border-r-red-100" : "",
-                                                             isSwapDay ? "bg-orange-50 border-orange-200 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.3)] z-10" : "",
+                                                             isWeekend && !isPreferredDate ? "bg-orange-100/50 hover:bg-orange-200/50 border-r-orange-200/50" : "border-r-slate-100",
+                                                             isSwapDay ? "bg-orange-100 border-orange-300 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.4)]" : "",
                                                              isGrd && !afastamentoAtivo ? "bg-emerald-50/50" : "",
                                                              cellCanEdit ? "cursor-pointer hover:bg-indigo-200 hover:shadow-inner" : "cursor-default hover:bg-slate-100",
-                                                             afastamentoAtivo && "bg-orange-50/80 cursor-not-allowed"
+                                                             afastamentoAtivo && "bg-orange-100/80 cursor-not-allowed"
                                                          )}
                                                      >
                                                          {afastamentoAtivo ? (
-                                                             <div className="mx-auto w-[90%] h-5 sm:h-6 px-0.5 rounded flex items-center justify-center bg-orange-100 text-orange-700 border border-orange-200 shadow-sm relative z-10 overflow-hidden" title={afastamentoAtivo.situacao}>
+                                                             <div className="mx-auto w-[90%] h-5 sm:h-6 px-0.5 rounded flex items-center justify-center bg-orange-100 text-orange-700 border border-orange-200 shadow-sm relative overflow-hidden" title={afastamentoAtivo.situacao}>
                                                                  <span className="text-[7px] font-black leading-none uppercase truncate">{afastamentoAtivo.situacao}</span>
                                                              </div>
                                                          ) : (
                                                              <>
                                                                  {isSelected && (
                                                                      <div className={cn(
-                                                                         "mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center shadow-sm relative z-10",
+                                                                         "mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center shadow-sm relative",
                                                                          isEscalantePref ? "bg-red-500 text-white border border-red-600 shadow-red-200" :
                                                                          isSwapDay ? "bg-orange-500 text-white shadow-orange-200 border border-orange-600 animate-pulse" :
                                                                          isTargetUser ? "bg-indigo-500 text-white" : "bg-slate-600 text-white"
@@ -1282,7 +1727,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                                      </div>
                                                                  )}
                                                                  {isExp && (
-                                                                     <div className="mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm relative z-10">
+                                                                     <div className="mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm relative">
                                                                          <span className="text-[8px] font-black leading-none">EXP</span>
                                                                      </div>
                                                                  )}
@@ -1315,7 +1760,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                      <table className="w-full text-left border-collapse min-w-[max-content]">
                          <thead>
                             <tr className="bg-slate-50 border-b-2 border-slate-200 text-slate-500">
-                                <th className="py-2 px-3 sticky left-0 z-20 bg-slate-50 border-r-2 border-slate-200 text-[10px] font-black uppercase tracking-widest min-w-[150px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
+                                <th className="py-2 px-3 sticky left-0 z-30 bg-slate-100 border-r-2 border-slate-200 text-[10px] font-black uppercase tracking-widest min-w-[150px] shadow-[3px_0_6px_-2px_rgba(0,0,0,0.15)]">
                                     Militar
                                 </th>
                                 <th className="py-2 px-3 border-r-2 border-slate-200 text-[10px] font-black uppercase text-center min-w-[60px]">
@@ -1327,13 +1772,25 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                     const isPreferredDate = safeArr(data.selections['ESCALANTE_PREF']).includes(dayStr);
                                     return (
                                         <th key={day.toISOString()} className={cn(
-                                            "py-2 px-1 border-r border-slate-200 text-center min-w-[32px] sm:min-w-[40px] text-[10px] font-black",
-                                            isWeekend ? "bg-slate-100/50" : "",
+                                            "py-2 px-1 border-r text-center min-w-[32px] sm:min-w-[40px] text-[10px] font-black transition-colors",
+                                            isWeekend ? "bg-orange-200 text-orange-950 border-r-orange-300 border-b-2 border-b-orange-400" : "bg-slate-50 border-r-slate-200 text-slate-500",
                                             isPreferredDate ? "bg-red-50/80 border-red-200 text-red-700 shadow-[inset_0_-2px_0_rgba(239,68,68,0.3)]" : ""
                                         )}>
                                             <div className="flex flex-col">
-                                                <span className={cn("text-[8px] font-bold uppercase leading-none mb-0.5", isPreferredDate ? "text-red-500" : "text-slate-400")}>{format(day, 'eee', { locale: ptBR }).slice(0, 3)}</span>
-                                                <span className={isPreferredDate ? "text-red-700" : ""}>{format(day, 'd')}</span>
+                                                <span className={cn(
+                                                    "text-[8px] font-black uppercase leading-none mb-0.5",
+                                                    isPreferredDate ? "text-red-500" :
+                                                    isWeekend ? "text-orange-800" : "text-slate-400"
+                                                )}>
+                                                    {format(day, 'eee', { locale: ptBR }).slice(0, 3)}
+                                                </span>
+                                                <span className={cn(
+                                                    "text-[10px] sm:text-[11px] font-black",
+                                                    isPreferredDate ? "text-red-700" :
+                                                    isWeekend ? "text-orange-950" : ""
+                                                )}>
+                                                    {format(day, 'd')}
+                                                </span>
                                             </div>
                                         </th>
                                     );
@@ -1356,10 +1813,10 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                          isEscalantePref ? "bg-red-50/50 hover:bg-red-100/50" : ""
                                      )}>
                                          <td className={cn(
-                                             "py-2 px-3 sticky left-0 z-10 border-r-2 border-slate-200 text-[10px] sm:text-[11px] font-black truncate max-w-[200px] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]",
+                                             "py-2 px-3 sticky left-0 z-20 border-r-2 border-slate-200 text-[10px] sm:text-[11px] font-black truncate max-w-[200px] shadow-[3px_0_6px_-2px_rgba(0,0,0,0.15)]",
                                              isEscalantePref ? "bg-red-100 text-red-900" :
-                                             isTargetUser ? "bg-indigo-50 text-indigo-800" : "bg-white text-slate-700",
-                                             isEven && !isTargetUser && !isEscalantePref ? "bg-slate-50/50" : ""
+                                             isTargetUser ? "bg-indigo-100 text-indigo-950" :
+                                             isEven ? "bg-slate-100 text-slate-800" : "bg-white text-slate-800"
                                          )}>
                                              {isEscalantePref ? '🌟 PREFERÊNCIAS (ESCALANTE)' : formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name)}
                                          </td>
@@ -1398,25 +1855,25 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                          }
                                                      }}
                                                      className={cn(
-                                                         "py-1 px-1 border-r border-slate-100 text-center relative max-w-[40px] select-none group",
+                                                         "py-1 px-1 border-r text-center relative max-w-[40px] select-none group",
                                                          isPreferredDate && !isSelected ? "bg-red-50/70 border-r-red-100" :
-                                                         isWeekend && !isPreferredDate ? "bg-slate-50/50" : "",
-                                                         isEven && !isPreferredDate && !isEscalantePref ? "bg-slate-50/30" : "",
-                                                         isSwapDay ? "bg-orange-50 border-orange-200 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.3)] z-10" : "",
+                                                         isWeekend && !isPreferredDate ? "bg-orange-100/60 hover:bg-orange-200/70 border-r-orange-200/70" : "border-r-slate-100",
+                                                         isEven && !isPreferredDate && !isEscalantePref && !isWeekend ? "bg-slate-50/30" : "",
+                                                         isSwapDay ? "bg-orange-100 border-orange-300 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.4)]" : "",
                                                          isGrd && !afastamentoAtivo ? "bg-emerald-50/30" : "",
                                                          cellCanEdit ? "cursor-pointer hover:bg-indigo-200 hover:shadow-inner" : "hover:bg-slate-100",
-                                                         afastamentoAtivo && "bg-orange-50/80 cursor-not-allowed"
+                                                         afastamentoAtivo && "bg-orange-100/80 cursor-not-allowed"
                                                      )}
                                                  >
                                                      {afastamentoAtivo ? (
-                                                         <div className="mx-auto w-[90%] h-5 sm:h-6 px-0.5 rounded flex items-center justify-center bg-orange-100 text-orange-700 border border-orange-200 shadow-sm relative z-10 overflow-hidden" title={afastamentoAtivo.situacao}>
+                                                         <div className="mx-auto w-[90%] h-5 sm:h-6 px-0.5 rounded flex items-center justify-center bg-orange-100 text-orange-700 border border-orange-200 shadow-sm relative overflow-hidden" title={afastamentoAtivo.situacao}>
                                                              <span className="text-[7px] font-black leading-none uppercase truncate">{afastamentoAtivo.situacao}</span>
                                                          </div>
                                                      ) : (
                                                          <>
                                                              {isSelected && (
                                                                 <div className={cn(
-                                                                    "mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center shadow-sm relative z-10",
+                                                                    "mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center shadow-sm relative",
                                                                     isEscalantePref ? "bg-red-500 text-white border border-red-600 shadow-red-200" :
                                                                     isSwapDay ? "bg-orange-500 text-white shadow-orange-200 border border-orange-600 animate-pulse" :
                                                                     isTargetUser ? "bg-indigo-500 text-white" : "bg-slate-600 text-white"
@@ -1427,7 +1884,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                                 </div>
                                                              )}
                                                              {isExp && (
-                                                                 <div className="mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm relative z-10">
+                                                                 <div className="mx-auto w-5 h-5 sm:w-6 sm:h-6 rounded flex items-center justify-center bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm relative">
                                                                      <span className="text-[8px] font-black leading-none">EXP</span>
                                                                  </div>
                                                              )}
@@ -1458,7 +1915,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                     </table>
                     )}
                 </div>
-           ) : viewMode === 'lista' ? (
+           ) : mapeamentoSubView === 'lista' ? (
                 <div className="bg-white rounded-xl border-2 border-slate-200 shadow-sm p-6 overflow-y-auto font-mono text-sm text-slate-800">
                     <div className="flex flex-col mb-8">
                         {currentMonthDays.map(day => {
@@ -1505,7 +1962,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                         })}
                     </div>
                 </div>
-           ) : viewMode === 'escala_sv' ? (
+           ) : (
                 <div id="escala-sv-container" className="flex flex-col gap-8 w-full">
                     {Array.from({ length: Math.ceil(expedienteUsers.filter(u => u.rg !== 'ESCALANTE_PREF').length / 7) }).map((_, tableIndex) => {
                         let tableUsers = expedienteUsers.filter(u => u.rg !== 'ESCALANTE_PREF').slice(tableIndex * 7, tableIndex * 7 + 7);
@@ -1605,6 +2062,8 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                         );
                     })}
                 </div>
+                   )}
+               </div>
            ) : viewMode === 'necessidades' && (isAdmin || user.isEscalante) ? (
                 <div className="bg-slate-50 flex flex-col gap-6 w-full">
                     <div className="bg-white rounded-xl border-2 border-slate-200 shadow-sm p-4 sm:p-6">
@@ -1698,6 +2157,757 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                             })}
                         </div>
                     </div>
+                </div>
+           ) : viewMode === 'relatorios' && (isAdmin || user.isEscalante) ? (
+                <div className="flex flex-col gap-6 w-full">
+                    {/* Barra Superior de Ações e Sub-Abas */}
+                    <div className="bg-white rounded-xl border-2 border-slate-200 shadow-sm p-4 flex flex-wrap items-center justify-between gap-4 print:hidden">
+                        <div className="flex flex-wrap items-center gap-3">
+                            {/* Alternador de Sub-Aba: Mensal vs Semanal */}
+                            <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+                                <button
+                                    onClick={() => setReportType('mensal')}
+                                    className={cn(
+                                        "px-3 py-1.5 rounded-md text-xs font-black uppercase tracking-wider transition-colors flex items-center gap-1.5 cursor-pointer",
+                                        reportType === 'mensal' ? "bg-white text-indigo-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                                    )}
+                                >
+                                    <CalendarRange className="w-3.5 h-3.5" />
+                                    <span>Escala Mensal</span>
+                                </button>
+                                <button
+                                    onClick={() => setReportType('semanal')}
+                                    className={cn(
+                                        "px-3 py-1.5 rounded-md text-xs font-black uppercase tracking-wider transition-colors flex items-center gap-1.5 cursor-pointer",
+                                        reportType === 'semanal' ? "bg-white text-indigo-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                                    )}
+                                >
+                                    <Columns className="w-3.5 h-3.5" />
+                                    <span>Escala Semanal</span>
+                                </button>
+                            </div>
+
+                            {/* Navegação de Mês (Relatório Mensal) */}
+                            {reportType === 'mensal' ? (
+                                <div className="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200">
+                                    <button
+                                        onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
+                                        className="p-1.5 hover:bg-white rounded-md transition-colors text-slate-600 hover:text-slate-900 cursor-pointer"
+                                        title="Mês Anterior"
+                                    >
+                                        <ChevronLeft className="w-4 h-4" />
+                                    </button>
+                                    <span className="px-3 text-xs font-black uppercase text-slate-700 tracking-wider min-w-[140px] text-center select-none">
+                                        {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
+                                    </span>
+                                    <button
+                                        onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+                                        className="p-1.5 hover:bg-white rounded-md transition-colors text-slate-600 hover:text-slate-900 cursor-pointer"
+                                        title="Próximo Mês"
+                                    >
+                                        <ChevronRight className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ) : (
+                                /* Navegação de Semana (Relatório Semanal) */
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <div className="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200">
+                                        <button
+                                            onClick={() => setSelectedWeekMonday(subWeeks(selectedWeekMonday, 1))}
+                                            className="p-1.5 hover:bg-white rounded-md transition-colors text-slate-600 hover:text-slate-900 cursor-pointer"
+                                            title="Semana Anterior"
+                                        >
+                                            <ChevronLeft className="w-4 h-4" />
+                                        </button>
+                                        <span className="px-3 text-xs font-black uppercase text-slate-700 tracking-wider min-w-[170px] text-center select-none">
+                                            {format(weekDays[0], 'dd/MM')} a {format(weekDays[4], 'dd/MM/yyyy')}
+                                        </span>
+                                        <button
+                                            onClick={() => setSelectedWeekMonday(addWeeks(selectedWeekMonday, 1))}
+                                            className="p-1.5 hover:bg-white rounded-md transition-colors text-slate-600 hover:text-slate-900 cursor-pointer"
+                                            title="Próxima Semana"
+                                        >
+                                            <ChevronRight className="w-4 h-4" />
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
+                                        <button
+                                            onClick={() => setSelectedWeekMonday(startOfWeek(new Date(), { weekStartsOn: 1 }))}
+                                            className="px-2.5 py-1 rounded hover:bg-white text-slate-600 font-bold transition-colors cursor-pointer"
+                                            title="Ir para a Semana Atual"
+                                        >
+                                            Semana Atual
+                                        </button>
+                                        <button
+                                            onClick={() => setSelectedWeekMonday(startOfWeek(addWeeks(new Date(), 1), { weekStartsOn: 1 }))}
+                                            className="px-2.5 py-1 rounded bg-indigo-50 text-indigo-700 font-bold hover:bg-indigo-100 transition-colors cursor-pointer"
+                                            title="Ir para a Próxima Semana (a publicar)"
+                                        >
+                                            Próxima Semana
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-lg text-slate-600 text-xs font-bold">
+                                <span>Total no Efetivo: <strong className="text-indigo-700">{expedienteUsers.filter(u => (u.rg || u.uid) !== 'ESCALANTE_PREF').length}</strong></span>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleCopyTables}
+                                className="px-3.5 py-2 rounded-lg border-2 text-xs font-black uppercase tracking-wider transition-colors flex items-center gap-2 bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer shadow-sm"
+                                title="Copiar tabela formatada para colar no Word / LibreOffice"
+                            >
+                                {copyStatus ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-slate-600" />}
+                                <span>{copyStatus ? 'Copiado!' : 'Copiar Tabela'}</span>
+                            </button>
+                            <button
+                                onClick={() => window.print()}
+                                className="px-3.5 py-2 rounded-lg text-xs font-black uppercase tracking-wider transition-colors flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-sm"
+                                title="Imprimir relatório da escala"
+                            >
+                                <Printer className="w-4 h-4" />
+                                <span>Imprimir</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Folha do Relatório Oficial */}
+                    <div 
+                        id="relatorios-container" 
+                        className="bg-white rounded-xl border-2 border-slate-300 shadow-md p-6 sm:p-10 w-full max-w-5xl mx-auto print:border-none print:shadow-none print:p-0 print:m-0 print:max-w-none"
+                    >
+                        {reportType === 'mensal' ? (
+                            <>
+                                {/* Cabeçalho CBMERJ / CBA VII / OBM - Relatório Mensal */}
+                                <div data-report-header="true" className="text-center font-bold font-sans text-xs sm:text-sm leading-relaxed uppercase text-black mb-6 select-text">
+                                    <p>CORPO DE BOMBEIROS MILITAR DO ESTADO DO RIO DE JANEIRO</p>
+                                    <p>COMANDO DE ÁREA DE BOMBEIRO-MILITAR VII - COSTA VERDE</p>
+                                    <p>{selectedObm.toLowerCase().includes('10') ? 'GRUPAMENTO DE BOMBEIRO MILITAR-ANGRA DOS REIS' : selectedObm.toUpperCase()}</p>
+                                    <p className="mt-5 font-black text-sm sm:text-base tracking-wide border-b-2 border-black pb-3">
+                                        ESCALA DE EXPEDIENTE DO MÊS DE {format(currentMonth, 'MMMM', { locale: ptBR }).toUpperCase()} DE {format(currentMonth, 'yyyy')}
+                                    </p>
+                                </div>
+
+                                {/* Tabela Mensal de 5 Colunas */}
+                                <div className="overflow-x-auto w-full">
+                                    <table className="w-full border-collapse border-2 border-black text-black font-sans text-xs sm:text-sm select-text">
+                                        <thead>
+                                            <tr className="bg-slate-100 border-b-2 border-black text-black font-black uppercase text-center">
+                                                <th className="border border-black py-2.5 px-3 text-center tracking-wider w-[24%]">NOME</th>
+                                                <th className="border border-black py-2.5 px-2 text-center tracking-wider w-[12%]">RG</th>
+                                                <th className="border border-black py-2.5 px-2 text-center tracking-wider w-[12%]">FUNÇÃO</th>
+                                                <th className="border border-black py-2.5 px-3 text-center tracking-wider w-[26%]">REGIME</th>
+                                                <th className="border border-black py-2.5 px-3 text-center tracking-wider w-[26%]">SERVIÇOS ORDINÁRIOS</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {expedienteUsers.filter(u => (u.rg || u.uid) !== 'ESCALANTE_PREF').length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={5} className="border border-black py-8 text-center text-slate-500 italic text-xs">
+                                                        Nenhum militar cadastrado no expediente para esta OBM neste mês.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                expedienteUsers
+                                                    .filter(u => (u.rg || u.uid) !== 'ESCALANTE_PREF')
+                                                    .map((u) => {
+                                                        const rg = u.rg || u.uid;
+                                                        const nome = formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name);
+                                                        const funcao = getSector(rg) || (u.specializations && u.specializations.length > 0 ? u.specializations[0] : '') || u.officerRole || '';
+                                                        const regime = getRegimeDisplay(rg);
+                                                        const servicos = getServicosOrdinariosDisplay(u);
+
+                                                        return (
+                                                            <tr key={rg} className="hover:bg-slate-50 transition-colors">
+                                                                <td className="border border-black py-2 px-3 text-center font-bold">
+                                                                    {nome}
+                                                                </td>
+                                                                <td className="border border-black py-2 px-2 text-center font-medium">
+                                                                    {rg}
+                                                                </td>
+                                                                <td className="border border-black py-2 px-2 text-center font-bold">
+                                                                    {funcao}
+                                                                </td>
+                                                                <td className="border border-black py-2 px-3 text-center">
+                                                                    {regime}
+                                                                </td>
+                                                                <td className="border border-black py-2 px-3 text-center font-bold">
+                                                                    {servicos}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                {/* Cabeçalho CBMERJ / CBA VII / OBM - Escala Semanal de Expediente (Conforme Imagem Oficial) */}
+                                <div data-report-header="true" className="text-center font-bold font-sans text-xs sm:text-sm leading-relaxed uppercase text-black mb-6 select-text">
+                                    <p>CORPO DE BOMBEIROS MILITAR DO ESTADO DO RIO DE JANEIRO</p>
+                                    <p>COMANDO DE ÁREA DE BOMBEIRO-MILITAR VII - COSTA VERDE</p>
+                                    <p>{selectedObm.toLowerCase().includes('10') ? 'GRUPAMENTO DE BOMBEIRO MILITAR-ANGRA DOS REIS' : selectedObm.toUpperCase()}</p>
+                                    <p className="mt-5 font-black text-sm sm:text-base tracking-wide border-b-2 border-black pb-3">
+                                        ESCALA SEMANAL DE EXPEDIENTE
+                                    </p>
+                                </div>
+
+                                {/* Tabela Semanal de Segunda a Sexta */}
+                                <div className="overflow-x-auto w-full">
+                                    <table className="w-full border-collapse border-2 border-black text-black font-sans text-xs sm:text-sm select-text">
+                                        <thead>
+                                            <tr className="bg-slate-100 border-b-2 border-black text-black font-black uppercase text-center">
+                                                <th className="border border-black py-2.5 px-3 text-center tracking-wider w-[22%]">NOME</th>
+                                                <th className="border border-black py-2.5 px-2 text-center tracking-wider w-[10%]">RG</th>
+                                                {weekDays.map((day, idx) => {
+                                                    const dayNames = ['SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA'];
+                                                    return (
+                                                        <th key={idx} className="border border-black py-2.5 px-2 text-center tracking-wider w-[13.6%]">
+                                                            {dayNames[idx]} {format(day, 'dd/MM')}
+                                                        </th>
+                                                    );
+                                                })}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {expedienteUsers.filter(u => (u.rg || u.uid) !== 'ESCALANTE_PREF').length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={7} className="border border-black py-8 text-center text-slate-500 italic text-xs">
+                                                        Nenhum militar cadastrado no expediente para esta OBM.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                expedienteUsers
+                                                    .filter(u => (u.rg || u.uid) !== 'ESCALANTE_PREF')
+                                                    .map((u) => {
+                                                        const rg = u.rg || u.uid;
+                                                        const nome = formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name);
+
+                                                        return (
+                                                            <tr key={rg} className="hover:bg-slate-50 transition-colors">
+                                                                <td className="border border-black py-2 px-3 text-center font-bold">
+                                                                    {nome}
+                                                                </td>
+                                                                <td className="border border-black py-2 px-2 text-center font-medium">
+                                                                    {rg}
+                                                                </td>
+                                                                {weekDays.map((day, dIdx) => {
+                                                                    const dayStr = format(day, 'yyyy-MM-dd');
+                                                                    const cell = getDayStatus(rg, dayStr);
+                                                                    const canEdit = isAdmin || user.isEscalante;
+
+                                                                    return (
+                                                                        <td
+                                                                            key={dIdx}
+                                                                            onClick={() => canEdit && handleCycleWeeklyStatus(rg, dayStr)}
+                                                                            className={cn(
+                                                                                "border border-black py-2 px-1 text-center font-bold transition-colors select-none",
+                                                                                canEdit && "cursor-pointer hover:bg-slate-100",
+                                                                                cell.type === 'servico' && "bg-slate-100 font-black",
+                                                                                cell.type === 'folga' && "text-slate-600 font-semibold",
+                                                                                cell.type === 'expediente' && "font-black",
+                                                                                cell.type === 'afastamento' && "bg-orange-50/70 text-orange-900"
+                                                                            )}
+                                                                            title={canEdit ? "Clique para alternar: EXPEDIENTE -> SERVIÇO -> FOLGA" : undefined}
+                                                                        >
+                                                                            {cell.text}
+                                                                        </td>
+                                                                    );
+                                                                })}
+                                                            </tr>
+                                                        );
+                                                    })
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+           ) : viewMode === 'semanal' ? (
+                <div className="flex flex-col gap-6 w-full">
+                    {/* Header Controls da Aba Semanal */}
+                    <div className="bg-white rounded-xl border-2 border-slate-200 shadow-sm p-4 flex flex-wrap items-center justify-between gap-4">
+                        <div className="flex flex-wrap items-center gap-3">
+                            {/* Navegação Semanal */}
+                            <div className="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200">
+                                <button
+                                    onClick={() => setSelectedWeekMonday(subWeeks(selectedWeekMonday, 1))}
+                                    className="p-1.5 hover:bg-white rounded-md transition-colors text-slate-600 hover:text-slate-900 cursor-pointer"
+                                    title="Semana Anterior"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                <span className="px-3 text-xs font-black uppercase text-slate-800 tracking-wider min-w-[170px] text-center select-none">
+                                    {format(fullWeekDays[0], 'dd/MM')} a {format(fullWeekDays[6], 'dd/MM/yyyy')}
+                                </span>
+                                <button
+                                    onClick={() => setSelectedWeekMonday(addWeeks(selectedWeekMonday, 1))}
+                                    className="p-1.5 hover:bg-white rounded-md transition-colors text-slate-600 hover:text-slate-900 cursor-pointer"
+                                    title="Próxima Semana"
+                                >
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            {/* Atalhos rápidos de semana */}
+                            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
+                                <button
+                                    onClick={() => setSelectedWeekMonday(startOfWeek(new Date(), { weekStartsOn: 1 }))}
+                                    className="px-2.5 py-1 rounded hover:bg-white text-slate-600 font-bold transition-colors cursor-pointer"
+                                    title="Ir para a Semana Atual"
+                                >
+                                    Semana Atual
+                                </button>
+                                <button
+                                    onClick={() => setSelectedWeekMonday(startOfWeek(addWeeks(new Date(), 1), { weekStartsOn: 1 }))}
+                                    className="px-2.5 py-1 rounded bg-indigo-50 text-indigo-700 font-bold hover:bg-indigo-100 transition-colors cursor-pointer"
+                                    title="Ir para a Próxima Semana"
+                                >
+                                    Próxima Semana
+                                </button>
+                            </div>
+
+                            {/* Filtro: 7 Dias vs 5 Dias */}
+                            <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
+                                <button
+                                    onClick={() => setWeeklyFilterDays('all')}
+                                    className={cn(
+                                        "px-2.5 py-1 rounded font-bold transition-colors cursor-pointer",
+                                        weeklyFilterDays === 'all' ? "bg-white text-indigo-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                                    )}
+                                >
+                                    7 Dias (Seg a Dom)
+                                </button>
+                                <button
+                                    onClick={() => setWeeklyFilterDays('weekdays')}
+                                    className={cn(
+                                        "px-2.5 py-1 rounded font-bold transition-colors cursor-pointer",
+                                        weeklyFilterDays === 'weekdays' ? "bg-white text-indigo-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                                    )}
+                                >
+                                    5 Dias (Seg a Sex)
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Seletor de Militar Alvo para Moderador/Escalante */}
+                        <div className="flex items-center gap-3">
+                            {(isAdmin || user.isEscalante) && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider hidden sm:inline">Preenchendo para:</span>
+                                    <select
+                                        className="bg-slate-50 border-2 border-slate-200 text-slate-800 text-xs font-bold p-2 rounded-lg outline-none cursor-pointer hover:border-indigo-400 focus:border-indigo-500 transition-colors"
+                                        value={adminTargetRg || ''}
+                                        onChange={(e) => setAdminTargetRg(e.target.value || null)}
+                                    >
+                                        <option value="">Você ({formatMilitaryName(user.rank ? `${user.rank} ${user.warName || user.name.split(' ')[0]}` : user.name)})</option>
+                                        <optgroup label="Militares do Expediente">
+                                            {expedienteUsers.filter(u => (u.rg || u.uid) !== 'ESCALANTE_PREF').map((u, i) => {
+                                                const val = u.rg || u.uid || `usr-${i}`;
+                                                return (
+                                                    <option key={`opt-wk-${val}`} value={val}>
+                                                        {formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name)} ({u.rg || 'S/RG'})
+                                                    </option>
+                                                );
+                                            })}
+                                        </optgroup>
+                                    </select>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Resumo & Status do Militar */}
+                    {(() => {
+                        const targetUserObj = expedienteUsers.find(u => (u.rg || u.uid) === activeRg) || user;
+                        const targetName = formatMilitaryName(targetUserObj.rank ? `${targetUserObj.rank} ${targetUserObj.warName || targetUserObj.name.split(' ')[0]}` : targetUserObj.name);
+                        const displayedDaysList = weeklyFilterDays === 'all' ? fullWeekDays : weekDays;
+
+                        const weekStatusList = displayedDaysList.map(d => {
+                            const dStr = format(d, 'yyyy-MM-dd');
+                            return getDayStatus(activeRg, dStr);
+                        });
+                        const weekExpCount = weekStatusList.filter(s => s.type === 'expediente').length;
+                        const weekSvCount = weekStatusList.filter(s => s.type === 'servico').length;
+                        const weekFolgaCount = weekStatusList.filter(s => s.type === 'folga').length;
+
+                        const userSels = safeArr(data.selections[activeRg]);
+                        const userReq = getReqAmount(activeRg);
+                        const isLocked = !!data.locked?.[activeRg];
+                        const regimeText = getRegimeDisplay(activeRg);
+
+                        return (
+                            <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-xl p-5 shadow-sm border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                                <div className="flex flex-col gap-1.5">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-400 bg-indigo-500/20 px-2 py-0.5 rounded border border-indigo-500/30">
+                                            Preenchimento Semanal
+                                        </span>
+                                        {regimeText && regimeText !== '-' && (
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-300 bg-white/10 px-2 py-0.5 rounded">
+                                                {regimeText}
+                                            </span>
+                                        )}
+                                        {isLocked && (
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/30 flex items-center gap-1">
+                                                <Lock className="w-3 h-3" /> Escala Bloqueada
+                                            </span>
+                                        )}
+                                    </div>
+                                    <h3 className="text-lg font-black text-white flex items-center gap-2">
+                                        <User className="w-5 h-5 text-indigo-400" /> {targetName}
+                                        {targetUserObj.rg && <span className="text-xs text-slate-400 font-bold">({targetUserObj.rg})</span>}
+                                    </h3>
+                                    <p className="text-xs text-slate-300 font-medium">
+                                        Clique no cartão do dia para alternar entre <strong className="text-white">Folga ➔ Expediente ➔ Serviço</strong>, ou use os seletores diretos em cada dia abaixo.
+                                    </p>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-start md:justify-end">
+                                    {/* Métricas da Semana */}
+                                    <div className="flex items-center gap-2 bg-white/10 p-2 rounded-lg border border-white/10">
+                                        <div className="flex flex-col items-center px-2 border-r border-white/10">
+                                            <span className="text-xs font-black text-indigo-300">{weekExpCount}</span>
+                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Exped.</span>
+                                        </div>
+                                        <div className="flex flex-col items-center px-2 border-r border-white/10">
+                                            <span className="text-xs font-black text-red-300">{weekSvCount}</span>
+                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Serviço</span>
+                                        </div>
+                                        <div className="flex flex-col items-center px-2">
+                                            <span className="text-xs font-black text-emerald-300">{weekFolgaCount}</span>
+                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Folgas</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Cota no Mês */}
+                                    {userReq > 0 && (
+                                        <div className="flex flex-col gap-1 bg-white/10 p-2.5 rounded-lg border border-white/10 min-w-[140px]">
+                                            <div className="flex justify-between items-center text-[10px] font-bold">
+                                                <span className="text-slate-300 uppercase tracking-wider">Cota Mês</span>
+                                                <span className="text-white font-black">{userSels.length} / {userReq} SV</span>
+                                            </div>
+                                            <div className="w-full bg-black/40 rounded-full h-1.5 overflow-hidden">
+                                                <div 
+                                                    className={cn("h-full transition-all duration-300", userSels.length >= userReq ? "bg-emerald-400" : "bg-indigo-400")} 
+                                                    style={{ width: `${Math.min(100, (userSels.length / userReq) * 100)}%` }}
+                                                />
+                                            </div>
+                                            <span className="text-[9px] text-right font-black uppercase tracking-wider text-slate-400">
+                                                {userSels.length >= userReq ? "✓ Cota Atingida" : `Faltam ${userReq - userSels.length}`}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {/* Botão de Bloqueio/Confirmação */}
+                                    {activeRg && activeRg !== 'ESCALANTE_PREF' && (
+                                        !isLocked ? (
+                                            <button
+                                                onClick={async () => {
+                                                    const newMonthData = {
+                                                        locked: {
+                                                            [activeRg]: true
+                                                        }
+                                                    };
+                                                    await setDoc(monthDocRef, cleanUndefined(newMonthData), { merge: true });
+                                                }}
+                                                className="px-3.5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+                                                title="Confirmar e travar escolhas"
+                                            >
+                                                <Save className="w-3.5 h-3.5" /> Confirmar Escala
+                                            </button>
+                                        ) : (
+                                            (isAdmin || user.isEscalante) && (
+                                                <button
+                                                    onClick={async () => {
+                                                        const newMonthData = {
+                                                            locked: {
+                                                                [activeRg]: false
+                                                            }
+                                                        };
+                                                        await setDoc(monthDocRef, cleanUndefined(newMonthData), { merge: true });
+                                                    }}
+                                                    className="px-3.5 py-2.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
+                                                    title="Desbloquear para edição"
+                                                >
+                                                    <Lock className="w-3.5 h-3.5" /> Desbloquear
+                                                </button>
+                                            )
+                                        )
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {/* Grade Semanal de Dias */}
+                    {(() => {
+                        const displayedDays = weeklyFilterDays === 'all' ? fullWeekDays : weekDays;
+
+                        return (
+                            <div className={cn(
+                                "grid gap-4",
+                                weeklyFilterDays === 'all' 
+                                    ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7" 
+                                    : "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5"
+                            )}>
+                                {displayedDays.map(day => {
+                                    const dayStr = format(day, 'yyyy-MM-dd');
+                                    const dayMonthKey = dayStr.substring(0, 7);
+                                    const dataSource = dayMonthKey === monthKey ? data : (extraMonthData[dayMonthKey] || {});
+                                    const isToday = isSameDay(day, new Date());
+                                    const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                                    const alaOfDay = getAlaForDate(day);
+                                    const alaColor = getAlaColor(alaOfDay);
+
+                                    const dayStatus = getDayStatus(activeRg, dayStr);
+                                    const isPreferred = safeArr(dataSource.selections?.['ESCALANTE_PREF']).includes(dayStr);
+                                    const prefDetails = (dataSource.preferencesDetails?.[dayStr] || {}) as Record<string, number>;
+                                    const totalVagas = Object.values(prefDetails).reduce((sum: number, q: number) => sum + Number(q || 0), 0);
+
+                                    const { servicoList, expedienteList } = getWorkersForDay(dayStr);
+                                    const isLocked = !!dataSource.locked?.[activeRg];
+                                    const canEdit = (isAdmin || user.isEscalante || (!isLocked && activeRg === (user.rg || user.uid))) && dayStatus.type !== 'afastamento';
+
+                                    return (
+                                        <div
+                                            key={dayStr}
+                                            onClick={() => {
+                                                if (canEdit) {
+                                                    handleSetWeeklyDayStatus(activeRg, dayStr, 'cycle');
+                                                }
+                                            }}
+                                            className={cn(
+                                                "relative flex flex-col rounded-xl border-2 transition-all p-3.5 select-none bg-white",
+                                                canEdit ? "cursor-pointer hover:shadow-md" : "cursor-default",
+                                                dayStatus.type === 'expediente' && "border-indigo-400 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-300",
+                                                dayStatus.type === 'servico' && "border-red-400 bg-red-50/50 shadow-sm ring-1 ring-red-300",
+                                                dayStatus.type === 'folga' && "border-slate-200 hover:border-slate-300",
+                                                dayStatus.type === 'afastamento' && "border-orange-300 bg-orange-50/60 opacity-90",
+                                                isToday && "ring-2 ring-indigo-600 ring-offset-2"
+                                            )}
+                                        >
+                                            {/* Cabeçalho do Dia */}
+                                            <div className="flex items-start justify-between gap-1.5 pb-2 border-b border-slate-100">
+                                                <div className="flex flex-col">
+                                                    <span className={cn(
+                                                        "text-[10px] font-black uppercase tracking-wider",
+                                                        isWeekend ? "text-amber-700" : "text-slate-500"
+                                                    )}>
+                                                        {format(day, 'EEEE', { locale: ptBR }).split('-')[0]}
+                                                    </span>
+                                                    <div className="flex items-baseline gap-1 mt-0.5">
+                                                        <span className={cn(
+                                                            "text-xl font-black leading-none",
+                                                            dayStatus.type === 'expediente' ? "text-indigo-900" : dayStatus.type === 'servico' ? "text-red-900" : "text-slate-800"
+                                                        )}>
+                                                            {format(day, 'dd')}
+                                                        </span>
+                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                            {format(day, 'MMM', { locale: ptBR })}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-col items-end gap-1">
+                                                    {/* Ala badge */}
+                                                    <div className="flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded text-[9px] font-black text-slate-600">
+                                                        <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", alaColor)} />
+                                                        <span>Ala {alaOfDay}</span>
+                                                    </div>
+
+                                                    {/* Tags: Hoje / Fim de Semana */}
+                                                    {isToday && (
+                                                        <span className="text-[8px] font-black uppercase tracking-widest bg-indigo-600 text-white px-1.5 py-0.5 rounded">
+                                                            Hoje
+                                                        </span>
+                                                    )}
+                                                    {isWeekend && !isToday && (
+                                                        <span className="text-[8px] font-bold uppercase tracking-widest bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                                                            FDS
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Vagas Preferenciais se houver */}
+                                            {isPreferred && (
+                                                <div className="my-2 bg-red-100/70 border border-red-200 rounded-lg p-1.5 flex flex-col gap-1">
+                                                    <span className="text-[9px] font-black text-red-700 uppercase tracking-widest flex items-center gap-1">
+                                                        ★ Vaga Prioritária {totalVagas > 0 && `(${totalVagas})`}
+                                                    </span>
+                                                    {Object.entries(prefDetails).length > 0 && (
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {Object.entries(prefDetails).map(([func, qt]) => (
+                                                                <span key={func} className="text-[8px] font-bold bg-white text-red-800 px-1 rounded border border-red-200 truncate">
+                                                                    {String(qt)}x {func}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* Status Atual do Militar */}
+                                            <div className="my-3 flex flex-col items-center justify-center p-3 rounded-lg border text-center transition-colors min-h-[70px] bg-slate-50/50">
+                                                {dayStatus.type === 'expediente' ? (
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <div className="flex items-center gap-1.5 text-indigo-700 font-black text-xs uppercase tracking-wider">
+                                                            <Briefcase className="w-3.5 h-3.5" /> EXPEDIENTE
+                                                        </div>
+                                                        <span className="text-[9px] font-bold text-indigo-500">08h às 17h</span>
+                                                    </div>
+                                                ) : dayStatus.type === 'servico' ? (
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <div className="flex items-center gap-1.5 text-red-700 font-black text-xs uppercase tracking-wider">
+                                                            <Shield className="w-3.5 h-3.5 text-red-600" /> SERVIÇO 24H
+                                                        </div>
+                                                        <span className="text-[9px] font-bold text-red-500">07h às 07h</span>
+                                                    </div>
+                                                ) : dayStatus.type === 'afastamento' ? (
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <div className="flex items-center gap-1.5 text-orange-700 font-black text-xs uppercase tracking-wider">
+                                                            <AlertCircle className="w-3.5 h-3.5" /> {dayStatus.text}
+                                                        </div>
+                                                        <span className="text-[9px] font-bold text-orange-600">Afastamento</span>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <div className="flex items-center gap-1.5 text-slate-500 font-black text-xs uppercase tracking-wider">
+                                                            <Coffee className="w-3.5 h-3.5 text-slate-400" /> FOLGA
+                                                        </div>
+                                                        <span className="text-[9px] font-bold text-slate-400">Sem escala</span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Controles Rápidos: Botões EXP / SV / FOLGA */}
+                                            {canEdit ? (
+                                                <div 
+                                                    className="grid grid-cols-3 gap-1 mb-3 pt-1 border-t border-slate-100"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <button
+                                                        onClick={() => handleSetWeeklyDayStatus(activeRg, dayStr, 'expediente')}
+                                                        className={cn(
+                                                            "py-1.5 px-1 rounded text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-0.5 transition-colors cursor-pointer",
+                                                            dayStatus.type === 'expediente'
+                                                                ? "bg-indigo-600 text-white shadow-sm"
+                                                                : "bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"
+                                                        )}
+                                                        title="Marcar como Expediente"
+                                                    >
+                                                        {dayStatus.type === 'expediente' && <Check className="w-2.5 h-2.5" />} EXP
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleSetWeeklyDayStatus(activeRg, dayStr, 'servico')}
+                                                        className={cn(
+                                                            "py-1.5 px-1 rounded text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-0.5 transition-colors cursor-pointer",
+                                                            dayStatus.type === 'servico'
+                                                                ? "bg-red-600 text-white shadow-sm"
+                                                                : "bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-700"
+                                                        )}
+                                                        title="Marcar como Serviço"
+                                                    >
+                                                        {dayStatus.type === 'servico' && <Check className="w-2.5 h-2.5" />} SV
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleSetWeeklyDayStatus(activeRg, dayStr, 'folga')}
+                                                        className={cn(
+                                                            "py-1.5 px-1 rounded text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-0.5 transition-colors cursor-pointer",
+                                                            dayStatus.type === 'folga'
+                                                                ? "bg-slate-700 text-white shadow-sm"
+                                                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                                        )}
+                                                        title="Marcar como Folga"
+                                                    >
+                                                        {dayStatus.type === 'folga' && <Check className="w-2.5 h-2.5" />} FOLGA
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                isLocked && (
+                                                    <div className="mb-3 pt-1 border-t border-slate-100 text-center text-[9px] font-bold text-slate-400 flex items-center justify-center gap-1">
+                                                        <Lock className="w-3 h-3 text-slate-400" /> Escala travada
+                                                    </div>
+                                                )
+                                            )}
+
+                                            {/* Efetivo Escalado neste dia */}
+                                            <div 
+                                                className="mt-auto pt-2 border-t border-slate-100 flex flex-col gap-1 text-[9px]"
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <div className="flex items-center justify-between text-slate-400 font-bold uppercase tracking-widest text-[8px]">
+                                                    <span>Efetivo no Dia</span>
+                                                    <span>{servicoList.length + expedienteList.length}</span>
+                                                </div>
+
+                                                {servicoList.length > 0 && (
+                                                    <div className="flex flex-col gap-0.5">
+                                                        <span className="font-black text-red-600 uppercase text-[8px]">
+                                                            Serviço ({servicoList.length}):
+                                                        </span>
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {servicoList.slice(0, 3).map((w, idx) => (
+                                                                <span 
+                                                                    key={idx} 
+                                                                    className="bg-red-50 text-red-700 border border-red-200 px-1 py-0.5 rounded font-bold text-[8px] truncate max-w-full"
+                                                                    title={w.name}
+                                                                >
+                                                                    {w.isGrd && '🛡️ '}{w.name}
+                                                                </span>
+                                                            ))}
+                                                            {servicoList.length > 3 && (
+                                                                <span className="text-[8px] font-black text-slate-400 self-center">
+                                                                    +{servicoList.length - 3}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {expedienteList.length > 0 && (
+                                                    <div className="flex flex-col gap-0.5 mt-0.5">
+                                                        <span className="font-black text-indigo-600 uppercase text-[8px]">
+                                                            Expediente ({expedienteList.length}):
+                                                        </span>
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {expedienteList.slice(0, 3).map((w, idx) => (
+                                                                <span 
+                                                                    key={idx} 
+                                                                    className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-1 py-0.5 rounded font-bold text-[8px] truncate max-w-full"
+                                                                    title={w.name}
+                                                                >
+                                                                    {w.name}
+                                                                </span>
+                                                            ))}
+                                                            {expedienteList.length > 3 && (
+                                                                <span className="text-[8px] font-black text-slate-400 self-center">
+                                                                    +{expedienteList.length - 3}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {servicoList.length === 0 && expedienteList.length === 0 && (
+                                                    <span className="text-slate-400 italic text-[8px]">Nenhum militar registrado</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        );
+                    })()}
                 </div>
            ) : (
                 <div className="flex flex-col lg:flex-row gap-6">
