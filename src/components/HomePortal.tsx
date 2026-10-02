@@ -255,6 +255,8 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
     let allowedGroups = defaultVisibilityGroups;
     if (visibilityConfig && visibilityConfig[moduleId] !== undefined) {
       allowedGroups = visibilityConfig[moduleId];
+    } else if (moduleId === 'gestao-sad' && visibilityConfig && visibilityConfig['ferias-sad'] !== undefined) {
+      allowedGroups = visibilityConfig['ferias-sad'];
     }
     if (allowedGroups.length === 0) return false;
 

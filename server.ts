@@ -612,13 +612,119 @@ async function startServer() {
   app.use(express.json({ limit: '20mb' }));
   app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
+// Keep-Alive and Brasilia Time helpers for Render Keep-Alive Robot
+let lastKeepAlivePing = {
+  timestamp: null as string | null,
+  source: 'none',
+  status: 'initialized',
+  count: 0
+};
+
+function getBrasiliaTime() {
+  const now = new Date();
+  try {
+    const formatter = new Intl.DateTimeFormat('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hour12: false
+    });
+    const parts = formatter.formatToParts(now);
+    const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+    const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+    const formatted = formatter.format(now);
+    // Operating window: 06:00 through 23:59 BRT (hours 6 to 23 inclusive)
+    const isOperatingHours = hour >= 6 && hour <= 23;
+    return { hour, minute, formatted, isOperatingHours };
+  } catch (e) {
+    const hour = (now.getUTCHours() - 3 + 24) % 24;
+    const isOperatingHours = hour >= 6 && hour <= 23;
+    return { hour, minute: now.getMinutes(), formatted: `${hour}:${now.getMinutes()}`, isOperatingHours };
+  }
+}
+
+function startKeepAliveRobot(port: number) {
+  // Render automatically sets RENDER_EXTERNAL_URL in environment
+  const targetHost = process.env.RENDER_EXTERNAL_URL || process.env.KEEP_ALIVE_URL || process.env.APP_URL;
+  const PING_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes (Render spins down after 15 minutes of inactivity)
+
+  console.log(`[KeepAlive Robot] Service starting. External target URL: ${targetHost || 'Auto-ping local port'}`);
+
+  const pingEndpoint = async () => {
+    const { formatted, isOperatingHours } = getBrasiliaTime();
+
+    if (!isOperatingHours) {
+      console.log(`[KeepAlive Robot] 💤 Eco Mode: Horário de Brasília (${formatted}). Fora da janela de operação (06h - 23h). Repouso para economizar cota do Render.`);
+      lastKeepAlivePing.status = 'eco_sleeping';
+      return;
+    }
+
+    const endpoint = targetHost 
+      ? `${targetHost.replace(/\/$/, '')}/api/health` 
+      : `http://127.0.0.1:${port}/api/health`;
+
+    try {
+      console.log(`[KeepAlive Robot] ⚡ Disparando ping keep-alive para ${endpoint} às ${formatted} BRT...`);
+      const response = await axios.get(endpoint, {
+        headers: {
+          'User-Agent': 'RenderKeepAliveRobot/1.0',
+          'X-Keep-Alive': 'internal-cron'
+        },
+        timeout: 25000
+      });
+
+      lastKeepAlivePing.timestamp = new Date().toISOString();
+      lastKeepAlivePing.source = 'internal-cron';
+      lastKeepAlivePing.status = response.status === 200 ? 'healthy' : `status_${response.status}`;
+      lastKeepAlivePing.count++;
+      console.log(`[KeepAlive Robot] ✅ Ping confirmado! Render mantido ativo com sucesso.`);
+    } catch (err: any) {
+      console.warn(`[KeepAlive Robot] ⚠️ Aviso no auto-ping (${endpoint}):`, err.message);
+      lastKeepAlivePing.status = `warn: ${err.message}`;
+    }
+  };
+
+  // Wait 45 seconds after initial boot before beginning keep-alive cycle
+  setTimeout(() => {
+    pingEndpoint();
+    setInterval(pingEndpoint, PING_INTERVAL_MS);
+  }, 45000);
+}
+
   // API Health check with more details
   app.get('/api/health', (req, res) => {
+    const brTime = getBrasiliaTime();
+    
+    // Register ping origin
+    const userAgent = (req.headers['user-agent'] || 'unknown') as string;
+    const customHeader = req.headers['x-keep-alive'] as string;
+    
+    if (customHeader || userAgent.includes('KeepAlive') || userAgent.includes('curl') || userAgent.includes('Uptime')) {
+      lastKeepAlivePing.timestamp = new Date().toISOString();
+      lastKeepAlivePing.source = customHeader || userAgent.slice(0, 40);
+      lastKeepAlivePing.count++;
+    }
+
     res.json({ 
       status: 'ok', 
+      uptime: Math.floor(process.uptime()),
       db: db ? 'connected' : 'not_available',
       auth: getAdminApps().length > 0 ? 'ready' : 'not_ready',
-      time: new Date().toISOString() 
+      timeUtc: new Date().toISOString(),
+      brasilia: {
+        time: brTime.formatted,
+        hour: brTime.hour,
+        isOperatingHours: brTime.isOperatingHours,
+        window: '06:00 - 23:59 BRT'
+      },
+      keepAlive: {
+        lastPingAt: lastKeepAlivePing.timestamp,
+        lastPingSource: lastKeepAlivePing.source,
+        totalPings: lastKeepAlivePing.count,
+        robotStatus: lastKeepAlivePing.status,
+        renderTargetUrl: process.env.RENDER_EXTERNAL_URL || process.env.KEEP_ALIVE_URL || process.env.APP_URL || 'auto'
+      }
     });
   });
 
@@ -1357,6 +1463,7 @@ async function startServer() {
 
   const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    startKeepAliveRobot(PORT);
   });
 
   server.on('error', (e: any) => {

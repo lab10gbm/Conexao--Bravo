@@ -46,6 +46,7 @@ import { PlatformLogo } from "./components/PlatformLogo";
 import { RankInsignia } from "./components/RankInsignia";
 
 import { OBM_HIERARCHY } from "./constants";
+import { useKeepAliveHeartbeat } from "./hooks/useKeepAliveHeartbeat";
 
 // Lazy load heavy route components
 const EfetivoPanel = React.lazy(() =>
@@ -273,6 +274,7 @@ export default function App() {
       ).filter(Boolean);
 
   usePresence(effectiveProfile);
+  useKeepAliveHeartbeat();
   const { activeAlert, dismissAlert } = useViaturaAlerts(effectiveProfile);
 
   // Update profile with escalante and admin roles dynamically from legacy config

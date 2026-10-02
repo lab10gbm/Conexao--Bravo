@@ -8,6 +8,7 @@ import { ptBR } from 'date-fns/locale';
 import { PermutaRequest } from '../types';
 import { AppVisibilityConfig } from './AppVisibilityConfig';
 import { SystemRolesConfig } from './SystemRolesConfig';
+import { KeepAliveConfigCard } from './KeepAliveConfigCard';
 import { useAppConfig } from '../contexts/ConfigContext';
 import { cleanUndefined } from "../lib/utils";
 
@@ -267,7 +268,10 @@ export function ConfiguracoesModule({ onBack }: ConfiguracoesModuleProps) {
           </div>
         </div>        <div className="bg-white p-6 space-y-6">
 
-      {/* Seção 2: Configuração de Calendário */}
+        {/* Robô Anti-Desativação Render (06h às 23h) */}
+        <KeepAliveConfigCard />
+
+        {/* Seção 2: Configuração de Calendário */}
       <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
           <div className="flex items-center gap-3">

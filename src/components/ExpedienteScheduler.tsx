@@ -90,6 +90,172 @@ const WORK_REGIMES = [
   "1 Exped. e 3 Serv. 24h (Militar com Redução de Carga Horária)"
 ];
 
+function parseRankAndNameFromString(raw: string): { rank: string; name: string } {
+  if (!raw) return { rank: '', name: 'MILITAR' };
+  const clean = raw.trim().toUpperCase();
+
+  const rankPatterns: [RegExp, string][] = [
+    [/^(CORONEL|CEL\.?)\s+/i, 'CORONEL'],
+    [/^(TENENTE\s+CORONEL|TEN\.?\s*CEL\.?|TC)\s+/i, 'TEN CEL'],
+    [/^(MAJOR|MAJ\.?)\s+/i, 'MAJOR'],
+    [/^(CAPITÃO|CAPITAO|CAP\.?)\s+/i, 'CAPITÃO'],
+    [/^(1[º°]?\s*TENENTE|1[º°]?\s*TEN\.?)\s+/i, '1º TENENTE'],
+    [/^(2[º°]?\s*TENENTE|2[º°]?\s*TEN\.?)\s+/i, '2º TENENTE'],
+    [/^(ASPIRANTE|ASP\.?\s*OF\.?|ASP\.?)\s+/i, 'ASPIRANTE'],
+    [/^(SUBTENENTE|SUBTEN\.?|SUB\s*TEN\.?|ST)\s+/i, 'SUBTENENTE'],
+    [/^(1[º°]?\s*SARGENTO|1[º°]?\s*SGT\.?)\s+/i, '1º SARGENTO'],
+    [/^(2[º°]?\s*SARGENTO|2[º°]?\s*SGT\.?)\s+/i, '2º SARGENTO'],
+    [/^(3[º°]?\s*SARGENTO|3[º°]?\s*SGT\.?)\s+/i, '3º SARGENTO'],
+    [/^(CABO|CB\.?)\s+/i, 'CABO'],
+    [/^(SOLDADO|SD\.?)\s+/i, 'SOLDADO'],
+  ];
+
+  for (const [regex, rankLabel] of rankPatterns) {
+    if (regex.test(clean)) {
+      const remaining = clean.replace(regex, '').trim();
+      return {
+        rank: rankLabel,
+        name: remaining || rankLabel
+      };
+    }
+  }
+
+  const parts = clean.split(/\s+/);
+  if (parts.length > 1) {
+    return {
+      rank: parts[0],
+      name: parts.slice(1).join(' ')
+    };
+  }
+
+  return {
+    rank: '',
+    name: clean
+  };
+}
+
+function splitMilitaryRankAndWarName(found?: UserProfile | null, rawFallbackName?: string): { rank: string; name: string } {
+  if (found) {
+    const rawRank = found.rank ? parseRank(found.rank).toUpperCase() : '';
+    const warName = (found.warName && found.warName.trim())
+      ? found.warName.trim().toUpperCase()
+      : (found.name && found.name.trim())
+        ? found.name.trim().split(/\s+/)[0].toUpperCase()
+        : '';
+
+    if (rawRank) {
+      return {
+        rank: rawRank,
+        name: warName || rawRank
+      };
+    }
+
+    if (found.name && found.name.trim()) {
+      return parseRankAndNameFromString(found.name);
+    }
+  }
+
+  if (rawFallbackName && rawFallbackName.trim()) {
+    return parseRankAndNameFromString(rawFallbackName);
+  }
+
+  return { rank: '', name: 'MILITAR' };
+}
+
+function formatPreferenceFunction(func: string, qt: number): { line1: string; line2: string } {
+  if (!func) return { line1: `★ ${qt}x`, line2: 'VAGA' };
+  const trimmed = func.trim();
+  const qtLabel = `★ ${qt}x`;
+
+  // 1. Chefe de Guarnição ABT / ABSL / etc.
+  const mChefe = trimmed.match(/^Chefe\s+de\s+Guarni[çc][ãa]o\s+(.+)$/i);
+  if (mChefe) {
+    return {
+      line1: `${qtLabel} CHEFE GUARN.`,
+      line2: mChefe[1].toUpperCase()
+    };
+  }
+
+  // 2. Condutor de ABT / ABSL / ASE / AR / ARC / etc.
+  const mCond = trimmed.match(/^Condutor\s+de\s+(.+)$/i);
+  if (mCond) {
+    return {
+      line1: `${qtLabel} CONDUTOR`,
+      line2: mCond[1].toUpperCase()
+    };
+  }
+
+  // 3. Auxiliar de ABT / ABSL / ARC / ASE / Rancho / etc.
+  const mAux = trimmed.match(/^Auxiliar\s+de\s+(.+)$/i);
+  if (mAux) {
+    return {
+      line1: `${qtLabel} AUXILIAR`,
+      line2: mAux[1].toUpperCase()
+    };
+  }
+
+  // 4. Guarda-Vidas AMA
+  const mGv = trimmed.match(/^Guarda-?Vidas\s+(.+)$/i);
+  if (mGv) {
+    return {
+      line1: `${qtLabel} G-VIDAS`,
+      line2: mGv[1].toUpperCase()
+    };
+  }
+
+  // 5. Operador AMA / Mestre AL / Mestre BIA
+  const mOp = trimmed.match(/^(Operador|Mestre)\s+(.+)$/i);
+  if (mOp) {
+    return {
+      line1: `${qtLabel} ${mOp[1].toUpperCase()}`,
+      line2: mOp[2].toUpperCase()
+    };
+  }
+
+  // 6. Sargento de Dia / Cabo de Dia
+  const mDia = trimmed.match(/^(Sargento|Cabo)\s+de\s+Dia$/i);
+  if (mDia) {
+    return {
+      line1: `${qtLabel} ${mDia[1].toUpperCase()}`,
+      line2: 'DE DIA'
+    };
+  }
+
+  // 7. Cmt da Guarda / Cabo da Guarda
+  const mGuarda = trimmed.match(/^(Cmt|Cabo)\s+da\s+Guarda$/i);
+  if (mGuarda) {
+    return {
+      line1: `${qtLabel} ${mGuarda[1].toUpperCase()}`,
+      line2: 'DA GUARDA'
+    };
+  }
+
+  // 8. Toque de Fogo
+  if (/^Toque\s+de\s+Fogo$/i.test(trimmed)) {
+    return {
+      line1: `${qtLabel} TOQUE`,
+      line2: 'DE FOGO'
+    };
+  }
+
+  // 9. Generic multi-word (2 words or more)
+  const words = trimmed.split(/\s+/);
+  if (words.length >= 2) {
+    const lastWord = words[words.length - 1].toUpperCase();
+    const prefix = words.slice(0, words.length - 1).join(' ').toUpperCase();
+    return {
+      line1: `${qtLabel} ${prefix}`,
+      line2: lastWord
+    };
+  }
+
+  // 10. Single word: e.g. Sentinela, Comunicante, Adjunto, Marinheiro, Enfermeiro, Faxina, Armeque
+  return {
+    line1: `${qtLabel} ${Number(qt) > 1 ? 'VAGAS' : 'VAGA'}`,
+    line2: trimmed.toUpperCase()
+  };
+}
+
 export function ExpedienteScheduler({ user, obmContext, forceExpanded }: ExpedienteSchedulerProps) {
   const { militars, updateMilitarLocal } = useMilitars();
   const [currentMonth, setCurrentMonth] = useState(() => {
@@ -149,7 +315,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   const [isExpanded, setIsExpanded] = useState(forceExpanded || false);
   const [adminConfigMode, setAdminConfigMode] = useState(false);
   const [viewMode, setViewMode] = useState<'calendar' | 'semanal' | 'mapeamento' | 'necessidades' | 'relatorios'>('calendar');
-  const [weeklyFilterDays, setWeeklyFilterDays] = useState<'all' | 'weekdays'>('all');
+  const [weeklyFilterDays, setWeeklyFilterDays] = useState<'all' | 'weekdays'>('weekdays');
   const [mapeamentoSubView, setMapeamentoSubView] = useState<'table' | 'lista' | 'escala_sv'>('table');
   const [transposeTable, setTransposeTable] = useState(false);
   const [reportType, setReportType] = useState<'mensal' | 'semanal'>('mensal');
@@ -1223,16 +1389,19 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                       viewMode === 'calendar' ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
                                   )}
                               >
-                                  <CalendarRange className="w-3 h-3" /> <span className="hidden sm:inline">Calendário</span>
+                                  <CalendarRange className="w-3 h-3" /> <span className="hidden sm:inline">Calendário (S.24h)</span><span className="sm:hidden">Cal. (S.24h)</span>
                               </button>
                               <button
-                                  onClick={() => setViewMode('semanal')}
+                                  onClick={() => {
+                                      setViewMode('semanal');
+                                      setWeeklyFilterDays('weekdays');
+                                  }}
                                   className={cn(
                                       "px-3 py-1.5 rounded text-[10px] font-black uppercase tracking-widest transition-colors flex items-center gap-1",
                                       viewMode === 'semanal' ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
                                   )}
                               >
-                                  <Calendar className="w-3 h-3" /> <span className="hidden sm:inline">Semanal</span><span className="sm:hidden">Semana</span>
+                                  <Calendar className="w-3 h-3" /> <span className="hidden sm:inline">Semanal (S.EXP)</span><span className="sm:hidden">Sem. (S.EXP)</span>
                               </button>
                               {(isAdmin || user.isEscalante) && (
                                   <>
@@ -2886,11 +3055,16 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                     </span>
                                                     {Object.entries(prefDetails).length > 0 && (
                                                         <div className="flex flex-wrap gap-1">
-                                                            {Object.entries(prefDetails).map(([func, qt]) => (
-                                                                <span key={func} className="text-[8px] font-bold bg-white text-red-800 px-1 rounded border border-red-200 truncate">
-                                                                    {String(qt)}x {func}
-                                                                </span>
-                                                            ))}
+                                                            {Object.entries(prefDetails).map(([func, qtRaw]) => {
+                                                                const qt = typeof qtRaw === 'number' ? qtRaw : Number(qtRaw || 1);
+                                                                const parsedFunc = formatPreferenceFunction(func, qt);
+                                                                return (
+                                                                    <span key={func} className="text-[8px] font-bold bg-white text-red-800 px-1.5 py-0.5 rounded border border-red-200 flex flex-col min-w-0" title={`${qt}x ${func}`}>
+                                                                        <span className="text-[7.5px] text-red-600 font-bold truncate leading-tight">{parsedFunc.line1}</span>
+                                                                        <span className="text-[9px] text-red-950 font-black truncate leading-tight">{parsedFunc.line2}</span>
+                                                                    </span>
+                                                                );
+                                                            })}
                                                         </div>
                                                     )}
                                                 </div>
@@ -3154,15 +3328,16 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                           const workersOnThisDay = Object.entries(data.selections)
                             .filter(([rg, sels]: [string, any]) => rg !== 'ESCALANTE_PREF' && Array.isArray(sels) && sels.includes(dayStr))
                             .map(([rg, _]) => {
-                               const found = expedienteUsers.find(u => u.rg === rg);
-                               if (found) {
-                                  return {
-                                    name: found.rank ? `${found.rank} ${found.warName || found.name.split(' ')[0]}` : found.name,
-                                    isGrd: data.grdData?.[dayStr]?.includes(rg)
-                                  };
-                               }
-                               return null;
-                            }).filter(Boolean) as { name: string, isGrd: boolean }[];
+                               const found = expedienteUsers.find(u => (u.rg || u.uid) === rg);
+                               const parsed = splitMilitaryRankAndWarName(found, data.userNames?.[rg]);
+                               return {
+                                 rg,
+                                 rank: parsed.rank,
+                                 name: parsed.name,
+                                 fullName: found?.name || data.userNames?.[rg] || `${parsed.rank} ${parsed.name}`.trim(),
+                                 isGrd: !!(data.grdData?.[dayStr]?.includes(rg))
+                               };
+                            });
 
                           const expWorkersOnThisDay = Object.entries(data.expedienteDays || {})
                             .filter(([rg, sels]: [string, any]) => rg !== 'ESCALANTE_PREF' && Array.isArray(sels) && sels.includes(dayStr))
@@ -3187,7 +3362,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                               whileHover={!outsideMonth ? { scale: 1.02 } : {}}
                               onClick={() => !outsideMonth && handleToggleDay(day)}
                               className={cn(
-                                "relative flex flex-col p-3 sm:p-2 border-2 rounded-xl sm:rounded-lg transition-all sm:min-h-[110px]",
+                                "relative flex flex-col p-3 sm:p-2 border-2 rounded-xl sm:rounded-lg transition-all sm:min-h-[120px]",
                                 outsideMonth 
                                   ? "hidden sm:flex opacity-30 bg-slate-50 border-transparent cursor-default pointer-events-none text-slate-400" 
                                   : isPreferredDate && !isTargetUserSelected ? "border-red-200 cursor-pointer bg-red-50 hover:border-red-300 shadow-sm sm:shadow-none"
@@ -3223,24 +3398,55 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                {!outsideMonth && (
                                   <div className="flex flex-col gap-2 sm:gap-1.5 mt-1 sm:mt-auto">
                                       {(safeArr(data.selections['ESCALANTE_PREF']).includes(dayStr)) && Object.entries(data.preferencesDetails?.[dayStr] || {}).length > 0 && (
-                                          <div className="flex flex-row sm:flex-col flex-wrap gap-1.5 sm:gap-1 w-full min-w-0 overflow-hidden">
-                                              {Object.entries(data.preferencesDetails?.[dayStr] || {}).map(([func, qt]) => (
-                                                 <span key={func} className="text-[10px] sm:text-[9px] font-bold bg-red-100 text-red-700 border border-red-200 px-2 py-1 sm:px-1.5 sm:py-1 rounded-[4px] uppercase truncate leading-none max-w-full inline-block" title={`${qt}x ${func}`}>
-                                                    {qt}x {func}
-                                                 </span>
-                                              ))}
+                                          <div className="flex flex-col gap-1.5 sm:gap-1 w-full min-w-0">
+                                               {Object.entries(data.preferencesDetails?.[dayStr] || {}).map(([func, qtRaw]) => {
+                                                  const qt = typeof qtRaw === "number" ? qtRaw : Number(qtRaw || 1);
+                                                  const parsedFunc = formatPreferenceFunction(func, qt);
+                                                  return (
+                                                    <span 
+                                                       key={func} 
+                                                       className="w-full text-left bg-red-100/90 text-red-800 border border-red-200/90 px-2 py-1 sm:px-1.5 sm:py-1 rounded-md uppercase cursor-help max-w-full flex flex-col justify-center shadow-xs transition-colors hover:bg-red-200/80" 
+                                                       title={`${qt}x ${func}`}
+                                                    >
+                                                       <span className="flex items-center gap-1 text-[8px] sm:text-[7.5px] font-bold text-red-700 leading-tight truncate">
+                                                         <span className="truncate">{parsedFunc.line1}</span>
+                                                       </span>
+                                                       <span className="text-[10px] sm:text-[9.5px] font-black text-red-950 leading-tight truncate tracking-tight mt-0.5">
+                                                         {parsedFunc.line2}
+                                                       </span>
+                                                    </span>
+                                                  );
+                                               })}
                                           </div>
                                       )}
 
                                       {workersOnThisDay.length > 0 && (
-                                          <div className="flex flex-row sm:flex-col flex-wrap gap-1.5 sm:gap-1 sm:mt-1 border-t sm:border-t-0 border-slate-100 pt-2 sm:pt-0 w-full min-w-0 overflow-hidden">
+                                          <div className="flex flex-col gap-1.5 sm:gap-1 sm:mt-1 border-t sm:border-t-0 border-slate-100 pt-2 sm:pt-0 w-full min-w-0">
                                               {workersOnThisDay.map((w, i) => (
-                                                 <span key={i} className={cn(
-                                                     "text-[10px] sm:text-[9px] font-black bg-slate-800 text-white px-2 py-1 sm:px-1.5 sm:py-1 rounded-[4px] uppercase truncate leading-none cursor-help max-w-full inline-flex items-center gap-1",
-                                                     i >= 5 ? "hidden" : ""
-                                                 )} title={w.name}>
-                                                    {w.isGrd && <Shield className="w-2 h-2 text-emerald-400 fill-emerald-400" />}
-                                                    <span className="truncate">{formatMilitaryName(w.name)}</span>
+                                                 <span 
+                                                    key={i} 
+                                                    className={cn(
+                                                        "w-full text-left bg-slate-800 text-white px-2 py-1 sm:px-1.5 sm:py-1 rounded-md uppercase cursor-help max-w-full flex flex-col justify-center shadow-xs transition-all hover:bg-slate-900 border border-slate-700/60 hover:border-slate-500",
+                                                        i >= 5 ? "hidden" : ""
+                                                    )} 
+                                                    title={`${w.rank ? w.rank + ' ' : ''}${w.fullName || w.name}`}
+                                                 >
+                                                    {w.rank ? (
+                                                      <>
+                                                        <span className="flex items-center gap-1 text-[8px] sm:text-[7.5px] font-bold text-slate-300 leading-tight truncate">
+                                                          {w.isGrd && <Shield className="w-2.5 h-2.5 text-emerald-400 fill-emerald-400 shrink-0" />}
+                                                          <span className="truncate">{w.rank}</span>
+                                                        </span>
+                                                        <span className="text-[10px] sm:text-[9.5px] font-black text-white leading-tight truncate tracking-tight">
+                                                          {w.name}
+                                                        </span>
+                                                      </>
+                                                    ) : (
+                                                      <span className="flex items-center gap-1 text-[9.5px] sm:text-[9px] font-black text-white leading-tight truncate">
+                                                        {w.isGrd && <Shield className="w-2.5 h-2.5 text-emerald-400 fill-emerald-400 shrink-0" />}
+                                                        <span className="truncate">{w.name}</span>
+                                                      </span>
+                                                    )}
                                                  </span>
                                               ))}
                                               {workersOnThisDay.length > 5 && (
