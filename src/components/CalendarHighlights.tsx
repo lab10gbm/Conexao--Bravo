@@ -10,7 +10,7 @@ import { format, startOfWeek, endOfWeek, eachDayOfInterval, startOfMonth, endOfM
 import { AlertTriangle, Shield } from 'lucide-react';
 
 import { useAppConfig } from '../contexts/ConfigContext';
-import { getAlaForDate, cn, getUserObmAccess, normalizeObm, getAlaColor } from '../lib/utils';
+import { getAlaForDate, cn, getUserObmAccess, normalizeObm, getAlaColor, normalizeRg } from '../lib/utils';
 
 interface CalendarHighlightsProps {
   user: UserProfile;
@@ -85,15 +85,15 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PermutaRequest));
       
       const filteredByObm = data.filter(p => !p.obm || getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm)));
-      const safeRg = String(user.rg).replace(/\D/g, '');
+      const safeRg = normalizeRg(user.rg);
       
       const pending = filteredByObm.filter(p => {
-         const strReq = String(p.requesterRg).replace(/\D/g, '');
-         const strSub = String(p.substituteRg).replace(/\D/g, '');
-         if (p.status !== PermutaStatus.PENDING) return false;
+         const strReq = normalizeRg(p.requesterRg);
+         const strSub = normalizeRg(p.substituteRg);
+         if (p.status !== PermutaStatus.PENDING && p.status !== PermutaStatus.SCHEDULED) return false;
          
-         const userIsReq = strReq === safeRg;
-         const userIsSub = strSub === safeRg;
+         const userIsReq = Boolean(safeRg && strReq === safeRg);
+         const userIsSub = Boolean(safeRg && strSub === safeRg);
          
          if (userIsReq && !p.requesterSigned) return true;
          if (userIsSub && !p.substituteSigned) return true;

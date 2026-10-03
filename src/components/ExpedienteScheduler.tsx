@@ -2,12 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { parseRank, sortAllBySeniority } from "../lib/rankUtils";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, addMonths, subMonths, addWeeks, subWeeks, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { UserProfile } from '../types';
+import { UserProfile, PermutaRequest } from '../types';
 import { doc, onSnapshot, setDoc, updateDoc, query, collection, getDocs, deleteField, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { cn, formatMilitaryName, getAlaForDate, getAlaLightColor, getAlaColor, normalizeObm } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, ChevronDown, Settings, CheckCircle2, User, AlertCircle, Save, CalendarRange, Table, ArrowUpDown, X, UserPlus, Trash2, List, Columns, Copy, Shield, FileSpreadsheet, Printer, Eye, Map as MapIcon, Briefcase, Clock, Coffee, Lock, Check, Calendar, Info, Send, XCircle, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Settings, CheckCircle2, User, AlertCircle, Save, CalendarRange, Table, ArrowUpDown, X, UserPlus, Trash2, List, Columns, Copy, Shield, FileSpreadsheet, Printer, Eye, Map as MapIcon, Briefcase, Clock, Coffee, Lock, Check, Calendar, Info, Send, XCircle, FileText, LayoutGrid } from 'lucide-react';
 import { useMilitars } from '../contexts/MilitarContext';
 import { cleanUndefined } from "../lib/utils";
 
@@ -57,6 +57,24 @@ interface Afastamento {
   inicio: string;
   retorno: string;
   situacao: string;
+}
+
+export interface PermutaDayDetails {
+  hasPermuta: boolean;
+  role: 'substitute' | 'requester';
+  status: string;
+  otherPartyName?: string;
+  otherPartyRg?: string;
+  source: 'general' | 'internal';
+  permutaDocId?: string;
+}
+
+export interface DayStatusResult {
+  text: string;
+  type: 'expediente' | 'servico' | 'folga' | 'afastamento';
+  label: string;
+  isPermuta?: boolean;
+  permutaInfo?: PermutaDayDetails | null;
 }
 
 interface ExpedienteData {
@@ -359,6 +377,24 @@ export function ExpedienteScheduler({
   const [adminConfigMode, setAdminConfigMode] = useState(false);
   const [viewMode, setViewMode] = useState<'calendar' | 'semanal' | 'mapeamento' | 'necessidades' | 'relatorios'>('calendar');
   const [weeklyFilterDays, setWeeklyFilterDays] = useState<'all' | 'weekdays'>('weekdays');
+  const [weeklyLayoutMode, setWeeklyLayoutMode] = useState<'grid' | 'list'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('expediente_weekly_layout_mode');
+      if (saved === 'grid' || saved === 'list') return saved as 'grid' | 'list';
+      return window.innerWidth < 768 ? 'list' : 'grid';
+    }
+    return 'grid';
+  });
+  const [expandedDaysList, setExpandedDaysList] = useState<Record<string, boolean>>({});
+
+  const handleToggleWeeklyLayoutMode = (mode: 'grid' | 'list') => {
+    setWeeklyLayoutMode(mode);
+    try {
+      localStorage.setItem('expediente_weekly_layout_mode', mode);
+    } catch {
+      // ignore
+    }
+  };
   const [mapeamentoSubView, setMapeamentoSubView] = useState<'table' | 'lista' | 'escala_sv'>('table');
   const [transposeTable, setTransposeTable] = useState(false);
   const [reportType, setReportType] = useState<'mensal' | 'semanal'>('mensal');
@@ -622,6 +658,18 @@ export function ExpedienteScheduler({
     return () => unsub();
   }, [obmContext]);
 
+  const [generalPermutas, setGeneralPermutas] = useState<PermutaRequest[]>([]);
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'permutas'), (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PermutaRequest));
+      setGeneralPermutas(list);
+    }, (err) => {
+      console.error("Error fetching permutas in ExpedienteScheduler:", err);
+    });
+    return () => unsub();
+  }, []);
+
   const normalizedObm = selectedObm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
   const monthKey = format(currentMonth, 'yyyy-MM');
   const monthDocRef = doc(db, `expediente_${normalizedObm}`, monthKey);
@@ -802,6 +850,101 @@ export function ExpedienteScheduler({
   return typeof val === 'string' ? val : '';
   };
   const safeArr = (val: any) => Array.isArray(val) ? val : [];
+
+  const getPermutaForDay = (rg: string, dayStr: string, dataSource?: any): PermutaDayDetails | null => {
+    if (!rg || !dayStr) return null;
+    const targetCleanRg = String(rg || '').replace(/\D/g, '').trim();
+    if (!targetCleanRg) return null;
+
+    // 1. Troca interna do módulo ExpedienteScheduler (data.swapRequests)
+    const currentMonthSwapReqs = safeArr(data?.swapRequests);
+    const extraSwapReqs = safeArr(dataSource?.swapRequests);
+    const allSwapReqs = [...currentMonthSwapReqs, ...extraSwapReqs];
+
+    const enteringSwap = allSwapReqs.find(
+      r => String(r.rg || '').replace(/\D/g, '').trim() === targetCleanRg &&
+           r.toDay === dayStr &&
+           (r.status === 'approved' || r.status === 'pending')
+    );
+    if (enteringSwap) {
+      return {
+        hasPermuta: true,
+        role: 'substitute',
+        status: enteringSwap.status || 'approved',
+        otherPartyName: enteringSwap.userName,
+        source: 'internal'
+      };
+    }
+
+    const leavingSwap = allSwapReqs.find(
+      r => String(r.rg || '').replace(/\D/g, '').trim() === targetCleanRg &&
+           r.fromDay === dayStr &&
+           (r.status === 'approved' || r.status === 'pending')
+    );
+    if (leavingSwap) {
+      return {
+        hasPermuta: true,
+        role: 'requester',
+        status: leavingSwap.status || 'approved',
+        otherPartyName: leavingSwap.userName,
+        source: 'internal'
+      };
+    }
+
+    // 2. Permutas gerais da coleção 'permutas'
+    for (const p of generalPermutas) {
+      if (p.archived) continue;
+      const st = String(p.status || '').toLowerCase().trim();
+      if (st === 'cancelled' || st === 'rejected') continue;
+      if (p.date !== dayStr) continue;
+
+      const subClean = String(p.substituteRg || '').replace(/\D/g, '').trim();
+      const idClean = String(p.acceptedById || '').replace(/\D/g, '').trim();
+      const targetMilClean = String(p.targetMilitarId || '').replace(/\D/g, '').trim();
+      const subIdClean = String(p.substituteId || '').replace(/\D/g, '').trim();
+
+      const isSub = (subClean && subClean === targetCleanRg) ||
+                    (idClean && idClean === targetCleanRg) ||
+                    (targetMilClean && targetMilClean === targetCleanRg) ||
+                    (subIdClean && subIdClean === targetCleanRg);
+
+      if (isSub) {
+        return {
+          hasPermuta: true,
+          role: 'substitute',
+          status: st,
+          otherPartyName: p.requesterName,
+          otherPartyRg: p.requesterRg,
+          source: 'general',
+          permutaDocId: p.id
+        };
+      }
+
+      const reqClean = String(p.requesterRg || '').replace(/\D/g, '').trim();
+      const reqIdClean = String(p.requesterId || '').replace(/\D/g, '').trim();
+      const isReq = (reqClean && reqClean === targetCleanRg) ||
+                    (reqIdClean && reqIdClean === targetCleanRg);
+
+      if (isReq) {
+        return {
+          hasPermuta: true,
+          role: 'requester',
+          status: st,
+          otherPartyName: p.substituteName || p.acceptedByName,
+          otherPartyRg: p.substituteRg,
+          source: 'general',
+          permutaDocId: p.id
+        };
+      }
+    }
+
+    return null;
+  };
+
+  const checkDayHasPermuta = (rg: string, dayStr: string, dataSource?: any): boolean => {
+    const info = getPermutaForDay(rg, dayStr, dataSource);
+    return Boolean(info && info.role === 'substitute');
+  };
   const getSector = (rg: string) => {
       const val = data.sectors?.[rg];
       return typeof val === 'string' ? val : '';
@@ -940,41 +1083,83 @@ export function ExpedienteScheduler({
       };
   }, [weekMonthKeys, monthKey, normalizedObm]);
 
-  const getDayStatus = (rg: string, dayStr: string) => {
+  const getDayStatus = (rg: string, dayStr: string): DayStatusResult => {
       const dayMonthKey = dayStr.substring(0, 7);
       const dataSource = dayMonthKey === monthKey ? data : (extraMonthData[dayMonthKey] || {});
       const sels = safeArr(dataSource.selections?.[rg]);
       const expDays = safeArr(dataSource.expedienteDays?.[rg]);
 
-      const afastamento = afastamentos.find(a => a.rg === rg && dayStr >= a.inicio && dayStr <= a.retorno);
+      const cleanTargetRg = String(rg || '').replace(/\D/g, '').trim();
+      const afastamento = afastamentos.find(a => String(a.rg || '').replace(/\D/g, '').trim() === cleanTargetRg && dayStr >= a.inicio && dayStr <= a.retorno);
       if (afastamento) {
           return {
               text: afastamento.situacao.toUpperCase(),
               type: 'afastamento' as const,
-              label: afastamento.situacao.toUpperCase()
+              label: afastamento.situacao.toUpperCase(),
+              isPermuta: false
           };
       }
 
+      // Check Permuta for this militar on this day
+      const permutaInfo = getPermutaForDay(rg, dayStr, dataSource);
+
+      // 1. Militar assumiu o serviço 24h via permuta (substituto)
+      if (permutaInfo && permutaInfo.role === 'substitute') {
+          return {
+              text: 'SERVIÇO (PERMUTA)',
+              type: 'servico' as const,
+              label: 'SERVIÇO (PERMUTA)',
+              isPermuta: true,
+              permutaInfo
+          };
+      }
+
+      // 2. Militar passou o serviço para outro via permuta aceita/homologada (solicitante)
+      if (permutaInfo && permutaInfo.role === 'requester' && (permutaInfo.status === 'accepted' || permutaInfo.status === 'scheduled' || permutaInfo.status === 'approved')) {
+          if (expDays.includes(dayStr)) {
+              return {
+                  text: 'EXPEDIENTE',
+                  type: 'expediente' as const,
+                  label: 'EXPEDIENTE',
+                  isPermuta: true,
+                  permutaInfo
+              };
+          }
+          return {
+              text: 'FOLGA (PERMUTA)',
+              type: 'folga' as const,
+              label: 'FOLGA (PERMUTA)',
+              isPermuta: true,
+              permutaInfo
+          };
+      }
+
+      // 3. Seleção do calendário mensal ordinário (24h)
       if (sels.includes(dayStr)) {
           return {
               text: 'SERVIÇO',
               type: 'servico' as const,
-              label: 'SERVIÇO'
+              label: 'SERVIÇO',
+              isPermuta: false
           };
       }
 
+      // 4. Expediente
       if (expDays.includes(dayStr)) {
           return {
               text: 'EXPEDIENTE',
               type: 'expediente' as const,
-              label: 'EXPEDIENTE'
+              label: 'EXPEDIENTE',
+              isPermuta: false
           };
       }
 
+      // 5. Folga
       return {
           text: 'FOLGA',
           type: 'folga' as const,
-          label: 'FOLGA'
+          label: 'FOLGA',
+          isPermuta: false
       };
   };
 
@@ -985,19 +1170,44 @@ export function ExpedienteScheduler({
       const expObj = dataSource.expedienteDays || {};
       const grdObj = dataSource.grdData || {};
 
-      const servicoList = Object.entries(selsObj)
-          .filter(([rg, sels]: [string, any]) => rg !== 'ESCALANTE_PREF' && Array.isArray(sels) && sels.includes(dayStr))
-          .map(([rg]) => {
-              const found = expedienteUsers.find(u => (u.rg || u.uid) === rg);
-              return {
+      const servicoMap = new Map<string, { rg: string; name: string; isGrd: boolean; isPermuta?: boolean }>();
+
+      // A partir das seleções regulares do mês
+      Object.entries(selsObj).forEach(([rg, sels]: [string, any]) => {
+          if (rg !== 'ESCALANTE_PREF' && Array.isArray(sels) && sels.includes(dayStr)) {
+              const st = getDayStatus(rg, dayStr);
+              if (st.type === 'servico') {
+                  const found = expedienteUsers.find(u => (u.rg || u.uid) === rg);
+                  servicoMap.set(rg, {
+                      rg,
+                      name: found ? formatMilitaryName(found.rank ? `${found.rank} ${found.warName || found.name.split(' ')[0]}` : found.name) : (dataSource.userNames?.[rg] || rg),
+                      isGrd: !!grdObj[dayStr]?.includes(rg),
+                      isPermuta: Boolean(st.isPermuta)
+                  });
+              }
+          }
+      });
+
+      // A partir de permutas onde o militar assumiu o serviço nesta data
+      expedienteUsers.forEach(u => {
+          const rg = u.rg || u.uid;
+          if (!rg || servicoMap.has(rg) || rg === 'ESCALANTE_PREF') return;
+          const st = getDayStatus(rg, dayStr);
+          if (st.type === 'servico' && st.isPermuta) {
+              servicoMap.set(rg, {
                   rg,
-                  name: found ? formatMilitaryName(found.rank ? `${found.rank} ${found.warName || found.name.split(' ')[0]}` : found.name) : (dataSource.userNames?.[rg] || rg),
-                  isGrd: !!grdObj[dayStr]?.includes(rg)
-              };
-          });
+                  name: formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name),
+                  isGrd: !!grdObj[dayStr]?.includes(rg),
+                  isPermuta: true
+              });
+          }
+      });
+
+      const servicoList = Array.from(servicoMap.values());
 
       const expedienteList = Object.entries(expObj)
           .filter(([rg, expDays]: [string, any]) => rg !== 'ESCALANTE_PREF' && Array.isArray(expDays) && expDays.includes(dayStr))
+          .filter(([rg]) => getDayStatus(rg, dayStr).type === 'expediente')
           .map(([rg]) => {
               const found = expedienteUsers.find(u => (u.rg || u.uid) === rg);
               return {
@@ -1057,9 +1267,16 @@ export function ExpedienteScheduler({
       const isSel = userSels.includes(dayStr);
       const isExp = userExp.includes(dayStr);
 
+      // Se o dia já é um Serviço 24h assumido via Permuta
+      const permuta = getPermutaForDay(rg, dayStr, dataSource);
+      if (permuta && permuta.role === 'substitute' && !isAdmin && !user.isEscalante) {
+          alert("Este dia é um Serviço (24h) homologado via Permuta. Não pode ser alterado diretamente.");
+          return;
+      }
+
       // Se o dia já é um Serviço 24h e a escala ordinária 24h está bloqueada
       if (isSel && isOrd24hLocked && !isAdmin && !user.isEscalante) {
-          alert("Este dia é um Serviço Ordinário (24h) homologado no mês. Não pode ser alterado diretamente; utilize a solicitação de Permuta se precisar trocar.");
+          alert("Este dia é um S.24h Mensal Homologado. Não pode ser alterado diretamente; utilize a solicitação de Permuta se precisar trocar.");
           return;
       }
 
@@ -1565,6 +1782,12 @@ export function ExpedienteScheduler({
     }
 
     const dayStr = format(day, 'yyyy-MM-dd');
+    const permuta = getPermutaForDay(rgSelection, dayStr);
+    if (permuta && permuta.role === 'substitute' && !isAdmin && !user.isEscalante) {
+      alert("Você está escalado neste dia através de Permuta Homologada. Este serviço não pode ser alterado diretamente pelo calendário.");
+      return;
+    }
+
     let userSelections = safeArr(data.selections[rgSelection]);
     let userExpDays = safeArr(data.expedienteDays?.[rgSelection]);
     let isRemovingExp = false;
@@ -3133,14 +3356,21 @@ export function ExpedienteScheduler({
                                                                             className={cn(
                                                                                 "border border-black py-2 px-1 text-center font-bold transition-colors select-none",
                                                                                 canEdit && "cursor-pointer hover:bg-slate-100",
-                                                                                cell.type === 'servico' && "bg-slate-100 font-black",
-                                                                                cell.type === 'folga' && "text-slate-600 font-semibold",
+                                                                                cell.type === 'servico' && (cell.isPermuta ? "bg-purple-100/90 text-purple-950 font-black border-purple-300" : "bg-slate-100 font-black"),
+                                                                                cell.type === 'folga' && (cell.isPermuta ? "text-purple-700 bg-purple-50/50 font-semibold" : "text-slate-600 font-semibold"),
                                                                                 cell.type === 'expediente' && "font-black",
                                                                                 cell.type === 'afastamento' && "bg-orange-50/70 text-orange-900"
                                                                             )}
-                                                                            title={canEdit ? "Clique para alternar: EXPEDIENTE -> SERVIÇO -> FOLGA" : undefined}
+                                                                            title={canEdit ? (cell.isPermuta ? "Serviço 24h via Permuta" : "Clique para alternar: EXPEDIENTE -> SERVIÇO -> FOLGA") : (cell.isPermuta ? "Serviço 24h via Permuta" : undefined)}
                                                                         >
-                                                                            {cell.text}
+                                                                            {cell.isPermuta && cell.type === 'servico' ? (
+                                                                                <div className="flex flex-col items-center justify-center leading-tight">
+                                                                                    <span>SERVIÇO</span>
+                                                                                    <span className="text-[9px] font-black text-purple-700 uppercase tracking-tighter">(PERMUTA)</span>
+                                                                                </div>
+                                                                            ) : (
+                                                                                cell.text
+                                                                            )}
                                                                         </td>
                                                                     );
                                                                 })}
@@ -3218,6 +3448,34 @@ export function ExpedienteScheduler({
                                     )}
                                 >
                                     5 Dias (Seg a Sex)
+                                </button>
+                            </div>
+
+                            {/* Alternador de Visualização: Grade vs Lista (Celular / Modal) */}
+                            <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs">
+                                <button
+                                    type="button"
+                                    onClick={() => handleToggleWeeklyLayoutMode('grid')}
+                                    className={cn(
+                                        "px-2.5 py-1 rounded font-bold transition-colors cursor-pointer flex items-center gap-1.5",
+                                        weeklyLayoutMode === 'grid' ? "bg-white text-indigo-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                                    )}
+                                    title="Visualização em Grade / Cards"
+                                >
+                                    <LayoutGrid className="w-3.5 h-3.5" />
+                                    <span className="hidden sm:inline">Grade</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleToggleWeeklyLayoutMode('list')}
+                                    className={cn(
+                                        "px-2.5 py-1 rounded font-bold transition-colors cursor-pointer flex items-center gap-1.5",
+                                        weeklyLayoutMode === 'list' ? "bg-white text-indigo-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                                    )}
+                                    title="Visualização em Linhas / Lista Compacta (Estilo Celular e Modal)"
+                                >
+                                    <List className="w-3.5 h-3.5" />
+                                    <span>Lista {weeklyLayoutMode === 'list' ? '(Celular)' : ''}</span>
                                 </button>
                             </div>
                         </div>
@@ -3662,312 +3920,633 @@ export function ExpedienteScheduler({
                         </div>
                     )}
 
-                    {/* Grade Semanal de Dias */}
+                    {/* Grade ou Lista Semanal de Dias */}
                     {(() => {
                         const displayedDays = weeklyFilterDays === 'all' ? fullWeekDays : weekDays;
 
                         return (
-                            <div className={cn(
-                                "grid gap-4",
-                                weeklyFilterDays === 'all' 
-                                    ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7" 
-                                    : "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5"
-                            )}>
-                                {displayedDays.map(day => {
-                                    const dayStr = format(day, 'yyyy-MM-dd');
-                                    const dayMonthKey = dayStr.substring(0, 7);
-                                    const dataSource = dayMonthKey === monthKey ? data : (extraMonthData[dayMonthKey] || {});
-                                    const isToday = isSameDay(day, new Date());
-                                    const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-                                    const alaOfDay = getAlaForDate(day);
-                                    const alaColor = getAlaColor(alaOfDay);
+                            <div className="flex flex-col gap-3">
+                                {/* Barra Superior com título e botão de alternância de visualização */}
+                                <div className="flex items-center justify-between flex-wrap gap-2 pt-1 pb-0.5">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[11px] font-black uppercase text-slate-500 tracking-wider flex items-center gap-1.5">
+                                            <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                                            Dias da Semana
+                                        </span>
+                                        <span className="text-[9px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
+                                            {weeklyLayoutMode === 'list' ? 'Visualização em Linhas (Celular)' : 'Visualização em Grade'}
+                                        </span>
+                                    </div>
 
-                                    const dayStatus = getDayStatus(activeRg, dayStr);
-                                    const isPreferred = safeArr(dataSource.selections?.['ESCALANTE_PREF']).includes(dayStr);
-                                    const prefDetails = (dataSource.preferencesDetails?.[dayStr] || {}) as Record<string, number>;
-                                    const totalVagas = Object.values(prefDetails).reduce((sum: number, q: number) => sum + Number(q || 0), 0);
-
-                                    const { servicoList, expedienteList } = getWorkersForDay(dayStr);
-                                    const dayDate = new Date(`${dayStr}T12:00:00`);
-                                    const dayMonday = startOfWeek(dayDate, { weekStartsOn: 1 });
-                                    const isWeekLocked = isWeeklyLockedForUser(activeRg, dayMonday);
-                                    const isOrd24hLocked = isOrdinarioLockedForUser(activeRg, dayMonthKey);
-                                    const isDay24hLocked = isOrd24hLocked && dayStatus.type === 'servico';
-                                    const canEdit = (isAdmin || user.isEscalante || (!isWeekLocked && !isDay24hLocked && activeRg === (user.rg || user.uid))) && dayStatus.type !== 'afastamento';
-
-                                    return (
-                                        <div
-                                            key={dayStr}
-                                            onClick={() => {
-                                                if (canEdit) {
-                                                    handleSetWeeklyDayStatus(activeRg, dayStr, 'cycle');
-                                                } else if (isDay24hLocked && !isAdmin && !user.isEscalante) {
-                                                    alert("Este dia é um Serviço Ordinário (24h) homologado no mês. Para trocá-lo, utilize uma Permuta de Serviço.");
-                                                } else if (isWeekLocked && !isAdmin && !user.isEscalante) {
-                                                    alert("O expediente desta semana já foi confirmado e está bloqueado.");
-                                                }
-                                            }}
+                                    {/* Botão de Alternar Forma de Visualização no topo dos dias */}
+                                    <div className="flex items-center bg-slate-200/80 p-0.5 rounded-lg text-xs">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleToggleWeeklyLayoutMode('grid')}
                                             className={cn(
-                                                "relative flex flex-col rounded-xl border-2 transition-all p-3.5 select-none bg-white",
-                                                canEdit ? "cursor-pointer hover:shadow-md" : "cursor-default",
-                                                dayStatus.type === 'expediente' && "border-indigo-400 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-300",
-                                                dayStatus.type === 'servico' && "border-red-400 bg-red-50/50 shadow-sm ring-1 ring-red-300",
-                                                dayStatus.type === 'folga' && "border-slate-200 hover:border-slate-300",
-                                                dayStatus.type === 'afastamento' && "border-orange-300 bg-orange-50/60 opacity-90",
-                                                isToday && "ring-2 ring-indigo-600 ring-offset-2"
+                                                "px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer",
+                                                weeklyLayoutMode === 'grid' ? "bg-white text-indigo-800 shadow-xs" : "text-slate-600 hover:text-slate-900"
                                             )}
+                                            title="Visualizar em Grade (Cards)"
                                         >
-                                            {/* Cabeçalho do Dia */}
-                                            <div className="flex items-start justify-between gap-1.5 pb-2 border-b border-slate-100">
-                                                <div className="flex flex-col">
-                                                    <span className={cn(
-                                                        "text-[10px] font-black uppercase tracking-wider",
-                                                        isWeekend ? "text-amber-700" : "text-slate-500"
-                                                    )}>
-                                                        {format(day, 'EEEE', { locale: ptBR }).split('-')[0]}
-                                                    </span>
-                                                    <div className="flex items-baseline gap-1 mt-0.5">
-                                                        <span className={cn(
-                                                            "text-xl font-black leading-none",
-                                                            dayStatus.type === 'expediente' ? "text-indigo-900" : dayStatus.type === 'servico' ? "text-red-900" : "text-slate-800"
-                                                        )}>
-                                                            {format(day, 'dd')}
-                                                        </span>
-                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                                            {format(day, 'MMM', { locale: ptBR })}
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex flex-col items-end gap-1">
-                                                    {/* Ala badge */}
-                                                    <div className="flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded text-[9px] font-black text-slate-600">
-                                                        <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", alaColor)} />
-                                                        <span>Ala {alaOfDay}</span>
-                                                    </div>
-
-                                                    {/* Tags: Hoje / Fim de Semana */}
-                                                    {isToday && (
-                                                        <span className="text-[8px] font-black uppercase tracking-widest bg-indigo-600 text-white px-1.5 py-0.5 rounded">
-                                                            Hoje
-                                                        </span>
-                                                    )}
-                                                    {isWeekend && !isToday && (
-                                                        <span className="text-[8px] font-bold uppercase tracking-widest bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
-                                                            FDS
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* Vagas Preferenciais se houver */}
-                                            {isPreferred && (
-                                                <div className="my-2 bg-red-100/70 border border-red-200 rounded-lg p-1.5 flex flex-col gap-1">
-                                                    <span className="text-[9px] font-black text-red-700 uppercase tracking-widest flex items-center gap-1">
-                                                        ★ Vaga Prioritária {totalVagas > 0 && `(${totalVagas})`}
-                                                    </span>
-                                                    {Object.entries(prefDetails).length > 0 && (
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {Object.entries(prefDetails).map(([func, qtRaw]) => {
-                                                                const qt = typeof qtRaw === 'number' ? qtRaw : Number(qtRaw || 1);
-                                                                const parsedFunc = formatPreferenceFunction(func, qt);
-                                                                return (
-                                                                    <span key={func} className="text-[8px] font-bold bg-white text-red-800 px-1.5 py-0.5 rounded border border-red-200 flex flex-col min-w-0" title={`${qt}x ${func}`}>
-                                                                        <span className="text-[7.5px] text-red-600 font-bold truncate leading-tight">{parsedFunc.line1}</span>
-                                                                        <span className="text-[9px] text-red-950 font-black truncate leading-tight">{parsedFunc.line2}</span>
-                                                                    </span>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    )}
-                                                </div>
+                                            <LayoutGrid className="w-3 h-3" />
+                                            <span>Grade</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleToggleWeeklyLayoutMode('list')}
+                                            className={cn(
+                                                "px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer",
+                                                weeklyLayoutMode === 'list' ? "bg-white text-indigo-800 shadow-xs" : "text-slate-600 hover:text-slate-900"
                                             )}
+                                            title="Visualizar em Linhas / Lista Compacta (Estilo Celular e Modal)"
+                                        >
+                                            <List className="w-3 h-3" />
+                                            <span>Lista {weeklyLayoutMode === 'list' ? '(Ativo)' : ''}</span>
+                                        </button>
+                                    </div>
+                                </div>
 
-                                            {/* Status Atual do Militar */}
-                                            <div className="my-3 flex flex-col items-center justify-center p-3 rounded-lg border text-center transition-colors min-h-[70px] bg-slate-50/50">
-                                                {dayStatus.type === 'expediente' ? (
-                                                    <div className="flex flex-col items-center gap-1">
-                                                        <div className="flex items-center gap-1.5 text-indigo-700 font-black text-xs uppercase tracking-wider">
-                                                            <Briefcase className="w-3.5 h-3.5" /> EXPEDIENTE
-                                                        </div>
-                                                        <span className="text-[9px] font-bold text-indigo-500">08h às 17h</span>
-                                                    </div>
-                                                ) : dayStatus.type === 'servico' ? (
-                                                    <div className="flex flex-col items-center gap-1">
-                                                        <div className="flex items-center gap-1.5 text-red-700 font-black text-xs uppercase tracking-wider">
-                                                            <Shield className="w-3.5 h-3.5 text-red-600" /> SERVIÇO 24H
-                                                        </div>
-                                                        <span className="text-[9px] font-bold text-red-500">07h às 07h</span>
-                                                        {isOrd24hLocked && (
-                                                            <span className="text-[8px] font-black uppercase text-red-700 bg-red-100 px-1.5 py-0.5 rounded border border-red-200 flex items-center gap-1 mt-0.5">
-                                                                <Lock className="w-2.5 h-2.5" /> 24h Homologado
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                ) : dayStatus.type === 'afastamento' ? (
-                                                    <div className="flex flex-col items-center gap-1">
-                                                        <div className="flex items-center gap-1.5 text-orange-700 font-black text-xs uppercase tracking-wider">
-                                                            <AlertCircle className="w-3.5 h-3.5" /> {dayStatus.text}
-                                                        </div>
-                                                        <span className="text-[9px] font-bold text-orange-600">Afastamento</span>
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex flex-col items-center gap-1">
-                                                        <div className="flex items-center gap-1.5 text-slate-500 font-black text-xs uppercase tracking-wider">
-                                                            <Coffee className="w-3.5 h-3.5 text-slate-400" /> FOLGA
-                                                        </div>
-                                                        <span className="text-[9px] font-bold text-slate-400">Sem escala</span>
-                                                    </div>
-                                                )}
-                                            </div>
+                                {weeklyLayoutMode === 'list' ? (
+                                    /* MODO LISTA / LINHAS (Estilo Popup Modal de Solicitar Alteração) */
+                                    <div className="flex flex-col gap-2.5">
+                                        {displayedDays.map(day => {
+                                            const dayStr = format(day, 'yyyy-MM-dd');
+                                            const dayMonthKey = dayStr.substring(0, 7);
+                                            const dataSource = dayMonthKey === monthKey ? data : (extraMonthData[dayMonthKey] || {});
+                                            const isToday = isSameDay(day, new Date());
+                                            const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                                            const alaOfDay = getAlaForDate(day);
+                                            const alaColor = getAlaColor(alaOfDay);
 
-                                            {/* Controles Rápidos: Botões EXP / SV / FOLGA ou aviso de bloqueio */}
-                                            {canEdit ? (
-                                                <div 
-                                                    className="grid grid-cols-3 gap-1 mb-3 pt-1 border-t border-slate-100"
-                                                    onClick={(e) => e.stopPropagation()}
+                                            const dayStatus = getDayStatus(activeRg, dayStr);
+                                            const isPreferred = safeArr(dataSource.selections?.['ESCALANTE_PREF']).includes(dayStr);
+                                            const prefDetails = (dataSource.preferencesDetails?.[dayStr] || {}) as Record<string, number>;
+                                            const totalVagas = Object.values(prefDetails).reduce((sum: number, q: number) => sum + Number(q || 0), 0);
+
+                                            const { servicoList, expedienteList } = getWorkersForDay(dayStr);
+                                            const dayDate = new Date(`${dayStr}T12:00:00`);
+                                            const dayMonday = startOfWeek(dayDate, { weekStartsOn: 1 });
+                                            const isWeekLocked = isWeeklyLockedForUser(activeRg, dayMonday);
+                                            const isOrd24hLocked = isOrdinarioLockedForUser(activeRg, dayMonthKey);
+                                            const isDay24hLocked = (isOrd24hLocked && dayStatus.type === 'servico') || Boolean(dayStatus.isPermuta);
+                                            const canEdit = (isAdmin || user.isEscalante || (!isWeekLocked && !isDay24hLocked && activeRg === (user.rg || user.uid))) && dayStatus.type !== 'afastamento';
+                                            const isExpandedDetails = !!expandedDaysList[dayStr];
+                                            const hasPermutaForDay = Boolean(dayStatus.isPermuta || (isDay24hLocked && checkDayHasPermuta(activeRg, dayStr, dataSource)));
+
+                                            return (
+                                                <div
+                                                    key={dayStr}
+                                                    className={cn(
+                                                        "rounded-xl border-2 transition-all p-3 sm:p-3.5 bg-white shadow-2xs flex flex-col gap-2",
+                                                        dayStatus.type === 'expediente' && "border-indigo-300 bg-indigo-50/20",
+                                                        dayStatus.type === 'servico' && "border-red-300 bg-red-50/20",
+                                                        dayStatus.type === 'folga' && "border-slate-200 hover:border-slate-300",
+                                                        dayStatus.type === 'afastamento' && "border-orange-300 bg-orange-50/50",
+                                                        isToday && "ring-2 ring-indigo-600 ring-offset-1"
+                                                    )}
                                                 >
-                                                    <button
-                                                        onClick={() => handleSetWeeklyDayStatus(activeRg, dayStr, 'expediente')}
-                                                        className={cn(
-                                                            "py-1.5 px-1 rounded text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-0.5 transition-colors cursor-pointer",
-                                                            dayStatus.type === 'expediente'
-                                                                ? "bg-indigo-600 text-white shadow-sm"
-                                                                : "bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"
-                                                        )}
-                                                        title="Marcar como Expediente"
-                                                    >
-                                                        {dayStatus.type === 'expediente' && <Check className="w-2.5 h-2.5" />} EXP
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            if (isOrd24hLocked && !isAdmin && !user.isEscalante) {
-                                                                alert("A escala ordinária (24h) deste mês já está fechada. Apenas o Escalante pode alterar serviços operacionais de 24h.");
-                                                                return;
-                                                            }
-                                                            handleSetWeeklyDayStatus(activeRg, dayStr, 'servico');
-                                                        }}
-                                                        className={cn(
-                                                            "py-1.5 px-1 rounded text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-0.5 transition-colors cursor-pointer",
-                                                            dayStatus.type === 'servico'
-                                                                ? "bg-red-600 text-white shadow-sm"
-                                                                : isOrd24hLocked && !isAdmin && !user.isEscalante
-                                                                    ? "bg-slate-100 text-slate-400 cursor-not-allowed"
-                                                                    : "bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-700"
-                                                        )}
-                                                        title={isOrd24hLocked && !isAdmin && !user.isEscalante ? "Escala 24h fechada" : "Marcar como Serviço"}
-                                                    >
-                                                        {dayStatus.type === 'servico' && <Check className="w-2.5 h-2.5" />} SV
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleSetWeeklyDayStatus(activeRg, dayStr, 'folga')}
-                                                        className={cn(
-                                                            "py-1.5 px-1 rounded text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-0.5 transition-colors cursor-pointer",
-                                                            dayStatus.type === 'folga'
-                                                                ? "bg-slate-700 text-white shadow-sm"
-                                                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                                                        )}
-                                                        title="Marcar como Folga"
-                                                    >
-                                                        {dayStatus.type === 'folga' && <Check className="w-2.5 h-2.5" />} FOLGA
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <div className="mb-3 pt-1 border-t border-slate-100 text-center text-[9px] font-bold">
-                                                    {isDay24hLocked && !isAdmin && !user.isEscalante ? (
-                                                        <div className="py-1 px-1.5 bg-red-50 border border-red-200 rounded text-red-700 flex items-center justify-center gap-1">
-                                                            <Shield className="w-3 h-3 text-red-600 shrink-0" />
-                                                            <span>24h Homologado (Permuta)</span>
-                                                        </div>
-                                                    ) : isWeekLocked && !isAdmin && !user.isEscalante ? (
-                                                        <button
-                                                            type="button"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleOpenWeeklyChangeModal();
-                                                            }}
-                                                            className="w-full py-1 px-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded text-amber-800 flex items-center justify-center gap-1 transition-colors cursor-pointer"
-                                                            title="Clique para solicitar alteração desta semana ao escalante"
-                                                        >
-                                                            <Lock className="w-3 h-3 text-amber-600 shrink-0" />
-                                                            <span>Semana Homologada (Solicitar)</span>
-                                                        </button>
-                                                    ) : (
-                                                        dayStatus.type === 'afastamento' && (
-                                                            <div className="py-1 px-1.5 bg-orange-50 border border-orange-200 rounded text-orange-700 flex items-center justify-center gap-1">
-                                                                <AlertCircle className="w-3 h-3 text-orange-600 shrink-0" />
-                                                                <span>Afastamento</span>
+                                                    {/* Linha Principal: Dia, Status Atual e Botões Rápidos */}
+                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            {/* Ala Badge */}
+                                                            <div className="flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded text-[9px] font-black text-slate-600 shrink-0">
+                                                                <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", alaColor)} />
+                                                                <span>Ala {alaOfDay}</span>
                                                             </div>
-                                                        )
+
+                                                            {/* Nome do Dia e Data */}
+                                                            <span className={cn(
+                                                                "text-xs sm:text-sm font-black capitalize text-slate-800 tracking-tight min-w-[130px]",
+                                                                isWeekend && "text-amber-800"
+                                                            )}>
+                                                                {format(day, 'EEEE', { locale: ptBR })} ({format(day, 'dd/MM')})
+                                                            </span>
+
+                                                            {/* Badges de Hoje / FDS */}
+                                                            {isToday && (
+                                                                <span className="text-[8px] font-black uppercase tracking-widest bg-indigo-600 text-white px-1.5 py-0.5 rounded">
+                                                                    Hoje
+                                                                </span>
+                                                            )}
+                                                            {isWeekend && !isToday && (
+                                                                <span className="text-[8px] font-bold uppercase tracking-widest bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                                                                    FDS
+                                                                </span>
+                                                            )}
+
+                                                            {/* Badge de Status Atual (Estilo Modal de Solicitação) */}
+                                                            <span className={cn(
+                                                                "text-[10px] font-black uppercase px-2.5 py-0.5 rounded-md flex items-center gap-1 shadow-2xs",
+                                                                dayStatus.isPermuta && dayStatus.type === 'servico' ? "bg-purple-100 text-purple-800 border border-purple-200" :
+                                                                dayStatus.type === 'expediente' ? "bg-indigo-100 text-indigo-700 border border-indigo-200" :
+                                                                dayStatus.type === 'servico' ? "bg-red-100 text-red-700 border border-red-200" :
+                                                                dayStatus.type === 'afastamento' ? "bg-orange-100 text-orange-700 border border-orange-200" :
+                                                                "bg-slate-200 text-slate-700 border border-slate-300"
+                                                            )}>
+                                                                {dayStatus.isPermuta && dayStatus.type === 'servico' ? <Shield className="w-3 h-3 text-purple-600" /> :
+                                                                 dayStatus.type === 'expediente' ? <Briefcase className="w-3 h-3 text-indigo-600" /> :
+                                                                 dayStatus.type === 'servico' ? <Shield className="w-3 h-3 text-red-600" /> :
+                                                                 dayStatus.type === 'folga' ? <Coffee className="w-3 h-3 text-slate-500" /> :
+                                                                 <AlertCircle className="w-3 h-3 text-orange-600" />}
+                                                                Atual: {dayStatus.isPermuta && dayStatus.type === 'servico' ? 'SV (PERMUTA)' : dayStatus.type === 'expediente' ? 'EXP' : dayStatus.type === 'servico' ? 'SV' : dayStatus.type === 'afastamento' ? 'AFASTADO' : 'FOLGA'}
+                                                            </span>
+
+                                                            {/* 24h Homologado se aplicável (visível no cabeçalho quando admin/escalante para evitar duplicidade com o botão da direita) */}
+                                                            {isDay24hLocked && (isAdmin || user.isEscalante) && (
+                                                                <span className={cn(
+                                                                    "text-[9px] font-black uppercase px-1.5 py-0.5 rounded flex items-center gap-1 border",
+                                                                    hasPermutaForDay ? "text-purple-800 bg-purple-100 border-purple-200" : "text-red-700 bg-red-100 border-red-200"
+                                                                )}>
+                                                                    <Lock className="w-2.5 h-2.5" /> {hasPermutaForDay ? "S.24h Homologado (Permuta)" : "S.24h Mensal Homologado"}
+                                                                </span>
+                                                            )}
+
+                                                            {/* Vaga prioritária se aplicável */}
+                                                            {isPreferred && (
+                                                                <span className="text-[9px] font-black text-red-700 bg-red-100 border border-red-200 px-1.5 py-0.5 rounded flex items-center gap-1" title="Vagas prioritárias do dia">
+                                                                    ★ Prioritária {totalVagas > 0 && `(${totalVagas})`}
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Botões Rápidos: EXP, SV, FOLGA ou Botão de Solicitar Alteração */}
+                                                        <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+                                                            {canEdit ? (
+                                                                <>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleSetWeeklyDayStatus(activeRg, dayStr, 'expediente')}
+                                                                        className={cn(
+                                                                            "px-3 sm:px-3.5 py-1.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1",
+                                                                            dayStatus.type === 'expediente'
+                                                                                ? "bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-400"
+                                                                                : "bg-white border border-slate-200 text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300"
+                                                                        )}
+                                                                        title="Marcar como Expediente"
+                                                                    >
+                                                                        {dayStatus.type === 'expediente' && <Check className="w-3 h-3" />}
+                                                                        EXP
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            if (isOrd24hLocked && !isAdmin && !user.isEscalante) {
+                                                                                alert("A escala ordinária (24h) deste mês já está fechada. Apenas o Escalante pode alterar serviços operacionais de 24h.");
+                                                                                return;
+                                                                            }
+                                                                            handleSetWeeklyDayStatus(activeRg, dayStr, 'servico');
+                                                                        }}
+                                                                        className={cn(
+                                                                            "px-3 sm:px-3.5 py-1.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1",
+                                                                            dayStatus.type === 'servico'
+                                                                                ? "bg-red-600 text-white shadow-sm ring-2 ring-red-400"
+                                                                                : isOrd24hLocked && !isAdmin && !user.isEscalante
+                                                                                    ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60"
+                                                                                    : "bg-white border border-slate-200 text-slate-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300"
+                                                                        )}
+                                                                        title={isOrd24hLocked && !isAdmin && !user.isEscalante ? "Escala 24h fechada" : "Marcar como Serviço 24h"}
+                                                                    >
+                                                                        {dayStatus.type === 'servico' && <Check className="w-3 h-3" />}
+                                                                        SV
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleSetWeeklyDayStatus(activeRg, dayStr, 'folga')}
+                                                                        className={cn(
+                                                                            "px-3 sm:px-3.5 py-1.5 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1",
+                                                                            dayStatus.type === 'folga'
+                                                                                ? "bg-slate-700 text-white shadow-sm ring-2 ring-slate-400"
+                                                                                : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300"
+                                                                        )}
+                                                                        title="Marcar como Folga"
+                                                                    >
+                                                                        {dayStatus.type === 'folga' && <Check className="w-3 h-3" />}
+                                                                        FOLGA
+                                                                    </button>
+                                                                </>
+                                                            ) : (
+                                                                <div className="flex items-center gap-1.5">
+                                                                    {isDay24hLocked && !isAdmin && !user.isEscalante ? (
+                                                                        <div 
+                                                                            className={cn(
+                                                                                "py-1 px-2.5 rounded-lg text-[10px] font-black flex items-center gap-1 shadow-2xs",
+                                                                                hasPermutaForDay 
+                                                                                    ? "bg-purple-50 border border-purple-200 text-purple-700" 
+                                                                                    : "bg-red-50 border border-red-200 text-red-700"
+                                                                            )}
+                                                                            title={hasPermutaForDay ? "Serviço 24h assumido via Permuta Homologada" : "Serviço 24h Ordinário escolhido no Calendário Mensal e Homologado"}
+                                                                        >
+                                                                            <Shield className={cn("w-3 h-3 shrink-0", hasPermutaForDay ? "text-purple-600" : "text-red-600")} />
+                                                                            <span>{hasPermutaForDay ? "S.24h Homologado (Permuta)" : "S.24h Mensal Homologado"}</span>
+                                                                        </div>
+                                                                    ) : isWeekLocked && !isAdmin && !user.isEscalante ? (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={handleOpenWeeklyChangeModal}
+                                                                            className="py-1.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-black flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                                                                            title="Solicitar alteração desta semana ao escalante"
+                                                                        >
+                                                                            <ArrowUpDown className="w-3.5 h-3.5" />
+                                                                            <span>Solicitar Alteração</span>
+                                                                        </button>
+                                                                    ) : (
+                                                                        dayStatus.type === 'afastamento' && (
+                                                                            <div className="py-1 px-2.5 bg-orange-50 border border-orange-200 rounded-lg text-orange-700 text-[10px] font-black flex items-center gap-1">
+                                                                                <AlertCircle className="w-3 h-3 text-orange-600 shrink-0" />
+                                                                                <span>Afastamento</span>
+                                                                            </div>
+                                                                        )
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Detalhes Expansíveis: Efetivo no Dia & Vagas Prioritárias */}
+                                                    {(servicoList.length > 0 || expedienteList.length > 0 || isPreferred) && (
+                                                        <div className="pt-2 border-t border-slate-100 flex flex-col gap-1.5">
+                                                            <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setExpandedDaysList(prev => ({ ...prev, [dayStr]: !prev[dayStr] }))}
+                                                                    className="flex items-center gap-1.5 text-slate-600 hover:text-indigo-600 font-black cursor-pointer transition-colors"
+                                                                >
+                                                                    <span className="text-[9px] uppercase tracking-wider">Efetivo Escalado ({servicoList.length + expedienteList.length}):</span>
+                                                                    <span className="text-red-700 font-bold">{servicoList.length} SV</span>
+                                                                    <span>•</span>
+                                                                    <span className="text-indigo-700 font-bold">{expedienteList.length} EXP</span>
+                                                                    <ChevronDown className={cn("w-3 h-3 transition-transform text-slate-400", isExpandedDetails && "rotate-180")} />
+                                                                </button>
+
+                                                                {isPreferred && totalVagas > 0 && (
+                                                                    <span className="text-[9px] font-bold text-red-600 flex items-center gap-1">
+                                                                        ★ {totalVagas} vaga(s) necessária(s)
+                                                                    </span>
+                                                                )}
+                                                            </div>
+
+                                                            {isExpandedDetails && (
+                                                                <div className="flex flex-col gap-1.5 p-2 bg-slate-50 rounded-lg border border-slate-200 animate-in fade-in">
+                                                                    {servicoList.length > 0 && (
+                                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                                            <span className="text-[8px] font-black uppercase text-red-600 shrink-0">Serviço:</span>
+                                                                            {servicoList.map((w, idx) => (
+                                                                                <span key={idx} className="bg-red-50 text-red-700 border border-red-200 px-1.5 py-0.5 rounded text-[8px] font-bold">
+                                                                                    {w.isGrd && '🛡️ '}{w.name}
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                    {expedienteList.length > 0 && (
+                                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                                            <span className="text-[8px] font-black uppercase text-indigo-600 shrink-0">Expediente:</span>
+                                                                            {expedienteList.map((w, idx) => (
+                                                                                <span key={idx} className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded text-[8px] font-bold">
+                                                                                    {w.name}
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                    {isPreferred && Object.keys(prefDetails).length > 0 && (
+                                                                        <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-200/60">
+                                                                            <span className="text-[8px] font-black uppercase text-red-700 shrink-0">Vagas Prioritárias:</span>
+                                                                            {Object.entries(prefDetails).map(([func, qtRaw]) => {
+                                                                                const qt = typeof qtRaw === 'number' ? qtRaw : Number(qtRaw || 1);
+                                                                                return (
+                                                                                    <span key={func} className="bg-red-100/80 text-red-800 border border-red-200 px-1.5 py-0.5 rounded text-[8px] font-bold">
+                                                                                        ★ {qt}x {func}
+                                                                                    </span>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     )}
                                                 </div>
-                                            )}
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    /* MODO GRADE / CARDS CLÁSSICO */
+                                    <div className={cn(
+                                        "grid gap-4",
+                                        weeklyFilterDays === 'all' 
+                                            ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7" 
+                                            : "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5"
+                                    )}>
+                                        {displayedDays.map(day => {
+                                            const dayStr = format(day, 'yyyy-MM-dd');
+                                            const dayMonthKey = dayStr.substring(0, 7);
+                                            const dataSource = dayMonthKey === monthKey ? data : (extraMonthData[dayMonthKey] || {});
+                                            const isToday = isSameDay(day, new Date());
+                                            const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                                            const alaOfDay = getAlaForDate(day);
+                                            const alaColor = getAlaColor(alaOfDay);
 
-                                            {/* Efetivo Escalado neste dia */}
-                                            <div 
-                                                className="mt-auto pt-2 border-t border-slate-100 flex flex-col gap-1 text-[9px]"
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <div className="flex items-center justify-between text-slate-400 font-bold uppercase tracking-widest text-[8px]">
-                                                    <span>Efetivo no Dia</span>
-                                                    <span>{servicoList.length + expedienteList.length}</span>
+                                            const dayStatus = getDayStatus(activeRg, dayStr);
+                                            const isPreferred = safeArr(dataSource.selections?.['ESCALANTE_PREF']).includes(dayStr);
+                                            const prefDetails = (dataSource.preferencesDetails?.[dayStr] || {}) as Record<string, number>;
+                                            const totalVagas = Object.values(prefDetails).reduce((sum: number, q: number) => sum + Number(q || 0), 0);
+
+                                            const { servicoList, expedienteList } = getWorkersForDay(dayStr);
+                                            const dayDate = new Date(`${dayStr}T12:00:00`);
+                                            const dayMonday = startOfWeek(dayDate, { weekStartsOn: 1 });
+                                            const isWeekLocked = isWeeklyLockedForUser(activeRg, dayMonday);
+                                            const isOrd24hLocked = isOrdinarioLockedForUser(activeRg, dayMonthKey);
+                                            const isDay24hLocked = isOrd24hLocked && dayStatus.type === 'servico';
+                                            const canEdit = (isAdmin || user.isEscalante || (!isWeekLocked && !isDay24hLocked && activeRg === (user.rg || user.uid))) && dayStatus.type !== 'afastamento';
+                                            const hasPermutaForDay = isDay24hLocked && checkDayHasPermuta(activeRg, dayStr, dataSource);
+
+                                            return (
+                                                <div
+                                                    key={dayStr}
+                                                    onClick={() => {
+                                                        if (canEdit) {
+                                                            handleSetWeeklyDayStatus(activeRg, dayStr, 'cycle');
+                                                        } else if (isDay24hLocked && !isAdmin && !user.isEscalante) {
+                                                            if (hasPermutaForDay) {
+                                                                alert("Este dia é um Serviço (24h) homologado via Permuta. Não pode ser alterado diretamente.");
+                                                            } else {
+                                                                alert("Este dia é um S.24h Mensal Homologado. Para trocá-lo, utilize a solicitação de Permuta de Serviço.");
+                                                            }
+                                                        } else if (isWeekLocked && !isAdmin && !user.isEscalante) {
+                                                            alert("O expediente desta semana já foi confirmado e está bloqueado.");
+                                                        }
+                                                    }}
+                                                    className={cn(
+                                                        "relative flex flex-col rounded-xl border-2 transition-all p-3.5 select-none bg-white",
+                                                        canEdit ? "cursor-pointer hover:shadow-md" : "cursor-default",
+                                                        dayStatus.type === 'expediente' && "border-indigo-400 bg-indigo-50/50 shadow-sm ring-1 ring-indigo-300",
+                                                        dayStatus.type === 'servico' && "border-red-400 bg-red-50/50 shadow-sm ring-1 ring-red-300",
+                                                        dayStatus.type === 'folga' && "border-slate-200 hover:border-slate-300",
+                                                        dayStatus.type === 'afastamento' && "border-orange-300 bg-orange-50/60 opacity-90",
+                                                        isToday && "ring-2 ring-indigo-600 ring-offset-2"
+                                                    )}
+                                                >
+                                                    {/* Cabeçalho do Dia */}
+                                                    <div className="flex items-start justify-between gap-1.5 pb-2 border-b border-slate-100">
+                                                        <div className="flex flex-col">
+                                                            <span className={cn(
+                                                                "text-[10px] font-black uppercase tracking-wider",
+                                                                isWeekend ? "text-amber-700" : "text-slate-500"
+                                                            )}>
+                                                                {format(day, 'EEEE', { locale: ptBR }).split('-')[0]}
+                                                            </span>
+                                                            <div className="flex items-baseline gap-1 mt-0.5">
+                                                                <span className={cn(
+                                                                    "text-xl font-black leading-none",
+                                                                    dayStatus.type === 'expediente' ? "text-indigo-900" : dayStatus.type === 'servico' ? "text-red-900" : "text-slate-800"
+                                                                )}>
+                                                                    {format(day, 'dd')}
+                                                                </span>
+                                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                                    {format(day, 'MMM', { locale: ptBR })}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex flex-col items-end gap-1">
+                                                            {/* Ala badge */}
+                                                            <div className="flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded text-[9px] font-black text-slate-600">
+                                                                <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", alaColor)} />
+                                                                <span>Ala {alaOfDay}</span>
+                                                            </div>
+
+                                                            {/* Tags: Hoje / Fim de Semana */}
+                                                            {isToday && (
+                                                                <span className="text-[8px] font-black uppercase tracking-widest bg-indigo-600 text-white px-1.5 py-0.5 rounded">
+                                                                    Hoje
+                                                                </span>
+                                                            )}
+                                                            {isWeekend && !isToday && (
+                                                                <span className="text-[8px] font-bold uppercase tracking-widest bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">
+                                                                    FDS
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Vagas Preferenciais se houver */}
+                                                    {isPreferred && (
+                                                        <div className="my-2 bg-red-100/70 border border-red-200 rounded-lg p-1.5 flex flex-col gap-1">
+                                                            <span className="text-[9px] font-black text-red-700 uppercase tracking-widest flex items-center gap-1">
+                                                                ★ Vaga Prioritária {totalVagas > 0 && `(${totalVagas})`}
+                                                            </span>
+                                                            {Object.entries(prefDetails).length > 0 && (
+                                                                <div className="flex flex-wrap gap-1">
+                                                                    {Object.entries(prefDetails).map(([func, qtRaw]) => {
+                                                                        const qt = typeof qtRaw === 'number' ? qtRaw : Number(qtRaw || 1);
+                                                                        const parsedFunc = formatPreferenceFunction(func, qt);
+                                                                        return (
+                                                                            <span key={func} className="text-[8px] font-bold bg-white text-red-800 px-1.5 py-0.5 rounded border border-red-200 flex flex-col min-w-0" title={`${qt}x ${func}`}>
+                                                                                <span className="text-[7.5px] text-red-600 font-bold truncate leading-tight">{parsedFunc.line1}</span>
+                                                                                <span className="text-[9px] text-red-950 font-black truncate leading-tight">{parsedFunc.line2}</span>
+                                                                            </span>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Status Atual do Militar */}
+                                                    <div className="my-3 flex flex-col items-center justify-center p-3 rounded-lg border text-center transition-colors min-h-[70px] bg-slate-50/50">
+                                                        {dayStatus.type === 'expediente' ? (
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <div className="flex items-center gap-1.5 text-indigo-700 font-black text-xs uppercase tracking-wider">
+                                                                    <Briefcase className="w-3.5 h-3.5" /> EXPEDIENTE
+                                                                </div>
+                                                                <span className="text-[9px] font-bold text-indigo-500">08h às 17h</span>
+                                                            </div>
+                                                        ) : dayStatus.type === 'servico' ? (
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <div className="flex items-center gap-1.5 text-red-700 font-black text-xs uppercase tracking-wider">
+                                                                    <Shield className="w-3.5 h-3.5 text-red-600" /> SERVIÇO 24H
+                                                                </div>
+                                                                <span className="text-[9px] font-bold text-red-500">09h às 09h</span>
+                                                                {isOrd24hLocked && (isAdmin || user.isEscalante) && (
+                                                                    <span className="text-[8px] font-black uppercase text-red-700 bg-red-100 px-1.5 py-0.5 rounded border border-red-200 flex items-center gap-1 mt-0.5">
+                                                                        <Lock className="w-2.5 h-2.5" /> {hasPermutaForDay ? "S.24h Homologado (Permuta)" : "S.24h Mensal Homologado"}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        ) : dayStatus.type === 'afastamento' ? (
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <div className="flex items-center gap-1.5 text-orange-700 font-black text-xs uppercase tracking-wider">
+                                                                    <AlertCircle className="w-3.5 h-3.5" /> {dayStatus.text}
+                                                                </div>
+                                                                <span className="text-[9px] font-bold text-orange-600">Afastamento</span>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <div className="flex items-center gap-1.5 text-slate-500 font-black text-xs uppercase tracking-wider">
+                                                                    <Coffee className="w-3.5 h-3.5 text-slate-400" /> FOLGA
+                                                                </div>
+                                                                <span className="text-[9px] font-bold text-slate-400">Sem escala</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Controles Rápidos: Botões EXP / SV / FOLGA ou aviso de bloqueio */}
+                                                    {canEdit ? (
+                                                        <div 
+                                                            className="grid grid-cols-3 gap-1 mb-3 pt-1 border-t border-slate-100"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                            <button
+                                                                onClick={() => handleSetWeeklyDayStatus(activeRg, dayStr, 'expediente')}
+                                                                className={cn(
+                                                                    "py-1.5 px-1 rounded text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-0.5 transition-colors cursor-pointer",
+                                                                    dayStatus.type === 'expediente'
+                                                                        ? "bg-indigo-600 text-white shadow-sm"
+                                                                        : "bg-slate-100 text-slate-600 hover:bg-indigo-50 hover:text-indigo-700"
+                                                                )}
+                                                                title="Marcar como Expediente"
+                                                            >
+                                                                {dayStatus.type === 'expediente' && <Check className="w-2.5 h-2.5" />} EXP
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    if (isOrd24hLocked && !isAdmin && !user.isEscalante) {
+                                                                        alert("A escala ordinária (24h) deste mês já está fechada. Apenas o Escalante pode alterar serviços operacionais de 24h.");
+                                                                        return;
+                                                                    }
+                                                                    handleSetWeeklyDayStatus(activeRg, dayStr, 'servico');
+                                                                }}
+                                                                className={cn(
+                                                                    "py-1.5 px-1 rounded text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-0.5 transition-colors cursor-pointer",
+                                                                    dayStatus.type === 'servico'
+                                                                        ? "bg-red-600 text-white shadow-sm"
+                                                                        : isOrd24hLocked && !isAdmin && !user.isEscalante
+                                                                            ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                                                                            : "bg-slate-100 text-slate-600 hover:bg-red-50 hover:text-red-700"
+                                                                )}
+                                                                title={isOrd24hLocked && !isAdmin && !user.isEscalante ? "Escala 24h fechada" : "Marcar como Serviço"}
+                                                            >
+                                                                {dayStatus.type === 'servico' && <Check className="w-2.5 h-2.5" />} SV
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleSetWeeklyDayStatus(activeRg, dayStr, 'folga')}
+                                                                className={cn(
+                                                                    "py-1.5 px-1 rounded text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-0.5 transition-colors cursor-pointer",
+                                                                    dayStatus.type === 'folga'
+                                                                        ? "bg-slate-700 text-white shadow-sm"
+                                                                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                                                )}
+                                                                title="Marcar como Folga"
+                                                            >
+                                                                {dayStatus.type === 'folga' && <Check className="w-2.5 h-2.5" />} FOLGA
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="mb-3 pt-1 border-t border-slate-100 text-center text-[9px] font-bold">
+                                                            {isDay24hLocked && !isAdmin && !user.isEscalante ? (
+                                                                <div 
+                                                                    className={cn(
+                                                                        "py-1 px-1.5 rounded text-[9px] font-black flex items-center justify-center gap-1 shadow-2xs",
+                                                                        hasPermutaForDay 
+                                                                            ? "bg-purple-50 border border-purple-200 text-purple-700" 
+                                                                            : "bg-red-50 border border-red-200 text-red-700"
+                                                                    )}
+                                                                    title={hasPermutaForDay ? "Serviço 24h assumido via Permuta Homologada" : "Serviço 24h Ordinário escolhido no Calendário Mensal e Homologado"}
+                                                                >
+                                                                    <Shield className={cn("w-3 h-3 shrink-0", hasPermutaForDay ? "text-purple-600" : "text-red-600")} />
+                                                                    <span>{hasPermutaForDay ? "S.24h Homologado (Permuta)" : "S.24h Mensal Homologado"}</span>
+                                                                </div>
+                                                            ) : isWeekLocked && !isAdmin && !user.isEscalante ? (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleOpenWeeklyChangeModal();
+                                                                    }}
+                                                                    className="w-full py-1 px-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded text-amber-800 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                                                                    title="Clique para solicitar alteração desta semana ao escalante"
+                                                                >
+                                                                    <Lock className="w-3 h-3 text-amber-600 shrink-0" />
+                                                                    <span>Semana Homologada (Solicitar)</span>
+                                                                </button>
+                                                            ) : (
+                                                                dayStatus.type === 'afastamento' && (
+                                                                    <div className="py-1 px-1.5 bg-orange-50 border border-orange-200 rounded text-orange-700 flex items-center justify-center gap-1">
+                                                                        <AlertCircle className="w-3 h-3 text-orange-600 shrink-0" />
+                                                                        <span>Afastamento</span>
+                                                                    </div>
+                                                                )
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Efetivo Escalado neste dia */}
+                                                    <div 
+                                                        className="mt-auto pt-2 border-t border-slate-100 flex flex-col gap-1 text-[9px]"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        <div className="flex items-center justify-between text-slate-400 font-bold uppercase tracking-widest text-[8px]">
+                                                            <span>Efetivo no Dia</span>
+                                                            <span>{servicoList.length + expedienteList.length}</span>
+                                                        </div>
+
+                                                        {servicoList.length > 0 && (
+                                                            <div className="flex flex-col gap-0.5">
+                                                                <span className="font-black text-red-600 uppercase text-[8px]">
+                                                                    Serviço ({servicoList.length}):
+                                                                </span>
+                                                                <div className="flex flex-wrap gap-1">
+                                                                    {servicoList.slice(0, 3).map((w, idx) => (
+                                                                        <span 
+                                                                            key={idx} 
+                                                                            className="bg-red-50 text-red-700 border border-red-200 px-1 py-0.5 rounded font-bold text-[8px] truncate max-w-full"
+                                                                            title={w.name}
+                                                                        >
+                                                                            {w.isGrd && '🛡️ '}{w.name}
+                                                                        </span>
+                                                                    ))}
+                                                                    {servicoList.length > 3 && (
+                                                                        <span className="text-[8px] font-black text-slate-400 self-center">
+                                                                            +{servicoList.length - 3}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {expedienteList.length > 0 && (
+                                                            <div className="flex flex-col gap-0.5 mt-0.5">
+                                                                <span className="font-black text-indigo-600 uppercase text-[8px]">
+                                                                    Expediente ({expedienteList.length}):
+                                                                </span>
+                                                                <div className="flex flex-wrap gap-1">
+                                                                    {expedienteList.slice(0, 3).map((w, idx) => (
+                                                                        <span 
+                                                                            key={idx} 
+                                                                            className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-1 py-0.5 rounded font-bold text-[8px] truncate max-w-full"
+                                                                            title={w.name}
+                                                                        >
+                                                                            {w.name}
+                                                                        </span>
+                                                                    ))}
+                                                                    {expedienteList.length > 3 && (
+                                                                        <span className="text-[8px] font-black text-slate-400 self-center">
+                                                                            +{expedienteList.length - 3}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {servicoList.length === 0 && expedienteList.length === 0 && (
+                                                            <span className="text-slate-400 italic text-[8px]">Nenhum militar registrado</span>
+                                                        )}
+                                                    </div>
                                                 </div>
-
-                                                {servicoList.length > 0 && (
-                                                    <div className="flex flex-col gap-0.5">
-                                                        <span className="font-black text-red-600 uppercase text-[8px]">
-                                                            Serviço ({servicoList.length}):
-                                                        </span>
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {servicoList.slice(0, 3).map((w, idx) => (
-                                                                <span 
-                                                                    key={idx} 
-                                                                    className="bg-red-50 text-red-700 border border-red-200 px-1 py-0.5 rounded font-bold text-[8px] truncate max-w-full"
-                                                                    title={w.name}
-                                                                >
-                                                                    {w.isGrd && '🛡️ '}{w.name}
-                                                                </span>
-                                                            ))}
-                                                            {servicoList.length > 3 && (
-                                                                <span className="text-[8px] font-black text-slate-400 self-center">
-                                                                    +{servicoList.length - 3}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {expedienteList.length > 0 && (
-                                                    <div className="flex flex-col gap-0.5 mt-0.5">
-                                                        <span className="font-black text-indigo-600 uppercase text-[8px]">
-                                                            Expediente ({expedienteList.length}):
-                                                        </span>
-                                                        <div className="flex flex-wrap gap-1">
-                                                            {expedienteList.slice(0, 3).map((w, idx) => (
-                                                                <span 
-                                                                    key={idx} 
-                                                                    className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-1 py-0.5 rounded font-bold text-[8px] truncate max-w-full"
-                                                                    title={w.name}
-                                                                >
-                                                                    {w.name}
-                                                                </span>
-                                                            ))}
-                                                            {expedienteList.length > 3 && (
-                                                                <span className="text-[8px] font-black text-slate-400 self-center">
-                                                                    +{expedienteList.length - 3}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {servicoList.length === 0 && expedienteList.length === 0 && (
-                                                    <span className="text-slate-400 italic text-[8px]">Nenhum militar registrado</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         );
                     })()}

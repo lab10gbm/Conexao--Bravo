@@ -158,6 +158,8 @@ export interface PermutaRequest {
   substituteRg?: string;
   requesterSigned?: boolean;
   substituteSigned?: boolean;
+  submittedByRg?: string;
+  submittedByName?: string;
   date: string; // YYYY-MM-DD
   originalAla: string | number;
   targetMilitarId?: string;

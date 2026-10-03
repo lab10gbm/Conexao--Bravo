@@ -98,14 +98,15 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
         setPermutas(filteredByObm);
         localStorage.setItem('cache_permutas', JSON.stringify(filteredByObm));
       } else {
+        const userCleanRg = normalizeRg(user?.rg);
         const filtered = filteredByObm.filter(p => 
           p.status === PermutaStatus.ACCEPTED || 
           p.status === PermutaStatus.PENDING ||
           p.status === 'scheduled' ||
+          (userCleanRg && (normalizeRg(p.requesterRg) === userCleanRg || normalizeRg(p.substituteRg) === userCleanRg)) ||
           p.requesterId === (user?.uid || '') ||
           p.acceptedById === (user?.uid || '') ||
-          p.requesterRg === (user?.rg || '') ||
-          p.substituteRg === (user?.rg || '') ||
+          p.substituteId === (user?.uid || '') ||
           p.isLookingForSubstitute
         );
         setPermutas(filtered);
@@ -146,14 +147,15 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
       })) as PermutaRequest[];
       
       const filteredByObm = data.filter(p => !p.obm || getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm)));
+      const userCleanRg = normalizeRg(user?.rg);
       const filtered = adminMode ? filteredByObm : filteredByObm.filter(p => 
         p.status === PermutaStatus.ACCEPTED || 
         p.status === PermutaStatus.PENDING ||
         p.status === 'scheduled' ||
+        (userCleanRg && (normalizeRg(p.requesterRg) === userCleanRg || normalizeRg(p.substituteRg) === userCleanRg)) ||
         p.requesterId === (user?.uid || '') ||
         p.acceptedById === (user?.uid || '') ||
-        p.requesterRg === (user?.rg || '') ||
-        p.substituteRg === (user?.rg || '') ||
+        p.substituteId === (user?.uid || '') ||
         p.isLookingForSubstitute
       );
       setPermutas(filtered);
@@ -175,14 +177,38 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
         return;
       }
 
-      const isRequester = user?.rg && (signPermuta.requesterRg === user.rg);
-      const isSubstitute = user?.rg && (signPermuta.substituteRg === user.rg);
+      const userCleanRg = normalizeRg(user?.rg);
+      const reqCleanRg = normalizeRg(signPermuta.requesterRg);
+      const subCleanRg = normalizeRg(signPermuta.substituteRg);
+
+      let isRequester = false;
+      let isSubstitute = false;
+
+      if (userCleanRg) {
+        if (reqCleanRg && userCleanRg === reqCleanRg) {
+          isRequester = true;
+        }
+        if (subCleanRg && userCleanRg === subCleanRg) {
+          isSubstitute = true;
+        }
+      }
+
+      if (!isRequester && !isSubstitute && user?.uid) {
+        if (!reqCleanRg && signPermuta.requesterId === user.uid) {
+          isRequester = true;
+        } else if (!subCleanRg && (signPermuta.substituteId === user.uid || signPermuta.acceptedById === user.uid)) {
+          isSubstitute = true;
+        }
+      }
+
+      const nextRequesterSigned = isRequester ? true : Boolean(signPermuta.requesterSigned);
+      const nextSubstituteSigned = isSubstitute ? true : Boolean(signPermuta.substituteSigned);
 
       await updateDoc(doc(db, 'permutas', signPermuta.id), cleanUndefined({
-              requesterSigned: isRequester ? true : signPermuta.requesterSigned,
-              substituteSigned: isSubstitute ? true : signPermuta.substituteSigned,
-              updatedAt: serverTimestamp()
-            })).catch(error => {
+        requesterSigned: nextRequesterSigned,
+        substituteSigned: nextSubstituteSigned,
+        updatedAt: serverTimestamp()
+      })).catch(error => {
         handleFirestoreError(error, OperationType.UPDATE, `permutas/${signPermuta.id}`);
       });
       
@@ -190,8 +216,8 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
         if (p.id === signPermuta.id) {
           return {
             ...p,
-            requesterSigned: isRequester ? true : p.requesterSigned,
-            substituteSigned: isSubstitute ? true : p.substituteSigned,
+            requesterSigned: nextRequesterSigned,
+            substituteSigned: nextSubstituteSigned,
           };
         }
         return p;
@@ -497,25 +523,28 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
 
     if (viewMode === 'geral' && selectedMonth != null && permutaDate.getMonth() !== selectedMonth) return false;
     if (filterMode === 'mine' && user?.rg) {
-       const userCleanRg = String(user.rg).replace(/\D/g, '').replace(/^0+/, '');
-       const reqCleanRg = String(p.requesterRg || '').replace(/\D/g, '').replace(/^0+/, '');
-       const subCleanRg = String(p.substituteRg || '').replace(/\D/g, '').replace(/^0+/, '');
+       const userCleanRg = normalizeRg(user.rg);
+       const reqCleanRg = normalizeRg(p.requesterRg);
+       const subCleanRg = normalizeRg(p.substituteRg);
        return (
-         p.requesterRg === user.rg ||
-         p.substituteRg === user.rg ||
          Boolean(userCleanRg && (reqCleanRg === userCleanRg || subCleanRg === userCleanRg)) ||
-         Boolean(user?.uid && (p.requesterId === user.uid || p.acceptedById === user.uid))
+         Boolean(user?.uid && (p.requesterId === user.uid || p.acceptedById === user.uid || p.substituteId === user.uid))
        );
     }
     return true;
   });
 
-  const pendingMySignature = filteredPermutas.filter(p => 
-    (p.status === PermutaStatus.PENDING || p.status === PermutaStatus.SCHEDULED) &&
-    user?.rg && 
-    ((p.requesterRg === user.rg && !p.requesterSigned) || 
-     (p.substituteRg === user.rg && !p.substituteSigned))
-  );
+  const pendingMySignature = filteredPermutas.filter(p => {
+    if (p.status !== PermutaStatus.PENDING && p.status !== PermutaStatus.SCHEDULED) return false;
+    const userCleanRg = normalizeRg(user?.rg);
+    if (!userCleanRg) return false;
+    const reqCleanRg = normalizeRg(p.requesterRg);
+    const subCleanRg = normalizeRg(p.substituteRg);
+    return (
+      (reqCleanRg === userCleanRg && !p.requesterSigned) ||
+      (subCleanRg === userCleanRg && !p.substituteSigned)
+    );
+  });
 
   // Group by date
   const grouped = filteredPermutas.reduce((acc, p) => {
@@ -586,8 +615,19 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
 
   // Sort grouped entries mapping dates with pending signatures for this user to top
   const sortedGroupedEntries = (Object.entries(grouped) as [string, PermutaRequest[]][]).sort((a, b) => {
-    const aHasPending = a[1].some(p => (p.status === PermutaStatus.PENDING || p.status === PermutaStatus.SCHEDULED) && ((p.requesterRg === user?.rg && !p.requesterSigned) || (p.substituteRg === user?.rg && !p.substituteSigned)));
-    const bHasPending = b[1].some(p => (p.status === PermutaStatus.PENDING || p.status === PermutaStatus.SCHEDULED) && ((p.requesterRg === user?.rg && !p.requesterSigned) || (p.substituteRg === user?.rg && !p.substituteSigned)));
+    const userClean = normalizeRg(user?.rg);
+    const checkPending = (items: PermutaRequest[]) => items.some(p => {
+      if (p.status !== PermutaStatus.PENDING && p.status !== PermutaStatus.SCHEDULED) return false;
+      if (!userClean) return false;
+      const reqClean = normalizeRg(p.requesterRg);
+      const subClean = normalizeRg(p.substituteRg);
+      return (
+        (reqClean === userClean && !p.requesterSigned) ||
+        (subClean === userClean && !p.substituteSigned)
+      );
+    });
+    const aHasPending = checkPending(a[1]);
+    const bHasPending = checkPending(b[1]);
     if (aHasPending && !bHasPending) return -1;
     if (!aHasPending && bHasPending) return 1;
     // Standard sort ascending by date
@@ -726,7 +766,17 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
             const dateObj = new Date(date + 'T00:00:00');
             const dayOfYear = differenceInDays(dateObj, startOfYear(dateObj)) + 1;
             const ala = getAlaForDate(dateObj);
-            const hasPendingForMe = items.some(p => (p.status === PermutaStatus.PENDING || p.status === PermutaStatus.SCHEDULED) && ((p.requesterRg === user?.rg && !p.requesterSigned) || (p.substituteRg === user?.rg && !p.substituteSigned)));
+            const userClean = normalizeRg(user?.rg);
+            const hasPendingForMe = items.some(p => {
+              if (p.status !== PermutaStatus.PENDING && p.status !== PermutaStatus.SCHEDULED) return false;
+              if (!userClean) return false;
+              const reqClean = normalizeRg(p.requesterRg);
+              const subClean = normalizeRg(p.substituteRg);
+              return (
+                (reqClean === userClean && !p.requesterSigned) ||
+                (subClean === userClean && !p.substituteSigned)
+              );
+            });
             const currentMonth = dateObj.getMonth();
             const showMonthHeader = viewMode === 'ofertas' && currentMonth !== lastRenderedMonth;
             lastRenderedMonth = currentMonth;
@@ -821,8 +871,32 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
                   <tbody>
                   {items.map((permuta) => {
                     const userCleanRg = normalizeRg(user?.rg);
-                    const isRequester = Boolean(user?.rg && (permuta.requesterRg === user.rg || normalizeRg(permuta.requesterRg) === userCleanRg || (user.uid && permuta.requesterId === user.uid)));
-                    const isSubstitute = Boolean(user?.rg && (permuta.substituteRg === user.rg || normalizeRg(permuta.substituteRg) === userCleanRg || permuta.acceptedById === `rg_${user.rg}` || (user.uid && (permuta.substituteId === user.uid || permuta.acceptedById === user.uid))));
+                    const reqCleanRg = normalizeRg(permuta.requesterRg);
+                    const subCleanRg = normalizeRg(permuta.substituteRg);
+
+                    // A militar is identified primarily by their RG.
+                    // If RG is present on both user and permuta, RG match is the definitive source of truth.
+                    let isRequester = false;
+                    let isSubstitute = false;
+
+                    if (userCleanRg) {
+                      if (reqCleanRg && userCleanRg === reqCleanRg) {
+                        isRequester = true;
+                      }
+                      if (subCleanRg && userCleanRg === subCleanRg) {
+                        isSubstitute = true;
+                      }
+                    }
+
+                    // Fallback ONLY when RG is not specified on the permuta (e.g. open vacancy)
+                    if (!isRequester && !isSubstitute && user?.uid) {
+                      if (!reqCleanRg && permuta.requesterId === user.uid) {
+                        isRequester = true;
+                      } else if (!subCleanRg && (permuta.substituteId === user.uid || permuta.acceptedById === user.uid)) {
+                        isSubstitute = true;
+                      }
+                    }
+
                     const isEscalante = isModeratorOrEscalante;
                     const isMyTurnToSign = (isRequester && !permuta.requesterSigned) || (isSubstitute && !permuta.substituteSigned);
                     

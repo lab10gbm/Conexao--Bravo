@@ -292,15 +292,45 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
     }
 
     try {
-      const reqMilitar = militars.find(m => String(m.rg || '').replace(/\D/g, '') === normalizeRg(requesterRg));
-      const subMilitar = militars.find(m => String(m.rg || '').replace(/\D/g, '') === normalizeRg(substituteRg));
+      const reqClean = normalizeRg(requesterRg);
+      const subClean = normalizeRg(substituteRg);
+      const userClean = normalizeRg(user.rg || '');
+
+      const reqMilitar = militars.find(m => normalizeRg(m.rg) === reqClean);
+      const subMilitar = militars.find(m => normalizeRg(m.rg) === subClean);
+
+      const isUserRequester = !isRequesterMissing && Boolean(userClean && reqClean === userClean);
+      const isUserSubstitute = !isSubstituteMissing && Boolean(userClean && subClean === userClean);
+
+      // Determine correct requesterId and substituteId based on who the logged-in user actually is:
+      let requesterIdVal = '';
+      if (!isRequesterMissing) {
+        if (isUserRequester) {
+          requesterIdVal = String(auth.currentUser?.uid || user.uid || reqMilitar?.uid || '');
+        } else {
+          requesterIdVal = String(reqMilitar?.uid || '');
+        }
+      }
+
+      let substituteIdVal = '';
+      if (!isSubstituteMissing) {
+        if (isUserSubstitute) {
+          substituteIdVal = String(auth.currentUser?.uid || user.uid || subMilitar?.uid || '');
+        } else {
+          substituteIdVal = String(subMilitar?.uid || '');
+        }
+      }
+
+      // The submitter automatically signs their own side. The other party must sign afterwards.
+      const requesterSignedVal = isRequesterMissing ? false : isUserRequester;
+      const substituteSignedVal = isSubstituteMissing ? false : isUserSubstitute;
 
       const payload = {
         obm: String(obmContext || '10º GBM'),
-        requesterId: isRequesterMissing ? '' : (reqMilitar?.uid || String(auth.currentUser?.uid || user.uid)),
+        requesterId: requesterIdVal,
         requesterName: isRequesterMissing ? '' : String(requesterName),
         requesterRg: isRequesterMissing ? '' : String(requesterRg),
-        substituteId: isSubstituteMissing ? '' : (subMilitar?.uid || ''),
+        substituteId: substituteIdVal,
         substituteRg: isSubstituteMissing ? '' : String(substituteRg),
         substituteName: isSubstituteMissing ? '' : String(substituteName),
         isLookingForSubstitute,
@@ -310,8 +340,10 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
         status: isFutureAgendamento ? PermutaStatus.SCHEDULED : PermutaStatus.PENDING,
         acceptedById: isSubstituteMissing ? '' : `rg_${substituteRg}`,
         acceptedByName: isSubstituteMissing ? '' : String(substituteName),
-        requesterSigned: isRequesterMissing ? false : normalizeRg(requesterRg) === normalizeRg(user.rg || ''),
-        substituteSigned: isSubstituteMissing ? false : normalizeRg(substituteRg) === normalizeRg(user.rg || ''),
+        requesterSigned: requesterSignedVal,
+        substituteSigned: substituteSignedVal,
+        submittedByRg: String(user.rg || ''),
+        submittedByName: String(user.name || user.warName || ''),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
