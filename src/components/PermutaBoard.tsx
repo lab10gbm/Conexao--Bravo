@@ -1,4 +1,4 @@
-import { getUserObmAccess, normalizeObm, calculateDeadline, cleanUndefined, cn, getAlaForDate, getAlaColor, getAlaName } from '../lib/utils';
+import { getUserObmAccess, normalizeObm, normalizeRg, calculateDeadline, cleanUndefined, cn, getAlaForDate, getAlaColor, getAlaName } from '../lib/utils';
 import { getDocs } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -7,11 +7,12 @@ import { PermutaRequest, PermutaStatus, UserProfile } from '../types';
 import { format, differenceInDays, startOfYear, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-import { MessageSquare, UserCheck, Trash2, CalendarDays, X, Check, RefreshCw, ExternalLink, AlertTriangle, PenTool, Clock, Archive, ArrowLeftRight, Equal, ArrowUp } from 'lucide-react';
+import { MessageSquare, UserCheck, Trash2, CalendarDays, X, Check, RefreshCw, ExternalLink, AlertTriangle, PenTool, Clock, Archive, ArrowLeftRight, Equal, ArrowUp, Send, FileText, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useMilitars } from '../contexts/MilitarContext';
 import { RankInsignia } from './RankInsignia';
 import { useAppConfig } from '../contexts/ConfigContext';
+import { parseRank } from '../lib/rankUtils';
 
 
 interface PermutaBoardProps {
@@ -33,8 +34,35 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
   const [loading, setLoading] = useState(true);
   const [signPermuta, setSignPermuta] = useState<PermutaRequest | null>(null);
   const [cancelPermuta, setCancelPermuta] = useState<PermutaRequest | null>(null);
-  const [filterMode, setFilterMode] = useState<'all' | 'mine'>('all');
+  const [requestCancelPermuta, setRequestCancelPermuta] = useState<PermutaRequest | null>(null);
+  const [cancellationReasonText, setCancellationReasonText] = useState('');
+  const [isSubmittingCancelRequest, setIsSubmittingCancelRequest] = useState(false);
+  const [cancelRequestError, setCancelRequestError] = useState('');
+  const isModeratorOrEscalante = Boolean(adminMode || user?.isAdmin || user?.isEscalante);
   const [viewMode, setViewMode] = useState<'geral' | 'ofertas'>('geral');
+  const [filterMode, setFilterMode] = useState<'all' | 'mine'>(() => {
+    return isModeratorOrEscalante ? 'all' : 'mine';
+  });
+
+  const handleSelectViewMode = (mode: 'geral' | 'ofertas') => {
+    setViewMode(mode);
+    if (mode === 'ofertas') {
+      setFilterMode('all');
+    } else {
+      setFilterMode(isModeratorOrEscalante ? 'all' : 'mine');
+    }
+  };
+
+  // Sync filterMode if role or adminMode changes dynamically
+  const prevRoleRef = React.useRef(isModeratorOrEscalante);
+  useEffect(() => {
+    if (prevRoleRef.current !== isModeratorOrEscalante) {
+      prevRoleRef.current = isModeratorOrEscalante;
+      if (viewMode === 'geral') {
+        setFilterMode(isModeratorOrEscalante ? 'all' : 'mine');
+      }
+    }
+  }, [isModeratorOrEscalante, viewMode]);
 
   useEffect(() => {
     // Safety timeout: if Firestore takes too long, stop loading
@@ -120,10 +148,13 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
       const filteredByObm = data.filter(p => !p.obm || getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm)));
       const filtered = adminMode ? filteredByObm : filteredByObm.filter(p => 
         p.status === PermutaStatus.ACCEPTED || 
+        p.status === PermutaStatus.PENDING ||
+        p.status === 'scheduled' ||
         p.requesterId === (user?.uid || '') ||
         p.acceptedById === (user?.uid || '') ||
         p.requesterRg === (user?.rg || '') ||
-        p.substituteRg === (user?.rg || '')
+        p.substituteRg === (user?.rg || '') ||
+        p.isLookingForSubstitute
       );
       setPermutas(filtered);
       localStorage.setItem('cache_permutas', JSON.stringify(filtered));
@@ -290,8 +321,15 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
   const confirmCancel = async () => {
     if (!cancelPermuta?.id) return;
     try {
+      const isEscalanteOrAdmin = adminMode || user?.isAdmin || user?.isEscalante;
+      if (!isEscalanteOrAdmin && cancelPermuta.status === PermutaStatus.ACCEPTED) {
+        alert("Esta permuta já foi deferida pelo escalante. Utilize 'Solicitar Cancelamento' para justificar o pedido.");
+        setCancelPermuta(null);
+        return;
+      }
+
       const dateObj = new Date(cancelPermuta.date + 'T00:00:00');
-      if (!(user.isAdmin || user.isEscalante) && new Date() > calculateDeadline(dateObj)) {
+      if (!isEscalanteOrAdmin && new Date() > calculateDeadline(dateObj)) {
         alert("O prazo para cancelamento desta permuta já expirou.");
         setCancelPermuta(null);
         return;
@@ -299,17 +337,107 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
 
       await updateDoc(doc(db, 'permutas', cancelPermuta.id), cleanUndefined({
               status: PermutaStatus.CANCELLED,
+              cancellationRequested: false,
               cancelledByRg: user.rg,
               updatedAt: serverTimestamp()
             })).catch(error => {
         handleFirestoreError(error, OperationType.UPDATE, `permutas/${cancelPermuta.id}`);
       });
       setPermutas(prev => prev.map(p => 
-        p.id === cancelPermuta.id ? { ...p, status: PermutaStatus.CANCELLED, cancelledByRg: user.rg } : p
+        p.id === cancelPermuta.id ? { ...p, status: PermutaStatus.CANCELLED, cancellationRequested: false, cancelledByRg: user.rg } : p
       ));
       setCancelPermuta(null);
     } catch (error) {
       console.error('Cancel Error:', error);
+    }
+  };
+
+  const handleApproveCancellation = async (permuta: PermutaRequest) => {
+    if (!permuta.id) return;
+    if (!window.confirm(`Deseja realmente homologar o cancelamento desta permuta deferida do dia ${format(new Date(permuta.date + 'T00:00:00'), 'dd/MM/yyyy')}?`)) return;
+    try {
+      await updateDoc(doc(db, 'permutas', permuta.id), cleanUndefined({
+        status: PermutaStatus.CANCELLED,
+        cancellationRequested: false,
+        cancelledByRg: user.rg,
+        updatedAt: serverTimestamp()
+      })).catch(error => {
+        handleFirestoreError(error, OperationType.UPDATE, `permutas/${permuta.id}`);
+      });
+      setPermutas(prev => prev.map(p => 
+        p.id === permuta.id ? { ...p, status: PermutaStatus.CANCELLED, cancellationRequested: false, cancelledByRg: user.rg } : p
+      ));
+      alert("Cancelamento de permuta homologado e deferido com sucesso.");
+    } catch (err) {
+      console.error('Error approving cancellation:', err);
+      alert("Erro ao homologar cancelamento.");
+    }
+  };
+
+  const handleRejectCancellation = async (permuta: PermutaRequest) => {
+    if (!permuta.id) return;
+    if (!window.confirm("Deseja recusar o pedido de cancelamento e manter a permuta deferida?")) return;
+    try {
+      await updateDoc(doc(db, 'permutas', permuta.id), cleanUndefined({
+        cancellationRequested: false,
+        updatedAt: serverTimestamp()
+      })).catch(error => {
+        handleFirestoreError(error, OperationType.UPDATE, `permutas/${permuta.id}`);
+      });
+      setPermutas(prev => prev.map(p => 
+        p.id === permuta.id ? { ...p, cancellationRequested: false } : p
+      ));
+      alert("Solicitação de cancelamento recusada. A permuta permanece ativa e deferida.");
+    } catch (err) {
+      console.error('Error rejecting cancellation request:', err);
+      alert("Erro ao recusar solicitação de cancelamento.");
+    }
+  };
+
+  const handleSendCancellationRequest = async () => {
+    if (!requestCancelPermuta?.id) return;
+    if (!cancellationReasonText.trim()) {
+      setCancelRequestError("Por favor, informe a justificativa do cancelamento.");
+      return;
+    }
+
+    setIsSubmittingCancelRequest(true);
+    setCancelRequestError("");
+
+    try {
+      const requesterLabel = user.warName
+        ? `${parseRank(user.rank)} ${user.warName}`
+        : (user.name || `Militar RG ${user.rg}`);
+
+      await updateDoc(doc(db, 'permutas', requestCancelPermuta.id), cleanUndefined({
+        cancellationRequested: true,
+        cancellationReason: cancellationReasonText.trim(),
+        cancellationRequestedBy: requesterLabel,
+        cancellationRequestedRg: user.rg || '',
+        cancellationRequestedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      })).catch(error => {
+        handleFirestoreError(error, OperationType.UPDATE, `permutas/${requestCancelPermuta.id}`);
+      });
+
+      setPermutas(prev => prev.map(p => 
+        p.id === requestCancelPermuta.id ? {
+          ...p,
+          cancellationRequested: true,
+          cancellationReason: cancellationReasonText.trim(),
+          cancellationRequestedBy: requesterLabel,
+          cancellationRequestedRg: user.rg || ''
+        } : p
+      ));
+
+      setRequestCancelPermuta(null);
+      setCancellationReasonText('');
+      alert("Solicitação de cancelamento enviada com sucesso! O escalante analisará sua justificativa.");
+    } catch (err) {
+      console.error('Error requesting cancellation:', err);
+      setCancelRequestError("Erro ao enviar solicitação de cancelamento.");
+    } finally {
+      setIsSubmittingCancelRequest(false);
     }
   };
 
@@ -369,7 +497,15 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
 
     if (viewMode === 'geral' && selectedMonth != null && permutaDate.getMonth() !== selectedMonth) return false;
     if (filterMode === 'mine' && user?.rg) {
-       return p.requesterRg === user.rg || p.substituteRg === user.rg;
+       const userCleanRg = String(user.rg).replace(/\D/g, '').replace(/^0+/, '');
+       const reqCleanRg = String(p.requesterRg || '').replace(/\D/g, '').replace(/^0+/, '');
+       const subCleanRg = String(p.substituteRg || '').replace(/\D/g, '').replace(/^0+/, '');
+       return (
+         p.requesterRg === user.rg ||
+         p.substituteRg === user.rg ||
+         Boolean(userCleanRg && (reqCleanRg === userCleanRg || subCleanRg === userCleanRg)) ||
+         Boolean(user?.uid && (p.requesterId === user.uid || p.acceptedById === user.uid))
+       );
     }
     return true;
   });
@@ -402,13 +538,13 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
             <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-600 hidden sm:inline-block">Tipo</span>
             <div className="flex gap-2 flex-1 sm:flex-initial">
               <button
-                 onClick={() => setViewMode('geral')}
+                 onClick={() => handleSelectViewMode('geral')}
                  className={cn("flex-1 sm:flex-initial px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-colors", viewMode === 'geral' ? "bg-slate-800 text-white shadow-sm" : "bg-slate-100 text-slate-500 hover:bg-slate-200")}
               >
                  Quadro Geral
               </button>
               <button
-                 onClick={() => setViewMode('ofertas')}
+                 onClick={() => handleSelectViewMode('ofertas')}
                  className={cn("flex-1 sm:flex-initial px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-colors", viewMode === 'ofertas' ? "bg-slate-800 text-white shadow-sm" : "bg-slate-100 text-slate-500 hover:bg-slate-200")}
               >
                  Mural de Ofertas
@@ -471,13 +607,13 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
             <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-600 hidden sm:inline-block">Tipo</span>
             <div className="flex gap-2 flex-1 sm:flex-initial">
               <button
-                 onClick={() => setViewMode('geral')}
+                 onClick={() => handleSelectViewMode('geral')}
                  className={cn("flex-1 sm:flex-initial px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-colors", viewMode === 'geral' ? "bg-slate-800 text-white shadow-sm" : "bg-slate-100 text-slate-500 hover:bg-slate-200")}
               >
                  Quadro Geral
               </button>
               <button
-                 onClick={() => setViewMode('ofertas')}
+                 onClick={() => handleSelectViewMode('ofertas')}
                  className={cn("flex-1 sm:flex-initial px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-colors", viewMode === 'ofertas' ? "bg-slate-800 text-white shadow-sm" : "bg-slate-100 text-slate-500 hover:bg-slate-200")}
               >
                  Mural de Ofertas
@@ -510,6 +646,63 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
             </button>
          </div>
       </div>
+      {isModeratorOrEscalante && permutas.some(p => p.cancellationRequested && p.status !== 'cancelled') && (
+        <div className="bg-rose-50 border-2 border-rose-300 rounded-xl p-4 shadow-sm">
+           <div className="flex items-center gap-3 text-rose-900 mb-3">
+             <div className="bg-rose-600 rounded-full p-1.5 text-white shadow-xs">
+                <AlertTriangle className="w-5 h-5 stroke-[2.5]" />
+             </div>
+             <div>
+                <h4 className="font-black text-sm uppercase tracking-tight">
+                  Solicitações de Cancelamento de Permuta Deferida
+                </h4>
+                <p className="font-bold text-[11px] text-rose-700 uppercase tracking-widest leading-tight">
+                  Militares solicitaram o cancelamento justificado de permutas já deferidas. Analise abaixo:
+                </p>
+             </div>
+           </div>
+           <div className="flex flex-col gap-2">
+             {permutas.filter(p => p.cancellationRequested && p.status !== 'cancelled').map(p => (
+               <div key={p.id} className="bg-white border border-rose-200 rounded-lg p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-2xs">
+                 <div className="min-w-0">
+                   <div className="flex items-center gap-2 flex-wrap">
+                     <span className="font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
+                       {format(new Date(p.date + 'T00:00:00'), 'dd/MM/yyyy')}
+                     </span>
+                     <span className="font-bold text-slate-800">
+                       {p.requesterName} &harr; {p.substituteName || p.acceptedByName || '-'}
+                     </span>
+                   </div>
+                   <p className="text-xs text-rose-950 font-medium mt-1 bg-rose-50/60 p-2 rounded border border-rose-100 italic">
+                     "{p.cancellationReason || 'Sem justificativa informada'}"
+                     <span className="text-slate-500 font-bold not-italic ml-1 block sm:inline mt-0.5 sm:mt-0">
+                       — Solicitado por: {p.cancellationRequestedBy || 'Militar'} {p.cancellationRequestedRg ? `(RG ${p.cancellationRequestedRg})` : ''}
+                     </span>
+                   </p>
+                 </div>
+                 <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                   <button
+                     type="button"
+                     onClick={() => handleApproveCancellation(p)}
+                     className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 shadow-xs transition-all"
+                   >
+                     <Check className="w-3.5 h-3.5 stroke-[3]" />
+                     <span>Deferir Cancelamento</span>
+                   </button>
+                   <button
+                     type="button"
+                     onClick={() => handleRejectCancellation(p)}
+                     className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 border border-slate-200 transition-all"
+                   >
+                     <X className="w-3.5 h-3.5 stroke-[3]" />
+                     <span>Recusar</span>
+                   </button>
+                 </div>
+               </div>
+             ))}
+           </div>
+        </div>
+      )}
       {pendingMySignature.length > 0 && (
         <div className="bg-amber-100 border-2 border-amber-300 rounded-xl p-4 flex items-center justify-between shadow-sm animate-pulse-slow">
            <div className="flex items-center gap-4 text-amber-900">
@@ -627,9 +820,10 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
 
                   <tbody>
                   {items.map((permuta) => {
-                    const isRequester = user?.rg && permuta.requesterRg === user.rg;
-                    const isSubstitute = user?.rg && permuta.substituteRg === user.rg;
-                    const isEscalante = adminMode;
+                    const userCleanRg = normalizeRg(user?.rg);
+                    const isRequester = Boolean(user?.rg && (permuta.requesterRg === user.rg || normalizeRg(permuta.requesterRg) === userCleanRg || (user.uid && permuta.requesterId === user.uid)));
+                    const isSubstitute = Boolean(user?.rg && (permuta.substituteRg === user.rg || normalizeRg(permuta.substituteRg) === userCleanRg || permuta.acceptedById === `rg_${user.rg}` || (user.uid && (permuta.substituteId === user.uid || permuta.acceptedById === user.uid))));
+                    const isEscalante = isModeratorOrEscalante;
                     const isMyTurnToSign = (isRequester && !permuta.requesterSigned) || (isSubstitute && !permuta.substituteSigned);
                     
                     const requesterData = militars.find(m => m.rg === permuta.requesterRg);
@@ -695,10 +889,13 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
                     const canSelectStatus = isEscalante && permuta.status !== 'cancelled';
 
                     return (
-                      <tr key={permuta.id} className={cn(
-                        "border-b border-slate-300 hover:opacity-80 transition-colors h-12",
-                        getRowBgColor()
-                      )}>
+                      <tr 
+                        key={permuta.id || `${permuta.date}_${permuta.requesterRg}`}
+                        className={cn(
+                          "border-b border-slate-300 hover:opacity-80 transition-colors h-12",
+                          getRowBgColor()
+                        )}
+                      >
                          <td className="border-r border-slate-300 px-0.5 py-1 sm:p-1 text-center">
                             {permuta.requesterSigned ? (
                               <div className="w-4 h-4 sm:w-5 sm:h-5 bg-slate-900 rounded flex items-center justify-center mx-auto shadow-sm">
@@ -755,24 +952,100 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
                          </td>
                          <td className="border-r border-slate-300 px-0.5 py-1 sm:p-1 text-center bg-transparent mix-blend-multiply align-middle">
                             <div className="flex items-center justify-center w-full h-full min-h-[32px]">
-                               {(isRequester || isSubstitute || isEscalante) && permuta.status !== 'cancelled' ? (
-                                 <button 
-                                   onClick={() => {
-                                     const dateObj = new Date(permuta.date + 'T00:00:00');
-                                     if (!(user.isAdmin || user.isEscalante) && new Date() > calculateDeadline(dateObj)) {
-                                       alert("O prazo para cancelamento desta permuta expirou.");
-                                       return;
-                                     }
-                                     setCancelPermuta(permuta);
-                                   }}
-                                   className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center hover:bg-red-200 rounded-full transition-colors group mx-auto"
-                                   title="Cancelar Permuta"
-                                 >
-                                   <X className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-600 font-black stroke-[4] group-hover:scale-125 transition-transform" />
-                                 </button>
+                               {permuta.status === 'cancelled' ? (
+                                 <div className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center mx-auto" title="Permuta cancelada">
+                                   <X className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-600 opacity-40 font-black stroke-[3]" />
+                                 </div>
+                               ) : isEscalante ? (
+                                 /* Escalante / Admin: can approve/reject cancellation request OR directly cancel */
+                                 permuta.cancellationRequested ? (
+                                   <div className="flex flex-col items-center gap-1 py-0.5 max-w-[130px] mx-auto">
+                                     <div 
+                                       title={`Justificativa: "${permuta.cancellationReason || ''}" (por ${permuta.cancellationRequestedBy || 'Militar'} - RG ${permuta.cancellationRequestedRg || ''})`} 
+                                       className="px-1 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-900 text-[7.5px] sm:text-[8px] font-black uppercase tracking-tight flex items-center gap-0.5 cursor-help"
+                                     >
+                                       <AlertTriangle className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                                       <span className="truncate">Pedido Pendente</span>
+                                     </div>
+                                     <div className="flex items-center gap-1">
+                                       <button
+                                         type="button"
+                                         onClick={() => handleApproveCancellation(permuta)}
+                                         className="px-1.5 py-0.5 rounded bg-red-600 hover:bg-red-700 text-white text-[8px] font-black uppercase flex items-center gap-0.5 shadow-2xs transition-all active:scale-95"
+                                         title={`Deferir cancelamento solicitado: "${permuta.cancellationReason || ''}"`}
+                                       >
+                                         <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                         <span>Deferir</span>
+                                       </button>
+                                       <button
+                                         type="button"
+                                         onClick={() => handleRejectCancellation(permuta)}
+                                         className="px-1.5 py-0.5 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 text-[8px] font-black uppercase flex items-center gap-0.5 transition-all active:scale-95"
+                                         title="Recusar pedido de cancelamento e manter permuta ativa"
+                                       >
+                                         <X className="w-2.5 h-2.5 stroke-[3]" />
+                                         <span>Recusar</span>
+                                       </button>
+                                     </div>
+                                   </div>
+                                 ) : (
+                                   <button 
+                                     onClick={() => setCancelPermuta(permuta)}
+                                     className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center hover:bg-red-200 rounded-full transition-colors group mx-auto"
+                                     title="Cancelar Permuta (Ação de Escalante)"
+                                   >
+                                     <X className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-600 font-black stroke-[4] group-hover:scale-125 transition-transform" />
+                                   </button>
+                                 )
+                               ) : (isRequester || isSubstitute) ? (
+                                 /* Regular military user involved in the permuta */
+                                 permuta.status === PermutaStatus.ACCEPTED ? (
+                                   /* Permuta already accepted: militar cannot directly cancel, must request cancellation with text reason */
+                                   permuta.cancellationRequested ? (
+                                     <div 
+                                       className="flex flex-col items-center justify-center" 
+                                       title={`Cancelamento solicitado ao escalante: "${permuta.cancellationReason || ''}"`}
+                                     >
+                                       <span className="px-1.5 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-900 text-[7.5px] sm:text-[8px] font-black uppercase tracking-tight flex items-center gap-0.5 whitespace-nowrap">
+                                         <Clock className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                                         <span>Aguardando Escalante</span>
+                                       </span>
+                                     </div>
+                                   ) : (
+                                     <button 
+                                       type="button"
+                                       onClick={() => {
+                                         setRequestCancelPermuta(permuta);
+                                         setCancellationReasonText('');
+                                         setCancelRequestError('');
+                                       }}
+                                       className="px-1.5 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white text-[8px] sm:text-[8.5px] font-black uppercase tracking-tight transition-all shadow-xs flex items-center gap-1 active:scale-95 mx-auto"
+                                       title="Permuta já deferida pelo escalante. Clique para solicitar cancelamento com justificativa"
+                                     >
+                                       <FileText className="w-3 h-3 text-white shrink-0" />
+                                       <span className="whitespace-nowrap">Solicitar Canc.</span>
+                                     </button>
+                                   )
+                                 ) : (
+                                   /* Permuta NOT yet accepted: militar can directly cancel if within deadline */
+                                   <button 
+                                     onClick={() => {
+                                       const dateObj = new Date(permuta.date + 'T00:00:00');
+                                       if (new Date() > calculateDeadline(dateObj)) {
+                                         alert("O prazo para cancelamento desta permuta expirou.");
+                                         return;
+                                       }
+                                       setCancelPermuta(permuta);
+                                     }}
+                                     className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center hover:bg-red-200 rounded-full transition-colors group mx-auto"
+                                     title="Cancelar Solicitação de Permuta"
+                                   >
+                                     <X className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-600 font-black stroke-[4] group-hover:scale-125 transition-transform" />
+                                   </button>
+                                 )
                                ) : (
                                  <div className="w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center mx-auto">
-                                   <X className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-600 opacity-60 font-black stroke-[3]" />
+                                   <X className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-300 font-black stroke-[2]" />
                                  </div>
                                )}
                             </div>
@@ -1014,6 +1287,116 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
                     className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white font-black text-[10px] uppercase tracking-widest rounded-lg shadow-lg hover:shadow-xl transition-all active:scale-95"
                   >
                     Confirmar
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Solicitar Cancelamento de Permuta Deferida Modal */}
+        {requestCancelPermuta && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+              onClick={() => {
+                if (!isSubmittingCancelRequest) setRequestCancelPermuta(null);
+              }}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative z-10 overflow-hidden border-2 border-amber-200"
+            >
+              <div className="bg-amber-50 p-5 sm:p-6 flex flex-col items-center border-b border-amber-200 text-center">
+                <div className="w-14 h-14 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center mb-3 shadow-inner">
+                  <AlertTriangle className="w-7 h-7" />
+                </div>
+                <h3 className="text-lg sm:text-xl font-black text-slate-900 uppercase tracking-tight">
+                  Solicitar Cancelamento
+                </h3>
+                <p className="text-[11px] font-bold text-amber-800 uppercase tracking-widest mt-1">
+                  Permuta Deferida pelo Escalante
+                </p>
+              </div>
+
+              <div className="p-5 sm:p-6 flex flex-col gap-4">
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs">
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                    <span className="font-bold text-slate-500 uppercase text-[10px] tracking-wider">Data do Serviço:</span>
+                    <span className="font-black text-slate-900">
+                      {format(new Date(requestCancelPermuta.date + 'T00:00:00'), 'dd/MM/yyyy')}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-1.5 border-b border-slate-200">
+                    <span className="font-bold text-slate-500 uppercase text-[10px] tracking-wider">Quem Sai:</span>
+                    <span className="font-black text-slate-800 truncate max-w-[200px]">
+                      {requestCancelPermuta.requesterName || '-'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center pt-1.5">
+                    <span className="font-bold text-slate-500 uppercase text-[10px] tracking-wider">Quem Entra:</span>
+                    <span className="font-black text-slate-800 truncate max-w-[200px]">
+                      {requestCancelPermuta.substituteName || requestCancelPermuta.acceptedByName || '-'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Justificativa para o Escalante *</span>
+                  </label>
+                  <p className="text-[11px] text-slate-500">
+                    Como a permuta já foi deferida pelo escalante, informe o motivo pelo qual você está solicitando a anulação desta permuta:
+                  </p>
+                  <textarea
+                    rows={4}
+                    value={cancellationReasonText}
+                    onChange={(e) => {
+                      setCancellationReasonText(e.target.value);
+                      if (cancelRequestError) setCancelRequestError('');
+                    }}
+                    placeholder="Ex: Motivo de saúde, alteração imprevista de escala, ordem superior..."
+                    className="w-full mt-1 p-3 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none resize-none text-slate-800 placeholder:text-slate-400 font-medium"
+                  />
+                  {cancelRequestError && (
+                    <span className="text-[11px] font-bold text-red-600 mt-1">
+                      {cancelRequestError}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    disabled={isSubmittingCancelRequest}
+                    onClick={() => setRequestCancelPermuta(null)}
+                    className="flex-1 py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase tracking-wider rounded-xl transition-colors disabled:opacity-50"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSubmittingCancelRequest || !cancellationReasonText.trim()}
+                    onClick={handleSendCancellationRequest}
+                    className="flex-1 py-3 px-4 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                  >
+                    {isSubmittingCancelRequest ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Enviando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Enviar Pedido</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

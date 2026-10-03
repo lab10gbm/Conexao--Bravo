@@ -166,6 +166,11 @@ export interface PermutaRequest {
   acceptedById?: string;
   acceptedByName?: string;
   cancelledByRg?: string;
+  cancellationRequested?: boolean;
+  cancellationReason?: string;
+  cancellationRequestedBy?: string;
+  cancellationRequestedRg?: string;
+  cancellationRequestedAt?: any;
   archived?: boolean;
   createdAt: number;
   updatedAt: number;

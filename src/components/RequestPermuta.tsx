@@ -6,7 +6,7 @@ import { UserProfile, PermutaStatus, PermutaRequest } from '../types';
 import { format, isBefore, addHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { getAlaForDate, getAlaName, calculateDeadline, cn } from '../lib/utils';
-import { Send, CalendarIcon, X, ArrowLeftRight, Equal, ArrowUp } from 'lucide-react';
+import { Send, CalendarIcon, X, ArrowLeftRight, Equal, ArrowUp, AlertTriangle, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppConfig } from '../contexts/ConfigContext';
 import { useMilitars } from '../contexts/MilitarContext';
@@ -40,6 +40,8 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
   const [searchingSubstitute, setSearchingSubstitute] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [existingUserPermuta, setExistingUserPermuta] = useState<{ status: string; id: string } | null>(null);
+  const [isCheckingExistingPermuta, setIsCheckingExistingPermuta] = useState(false);
   const { activeMonths: ctxActiveMonths } = useAppConfig();
   const { militars } = useMilitars();
 
@@ -65,6 +67,58 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
       }
     }
   }, [isOpen, user.rg, date]);
+
+  // Validação em tempo real: militar já possui permuta nesta data?
+  React.useEffect(() => {
+    if (!isOpen || !date || !user.rg) {
+      setExistingUserPermuta(null);
+      return;
+    }
+
+    let isMounted = true;
+    setIsCheckingExistingPermuta(true);
+
+    const checkExistingPermuta = async () => {
+      try {
+        const qDup = query(
+          collection(db, 'permutas'),
+          where('date', '==', String(date))
+        );
+        const snap = await getDocs(qDup);
+        if (!isMounted) return;
+
+        const userCleanRg = normalizeRg(user.rg);
+        const found = snap.docs.find(docSnap => {
+          const d = docSnap.data();
+          if (d.archived || d.status === PermutaStatus.CANCELLED || d.status === PermutaStatus.REJECTED) return false;
+          const reqClean = normalizeRg(d.requesterRg || '');
+          const subClean = normalizeRg(d.substituteRg || '');
+          const idClean = normalizeRg(d.acceptedById || '');
+          return (
+            (userCleanRg && (reqClean === userCleanRg || subClean === userCleanRg || idClean === userCleanRg)) ||
+            Boolean(user.uid && (d.requesterId === user.uid || d.substituteId === user.uid || d.acceptedById === user.uid))
+          );
+        });
+
+        if (found) {
+          const d = found.data();
+          setExistingUserPermuta({ status: d.status, id: found.id });
+        } else {
+          setExistingUserPermuta(null);
+        }
+      } catch (err) {
+        console.error("Erro ao verificar permuta existente:", err);
+      } finally {
+        if (isMounted) setIsCheckingExistingPermuta(false);
+      }
+    };
+
+    checkExistingPermuta();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, date, user.rg, user.uid]);
 
   // Busca automática do militar (Quem Sai) pelo RG
   React.useEffect(() => {
@@ -154,6 +208,12 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
     setLoading(true);
     setError('');
 
+    if (existingUserPermuta) {
+      setError("Você já possui uma permuta ativa ou deferida registrada para este dia. Não é permitido solicitar outra permuta na mesma data.");
+      setLoading(false);
+      return;
+    }
+
     if (isLate) {
       setError("Permutas devem ser solicitadas com pelo menos 48h de antecedência do serviço.");
       setLoading(false);
@@ -192,8 +252,7 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
     try {
       const qDup = query(
         collection(db, 'permutas'),
-        where('date', '==', String(date)),
-        where('obm', '==', String(obmContext || '10º GBM'))
+        where('date', '==', String(date))
       );
       const snapDup = await getDocs(qDup);
       const isDuplicate = snapDup.docs.some(docSnap => {
@@ -212,7 +271,7 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
       });
 
       if (isDuplicate) {
-        setError("JÁ HÁ UMA SOLICITAÇÃO DE PERMUTA REALIZADA PARA ESTE DIA.");
+        setError("VOCÊ OU O MILITAR SELECIONADO JÁ POSSUI UMA PERMUTA ATIVA/DEFERIDA PARA ESTE DIA.");
         setLoading(false);
         return;
       }
@@ -466,6 +525,17 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
                         <span className="text-[7px] opacity-70">O prazo encerrou em: {format(calculateDeadline(selectedDateObj), 'dd/MM HH:mm')}</span>
                       </div>
                     )}
+                    {existingUserPermuta && (
+                      <div className="bg-amber-50 border-2 border-amber-300 p-3 sm:p-4 rounded text-amber-900 text-[8px] sm:text-[10px] font-black leading-tight uppercase flex flex-col gap-1 shadow-2xs">
+                        <div className="flex items-center gap-1.5 text-amber-800">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span className="font-black text-[9px] sm:text-[11px]">Permuta Já Registrada Nesta Data</span>
+                        </div>
+                        <span className="text-[7.5px] sm:text-[9.5px] font-bold text-amber-800 normal-case leading-relaxed">
+                          Você já possui uma permuta {existingUserPermuta.status === 'accepted' ? 'deferida' : 'em andamento'} no dia {format(selectedDateObj, 'dd/MM/yyyy')}. Não é permitido solicitar outra permuta no mesmo dia.
+                        </span>
+                      </div>
+                    )}
                   </motion.div>
                 )}
 
@@ -489,10 +559,26 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
 
                 <button
                   type="submit"
-                  disabled={loading || isLate}
-                  className={`w-full text-white py-3 sm:py-4 rounded font-black shadow-lg disabled:opacity-50 transition-all uppercase tracking-widest text-[10px] sm:text-xs shrink-0 ${isFutureAgendamento ? 'bg-amber-600 hover:bg-amber-700' : 'bg-[var(--color-brand-dark)] hover:bg-black'}`}
+                  disabled={loading || isLate || Boolean(existingUserPermuta) || isCheckingExistingPermuta}
+                  className={`w-full text-white py-3 sm:py-4 rounded font-black shadow-lg disabled:opacity-50 transition-all uppercase tracking-widest text-[10px] sm:text-xs shrink-0 flex items-center justify-center gap-2 ${
+                    existingUserPermuta 
+                      ? 'bg-slate-500 cursor-not-allowed opacity-60' 
+                      : isFutureAgendamento 
+                        ? 'bg-amber-600 hover:bg-amber-700' 
+                        : 'bg-[var(--color-brand-dark)] hover:bg-black'
+                  }`}
                 >
-                  {loading ? 'SINCRONIZANDO...' : (isFutureAgendamento ? 'Agendar' : 'Submeter Solicitação')}
+                  {loading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>SINCRONIZANDO...</span>
+                    </>
+                  ) : existingUserPermuta ? (
+                    <>
+                      <AlertTriangle className="w-4 h-4" />
+                      <span>Permuta Já Registrada Nesta Data</span>
+                    </>
+                  ) : (isFutureAgendamento ? 'Agendar' : 'Submeter Solicitação')}
                 </button>
               </form>
             </motion.div>

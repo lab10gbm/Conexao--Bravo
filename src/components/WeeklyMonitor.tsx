@@ -369,6 +369,7 @@ export function WeeklyMonitor({
       const isToday = weekOffset === 0 && idx === 0;
       const isUserAla = userAlaNum === ala;
       const permuta = userPermutasMap[dateStr] || null;
+      const hasActivePermuta = Boolean(permuta && (permuta.status === 'accepted' || permuta.status === 'pending' || permuta.status === 'scheduled'));
 
       const deadline = calculateDeadline(day);
       const diffMs = deadline.getTime() - now.getTime();
@@ -525,6 +526,7 @@ export function WeeklyMonitor({
         isToday,
         isUserAla,
         permuta,
+        hasActivePermuta,
         dutyBadge,
         deadline,
         isExpired,
@@ -929,6 +931,8 @@ export function WeeklyMonitor({
                       alaConfig,
                       isToday,
                       dutyBadge,
+                      permuta,
+                      hasActivePermuta,
                       deadline,
                       isExpired,
                       isUrgent,
@@ -955,13 +959,15 @@ export function WeeklyMonitor({
                       <div
                         key={idx}
                         onClick={() => {
-                          if (!isExpired) onRequestPermuta?.(day);
+                          if (!isExpired && !hasActivePermuta) onRequestPermuta?.(day);
                         }}
                         className={cn(
                           "p-3 rounded-xl border transition-all bg-white shadow-2xs flex flex-col gap-2 relative overflow-hidden",
                           isExpired
                             ? "bg-slate-50/70 border-slate-200 text-slate-500"
-                            : "border-slate-200 hover:border-blue-400 active:scale-[0.99] cursor-pointer",
+                            : hasActivePermuta
+                              ? "border-slate-200 bg-white"
+                              : "border-slate-200 hover:border-blue-400 active:scale-[0.99] cursor-pointer",
                           isToday ? "ring-2 ring-blue-500 ring-offset-1" : "",
                         )}
                       >
@@ -1054,7 +1060,26 @@ export function WeeklyMonitor({
                             </div>
                           )}
 
-                          {!isExpired ? (
+                          {hasActivePermuta ? (
+                            <span className={cn(
+                              "px-2.5 py-1 rounded-lg text-[9.5px] font-black uppercase flex items-center gap-1 shadow-2xs border",
+                              permuta?.status === 'accepted'
+                                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                : "bg-amber-50 text-amber-800 border-amber-200"
+                            )}>
+                              {permuta?.status === 'accepted' ? (
+                                <>
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                  <span>Deferida</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Clock className="w-3 h-3 text-amber-600 shrink-0" />
+                                  <span>Pendente</span>
+                                </>
+                              )}
+                            </span>
+                          ) : !isExpired ? (
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1093,6 +1118,8 @@ export function WeeklyMonitor({
                       alaConfig,
                       isToday,
                       dutyBadge,
+                      permuta,
+                      hasActivePermuta,
                       deadline,
                       isExpired,
                       isUrgent,
@@ -1126,15 +1153,28 @@ export function WeeklyMonitor({
                       return (
                         <div
                           key={idx}
-                          onClick={() => onRequestPermuta?.(day)}
-                          title={`Solicitar permuta para ${format(day, "dd/MM/yyyy")}`}
+                          onClick={() => {
+                            if (!hasActivePermuta) onRequestPermuta?.(day);
+                          }}
+                          title={
+                            hasActivePermuta
+                              ? permuta?.status === "accepted"
+                                ? "Permuta já deferida para esta data"
+                                : "Permuta em andamento para esta data"
+                              : `Solicitar permuta para ${format(day, "dd/MM/yyyy")}`
+                          }
                           className={cn(
                             // Mobile: comfortable width with no truncation; Desktop: auto column
                             "w-[270px] xs:w-[290px] sm:w-[310px] lg:w-auto shrink-0 lg:shrink snap-start",
-                            "rounded-2xl border transition-all duration-300 flex flex-col justify-between overflow-hidden relative cursor-pointer group bg-white shadow-xs hover:shadow-md hover:-translate-y-0.5",
-                            isUrgent
+                            "rounded-2xl border transition-all duration-300 flex flex-col justify-between overflow-hidden relative group bg-white shadow-xs",
+                            hasActivePermuta
+                              ? "cursor-default border-slate-200"
+                              : "cursor-pointer hover:shadow-md hover:-translate-y-0.5",
+                            !hasActivePermuta && isUrgent
                               ? "border-amber-300 ring-2 ring-amber-400/20"
-                              : "border-slate-200 hover:border-blue-400",
+                              : !hasActivePermuta
+                                ? "border-slate-200 hover:border-blue-400"
+                                : "",
                             isToday ? "ring-2 ring-blue-500/80 ring-offset-2" : "",
                           )}
                         >
@@ -1262,17 +1302,38 @@ export function WeeklyMonitor({
 
                           {/* Card Action Footer */}
                           <div className="p-2.5 sm:p-3 bg-white">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onRequestPermuta?.(day);
-                              }}
-                              className="w-full py-2 px-2.5 rounded-xl bg-slate-900 hover:bg-blue-600 active:bg-blue-700 text-white text-[10px] sm:text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-xs group-hover:bg-blue-600"
-                            >
-                              <span>Solicitar Permuta</span>
-                              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                            </button>
+                            {hasActivePermuta ? (
+                              <div className={cn(
+                                "w-full py-2 px-2.5 rounded-xl text-[10px] sm:text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-2xs border",
+                                permuta?.status === "accepted"
+                                  ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                                  : "bg-amber-50 border-amber-200 text-amber-800"
+                              )}>
+                                {permuta?.status === "accepted" ? (
+                                  <>
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    <span>Permuta Deferida</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                    <span>Permuta em Andamento</span>
+                                  </>
+                                )}
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onRequestPermuta?.(day);
+                                }}
+                                className="w-full py-2 px-2.5 rounded-xl bg-slate-900 hover:bg-blue-600 active:bg-blue-700 text-white text-[10px] sm:text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-xs group-hover:bg-blue-600"
+                              >
+                                <span>Solicitar Permuta</span>
+                                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                              </button>
+                            )}
                           </div>
                         </div>
                       );
@@ -1284,7 +1345,13 @@ export function WeeklyMonitor({
                     return (
                       <div
                         key={idx}
-                        title={`Prazo regulamentar de permuta esgotado para ${format(day, "dd/MM/yyyy")}`}
+                        title={
+                          hasActivePermuta
+                            ? permuta?.status === "accepted"
+                              ? "Permuta já deferida para esta data"
+                              : "Permuta em andamento para esta data"
+                            : `Prazo regulamentar de permuta esgotado para ${format(day, "dd/MM/yyyy")}`
+                        }
                         className={cn(
                           // Mobile: comfortable width with no truncation; Desktop: auto column
                           "w-[270px] xs:w-[290px] sm:w-[310px] lg:w-auto shrink-0 lg:shrink snap-start",
@@ -1389,17 +1456,47 @@ export function WeeklyMonitor({
                           </div>
 
                           <div className="mt-0.5 flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold text-slate-400 bg-slate-200/60 rounded-lg px-2 py-1">
-                            <Clock className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                            <span className="truncate">72h úteis esgotadas</span>
+                            {hasActivePermuta ? (
+                              <>
+                                <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                                <span className="truncate">{permuta?.status === "accepted" ? "Permuta Homologada" : "Permuta Solicitada"}</span>
+                              </>
+                            ) : (
+                              <>
+                                <Clock className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                <span className="truncate">72h úteis esgotadas</span>
+                              </>
+                            )}
                           </div>
                         </div>
 
-                        {/* Card Action Footer (Disabled) */}
+                        {/* Card Action Footer */}
                         <div className="p-2.5 sm:p-3 bg-slate-50/70">
-                          <div className="w-full py-2 px-2.5 rounded-xl bg-slate-200/70 text-slate-400 text-[10px] sm:text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-not-allowed">
-                            <Lock className="w-3.5 h-3.5 text-slate-400" />
-                            <span>Indisponível</span>
-                          </div>
+                          {hasActivePermuta ? (
+                            <div className={cn(
+                              "w-full py-2 px-2.5 rounded-xl text-[10px] sm:text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-2xs border",
+                              permuta?.status === "accepted"
+                                ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                                : "bg-amber-50 border-amber-200 text-amber-800"
+                            )}>
+                              {permuta?.status === "accepted" ? (
+                                <>
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                  <span>Permuta Deferida</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                  <span>Permuta em Andamento</span>
+                                </>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="w-full py-2 px-2.5 rounded-xl bg-slate-200/70 text-slate-400 text-[10px] sm:text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-not-allowed">
+                              <Lock className="w-3.5 h-3.5 text-slate-400" />
+                              <span>Indisponível</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
