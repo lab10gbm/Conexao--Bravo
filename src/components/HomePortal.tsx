@@ -587,13 +587,6 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
                   onMoveRight={isEditMode && index < visibleOperacionalModules.length - 1 ? (e) => { e.stopPropagation(); moveItem(visibleOperacionalModules, mod.id, 1, 'operacional'); } : undefined}
                 />
               ))}
-              {/* Coming Soon placeholders */}
-              {!isEditMode && visibleOperacionalModules.length < 4 && (
-                <div className="col-span-1 border-2 border-dashed border-slate-200 rounded-3xl p-6 flex flex-col items-center justify-center gap-2 opacity-40 min-h-[140px]">
-                   <MessageSquare className="w-8 h-8 text-slate-300" />
-                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Em Breve</span>
-                </div>
-              )}
             </div>
          </div>
       )}
@@ -622,6 +615,13 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
                   onMoveRight={isEditMode && index < visibleInformativoModules.length - 1 ? (e) => { e.stopPropagation(); moveItem(visibleInformativoModules, mod.id, 1, 'informativo'); } : undefined}
                 />
               ))}
+              {/* Em Breve placeholder ao lado do app Refeitório */}
+              {!isEditMode && (
+                <div className="col-span-1 border-2 border-dashed border-slate-200 rounded-3xl sm:rounded-[2rem] p-4 sm:p-6 flex flex-col items-center justify-center gap-2 opacity-40 min-h-[140px] text-center">
+                   <MessageSquare className="w-7 h-7 sm:w-8 sm:h-8 text-slate-300" />
+                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Em Breve</span>
+                </div>
+              )}
             </div>
          </div>
       )}
