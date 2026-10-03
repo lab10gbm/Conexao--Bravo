@@ -862,6 +862,7 @@ export default function App() {
                         user={effectiveProfile!}
                         obmContext={obmContext}
                         forceExpanded={true}
+                        allowCollapse={false}
                       />
                     </div>
                   </motion.div>

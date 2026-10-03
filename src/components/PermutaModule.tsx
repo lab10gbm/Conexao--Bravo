@@ -31,6 +31,14 @@ export function PermutaModule({
   const [forceProntidao, setForceProntidao] = React.useState(false);
   const effectiveOfficerMode = isOfficerMode && !forceProntidao;
 
+  const alaUpper = (user.ala?.toString() || '').toUpperCase().trim();
+  const isExpedienteMilitary = 
+    alaUpper.includes('EXP') || 
+    alaUpper === 'E' || 
+    alaUpper === 'EXPEDIENTE' || 
+    Boolean(user.isAdmin) || 
+    Boolean(user.isEscalante);
+
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
       <div className="mb-4 flex items-center justify-between">
@@ -57,9 +65,16 @@ export function PermutaModule({
           <WeeklyMonitor user={user} obmContext={obmContext} onRequestPermuta={onDateClick} />
           
           <div className="grid grid-cols-1 gap-6 sm:gap-12 mt-6 sm:mt-12">
-            <section id="expediente-scheduler">
-               <ExpedienteScheduler user={user} obmContext={obmContext} />
-            </section>
+            {isExpedienteMilitary && (
+              <section id="expediente-scheduler">
+                <ExpedienteScheduler 
+                  user={user} 
+                  obmContext={obmContext} 
+                  allowCollapse={true} 
+                  defaultExpanded={false} 
+                />
+              </section>
+            )}
             
             <section id="status-dashboard" className="scroll-mt-32">
               <CalendarHighlights user={user} obmContext={obmContext} onDateClick={onDateClick} onMonthSelect={onMonthSelect} />

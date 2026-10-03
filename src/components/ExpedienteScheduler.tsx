@@ -7,7 +7,7 @@ import { doc, onSnapshot, setDoc, updateDoc, query, collection, getDocs, deleteF
 import { db } from '../lib/firebase';
 import { cn, formatMilitaryName, getAlaForDate, getAlaLightColor, getAlaColor, normalizeObm } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, Settings, CheckCircle2, User, AlertCircle, Save, CalendarRange, Table, ArrowUpDown, X, UserPlus, Trash2, List, Columns, Copy, Shield, FileSpreadsheet, Printer, Eye, Map as MapIcon, Briefcase, Clock, Coffee, Lock, Check, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Settings, CheckCircle2, User, AlertCircle, Save, CalendarRange, Table, ArrowUpDown, X, UserPlus, Trash2, List, Columns, Copy, Shield, FileSpreadsheet, Printer, Eye, Map as MapIcon, Briefcase, Clock, Coffee, Lock, Check, Calendar, Info, Send, XCircle, FileText } from 'lucide-react';
 import { useMilitars } from '../contexts/MilitarContext';
 import { cleanUndefined } from "../lib/utils";
 
@@ -15,6 +15,8 @@ interface ExpedienteSchedulerProps {
   user: UserProfile;
   obmContext: string;
   forceExpanded?: boolean;
+  allowCollapse?: boolean;
+  defaultExpanded?: boolean;
 }
 
 interface SwapRequest {
@@ -25,6 +27,28 @@ interface SwapRequest {
   toDay: string;
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
+}
+
+export interface WeeklyDayChange {
+  dayStr: string;
+  dayLabel: string;
+  currentStatus: 'expediente' | 'servico' | 'folga';
+  proposedStatus: 'expediente' | 'servico' | 'folga';
+}
+
+export interface WeeklyChangeRequest {
+  id: string;
+  rg: string;
+  userName: string;
+  weekKey: string;
+  weekLabel: string;
+  changes: WeeklyDayChange[];
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
+  createdAt: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
 }
 
 interface Afastamento {
@@ -45,6 +69,7 @@ interface ExpedienteData {
   lockedOrdinario?: Record<string, boolean>;
   lockedWeekly?: Record<string, Record<string, boolean>>;
   swapRequests?: SwapRequest[];
+  weeklyChangeRequests?: WeeklyChangeRequest[];
   preferencesDetails?: Record<string, Record<string, number>>;
   expedienteDays?: Record<string, string[]>;
   expQuotas?: Record<string, number>;
@@ -256,7 +281,13 @@ function formatPreferenceFunction(func: string, qt: number): { line1: string; li
   };
 }
 
-export function ExpedienteScheduler({ user, obmContext, forceExpanded }: ExpedienteSchedulerProps) {
+export function ExpedienteScheduler({ 
+  user, 
+  obmContext, 
+  forceExpanded = false,
+  allowCollapse,
+  defaultExpanded
+}: ExpedienteSchedulerProps) {
   const { militars, updateMilitarLocal } = useMilitars();
   const [currentMonth, setCurrentMonth] = useState(() => {
     const now = new Date();
@@ -312,7 +343,19 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   const [addMemberRg, setAddMemberRg] = useState('');
   const [memberSearchTerm, setMemberSearchTerm] = useState('');
   const [showMemberDropdown, setShowMemberDropdown] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(forceExpanded || false);
+  const isCollapsible = allowCollapse !== undefined ? allowCollapse : !forceExpanded;
+  const [isExpanded, setIsExpanded] = useState<boolean>(() => {
+    if (!isCollapsible) return true;
+    if (defaultExpanded !== undefined) return defaultExpanded;
+    return false;
+  });
+
+  useEffect(() => {
+    if (!isCollapsible) {
+      setIsExpanded(true);
+    }
+  }, [isCollapsible]);
+
   const [adminConfigMode, setAdminConfigMode] = useState(false);
   const [viewMode, setViewMode] = useState<'calendar' | 'semanal' | 'mapeamento' | 'necessidades' | 'relatorios'>('calendar');
   const [weeklyFilterDays, setWeeklyFilterDays] = useState<'all' | 'weekdays'>('weekdays');
@@ -332,6 +375,10 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
   const [copyStatus, setCopyStatus] = useState(false);
   const [autoExpStatus, setAutoExpStatus] = useState(false);
   const [showSwapModal, setShowSwapModal] = useState(false);
+  const [showWeeklyChangeModal, setShowWeeklyChangeModal] = useState(false);
+  const [proposedWeeklyChanges, setProposedWeeklyChanges] = useState<Record<string, 'expediente' | 'servico' | 'folga'>>({});
+  const [weeklyChangeReason, setWeeklyChangeReason] = useState('');
+  const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [confirmLock, setConfirmLock] = useState(false);
   const [removeMemberRg, setRemoveMemberRg] = useState<string | null>(null);
   const [removeMemberAla, setRemoveMemberAla] = useState('');
@@ -594,6 +641,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
         lockedOrdinario: monthData.lockedOrdinario || monthData.locked || {},
         lockedWeekly: monthData.lockedWeekly || {},
         swapRequests: monthData.swapRequests || [],
+        weeklyChangeRequests: monthData.weeklyChangeRequests || [],
         preferencesDetails: monthData.preferencesDetails || {},
         expedienteDays: monthData.expedienteDays || {},
         expQuotas: globalData.expQuotas || {},
@@ -609,7 +657,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       if (docSnap.exists()) {
          monthData = docSnap.data();
       } else {
-         monthData = { selections: {}, locked: {}, swapRequests: [] };
+         monthData = { selections: {}, locked: {}, swapRequests: [], weeklyChangeRequests: [] };
       }
       mergeData();
     });
@@ -1133,6 +1181,287 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       }), { merge: true });
   };
 
+  const currentWeekKey = format(selectedWeekMonday, 'yyyy-MM-dd');
+
+  const allWeeklyChangeRequests: WeeklyChangeRequest[] = useMemo(() => {
+    const list: WeeklyChangeRequest[] = [];
+    const seen = new Set<string>();
+
+    (data.weeklyChangeRequests || []).forEach(r => {
+      if (!seen.has(r.id)) {
+        list.push(r);
+        seen.add(r.id);
+      }
+    });
+
+    Object.values(extraMonthData).forEach(m => {
+      (m?.weeklyChangeRequests || []).forEach((r: WeeklyChangeRequest) => {
+        if (!seen.has(r.id)) {
+          list.push(r);
+          seen.add(r.id);
+        }
+      });
+    });
+
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [data.weeklyChangeRequests, extraMonthData]);
+
+  const userCurrentWeekRequest = useMemo(() => {
+    return allWeeklyChangeRequests.find(r => r.rg === activeRg && r.weekKey === currentWeekKey);
+  }, [allWeeklyChangeRequests, activeRg, currentWeekKey]);
+
+  const handleOpenWeeklyChangeModal = () => {
+    const initialChanges: Record<string, 'expediente' | 'servico' | 'folga'> = {};
+    fullWeekDays.forEach(d => {
+      const dStr = format(d, 'yyyy-MM-dd');
+      const st = getDayStatus(activeRg, dStr);
+      initialChanges[dStr] = st.type === 'afastamento' ? 'folga' : st.type;
+    });
+    setProposedWeeklyChanges(initialChanges);
+    setWeeklyChangeReason(userCurrentWeekRequest?.reason || '');
+    setShowWeeklyChangeModal(true);
+  };
+
+  const handleSubmitWeeklyChangeRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeRg) return;
+
+    const changes: WeeklyDayChange[] = [];
+    fullWeekDays.forEach(d => {
+      const dStr = format(d, 'yyyy-MM-dd');
+      const curStatus = getDayStatus(activeRg, dStr).type;
+      const normCur = curStatus === 'afastamento' ? 'folga' : curStatus;
+      const propStatus = proposedWeeklyChanges[dStr] || normCur;
+
+      if (propStatus !== normCur) {
+        changes.push({
+          dayStr: dStr,
+          dayLabel: `${format(d, 'EEEE', { locale: ptBR })} (${format(d, 'dd/MM')})`,
+          currentStatus: normCur,
+          proposedStatus: propStatus
+        });
+      }
+    });
+
+    if (changes.length === 0) {
+      setActionFeedback({ type: 'error', message: 'Nenhum dia foi alterado. Selecione ao menos um status diferente.' });
+      setTimeout(() => setActionFeedback(null), 4000);
+      return;
+    }
+
+    if (!weeklyChangeReason.trim()) {
+      setActionFeedback({ type: 'error', message: 'Por favor, informe a justificativa da alteração.' });
+      setTimeout(() => setActionFeedback(null), 4000);
+      return;
+    }
+
+    const weekLabel = `${format(fullWeekDays[0], 'dd/MM')} a ${format(fullWeekDays[6], 'dd/MM/yyyy')}`;
+    const targetUserObj = expedienteUsers.find(u => (u.rg || u.uid) === activeRg) || user;
+    const userName = formatMilitaryName(targetUserObj.rank ? `${targetUserObj.rank} ${targetUserObj.warName || targetUserObj.name.split(' ')[0]}` : targetUserObj.name);
+
+    const newRequest: WeeklyChangeRequest = {
+      id: Math.random().toString(36).substring(2, 9),
+      rg: activeRg,
+      userName,
+      weekKey: currentWeekKey,
+      weekLabel,
+      changes,
+      reason: weeklyChangeReason.trim(),
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+
+    const weekMondayMonthKey = format(selectedWeekMonday, 'yyyy-MM');
+    const targetDocRef = weekMondayMonthKey === monthKey ? monthDocRef : doc(db, `expediente_${normalizedObm}`, weekMondayMonthKey);
+    const dataSource = weekMondayMonthKey === monthKey ? data : (extraMonthData[weekMondayMonthKey] || {});
+
+    const existing = (dataSource.weeklyChangeRequests || []).filter((r: WeeklyChangeRequest) => r.id !== newRequest.id && !(r.rg === activeRg && r.weekKey === currentWeekKey && r.status === 'pending'));
+    const updated = [...existing, newRequest];
+
+    if (weekMondayMonthKey === monthKey) {
+      setData(prev => ({ ...prev, weeklyChangeRequests: updated }));
+    } else {
+      setExtraMonthData(prev => ({
+        ...prev,
+        [weekMondayMonthKey]: {
+          ...(prev[weekMondayMonthKey] || {}),
+          weeklyChangeRequests: updated
+        }
+      }));
+    }
+
+    await setDoc(targetDocRef, cleanUndefined({ weeklyChangeRequests: updated }), { merge: true });
+    setShowWeeklyChangeModal(false);
+    setActionFeedback({ type: 'success', message: 'Solicitação de alteração enviada com sucesso ao Escalante!' });
+    setTimeout(() => setActionFeedback(null), 4000);
+  };
+
+  const handleApproveWeeklyChange = async (req: WeeklyChangeRequest) => {
+    if (!isAdmin && !user.isEscalante) return;
+
+    try {
+      const changesByMonth: Record<string, WeeklyDayChange[]> = {};
+      req.changes.forEach(c => {
+        const mKey = c.dayStr.substring(0, 7);
+        if (!changesByMonth[mKey]) changesByMonth[mKey] = [];
+        changesByMonth[mKey].push(c);
+      });
+
+      for (const [mKey, changes] of Object.entries(changesByMonth)) {
+        const docRef = mKey === monthKey ? monthDocRef : doc(db, `expediente_${normalizedObm}`, mKey);
+        const source = mKey === monthKey ? data : (extraMonthData[mKey] || {});
+
+        let userSels = safeArr(source.selections?.[req.rg]);
+        let userExp = safeArr(source.expedienteDays?.[req.rg]);
+
+        changes.forEach(c => {
+          if (c.proposedStatus === 'expediente') {
+            userExp = [...userExp.filter(d => d !== c.dayStr), c.dayStr];
+            userSels = userSels.filter(d => d !== c.dayStr);
+          } else if (c.proposedStatus === 'servico') {
+            userSels = [...userSels.filter(d => d !== c.dayStr), c.dayStr];
+            userExp = userExp.filter(d => d !== c.dayStr);
+          } else if (c.proposedStatus === 'folga') {
+            userExp = userExp.filter(d => d !== c.dayStr);
+            userSels = userSels.filter(d => d !== c.dayStr);
+          }
+        });
+
+        await setDoc(docRef, cleanUndefined({
+          selections: { [req.rg]: userSels },
+          expedienteDays: { [req.rg]: userExp }
+        }), { merge: true });
+
+        if (mKey === monthKey) {
+          setData(prev => ({
+            ...prev,
+            selections: { ...prev.selections, [req.rg]: userSels },
+            expedienteDays: { ...(prev.expedienteDays || {}), [req.rg]: userExp }
+          }));
+        } else {
+          setExtraMonthData(prev => ({
+            ...prev,
+            [mKey]: {
+              ...(prev[mKey] || {}),
+              selections: { ...(prev[mKey]?.selections || {}), [req.rg]: userSels },
+              expedienteDays: { ...(prev[mKey]?.expedienteDays || {}), [req.rg]: userExp }
+            }
+          }));
+        }
+      }
+
+      const reviewerName = formatMilitaryName(user.rank ? `${user.rank} ${user.warName || user.name.split(' ')[0]}` : user.name);
+      const reqMonthKey = req.weekKey.substring(0, 7);
+      const reqDocRef = reqMonthKey === monthKey ? monthDocRef : doc(db, `expediente_${normalizedObm}`, reqMonthKey);
+      const source = reqMonthKey === monthKey ? data : (extraMonthData[reqMonthKey] || {});
+
+      const updatedRequests = (source.weeklyChangeRequests || []).map((r: WeeklyChangeRequest) => {
+        if (r.id === req.id) {
+          return {
+            ...r,
+            status: 'approved' as const,
+            reviewedBy: reviewerName,
+            reviewedAt: new Date().toISOString()
+          };
+        }
+        return r;
+      });
+
+      await setDoc(reqDocRef, cleanUndefined({ weeklyChangeRequests: updatedRequests }), { merge: true });
+
+      if (reqMonthKey === monthKey) {
+        setData(prev => ({ ...prev, weeklyChangeRequests: updatedRequests }));
+      } else {
+        setExtraMonthData(prev => ({
+          ...prev,
+          [reqMonthKey]: {
+            ...(prev[reqMonthKey] || {}),
+            weeklyChangeRequests: updatedRequests
+          }
+        }));
+      }
+
+      setActionFeedback({ type: 'success', message: `Alteração de ${req.userName} aprovada com sucesso! A escala foi atualizada.` });
+      setTimeout(() => setActionFeedback(null), 4000);
+    } catch (err) {
+      console.error("Erro ao aprovar alteração semanal:", err);
+      setActionFeedback({ type: 'error', message: 'Erro ao aprovar alteração.' });
+      setTimeout(() => setActionFeedback(null), 4000);
+    }
+  };
+
+  const handleRejectWeeklyChange = async (req: WeeklyChangeRequest, rejectionReason?: string) => {
+    if (!isAdmin && !user.isEscalante) return;
+
+    try {
+      const reviewerName = formatMilitaryName(user.rank ? `${user.rank} ${user.warName || user.name.split(' ')[0]}` : user.name);
+      const reqMonthKey = req.weekKey.substring(0, 7);
+      const reqDocRef = reqMonthKey === monthKey ? monthDocRef : doc(db, `expediente_${normalizedObm}`, reqMonthKey);
+      const source = reqMonthKey === monthKey ? data : (extraMonthData[reqMonthKey] || {});
+
+      const updatedRequests = (source.weeklyChangeRequests || []).map((r: WeeklyChangeRequest) => {
+        if (r.id === req.id) {
+          return {
+            ...r,
+            status: 'rejected' as const,
+            rejectionReason: rejectionReason || 'Solicitação não aprovada pelo escalante',
+            reviewedBy: reviewerName,
+            reviewedAt: new Date().toISOString()
+          };
+        }
+        return r;
+      });
+
+      await setDoc(reqDocRef, cleanUndefined({ weeklyChangeRequests: updatedRequests }), { merge: true });
+
+      if (reqMonthKey === monthKey) {
+        setData(prev => ({ ...prev, weeklyChangeRequests: updatedRequests }));
+      } else {
+        setExtraMonthData(prev => ({
+          ...prev,
+          [reqMonthKey]: {
+            ...(prev[reqMonthKey] || {}),
+            weeklyChangeRequests: updatedRequests
+          }
+        }));
+      }
+
+      setActionFeedback({ type: 'success', message: `Solicitação de ${req.userName} recusada.` });
+      setTimeout(() => setActionFeedback(null), 4000);
+    } catch (err) {
+      console.error("Erro ao recusar alteração semanal:", err);
+    }
+  };
+
+  const handleCancelWeeklyChange = async (reqId: string, weekKey: string) => {
+    try {
+      const reqMonthKey = weekKey.substring(0, 7);
+      const reqDocRef = reqMonthKey === monthKey ? monthDocRef : doc(db, `expediente_${normalizedObm}`, reqMonthKey);
+      const source = reqMonthKey === monthKey ? data : (extraMonthData[reqMonthKey] || {});
+
+      const updatedRequests = (source.weeklyChangeRequests || []).filter((r: WeeklyChangeRequest) => r.id !== reqId);
+
+      await setDoc(reqDocRef, cleanUndefined({ weeklyChangeRequests: updatedRequests }), { merge: true });
+
+      if (reqMonthKey === monthKey) {
+        setData(prev => ({ ...prev, weeklyChangeRequests: updatedRequests }));
+      } else {
+        setExtraMonthData(prev => ({
+          ...prev,
+          [reqMonthKey]: {
+            ...(prev[reqMonthKey] || {}),
+            weeklyChangeRequests: updatedRequests
+          }
+        }));
+      }
+
+      setActionFeedback({ type: 'success', message: 'Solicitação de alteração cancelada.' });
+      setTimeout(() => setActionFeedback(null), 4000);
+    } catch (err) {
+      console.error("Erro ao cancelar solicitação:", err);
+    }
+  };
+
   const handleAutoFillExp = async () => {
       // confirm e alert removidos porque o iframe bloqueia modals nativos.
       
@@ -1329,41 +1658,159 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
       }
   }
 
+  const currentWeekExpCount = activeRg ? fullWeekDays.filter(d => {
+    const dStr = format(d, 'yyyy-MM-dd');
+    return getDayStatus(activeRg, dStr).type === 'expediente';
+  }).length : 0;
+
+  const pendingUserWeeklyChangesCount = (data.weeklyChangeRequests || []).filter(
+    r => r.rg === activeRg && r.status === 'pending'
+  ).length;
+
   if (!canInteract && !isAdmin) return null; // Or show read-only
 
   return (
     <div id="expediente-scheduler" className="mb-6 sm:mb-12 border-2 border-slate-300 rounded-xl overflow-hidden shadow-sm bg-white">
-      <button 
-        onClick={() => setIsExpanded(!isExpanded)}
-        className={`w-full flex items-center justify-between p-6 hover:bg-slate-50 transition-colors active:bg-slate-100 ${isExpanded ? 'bg-indigo-50 border-b-2 border-slate-300' : 'bg-white'}`}
-      >
-        <div className="flex items-center gap-4">
-          <div className={`p-3 rounded-lg border-2 ${isExpanded ? 'bg-indigo-200 border-indigo-400' : 'bg-indigo-100 border-indigo-300'}`}>
-            <CalendarRange className={`w-6 h-6 ${isExpanded ? 'text-indigo-800' : 'text-indigo-600'}`} />
-          </div>
-          <div className="text-left flex flex-col items-start gap-1">
-            <div className="flex items-center gap-2">
+      {/* Cabeçalho Interativo ou Fixo dependendo do ambiente */}
+      {isCollapsible ? (
+        <button
+          type="button"
+          onClick={() => setIsExpanded(!isExpanded)}
+          aria-expanded={isExpanded}
+          className={cn(
+            "w-full flex flex-col md:flex-row md:items-center justify-between p-4 sm:p-6 transition-all text-left gap-4 cursor-pointer",
+            isExpanded 
+              ? "bg-indigo-50/70 border-b-2 border-slate-200 hover:bg-indigo-100/50" 
+              : "bg-white hover:bg-slate-50"
+          )}
+        >
+          <div className="flex items-center gap-4">
+            <div className={cn(
+              "p-3 rounded-lg border-2 transition-colors shadow-xs",
+              isExpanded ? "bg-indigo-100 border-indigo-300 text-indigo-700" : "bg-slate-100 border-slate-200 text-slate-600"
+            )}>
+              <CalendarRange className="w-6 h-6" />
+            </div>
+            <div className="text-left flex flex-col items-start gap-1">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Escala do Expediente</h3>
-                <div className="text-[9px] font-black text-indigo-400 bg-indigo-100 px-2 py-0.5 rounded uppercase tracking-widest hidden sm:block">
+                <div className="text-[9px] font-black text-indigo-500 bg-indigo-100/90 px-2 py-0.5 rounded uppercase tracking-widest hidden sm:block border border-indigo-200">
                   OPERAÇÕES EXP
                 </div>
+                {!isExpanded && (
+                  <span className="text-[9px] font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-wider border border-indigo-200">
+                    DASHBOARD
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">
+                {isExpanded 
+                  ? "Planejamento e Registro de Serviços 24h e Expediente Semanal"
+                  : "Painel compacto da escala de expediente • Clique para expandir ou recolher"}
+              </p>
             </div>
-            <p className="text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">
-              Marque os dias de serviço que trabalhará no mês
-            </p>
+          </div>
+
+          <div className="flex items-center gap-3 self-end md:self-center shrink-0">
+            <div className="hidden sm:flex flex-col items-end mr-1 text-right">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                {isExpanded ? "Escala Aberta" : "Status Resumido"}
+              </span>
+              <span className="text-xs font-bold text-slate-700">
+                {isExpanded ? "Clique para minimizar" : `${userSels.length} sv. 24h • ${currentWeekExpCount} exp.`}
+              </span>
+            </div>
+            <div className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-black text-xs uppercase tracking-wider transition-all",
+              isExpanded 
+                ? "bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200" 
+                : "bg-indigo-600 border-indigo-600 text-white shadow-xs hover:bg-indigo-700"
+            )}>
+              <span>{isExpanded ? "RECOLHER SEÇÃO" : "EXPANDIR SEÇÃO"}</span>
+              <ChevronDown className={cn("w-4 h-4 transition-transform duration-300", isExpanded && "rotate-180")} />
+            </div>
+          </div>
+        </button>
+      ) : (
+        <div className="w-full flex items-center justify-between p-4 sm:p-6 bg-indigo-50/70 border-b-2 border-slate-200">
+          <div className="flex items-center gap-4">
+            <div className="p-3 rounded-lg border-2 bg-indigo-100 border-indigo-300 shadow-sm">
+              <CalendarRange className="w-6 h-6 text-indigo-700" />
+            </div>
+            <div className="text-left flex flex-col items-start gap-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Escala do Expediente</h3>
+                <div className="text-[9px] font-black text-indigo-500 bg-indigo-100/90 px-2 py-0.5 rounded uppercase tracking-widest hidden sm:block border border-indigo-200">
+                  OPERAÇÕES EXP
+                </div>
+              </div>
+              <p className="text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">
+                Planejamento e Registro de Serviços 24h e Expediente Semanal
+              </p>
+            </div>
           </div>
         </div>
-        <div className={`p-2 rounded-full transition-colors ${isExpanded ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-400'}`}>
-           <svg className={`w-5 h-5 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" /></svg>
-        </div>
-      </button>
+      )}
 
-      <motion.div 
-        initial={false}
-        animate={{ height: isExpanded ? 'auto' : 0, opacity: isExpanded ? 1 : 0 }}
-        className="overflow-hidden"
-      >
-        <div className="p-4 sm:p-6 bg-slate-50 flex flex-col gap-6">
+      {/* DASHBOARD COMPACTO QUANDO MINIMIZADO (No Módulo de Permutas) */}
+      {!isExpanded && isCollapsible && (
+        <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-50 via-indigo-50/20 to-slate-50 border-t border-slate-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3 flex-1">
+            <div className="p-2.5 sm:p-3 bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col">
+              <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-slate-400" /> Mês Referência
+              </span>
+              <span className="text-xs sm:text-sm font-black text-slate-800 capitalize mt-0.5">
+                {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
+              </span>
+            </div>
+
+            <div className="p-2.5 sm:p-3 bg-white rounded-xl border border-indigo-100 shadow-2xs flex flex-col">
+              <span className="text-[9px] font-black uppercase text-indigo-500 tracking-wider flex items-center gap-1">
+                <Clock className="w-3 h-3 text-indigo-500" /> Serviços 24h
+              </span>
+              <div className="flex items-baseline gap-1 mt-0.5">
+                <span className="text-xs sm:text-sm font-black text-indigo-900">{userSels.length}</span>
+                <span className="text-[10px] font-bold text-slate-500">
+                  {userReq > 0 ? `de ${userReq} previstos` : 'marcado(s)'}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-2.5 sm:p-3 bg-white rounded-xl border border-sky-100 shadow-2xs flex flex-col col-span-2 sm:col-span-1">
+              <span className="text-[9px] font-black uppercase text-sky-600 tracking-wider flex items-center gap-1">
+                <Briefcase className="w-3 h-3 text-sky-600" /> Semana Atual
+              </span>
+              <div className="flex items-baseline gap-1 mt-0.5">
+                <span className="text-xs sm:text-sm font-black text-sky-950">{currentWeekExpCount}</span>
+                <span className="text-[10px] font-bold text-slate-500">dias de expediente</span>
+              </div>
+            </div>
+          </div>
+
+          {pendingUserWeeklyChangesCount > 0 && (
+            <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+              <span className="text-[10px] font-black text-amber-800 bg-amber-100/90 border border-amber-300 px-2.5 py-1 rounded-lg flex items-center gap-1">
+                <AlertCircle className="w-3 h-3 text-amber-600" />
+                {pendingUserWeeklyChangesCount} alteração pendente
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Conteúdo Expansível da Escala */}
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            key="expediente-main-content"
+            initial={isCollapsible ? { height: 0, opacity: 0 } : false}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={isCollapsible ? { height: 0, opacity: 0 } : undefined}
+            transition={{ duration: 0.28, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="p-4 sm:p-6 bg-slate-50 flex flex-col gap-6">
            {/* Top controls */}
            <div className="flex flex-col xl:flex-row items-center justify-between gap-4 w-full">
               <div className="flex flex-wrap items-center gap-2">
@@ -1515,6 +1962,63 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                  )}
               </div>
            </div>
+
+           {/* Frase explicativa do ambiente para os militares clientes */}
+           {!adminConfigMode && (
+             <div className="bg-gradient-to-r from-blue-50/90 via-indigo-50/80 to-blue-50/90 border-2 border-indigo-200/90 rounded-xl p-3.5 sm:p-4 text-slate-800 shadow-sm flex items-start sm:items-center gap-3">
+               <div className="p-2 rounded-lg bg-indigo-600 text-white shrink-0 mt-0.5 sm:mt-0 shadow-sm">
+                 <Info className="w-4 h-4" />
+               </div>
+               <div className="flex-1">
+                 {viewMode === 'calendar' ? (
+                   <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2">
+                     <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-100/90 border border-indigo-200 px-2 py-0.5 rounded w-fit shrink-0">
+                       Calendário (S. 24h)
+                     </span>
+                     <p className="text-xs sm:text-sm font-bold text-slate-700 leading-snug">
+                       Esse ambiente é para a escolha do serviço 24h na prontidão, das 09:00 às 09:00.
+                     </p>
+                   </div>
+                 ) : viewMode === 'semanal' ? (
+                   <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2">
+                     <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-100/90 border border-indigo-200 px-2 py-0.5 rounded w-fit shrink-0">
+                       Semana (S. EXP)
+                     </span>
+                     <p className="text-xs sm:text-sm font-bold text-slate-700 leading-snug">
+                       Esse ambiente é para escolha dos dias de expedientes de segunda a sexta. <span className="text-slate-500 font-medium">(cabendo excepcionalmente a escolha de dias sábado e domingo.)</span>
+                     </p>
+                   </div>
+                 ) : viewMode === 'mapeamento' ? (
+                   <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2">
+                     <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-100/90 border border-indigo-200 px-2 py-0.5 rounded w-fit shrink-0">
+                       Mapeamento Geral
+                     </span>
+                     <p className="text-xs sm:text-sm font-bold text-slate-700 leading-snug">
+                       Visão geral e mapeamento das escalas de serviço 24h e expediente de todo o efetivo.
+                     </p>
+                   </div>
+                 ) : viewMode === 'relatorios' ? (
+                   <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2">
+                     <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-100/90 border border-indigo-200 px-2 py-0.5 rounded w-fit shrink-0">
+                       Relatórios Oficiais
+                     </span>
+                     <p className="text-xs sm:text-sm font-bold text-slate-700 leading-snug">
+                       Ambiente de visualização, cópia e impressão dos relatórios oficiais da escala para publicação em boletim.
+                     </p>
+                   </div>
+                 ) : viewMode === 'necessidades' ? (
+                   <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2">
+                     <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-100/90 border border-indigo-200 px-2 py-0.5 rounded w-fit shrink-0">
+                       Necessidades
+                     </span>
+                     <p className="text-xs sm:text-sm font-bold text-slate-700 leading-snug">
+                       Ambiente para definição de quotas e vagas preferenciais do mês estabelecidas pela chefia/escalante.
+                     </p>
+                   </div>
+                 ) : null}
+               </div>
+             </div>
+           )}
 
            {adminConfigMode && (isAdmin || user.isEscalante) ? (
                <div className="bg-white border-2 border-slate-200 rounded-xl shadow-sm overflow-x-auto no-scrollbar relative flex flex-col">
@@ -2807,7 +3311,7 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                         {targetUserObj.rg && <span className="text-xs text-slate-400 font-bold">({targetUserObj.rg})</span>}
                                     </h3>
                                     <p className="text-xs text-slate-300 font-medium">
-                                        Preencha o expediente da semana. Dias com serviço ordinário de 24h mantêm o status definido na escala mensal.
+                                        Esse ambiente é para escolha dos dias de expedientes de segunda a sexta. (cabendo excepcionalmente a escolha de dias sábado e domingo.)
                                     </p>
                                 </div>
 
@@ -2897,6 +3401,19 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                 <div className="px-3 py-2 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-200 text-xs font-bold flex items-center gap-1.5">
                                                     <Lock className="w-3.5 h-3.5 text-amber-300" /> Semana Homologada
                                                 </div>
+                                                <button
+                                                    onClick={handleOpenWeeklyChangeModal}
+                                                    className={cn(
+                                                        "px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer",
+                                                        userCurrentWeekRequest?.status === 'pending'
+                                                            ? "bg-amber-500/30 border border-amber-400 text-amber-200 animate-pulse hover:bg-amber-500/40"
+                                                            : "bg-indigo-600 hover:bg-indigo-500 text-white"
+                                                    )}
+                                                    title="Solicitar troca/alteração desta semana de expediente"
+                                                >
+                                                    <ArrowUpDown className="w-3.5 h-3.5" />
+                                                    {userCurrentWeekRequest?.status === 'pending' ? 'Alteração em Análise' : 'Solicitar Alteração'}
+                                                </button>
                                                 {(isAdmin || user.isEscalante) && (
                                                     <button
                                                         onClick={async () => {
@@ -2948,6 +3465,202 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                             </div>
                         );
                     })()}
+
+                    {/* Feedback Toast / Mensagem de Ação */}
+                    {actionFeedback && (
+                        <div className={cn(
+                            "p-3 rounded-xl border-2 text-xs font-bold flex items-center justify-between gap-2 shadow-sm animate-in fade-in slide-in-from-top-2",
+                            actionFeedback.type === 'success' ? "bg-emerald-50 border-emerald-300 text-emerald-900" : "bg-red-50 border-red-300 text-red-900"
+                        )}>
+                            <div className="flex items-center gap-2">
+                                {actionFeedback.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-red-600" />}
+                                <span>{actionFeedback.message}</span>
+                            </div>
+                            <button onClick={() => setActionFeedback(null)} className="p-1 hover:bg-black/5 rounded cursor-pointer">
+                                <X className="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Status da Solicitação do Militar para esta Semana */}
+                    {userCurrentWeekRequest && (
+                        <div className={cn(
+                            "rounded-xl border-2 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm",
+                            userCurrentWeekRequest.status === 'pending' ? "bg-amber-50 border-amber-300 text-amber-900" :
+                            userCurrentWeekRequest.status === 'approved' ? "bg-emerald-50 border-emerald-300 text-emerald-900" :
+                            "bg-red-50 border-red-300 text-red-900"
+                        )}>
+                            <div className="flex items-start gap-3">
+                                <div className={cn(
+                                    "p-2 rounded-lg text-white shrink-0 mt-0.5",
+                                    userCurrentWeekRequest.status === 'pending' ? "bg-amber-500" :
+                                    userCurrentWeekRequest.status === 'approved' ? "bg-emerald-600" :
+                                    "bg-red-500"
+                                )}>
+                                    {userCurrentWeekRequest.status === 'pending' ? <Clock className="w-4 h-4" /> :
+                                     userCurrentWeekRequest.status === 'approved' ? <CheckCircle2 className="w-4 h-4" /> :
+                                     <AlertCircle className="w-4 h-4" />}
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="text-xs font-black uppercase tracking-wider">
+                                            {userCurrentWeekRequest.status === 'pending' ? 'Solicitação de Alteração em Análise' :
+                                             userCurrentWeekRequest.status === 'approved' ? 'Solicitação de Alteração Aprovada' :
+                                             'Solicitação de Alteração Recusada'}
+                                        </span>
+                                        <span className="text-[10px] font-bold text-slate-500">
+                                            • {format(new Date(userCurrentWeekRequest.createdAt), "dd/MM/yyyy 'às' HH:mm")}
+                                        </span>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                                        <span className="font-bold text-slate-600">Alterações solicitadas:</span>
+                                        {userCurrentWeekRequest.changes.map((c, idx) => (
+                                            <span key={idx} className="bg-white/80 border border-slate-200 px-2 py-0.5 rounded font-mono text-[10px] font-bold">
+                                                {c.dayLabel}: <span className="uppercase text-slate-500">{c.currentStatus}</span> ➔ <span className="uppercase text-indigo-700 font-black">{c.proposedStatus}</span>
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <p className="text-xs italic text-slate-600">
+                                        Motivo: "{userCurrentWeekRequest.reason}"
+                                    </p>
+                                    {userCurrentWeekRequest.status === 'rejected' && userCurrentWeekRequest.rejectionReason && (
+                                        <p className="text-xs font-bold text-red-700">
+                                            Motivo da recusa: {userCurrentWeekRequest.rejectionReason}
+                                        </p>
+                                    )}
+                                    {userCurrentWeekRequest.status === 'approved' && (
+                                        <p className="text-xs font-bold text-emerald-700">
+                                            ✓ Aprovado por {userCurrentWeekRequest.reviewedBy || 'Escalante'} {userCurrentWeekRequest.reviewedAt ? `em ${format(new Date(userCurrentWeekRequest.reviewedAt), "dd/MM/yyyy 'às' HH:mm")}` : ''}. Escala atualizada.
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                                {userCurrentWeekRequest.status === 'pending' ? (
+                                    <button
+                                        onClick={() => handleCancelWeeklyChange(userCurrentWeekRequest.id, userCurrentWeekRequest.weekKey)}
+                                        className="px-3 py-1.5 rounded-lg border border-amber-400 bg-white hover:bg-amber-100 text-amber-900 font-bold text-xs transition-colors cursor-pointer"
+                                    >
+                                        Cancelar Solicitação
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={handleOpenWeeklyChangeModal}
+                                        className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors cursor-pointer"
+                                    >
+                                        Nova Solicitação
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Painel do Escalante / Moderador: Gestão das Solicitações de Alteração */}
+                    {(isAdmin || user.isEscalante) && allWeeklyChangeRequests.length > 0 && (
+                        <div className="bg-white rounded-xl border-2 border-indigo-200 shadow-sm overflow-hidden flex flex-col">
+                            <div className="p-4 bg-indigo-50 border-b-2 border-indigo-100 flex items-center justify-between flex-wrap gap-2">
+                                <div className="flex items-center gap-2">
+                                    <ArrowUpDown className="w-4 h-4 text-indigo-700" />
+                                    <h3 className="font-black text-sm uppercase tracking-wider text-indigo-900">
+                                        Solicitações de Alteração de Expediente da Semana
+                                    </h3>
+                                    {allWeeklyChangeRequests.filter(r => r.status === 'pending').length > 0 && (
+                                        <span className="bg-amber-500 text-white font-black text-[10px] px-2 py-0.5 rounded-full animate-pulse">
+                                            {allWeeklyChangeRequests.filter(r => r.status === 'pending').length} Pendente(s)
+                                        </span>
+                                    )}
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                                    Semana {format(fullWeekDays[0], 'dd/MM')} a {format(fullWeekDays[6], 'dd/MM/yyyy')}
+                                </span>
+                            </div>
+
+                            <div className="p-4 flex flex-col gap-3 max-h-[380px] overflow-y-auto">
+                                {allWeeklyChangeRequests
+                                    .filter(r => r.weekKey === currentWeekKey || r.status === 'pending')
+                                    .map(req => (
+                                        <div 
+                                            key={req.id} 
+                                            className={cn(
+                                                "p-3.5 rounded-xl border-2 flex flex-col gap-2.5 transition-all",
+                                                req.status === 'pending' ? "bg-amber-50/50 border-amber-200" :
+                                                req.status === 'approved' ? "bg-emerald-50/40 border-emerald-200 opacity-90" :
+                                                "bg-red-50/40 border-red-200 opacity-80"
+                                            )}
+                                        >
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-black text-slate-800">{req.userName}</span>
+                                                    <span className="text-[10px] font-bold text-slate-400">({req.rg})</span>
+                                                    <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded">
+                                                        Semana: {req.weekLabel}
+                                                    </span>
+                                                </div>
+                                                <span className={cn(
+                                                    "text-[9px] font-black uppercase px-2 py-0.5 rounded tracking-wider",
+                                                    req.status === 'pending' ? "bg-amber-100 text-amber-800 border border-amber-300" :
+                                                    req.status === 'approved' ? "bg-emerald-100 text-emerald-800 border border-emerald-300" :
+                                                    "bg-red-100 text-red-800 border border-red-300"
+                                                )}>
+                                                    {req.status === 'pending' ? 'Pendente de Aprovação' :
+                                                     req.status === 'approved' ? 'Aprovado' : 'Recusado'}
+                                                </span>
+                                            </div>
+
+                                            {/* Comparativo de dias alterados */}
+                                            <div className="flex flex-wrap gap-2 text-xs">
+                                                {req.changes.map((c, i) => (
+                                                    <div key={i} className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg p-1.5 px-2 text-[10px]">
+                                                        <span className="font-bold text-slate-700">{c.dayLabel}:</span>
+                                                        <span className="px-1.5 py-0.5 rounded uppercase font-black bg-slate-100 text-slate-500">{c.currentStatus}</span>
+                                                        <span className="text-slate-400 font-bold">➔</span>
+                                                        <span className={cn(
+                                                            "px-1.5 py-0.5 rounded uppercase font-black",
+                                                            c.proposedStatus === 'expediente' ? "bg-indigo-100 text-indigo-800" :
+                                                            c.proposedStatus === 'servico' ? "bg-red-100 text-red-800" :
+                                                            "bg-slate-200 text-slate-700"
+                                                        )}>
+                                                            {c.proposedStatus}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            {/* Motivo informado */}
+                                            <div className="text-xs text-slate-600 bg-white/70 p-2 rounded-lg border border-slate-100">
+                                                <span className="font-black text-slate-700">Justificativa: </span>
+                                                <span className="italic">{req.reason}</span>
+                                            </div>
+
+                                            {/* Ações do Escalante */}
+                                            {req.status === 'pending' ? (
+                                                <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-200/60">
+                                                    <button
+                                                        onClick={() => handleRejectWeeklyChange(req)}
+                                                        className="px-3 py-1.5 rounded-lg border border-red-300 bg-white hover:bg-red-50 text-red-700 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                                                    >
+                                                        <XCircle className="w-3.5 h-3.5" /> Rejeitar
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleApproveWeeklyChange(req)}
+                                                        className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                                                    >
+                                                        <CheckCircle2 className="w-3.5 h-3.5" /> Aprovar Alteração
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="text-[10px] text-slate-400 font-bold text-right">
+                                                    {req.reviewedBy && `Avaliado por ${req.reviewedBy}`}
+                                                    {req.reviewedAt && ` em ${format(new Date(req.reviewedAt), "dd/MM/yyyy HH:mm")}`}
+                                                    {req.rejectionReason && ` • Motivo: ${req.rejectionReason}`}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Grade Semanal de Dias */}
                     {(() => {
@@ -3167,10 +3880,18 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                                                             <span>24h Homologado (Permuta)</span>
                                                         </div>
                                                     ) : isWeekLocked && !isAdmin && !user.isEscalante ? (
-                                                        <div className="py-1 px-1.5 bg-amber-50 border border-amber-200 rounded text-amber-800 flex items-center justify-center gap-1">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleOpenWeeklyChangeModal();
+                                                            }}
+                                                            className="w-full py-1 px-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded text-amber-800 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                                                            title="Clique para solicitar alteração desta semana ao escalante"
+                                                        >
                                                             <Lock className="w-3 h-3 text-amber-600 shrink-0" />
-                                                            <span>Semana Homologada</span>
-                                                        </div>
+                                                            <span>Semana Homologada (Solicitar)</span>
+                                                        </button>
                                                     ) : (
                                                         dayStatus.type === 'afastamento' && (
                                                             <div className="py-1 px-1.5 bg-orange-50 border border-orange-200 rounded text-orange-700 flex items-center justify-center gap-1">
@@ -3901,7 +4622,9 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                 </div>
            )}
         </div>
-      </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* SWAP MODAL */}
       <AnimatePresence>
@@ -4006,6 +4729,194 @@ export function ExpedienteScheduler({ user, obmContext, forceExpanded }: Expedie
                           Enviar Solicitação
                       </button>
                   </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* MODAL DE SOLICITAÇÃO DE ALTERAÇÃO DA SEMANA DE EXPEDIENTE */}
+        {showWeeklyChangeModal && activeRg && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm overflow-y-auto"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col my-auto max-h-[90vh]"
+            >
+              <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-r from-indigo-50 to-blue-50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-600 text-white rounded-lg shadow-sm">
+                    <ArrowUpDown className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-slate-800 uppercase tracking-wider text-sm sm:text-base">
+                      Solicitar Alteração no Expediente Semanal
+                    </h3>
+                    <p className="text-[10px] sm:text-xs text-slate-500 font-bold">
+                      Semana: {format(fullWeekDays[0], 'dd/MM')} a {format(fullWeekDays[6], 'dd/MM/yyyy')}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowWeeklyChangeModal(false)}
+                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-white rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmitWeeklyChangeRequest} className="p-4 sm:p-6 flex flex-col gap-4 overflow-y-auto">
+                <div className="bg-indigo-50/80 border border-indigo-200 rounded-xl p-3 text-xs text-slate-700 flex items-start gap-2.5">
+                  <Info className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-indigo-900">Selecione o novo status desejado para os dias que deseja mudar:</p>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      Sua solicitação será analisada e deliberada pelo Escalante / Moderador.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                    Dias da Semana (Clique para alterar o status)
+                  </span>
+
+                  <div className="flex flex-col gap-2">
+                    {fullWeekDays.map(day => {
+                      const dayStr = format(day, 'yyyy-MM-dd');
+                      const dayName = format(day, 'EEEE', { locale: ptBR });
+                      const dayDate = format(day, 'dd/MM');
+                      const curSt = getDayStatus(activeRg, dayStr).type;
+                      const normCur = curSt === 'afastamento' ? 'folga' : curSt;
+                      const propSt = proposedWeeklyChanges[dayStr] || normCur;
+                      const isChanged = propSt !== normCur;
+
+                      return (
+                        <div 
+                          key={dayStr}
+                          className={cn(
+                            "p-2.5 rounded-xl border-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 transition-all",
+                            isChanged ? "bg-indigo-50/40 border-indigo-400 shadow-sm" : "bg-slate-50/70 border-slate-200"
+                          )}
+                        >
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-black capitalize text-slate-800 min-w-[130px]">
+                              {dayName} ({dayDate})
+                            </span>
+                            <span className={cn(
+                              "text-[9px] font-black uppercase px-2 py-0.5 rounded",
+                              normCur === 'expediente' ? "bg-indigo-100 text-indigo-700" :
+                              normCur === 'servico' ? "bg-red-100 text-red-700" :
+                              "bg-slate-200 text-slate-600"
+                            )}>
+                              Atual: {normCur === 'expediente' ? 'EXP' : normCur === 'servico' ? 'SV' : 'FOLGA'}
+                            </span>
+                            {isChanged && (
+                              <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-amber-400 text-amber-950 font-bold shadow-xs">
+                                ➔ Solicitado: {propSt === 'expediente' ? 'EXP' : propSt === 'servico' ? 'SV' : 'FOLGA'}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1.5 self-end sm:self-center">
+                            <button
+                              type="button"
+                              onClick={() => setProposedWeeklyChanges(prev => ({ ...prev, [dayStr]: 'expediente' }))}
+                              className={cn(
+                                "px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer",
+                                propSt === 'expediente'
+                                  ? "bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-400"
+                                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
+                              )}
+                            >
+                              EXP
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setProposedWeeklyChanges(prev => ({ ...prev, [dayStr]: 'servico' }))}
+                              className={cn(
+                                "px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer",
+                                propSt === 'servico'
+                                  ? "bg-red-600 text-white shadow-sm ring-2 ring-red-400"
+                                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
+                              )}
+                            >
+                              SV
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setProposedWeeklyChanges(prev => ({ ...prev, [dayStr]: 'folga' }))}
+                              className={cn(
+                                "px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer",
+                                propSt === 'folga'
+                                  ? "bg-slate-700 text-white shadow-sm ring-2 ring-slate-400"
+                                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-100"
+                              )}
+                            >
+                              FOLGA
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-black uppercase text-slate-600 tracking-wider">
+                    Motivo / Justificativa da Alteração *
+                  </label>
+                  <textarea
+                    value={weeklyChangeReason}
+                    onChange={e => setWeeklyChangeReason(e.target.value)}
+                    required
+                    placeholder="Informe o motivo da alteração solicitada (ex: permuta de expediente, compensação de plantão, necessidade administrativa...)"
+                    rows={3}
+                    className="w-full text-xs p-3 border-2 border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-medium"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                  <span className="text-[11px] font-bold text-slate-500">
+                    {(() => {
+                      const count = fullWeekDays.filter(d => {
+                        const dStr = format(d, 'yyyy-MM-dd');
+                        const cur = getDayStatus(activeRg, dStr).type;
+                        const norm = cur === 'afastamento' ? 'folga' : cur;
+                        return (proposedWeeklyChanges[dStr] || norm) !== norm;
+                      }).length;
+                      return count === 0 ? "Nenhum dia alterado" : `${count} dia(s) alterado(s)`;
+                    })()}
+                  </span>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowWeeklyChangeModal(false)}
+                      className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!weeklyChangeReason.trim() || fullWeekDays.filter(d => {
+                        const dStr = format(d, 'yyyy-MM-dd');
+                        const cur = getDayStatus(activeRg, dStr).type;
+                        const norm = cur === 'afastamento' ? 'folga' : cur;
+                        return (proposedWeeklyChanges[dStr] || norm) !== norm;
+                      }).length === 0}
+                      className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-black uppercase tracking-wider rounded-lg transition-colors shadow-md flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Send className="w-3.5 h-3.5" /> Enviar Solicitação
+                    </button>
+                  </div>
+                </div>
               </form>
             </motion.div>
           </motion.div>

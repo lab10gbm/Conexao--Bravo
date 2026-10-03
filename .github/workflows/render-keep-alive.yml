@@ -1,14 +1,12 @@
-name: Render Keep-Alive Robot (06:00 - 23:00 BRT)
+name: Render Keep-Alive Robot (24/7 Ininterrupto)
 
-# Robô para manter o serviço do Render ativo durante o expediente (06:00 às 23:59 BRT).
-# Durante a madrugada (00:00 às 05:59 BRT), o robô NÃO dispara, permitindo que o
-# serviço descanse para economizar ~217 horas da cota mensal gratuita de 750 horas do Render.
+# Robô para manter o serviço do Render 100% ativo 24 horas por dia, 7 dias por semana.
+# Dispara a cada 12 minutos ininterruptamente para impedir que a instância entre em modo sleep.
 
 on:
   schedule:
-    # 06:00 BRT = 09:00 UTC | 23:59 BRT = 02:59 UTC
-    # Dispara a cada 12 minutos nas horas UTC: 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0, 1, 2
-    - cron: '*/12 9-23,0-2 * * *'
+    # Dispara a cada 12 minutos, 24 horas por dia, todos os dias do ano
+    - cron: '*/12 * * * *'
   workflow_dispatch:
     inputs:
       target_url:
@@ -18,7 +16,7 @@ on:
 
 jobs:
   keep-alive:
-    name: Ping Keep-Alive
+    name: Ping Keep-Alive 24/7
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -31,14 +29,14 @@ jobs:
           HEALTH_URL="${TARGET_URL}/api/health"
           
           echo "=================================================="
-          echo "🤖 Iniciando Robô Keep-Alive Render"
+          echo "🤖 Iniciando Robô Keep-Alive Render (Modo 24/7)"
           echo "📅 Data/Hora UTC: $(date -u)"
           echo "🎯 Alvo: $HEALTH_URL"
           echo "=================================================="
 
           HTTP_CODE=$(curl -s -L -o /tmp/health_response.json -w "%{http_code}" \
-            -H "User-Agent: GitHubActions-KeepAliveRobot/1.0" \
-            -H "X-Keep-Alive: github-actions" \
+            -H "User-Agent: GitHubActions-KeepAliveRobot/1.0 (24-7 Mode)" \
+            -H "X-Keep-Alive: github-actions-24h" \
             --max-time 60 \
             "$HEALTH_URL" || echo "000")
 
@@ -51,7 +49,7 @@ jobs:
           fi
 
           if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 400 ]; then
-            echo "✅ SUCESSO: Site mantido acordado com sucesso no Render!"
+            echo "✅ SUCESSO: Site mantido acordado com sucesso no Render 24/7!"
           elif [ "$HTTP_CODE" -eq 000 ]; then
             echo "⚠️ AVISO: Timeout ou conexão não concluída. O servidor pode estar em processo de acordar (Cold Start)."
           else

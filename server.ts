@@ -634,13 +634,11 @@ function getBrasiliaTime() {
     const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
     const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
     const formatted = formatter.format(now);
-    // Operating window: 06:00 through 23:59 BRT (hours 6 to 23 inclusive)
-    const isOperatingHours = hour >= 6 && hour <= 23;
-    return { hour, minute, formatted, isOperatingHours };
+    // Modo 24/7 Ininterrupto: Sempre ativo para garantir que o Render nunca desative
+    return { hour, minute, formatted, isOperatingHours: true, mode: '24/7 Ininterrupto' };
   } catch (e) {
     const hour = (now.getUTCHours() - 3 + 24) % 24;
-    const isOperatingHours = hour >= 6 && hour <= 23;
-    return { hour, minute: now.getMinutes(), formatted: `${hour}:${now.getMinutes()}`, isOperatingHours };
+    return { hour, minute: now.getMinutes(), formatted: `${hour}:${now.getMinutes()}`, isOperatingHours: true, mode: '24/7 Ininterrupto' };
   }
 }
 
@@ -649,38 +647,32 @@ function startKeepAliveRobot(port: number) {
   const targetHost = process.env.RENDER_EXTERNAL_URL || process.env.KEEP_ALIVE_URL || process.env.APP_URL;
   const PING_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes (Render spins down after 15 minutes of inactivity)
 
-  console.log(`[KeepAlive Robot] Service starting. External target URL: ${targetHost || 'Auto-ping local port'}`);
+  console.log(`[KeepAlive Robot 24/7] Service starting. External target URL: ${targetHost || 'Auto-ping local port'}`);
 
   const pingEndpoint = async () => {
-    const { formatted, isOperatingHours } = getBrasiliaTime();
-
-    if (!isOperatingHours) {
-      console.log(`[KeepAlive Robot] 💤 Eco Mode: Horário de Brasília (${formatted}). Fora da janela de operação (06h - 23h). Repouso para economizar cota do Render.`);
-      lastKeepAlivePing.status = 'eco_sleeping';
-      return;
-    }
+    const { formatted } = getBrasiliaTime();
 
     const endpoint = targetHost 
       ? `${targetHost.replace(/\/$/, '')}/api/health` 
       : `http://127.0.0.1:${port}/api/health`;
 
     try {
-      console.log(`[KeepAlive Robot] ⚡ Disparando ping keep-alive para ${endpoint} às ${formatted} BRT...`);
+      console.log(`[KeepAlive Robot 24/7] ⚡ Disparando ping keep-alive para ${endpoint} às ${formatted} BRT...`);
       const response = await axios.get(endpoint, {
         headers: {
-          'User-Agent': 'RenderKeepAliveRobot/1.0',
-          'X-Keep-Alive': 'internal-cron'
+          'User-Agent': 'RenderKeepAliveRobot/1.0 (24-7 Mode)',
+          'X-Keep-Alive': 'internal-cron-24h'
         },
         timeout: 25000
       });
 
       lastKeepAlivePing.timestamp = new Date().toISOString();
-      lastKeepAlivePing.source = 'internal-cron';
+      lastKeepAlivePing.source = 'internal-cron-24h';
       lastKeepAlivePing.status = response.status === 200 ? 'healthy' : `status_${response.status}`;
       lastKeepAlivePing.count++;
-      console.log(`[KeepAlive Robot] ✅ Ping confirmado! Render mantido ativo com sucesso.`);
+      console.log(`[KeepAlive Robot 24/7] ✅ Ping confirmado! Render mantido 100% ativo 24h.`);
     } catch (err: any) {
-      console.warn(`[KeepAlive Robot] ⚠️ Aviso no auto-ping (${endpoint}):`, err.message);
+      console.warn(`[KeepAlive Robot 24/7] ⚠️ Aviso no auto-ping (${endpoint}):`, err.message);
       lastKeepAlivePing.status = `warn: ${err.message}`;
     }
   };
@@ -715,14 +707,16 @@ function startKeepAliveRobot(port: number) {
       brasilia: {
         time: brTime.formatted,
         hour: brTime.hour,
-        isOperatingHours: brTime.isOperatingHours,
-        window: '06:00 - 23:59 BRT'
+        isOperatingHours: true,
+        window: '24/7 Ininterrupto (Sem Pausa Noturna)',
+        mode: '24/7'
       },
       keepAlive: {
         lastPingAt: lastKeepAlivePing.timestamp,
         lastPingSource: lastKeepAlivePing.source,
         totalPings: lastKeepAlivePing.count,
         robotStatus: lastKeepAlivePing.status,
+        mode: '24/7 Ininterrupto',
         renderTargetUrl: process.env.RENDER_EXTERNAL_URL || process.env.KEEP_ALIVE_URL || process.env.APP_URL || 'auto'
       }
     });

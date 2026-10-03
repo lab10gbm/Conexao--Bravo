@@ -3,15 +3,12 @@ import {
   Activity, 
   Clock, 
   CheckCircle2, 
-  Moon, 
-  Sun, 
   RefreshCw, 
   Server, 
   ShieldCheck, 
   Zap, 
   Copy, 
   Check, 
-  ExternalLink,
   AlertCircle
 } from 'lucide-react';
 
@@ -23,12 +20,14 @@ interface HealthData {
     hour: number;
     isOperatingHours: boolean;
     window: string;
+    mode?: string;
   };
   keepAlive?: {
     lastPingAt: string | null;
     lastPingSource: string;
     totalPings: number;
     robotStatus: string;
+    mode?: string;
     renderTargetUrl: string;
   };
 }
@@ -90,7 +89,7 @@ export function KeepAliveConfigCard() {
     try {
       const res = await fetch('/api/health', { 
         cache: 'no-store',
-        headers: { 'X-Keep-Alive': 'admin-manual-test' }
+        headers: { 'X-Keep-Alive': 'admin-manual-test-24h' }
       });
       const end = performance.now();
       const latency = Math.round(end - start);
@@ -132,8 +131,6 @@ export function KeepAliveConfigCard() {
     return `${secs}s`;
   };
 
-  const isOperating = health?.brasilia ? health.brasilia.isOperatingHours : true;
-
   return (
     <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm space-y-6">
       {/* Header */}
@@ -147,17 +144,13 @@ export function KeepAliveConfigCard() {
               <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">
                 Robô Anti-Desativação (Render Keep-Alive)
               </h3>
-              <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 ${
-                isOperating 
-                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
-                  : 'bg-amber-100 text-amber-800 border border-amber-300'
-              }`}>
-                {isOperating ? <Sun className="w-3 h-3 text-emerald-600" /> : <Moon className="w-3 h-3 text-amber-600" />}
-                {isOperating ? 'Janela Operacional Ativa (06:00 - 23:00)' : 'Modo Eco Noturno (23:00 - 06:00)'}
+              <span className="text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 border border-emerald-300">
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                Modo 24 Horas Ininterrupto Ativo
               </span>
             </div>
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
-              Multi-camadas integradas para evitar o modo sleep do Render na camada gratuita
+              Site mantido 100% acordado dia e noite para uso exclusivo deste projeto
             </p>
           </div>
         </div>
@@ -206,8 +199,8 @@ export function KeepAliveConfigCard() {
           <div className="text-xl font-black text-slate-800 font-mono">
             {localBrTime || '--:--:--'}
           </div>
-          <div className="text-[9px] text-slate-500 font-semibold mt-1">
-            Janela de Ping: <b>06:00 às 23:59</b>
+          <div className="text-[9px] text-emerald-600 font-bold mt-1">
+            Ciclo de Ping: <b>24h / 7 dias por semana</b>
           </div>
         </div>
 
@@ -220,7 +213,7 @@ export function KeepAliveConfigCard() {
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
             <span className="text-base font-black text-slate-800 uppercase tracking-tight">
-              {health?.status === 'ok' ? 'Operando Online' : 'Conectando...'}
+              {health?.status === 'ok' ? 'Online 24/7' : 'Conectando...'}
             </span>
           </div>
           <div className="text-[9px] text-slate-500 font-semibold mt-1">
@@ -251,19 +244,19 @@ export function KeepAliveConfigCard() {
             <ShieldCheck className="w-4 h-4 text-blue-500" />
           </div>
           <div className="text-base font-black text-blue-900 font-mono">
-            ~527h / 750h
+            744h / 750h
           </div>
-          <div className="text-[9px] text-emerald-600 font-bold mt-1">
-            Economiza ~217h/mês dormindo à noite!
+          <div className="text-[9px] text-blue-700 font-bold mt-1">
+            Projeto Exclusivo (Dentro dos 750h)
           </div>
         </div>
       </div>
 
-      {/* Os 4 Modos Integrados */}
+      {/* Os 3 Modos Ativos 24/7 */}
       <div className="space-y-3">
         <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-          Camadas de Proteção Ativas neste Repositório
+          Camadas 24 Horas Ativas neste Repositório
         </h4>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -271,10 +264,10 @@ export function KeepAliveConfigCard() {
           <div className="border border-slate-200 rounded-lg p-3.5 bg-slate-50/70 hover:bg-white transition-colors">
             <div className="flex items-center gap-2 mb-1.5">
               <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-black flex items-center justify-center">1</span>
-              <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">Auto-Ping no Backend</h5>
+              <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">Auto-Ping Node.js (24/7)</h5>
             </div>
             <p className="text-[10px] text-slate-600 leading-relaxed">
-              O próprio Node.js do servidor dispara um ping HTTP a cada <b>10 minutos</b> entre as 06h e 23h, zerando o contador de 15 minutos de inatividade do Render.
+              O backend dispara um ping interno contínuo a cada <b>10 minutos</b> dia e noite, impedindo que o Render atinja o limite de 15 minutos de inatividade.
             </p>
             <div className="mt-2 text-[9px] font-black text-indigo-700 uppercase tracking-wider bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 inline-block">
               Interno • server.ts
@@ -285,10 +278,10 @@ export function KeepAliveConfigCard() {
           <div className="border border-slate-200 rounded-lg p-3.5 bg-slate-50/70 hover:bg-white transition-colors">
             <div className="flex items-center gap-2 mb-1.5">
               <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black flex items-center justify-center">2</span>
-              <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">Robô GitHub Actions</h5>
+              <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">GitHub Actions (24/7)</h5>
             </div>
             <p className="text-[10px] text-slate-600 leading-relaxed">
-              Workflow agendado no GitHub que acorda o site a cada <b>12 minutos</b> das 06h às 23h BRT. Mesmo se o Render desligar, a nuvem do GitHub o acorda de fora!
+              Workflow agendado no GitHub que acorda o site a cada <b>12 minutos</b> 24h por dia. Se o Render sofrer qualquer reinicialização, o GitHub o acorda imediatamente.
             </p>
             <div className="mt-2 text-[9px] font-black text-emerald-700 uppercase tracking-wider bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 inline-block">
               Nuvem • .github/workflows
@@ -299,10 +292,10 @@ export function KeepAliveConfigCard() {
           <div className="border border-slate-200 rounded-lg p-3.5 bg-slate-50/70 hover:bg-white transition-colors">
             <div className="flex items-center gap-2 mb-1.5">
               <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-black flex items-center justify-center">3</span>
-              <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">Heartbeat dos Navegadores</h5>
+              <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">Heartbeat nos Clientes</h5>
             </div>
             <p className="text-[10px] text-slate-600 leading-relaxed">
-              Quando qualquer militar ou visitante estiver navegando no sistema ou com a aba aberta no celular, o app envia batimentos contínuos a cada <b>6 minutos</b>.
+              Pulsos a cada <b>6 minutos</b> de qualquer usuário com a aba aberta ou ao desbloquear o celular, garantindo zero atraso durante os atendimentos.
             </p>
             <div className="mt-2 text-[9px] font-black text-amber-700 uppercase tracking-wider bg-amber-50 px-2 py-0.5 rounded border border-amber-100 inline-block">
               Cliente • useKeepAliveHeartbeat
@@ -317,11 +310,11 @@ export function KeepAliveConfigCard() {
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
               <AlertCircle className="w-3.5 h-3.5 text-blue-600" />
-              Camada 4 Opcional (Cron-job.org ou UptimeRobot)
+              Camada 4 Opcional (UptimeRobot ou Cron-job.org)
             </span>
           </div>
           <p className="text-[10px] text-slate-500 leading-relaxed max-w-xl">
-            Se quiser uma 4ª garantia externa gratuita, você pode cadastrar a URL leve de healthcheck no <b>cron-job.org</b> configurado exatamente para 06h às 23h.
+            Se quiser monitoramento com aviso no seu e-mail caso haja instabilidade no Render, você pode cadastrar a URL abaixo no <b>UptimeRobot</b> (grátis):
           </p>
           <div className="font-mono text-[10px] text-slate-700 bg-white border border-slate-200 px-2.5 py-1 rounded max-w-fit break-all">
             {getHealthUrl()}
