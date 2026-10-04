@@ -146,13 +146,10 @@ export function ProfileUpdate({ user, onUpdate, onBack }: ProfileUpdateProps) {
         lastProfileUpdate: Date.now()
       };
       
-      const response = const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
-      await fetch('/api/militar/update', {
+      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+      const response = await fetch('/api/militar/update', {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
           rg: user.rg,
           data: updatePayload

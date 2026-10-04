@@ -131,7 +131,6 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
       const res = await fetch(`/api/militar/${safeRg}`, {
         headers: { Authorization: `Bearer ${token}` },
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' }
       });
 
       // 3. Fallback client-side Firestore delete for redundancy
