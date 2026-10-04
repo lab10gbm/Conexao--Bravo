@@ -49,7 +49,19 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
       where('status', '==', 'open')
     );
     const unsubOpps = onSnapshot(qOpps, (snap) => {
-      const opps = snap.docs.map(d => ({ id: d.id, ...d.data() } as RasOpportunity)).sort((a,b) => b.createdAt - a.createdAt);
+      const now = new Date();
+      const opps = snap.docs.map(d => ({ id: d.id, ...d.data() } as RasOpportunity))
+        .filter(opp => {
+          if (opp.deadline) {
+            return new Date(opp.deadline) > now;
+          } else {
+            const [year, month, day] = opp.date.split('-');
+            const oppDate = new Date(Number(year), Number(month) - 1, Number(day));
+            oppDate.setHours(23, 59, 59, 999);
+            return oppDate > now;
+          }
+        })
+        .sort((a,b) => b.createdAt - a.createdAt);
       setOpportunities(opps);
       
       // Fetch applications for these open opportunities to build public lists

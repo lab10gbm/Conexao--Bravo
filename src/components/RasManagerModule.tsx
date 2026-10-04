@@ -23,7 +23,8 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState<'oportunidades' | 'banco-horas'>('oportunidades');
-
+  const [editingHoursRg, setEditingHoursRg] = useState<string | null>(null);
+  const [editingHoursValue, setEditingHoursValue] = useState<number>(0);
   const [formData, setFormData] = useState({
     date: '',
     duration: 24 as 12 | 24,
@@ -62,8 +63,31 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
     if (!obmContext) return;
     const q = query(collection(db, 'ras_opportunities'), where('obm', '==', obmContext));
     const unsub = onSnapshot(q, (snap) => {
+      const now = new Date();
       const opps = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as RasOpportunity))
         .sort((a, b) => b.createdAt - a.createdAt);
+      
+      // Auto-close past opportunities
+      opps.forEach(opp => {
+        if (opp.status === 'open') {
+          let shouldClose = false;
+          if (opp.deadline) {
+            if (new Date(opp.deadline) < now) shouldClose = true;
+          } else if (opp.date) {
+            const [year, month, day] = opp.date.split('-');
+            const oppDate = new Date(Number(year), Number(month) - 1, Number(day));
+            oppDate.setHours(23, 59, 59, 999);
+            if (oppDate < now) shouldClose = true;
+          }
+          if (shouldClose) {
+            updateDoc(doc(db, 'ras_opportunities', opp.id!), {
+              status: 'closed',
+              updatedAt: Date.now()
+            }).catch(console.error);
+          }
+        }
+      });
+      
       setOpportunities(opps);
       
       // Fetch applications for these opps
@@ -240,21 +264,30 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
       console.error('Error clearing hours:', err);
     }
   };
+  
+  const handleSaveHours = async (rg: string) => {
+    try {
+      await addOrUpdateMilitar({ rg, rasHours: editingHoursValue });
+      setEditingHoursRg(null);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
-  const { militars } = useMilitars();
+  const { militars, addOrUpdateMilitar } = useMilitars();
 
   const bancoDeHoras = useMemo(() => {
     const hoursMap: Record<string, { nome: string, rank: string, quadro: string, rg: string, horas: number, numServicos: number, militarObj?: UserProfile }> = {};
 
     // Initialize with all militaries in this OBM
     militars.forEach(m => {
-      if (normalizeObm(m.obm) === normalizeObm(obmContext) || normalizeObm(m.lentTo!) === normalizeObm(obmContext)) {
+      if (obmContext === 'GLOBAL' || normalizeObm(m.obm) === normalizeObm(obmContext) || normalizeObm(m.lentTo!) === normalizeObm(obmContext)) {
         hoursMap[m.rg!] = {
           nome: m.warName || m.name,
           rank: m.rank,
           quadro: m.quadro || '',
           rg: m.rg!,
-          horas: 0,
+          horas: m.rasHours || 0,
           numServicos: 0,
           militarObj: m
         };
@@ -280,12 +313,11 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
                 rank: app.militarRank,
                 quadro: app.militarQuadro || '',
                 rg: app.militarRg,
-                horas: 0,
+                horas: mObj?.rasHours || 0,
                 numServicos: 0,
                 militarObj: mObj
               };
             }
-            hoursMap[app.militarRg].horas += opp.duration;
             hoursMap[app.militarRg].numServicos += 1;
           };
 
@@ -399,9 +431,50 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-black text-indigo-600 text-lg">{m.horas}h</div>
-                    <div className="text-[10px] text-slate-400 uppercase tracking-widest">{m.numServicos} Serviço{m.numServicos > 1 ? 's' : ''}</div>
+                  <div className="text-right flex items-center justify-end gap-3">
+                    {editingHoursRg === m.rg ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          className="w-16 px-2 py-1 border-2 border-indigo-200 rounded-lg text-sm text-center outline-none focus:border-indigo-500 font-black text-indigo-700 bg-indigo-50"
+                          value={editingHoursValue}
+                          onChange={e => setEditingHoursValue(Number(e.target.value))}
+                          autoFocus
+                          onKeyDown={e => e.key === 'Enter' && handleSaveHours(m.rg)}
+                        />
+                        <button
+                          onClick={() => handleSaveHours(m.rg)}
+                          className="p-1.5 bg-emerald-100 text-emerald-600 hover:bg-emerald-200 rounded-lg transition-colors"
+                          title="Salvar"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setEditingHoursRg(null)}
+                          className="p-1.5 bg-slate-100 text-slate-500 hover:bg-slate-200 rounded-lg transition-colors"
+                          title="Cancelar"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <div className="font-black text-indigo-600 text-lg">{m.horas}h</div>
+                          <div className="text-[10px] text-slate-400 uppercase tracking-widest">{m.numServicos} Serviço{m.numServicos > 1 || m.numServicos === 0 ? 's' : ''}</div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setEditingHoursValue(m.horas);
+                            setEditingHoursRg(m.rg);
+                          }}
+                          className="p-1.5 bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          title="Editar Horas"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
