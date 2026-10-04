@@ -34,7 +34,8 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>
 );
 
-CapacitorUpdater.notifyAppReady().catch((error) => {
-  console.log('Skipping CapacitorUpdater on web platform');
-});
+// CapacitorUpdater code disabled for App Espelho mode
+if (Capacitor.isNativePlatform()) {
+  // CapacitorUpdater.notifyAppReady().catch(() => {});
+}
 

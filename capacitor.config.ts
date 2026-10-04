@@ -4,9 +4,13 @@ const config: CapacitorConfig = {
   appId: 'com.app.intranet',
   appName: 'Conexão Bravo',
   webDir: 'dist',
+  server: {
+    url: 'https://conexao-bravo.onrender.com',
+    cleartext: true
+  },
   plugins: {
     CapacitorUpdater: {
-      autoUpdate: true,
+      autoUpdate: false,
     }
   }
 };
