@@ -16,6 +16,7 @@ import cors from 'cors';
 import { authRouter } from './src/server/routes/auth';
 import { setupSyncRoutes } from './src/server/routes/sync';
 import { setupMilitaryRoutes } from './src/server/routes/military.routes';
+import { setupTempRoutes } from "./src/server/routes/temp";
 import { setupServiceRoutes } from './src/server/routes/services.routes';
 import { importMilitariesFromLocal } from './src/server/lib/import-militaries';
 // @ts-ignore
@@ -813,6 +814,7 @@ function startKeepAliveRobot(port: number) {
   
   setupSyncRoutes(app, getRouteDeps);
   setupMilitaryRoutes(app, getRouteDeps);
+  setupTempRoutes(app, getRouteDeps);
   setupServiceRoutes(app, getRouteDeps);
 
   app.get('/api/test', (req, res) => {

@@ -309,6 +309,7 @@ export function MonthDetail({ month, user, userAla, obmContext, userRg, onDateSe
   const weekdays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
   const [grdDays, setGrdDays] = useState<Record<string, boolean>>({});
+  const [rasDays, setRasDays] = useState<Record<string, boolean>>({});
   const [expedienteBaseDays, setExpedienteBaseDays] = useState<Record<string, 'SV' | 'EXP'>>({});
   const [permutaStatusDays, setPermutaStatusDays] = useState<Record<string, CalendarPermutaDay>>({});
   const [selectedDayPermutaInfo, setSelectedDayPermutaInfo] = useState<{ date: Date; info: CalendarPermutaDay } | null>(null);
@@ -324,6 +325,32 @@ export function MonthDetail({ month, user, userAla, obmContext, userRg, onDateSe
     const monthKey = format(month, 'yyyy-MM');
     
     const docRef = doc(db, 'grd_configs', `${obmId}_${monthKey}`);
+    // --- RAS INTEGRATION ---
+    const oppsQuery = query(collection(db, "ras_opportunities"), where("obm", "==", obmContext));
+    const appsQuery = query(collection(db, "ras_applications"), where("militarRg", "==", userCleanRg));
+    let oppsCache: any[] = [];
+    let appsCache: any[] = [];
+    const updateRasDays = () => {
+       const newRasDays: Record<string, boolean> = {};
+       appsCache.forEach(app => {
+         if (app.status === "selected" || app.status === "completed") {
+            const opp = oppsCache.find(o => o.id === app.rasId);
+            if (opp && opp.date) {
+               newRasDays[opp.date] = true;
+            }
+         }
+       });
+       setRasDays(newRasDays);
+    };
+    const unsubOpps = onSnapshot(oppsQuery, (snap) => {
+       oppsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+       updateRasDays();
+    });
+    const unsubApps = onSnapshot(appsQuery, (snap) => {
+       appsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+       updateRasDays();
+    });
+    // -----------------------
     const unsubGrd = onSnapshot(docRef, (snapshot) => {
        if (snapshot.exists()) {
            const daysData = snapshot.data().days || {};
@@ -475,6 +502,8 @@ export function MonthDetail({ month, user, userAla, obmContext, userRg, onDateSe
     });
 
     return () => {
+      unsubOpps();
+      unsubApps();
         unsubGrd();
         unsubExp();
         unsubPermutas();
@@ -504,7 +533,7 @@ export function MonthDetail({ month, user, userAla, obmContext, userRg, onDateSe
               const isToday = isSameDay(day, new Date());
               const isMyAla = userAla && ala.toString() === userAla.toString();
               const dateStr = format(day, 'yyyy-MM-dd');
-              const isGrd = grdDays[dateStr];
+              const isGrd = grdDays[dateStr] || rasDays[dateStr];
               const pInfo = permutaStatusDays[dateStr];
               const baseStatus = expedienteBaseDays[dateStr];
 

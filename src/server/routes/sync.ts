@@ -41,7 +41,7 @@ const bulkSyncHandler = async (req: any, res: any) => {
 
     let batch;
     let isClientDb = false;
-    if (adminDb) batch = adminDb.batch();
+    if (getDeps().isDbHealthy && adminDb) batch = adminDb.batch();
     else if (clientDb) { batch = writeBatch(clientDb); isClientDb = true; }
     else return res.status(500).json({ success: false, error: 'No db' });
 
@@ -199,7 +199,7 @@ syncRouter.post('/admin/personal-data/bulk-sync', apiKeyMiddleware, async (req, 
     let batch;
     let isClientDb = false;
     
-    if (adminDb) {
+    if (getDeps().isDbHealthy && adminDb) {
        batch = adminDb.batch();
     } else if (clientDb) {
        batch = writeBatch(clientDb);
@@ -290,7 +290,7 @@ syncRouter.post('/admin/militaries/bulk-sync', apiKeyMiddleware, async (req, res
 
   let batch;
   let isClientDb = false;
-  if (adminDb) { batch = adminDb.batch(); }
+  if (getDeps().isDbHealthy && adminDb) { batch = adminDb.batch(); }
   else if (clientDb) { batch = writeBatch(clientDb); isClientDb = true; }
   else return res.status(500).json({ success: false, error: 'No db' });
   

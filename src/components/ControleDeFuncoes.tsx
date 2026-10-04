@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { parseRank, sortRanks } from "../lib/rankUtils";
 import { useMilitars } from "../contexts/MilitarContext";
-import { db } from "../lib/firebase";
+import { db, auth } from "../lib/firebase";
 import { doc, setDoc, onSnapshot } from "firebase/firestore";
 import {
   Search,

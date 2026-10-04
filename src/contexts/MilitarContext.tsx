@@ -28,7 +28,7 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
 
   const fetchMilitars = async () => {
     try {
-      const storedUser = localStorage.getItem('user');
+      const storedUser = localStorage.getItem('militar_profile');
       let rg = '';
       if (storedUser) {
         try {
@@ -55,8 +55,11 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Initial fetch to populate data before SSE connects
-    auth.onAuthStateChanged((user) => { if (user) fetchMilitars(); });
+    // Initial fetch to populate data
+    fetchMilitars();
+    
+    // Subscribe to auth changes to refetch if user logs in later
+    const unsubscribeAuth = auth.onAuthStateChanged(() => { fetchMilitars(); });
 
     let eventSource: EventSource | null = null;
     let retryTimeout: NodeJS.Timeout | null = null;
@@ -73,7 +76,7 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
           if (data.version && data.version > cacheVersionRef.current) {
             console.log(`[MilitarContext] Cache version changed (${cacheVersionRef.current} -> ${data.version}). Fetching updates...`);
             cacheVersionRef.current = data.version;
-            auth.onAuthStateChanged((user) => { if (user) fetchMilitars(); });
+            fetchMilitars();
           }
         } catch (e) {
           console.error('[MilitarContext] Error parsing SSE data:', e);
@@ -105,7 +108,7 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshMilitars = async (rg?: string) => {
-    await auth.onAuthStateChanged((user) => { if (user) fetchMilitars(); });
+    await fetchMilitars();
   };
 
   const updateMilitarLocal = (rg: string, updates: Partial<UserProfile>) => {
@@ -141,11 +144,11 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
       } catch (err) {}
 
       // 4. Trigger refetch to ensure 100% synchronization
-      await auth.onAuthStateChanged((user) => { if (user) fetchMilitars(); });
+      await fetchMilitars();
       return true;
     } catch (e) {
       console.error('[MilitarContext] Error deleting militar:', e);
-      await auth.onAuthStateChanged((user) => { if (user) fetchMilitars(); });
+      await fetchMilitars();
       return false;
     }
   };
@@ -182,7 +185,7 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
         }
       } catch (err) {}
 
-      await auth.onAuthStateChanged((user) => { if (user) fetchMilitars(); });
+      await fetchMilitars();
       return true;
     } catch (e) {
       console.error('[MilitarContext] Error saving militar:', e);

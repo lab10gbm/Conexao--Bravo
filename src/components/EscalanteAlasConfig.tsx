@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { parseRank, sortAllBySeniority } from "../lib/rankUtils";
 import { useMilitars } from '../contexts/MilitarContext';
+import { auth } from "../lib/firebase";
 import { Search, Loader2, Plus, X, ArrowRight, Users } from 'lucide-react';
 import { cn, normalizeAlaField } from '../lib/utils';
 import { UserProfile } from '../types';
