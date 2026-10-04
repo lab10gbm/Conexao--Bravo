@@ -7,7 +7,7 @@ import { getFirestore as getClientFirestore, doc, setDoc, writeBatch } from 'fir
 export async function importMilitariesFromLocal(adminDb: any, clientDb: any) {
   const dataPath = path.join(process.cwd(), 'src/server/lib/detailed_militaries_data.json');
   if (!fs.existsSync(dataPath)) {
-    console.log('[Import] Detailed data file not found at', dataPath);
+    // Initial seed file is optional, data is persisted in Firestore
     return;
   }
 

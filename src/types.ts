@@ -49,6 +49,8 @@ export interface UserProfile {
   promotionDate?: string;
   promotions?: any[];
   lastProfileUpdate?: number;
+  hasCustomPassword?: boolean;
+  mustChangePassword?: boolean;
   // Funções e Viaturas
   ativoCondutor?: boolean;
   ativoEncarregado?: boolean;

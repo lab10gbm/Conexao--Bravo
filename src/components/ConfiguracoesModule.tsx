@@ -9,6 +9,7 @@ import { PermutaRequest } from '../types';
 import { AppVisibilityConfig } from './AppVisibilityConfig';
 import { SystemRolesConfig } from './SystemRolesConfig';
 import { KeepAliveConfigCard } from './KeepAliveConfigCard';
+import { EmailSmtpConfigCard } from './EmailSmtpConfigCard';
 import { useAppConfig } from '../contexts/ConfigContext';
 import { cleanUndefined } from "../lib/utils";
 
@@ -369,6 +370,7 @@ export function ConfiguracoesModule({ onBack }: ConfiguracoesModuleProps) {
         </p>
       </div>
 
+      <EmailSmtpConfigCard />
       <SystemRolesConfig />
       <AppVisibilityConfig />
 

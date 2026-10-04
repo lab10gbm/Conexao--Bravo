@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../types';
-import { db } from '../lib/firebase';
+import { db, auth } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
+import { updatePassword } from 'firebase/auth';
 import { motion } from 'motion/react';
-import { Save, UserCircle2, Phone, MapPin, Building, Lock, Calendar, Award, Shield, Briefcase, UserCheck, Settings2, Trash2, ArrowLeft } from 'lucide-react';
+import { Save, UserCircle2, Phone, MapPin, Building, Lock, Calendar, Shield, Briefcase, UserCheck, Settings2, Trash2, ArrowLeft } from 'lucide-react';
 import { RankInsignia } from './RankInsignia';
 import { cleanUndefined } from "../lib/utils";
-import { TagInput } from './TagInput';
 
 interface ProfileUpdateProps {
   user: UserProfile;
@@ -93,10 +93,6 @@ export function ProfileUpdate({ user, onUpdate, onBack }: ProfileUpdateProps) {
     } else {
       setFormData({ ...formData, [name]: value });
     }
-  };
-
-  const handleSpecializationsChange = (value: string) => {
-    setFormData({ ...formData, specializations: value.split(',').map(s => s.trim()).filter(Boolean) });
   };
 
   const formatDate = (dateValue: any) => {
@@ -209,6 +205,20 @@ export function ProfileUpdate({ user, onUpdate, onBack }: ProfileUpdateProps) {
       }
       setPasswordSuccess(true);
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      
+      if (auth.currentUser) {
+        try {
+          await updatePassword(auth.currentUser, passwordData.newPassword.trim());
+        } catch (authErr) {
+          console.warn("[Auth] Client background auth note:", authErr);
+        }
+      }
+
+      const updatedUser = { ...user, hasCustomPassword: true, mustChangePassword: false };
+      try {
+        localStorage.setItem("militar_profile", JSON.stringify(updatedUser));
+      } catch (e) {}
+      onUpdate(updatedUser);
       setTimeout(() => setPasswordSuccess(false), 3000);
     } catch (err: any) {
       setPasswordError(err.message);
@@ -509,34 +519,7 @@ export function ProfileUpdate({ user, onUpdate, onBack }: ProfileUpdateProps) {
               </div>
            </div>
 
-           {/* SECTION 4: QUALIFICAÇÃO E ESPECIALIDADES */}
-           <div className="space-y-6">
-              <h4 className="flex items-center gap-2 text-sm font-black text-slate-800 uppercase tracking-tighter border-b border-slate-100 pb-2">
-                <Award className="w-4 h-4 text-indigo-600" /> Qualificações Profissionais
-              </h4>
-              <div className="grid grid-cols-1 gap-6">
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Especialidades (Tags)</label>
-                  <TagInput
-                    value={(formData.specializations || []).join(', ')}
-                    onChange={handleSpecializationsChange}
-                    placeholder="Adicione especialidades (Ex: MERGULHO, SALVAMENTO, COMBATE A INCÊNDIO)"
-                  />
-                  <p className="text-[8px] text-slate-400 font-bold uppercase mt-1">Pressione Enter ou vírgula para adicionar cada tag</p>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-slate-500 tracking-widest">Cursos e Observações Profissionais</label>
-                  <textarea
-                    name="cursos"
-                    value={formData.cursos}
-                    onChange={handleChange}
-                    rows={4}
-                    placeholder="Descreva cursos realizados, certificados e outras informações relevantes para sua escala."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all resize-none"
-                  />
-                </div>
-              </div>
-           </div>
+
 
            <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-slate-100">
              <div className="w-full sm:w-auto text-left">
@@ -584,9 +567,25 @@ export function ProfileUpdate({ user, onUpdate, onBack }: ProfileUpdateProps) {
            )}
 
            <div className="space-y-6">
-              <h4 className="flex items-center gap-2 text-sm font-black text-slate-800 uppercase tracking-tighter border-b border-slate-200 pb-2">
-                <Lock className="w-4 h-4 text-indigo-600" /> Segurança (Alterar Senha)
-              </h4>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                <h4 className="flex items-center gap-2 text-sm font-black text-slate-800 uppercase tracking-tighter">
+                  <Lock className="w-4 h-4 text-indigo-600" /> Segurança (Alterar Senha)
+                </h4>
+                {user.hasCustomPassword ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Senha Pessoal Ativa (Data de Nascimento Bloqueada)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Senha Padrão Ativa (Defina sua senha pessoal)
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] text-slate-500 font-medium leading-relaxed bg-slate-100/70 p-3 rounded-lg border border-slate-200">
+                Ao cadastrar ou alterar sua senha pessoal, o acesso pelo aniversário é desativado permanentemente na tela de login para proteger seus dados de escala e permutas.
+              </p>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                  <div className="space-y-1">

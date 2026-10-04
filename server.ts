@@ -8,7 +8,7 @@ import { initializeApp as initAdminApp, getApps as getAdminApps, getApp as getAd
 import { getFirestore as getAdminFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { initializeApp } from 'firebase/app';
-import { getFirestore as getClientFirestore, initializeFirestore, doc, setDoc, serverTimestamp, collection, getDocs, getDoc, query, limit, orderBy, where, writeBatch, onSnapshot } from 'firebase/firestore';
+import { getFirestore as getClientFirestore, initializeFirestore, doc, setDoc, serverTimestamp, collection, getDocs, getDoc, query, limit, orderBy, where, writeBatch, onSnapshot, deleteField } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import fs from 'fs';
 import compression from 'compression';
@@ -21,6 +21,19 @@ import { importMilitariesFromLocal } from './src/server/lib/import-militaries';
 // @ts-ignore
 import archiver from 'archiver';
 import { EventEmitter } from 'events';
+import crypto from 'crypto';
+import { sendPasswordResetEmail, maskEmail, setRuntimeSmtpConfig, getEffectiveSmtpConfig, testSmtpConnection, SmtpConfig } from './src/server/lib/email.service';
+
+interface PasswordResetRequest {
+  rg: string;
+  code: string;
+  token: string;
+  email: string;
+  expiresAt: number;
+  attempts: number;
+}
+const passwordResetsByRg = new Map<string, PasswordResetRequest>();
+const passwordResetsByToken = new Map<string, string>();
 
 // Initialize Firebase Admin
 const firebaseConfigPath = path.join(process.cwd(), 'firebase-applet-config.json');
@@ -43,6 +56,8 @@ if (fs.existsSync(firebaseConfigPath)) {
 // Global DB and Cache handles
 let db: any;
 let clientDb: any;
+let hasServiceAccount = false;
+let isDbHealthy = false;
 let militaryCache: Map<string, any> = new Map();
 let deletedMilitaries: Set<string> = new Set();
 let militaryCacheVersion: number = Date.now();
@@ -173,7 +188,11 @@ async function syncMilitariesFromSheetInternal() {
           }
 
           batch.set(docRef, data, { merge: true });
-          militaryCache.set(safeRg, data);
+          const prevMem1 = militaryCache.get(safeRg) || {};
+          const mergedMem1 = { ...prevMem1, ...data };
+          if (prevMem1.hasCustomPassword !== undefined) mergedMem1.hasCustomPassword = prevMem1.hasCustomPassword;
+          if (prevMem1.customPassword) mergedMem1.customPassword = prevMem1.customPassword;
+          militaryCache.set(safeRg, mergedMem1);
           count++;
 
           if (count % 450 === 0) {
@@ -229,7 +248,11 @@ async function syncMilitariesFromSheetInternal() {
         }
 
         batch.set(docRef, data, { merge: true });
-        militaryCache.set(safeRg, data);
+        const prevMem2 = militaryCache.get(safeRg) || {};
+        const mergedMem2 = { ...prevMem2, ...data };
+        if (prevMem2.hasCustomPassword !== undefined) mergedMem2.hasCustomPassword = prevMem2.hasCustomPassword;
+        if (prevMem2.customPassword) mergedMem2.customPassword = prevMem2.customPassword;
+        militaryCache.set(safeRg, mergedMem2);
         count++;
 
         if (count % 400 === 0) {
@@ -260,18 +283,22 @@ async function initFirebaseAdmin() {
       try { await deleteApp(getAdminApp()); } catch(e) {}
     }
     
-    // Check if we have an explicit Service Account provided via Environment Variable (for Render/External)
-    const saJson = process.env.FIREBASE_SERVICE_ACCOUNT;
-    if (saJson) {
-      console.log(`[Firebase] Using Service Account from environment variable.`);
-      const sa = JSON.parse(saJson);
-      if (sa.private_key) {
-        sa.private_key = sa.private_key.replace(/\\n/g, '\n');
+    hasServiceAccount = false;
+    // Check if we have an explicit Service Account provided via Environment Variable
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      try {
+        const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        if (sa.private_key) {
+          sa.private_key = sa.private_key.replace(/\\n/g, '\n');
+        }
+        initAdminApp({
+          credential: cert(sa),
+          projectId: sa.project_id
+        });
+        hasServiceAccount = true;
+      } catch (e: any) {
+        console.warn(`[Firebase] Failed to parse FIREBASE_SERVICE_ACCOUNT env var:`, e.message);
       }
-      initAdminApp({
-        credential: cert(sa),
-        projectId: sa.project_id
-      });
     } else if (targetProject && targetProject !== 'remixed-project-id' && targetProject !== '') {
       console.log(`[Firebase] Initializing with explicit ProjectID: ${targetProject}`);
       initAdminApp({ projectId: targetProject });
@@ -301,6 +328,22 @@ async function initFirebaseAdmin() {
      const clientApp = initializeApp(firebaseConfig);
      clientDb = initializeFirestore(clientApp, { experimentalForceLongPolling: true }, targetDbId);
      console.log(`[Firebase] Client SDK initialized on database "${targetDbId}"`);
+
+     // Authenticate client SDK so server-side operations on clientDb satisfy `request.auth != null`
+     const clientAuth = getAuth(clientApp);
+     try {
+       await signInWithEmailAndPassword(clientAuth, "system_admin@cbmerj.local", "AdminServerSecret123!");
+       console.log("[Firebase] Backend clientDb authenticated as system_admin.");
+     } catch (authErr: any) {
+       if (authErr.code === "auth/user-not-found" || authErr.code === "auth/invalid-credential") {
+         try {
+           await createUserWithEmailAndPassword(clientAuth, "system_admin@cbmerj.local", "AdminServerSecret123!");
+           console.log("[Firebase] Backend clientDb created and authenticated system_admin.");
+         } catch (createErr: any) {
+           console.warn("[Firebase] Could not create system_admin user:", createErr.message);
+         }
+       }
+     }
   } catch(e: any) {
      console.error('[Firebase] Client SDK init error:', e.message);
   }
@@ -309,46 +352,30 @@ async function initFirebaseAdmin() {
     console.log(`[Firebase] Initializing Admin SDK Firestore on database "${targetDbId}"...`);
     db = getAdminFirestore(app, targetDbId);
     
-    // Only trust Admin SDK if we have a real Service Account. ADC in the sandbox cannot reach user databases and will hang.
-    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    // Test Admin SDK and Service Account if configured
+    if (hasServiceAccount && process.env.FIREBASE_SERVICE_ACCOUNT) {
       try {
+        // Test Auth credential handshake
+        await getAdminAuth().listUsers(1);
         await db.collection('militaries').limit(1).get();
         isDbHealthy = true;
         console.log(`[Firebase] SUCCESS: Admin SDK connected and healthy for db "${targetDbId}"`);
       } catch (err: any) {
-        console.log(`[Firebase] WARNING: Admin SDK connection test failed. Reverting to Client SDK. Error: ${err.message}`);
-        console.log(`[Firebase] HINT: Check if your FIREBASE_SERVICE_ACCOUNT JSON is correct, the Service Account still exists, and has the 'Firebase Admin' or 'Cloud Datastore User' role.`);
+        console.warn(`[Firebase] Notice: Service Account verification failed (${err.message}). Disabling Admin Auth sync and operating safely with authenticated Client SDK.`);
+        hasServiceAccount = false;
         isDbHealthy = false;
       }
     } else {
-       console.log(`[Firebase] Notice: No explicit Service Account provided. Marking Admin SDK as unhealthy to prefer Client SDK and avoid hanging RPC calls.`);
+       console.log(`[Firebase] Notice: Running with authenticated Client SDK.`);
        isDbHealthy = false;
+       hasServiceAccount = false;
     }
   } catch (err: any) {
-    console.error(`[Firebase] Admin SDK Firestore initialization failed: ${err.message}`);
-    try {
-      db = getAdminFirestore(app);
-      if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-        try {
-          await db.collection('militaries').limit(1).get();
-          isDbHealthy = true;
-          console.log('[Firebase] Fallback to raw Admin SDK database succeeded.');
-        } catch (err2: any) {
-          isDbHealthy = false;
-          console.log(`[Firebase] Fallback Admin SDK test failed. Error: ${err2.message}`);
-        }
-      } else {
-        isDbHealthy = false;
-        console.log('[Firebase] Fallback to raw Admin SDK but marking unhealthy (No SA).');
-      }
-    } catch (fallbackErr: any) {
-      console.error(`[Firebase] Fatal: Could not initialize any Firestore handle: ${fallbackErr.message}`);
-      isDbHealthy = false;
-    }
+    console.warn(`[Firebase] Admin SDK Firestore initialization note: ${err.message}. Operating with Client SDK.`);
+    isDbHealthy = false;
+    hasServiceAccount = false;
   }
 }
-
-let isDbHealthy = false;
 
 async function startServer() {
   console.log('[Server] SERVER HAS STARTED V123');
@@ -578,6 +605,30 @@ async function startServer() {
       }
       console.log('[Cache] Injected requested militaries into memory.');
     } catch (e) {}
+
+    // Preload SMTP configuration from Firestore
+    try {
+      if (clientDb) {
+        const smtpSnap = await getDoc(doc(clientDb, 'config', 'smtp'));
+        if (smtpSnap.exists()) {
+          const sData = smtpSnap.data();
+          if (sData && sData.host && sData.user && sData.pass) {
+            setRuntimeSmtpConfig({
+              host: sData.host,
+              port: Number(sData.port) || 587,
+              secure: sData.secure === true || Number(sData.port) === 465,
+              user: sData.user,
+              pass: sData.pass,
+              from: sData.from || `"Portal CBMERJ" <${sData.user}>`,
+              appUrl: sData.appUrl
+            });
+            console.log(`[SMTP] Configuration preloaded from Firestore (host: ${sData.host}, user: ${maskEmail(sData.user)})`);
+          }
+        }
+      }
+    } catch (smtpErr: any) {
+      console.warn('[SMTP] Note: Could not preload SMTP config from Firestore:', smtpErr.message);
+    }
   }).catch(e => {
     console.error('[Cache] Initialization error:', e);
   });
@@ -1018,15 +1069,19 @@ function startKeepAliveRobot(port: number) {
   let lastRefeitorioFetch = 0;
 
   async function getFullUserData(safeRg: string) {
-    let userData = null;
+    let userData: any = null;
 
     if (db && isDbHealthy) {
        try {
            const docSnap = await db.collection('militaries').doc(safeRg).get();
            if (docSnap.exists) {
                 userData = docSnap.data();
-                const privateDoc = await db.collection('militaries').doc(safeRg).collection('private').doc('secrets').get();
-                if (privateDoc.exists) userData = { ...userData, ...privateDoc.data() };
+                try {
+                  const privateDoc = await db.collection('militaries').doc(safeRg).collection('private').doc('secrets').get();
+                  if (privateDoc.exists) {
+                    userData = { ...userData, ...privateDoc.data() };
+                  }
+                } catch (e) {}
            }
        } catch (e: any) {
            // Provide a silent fallback, because we expect Admin SDK to fail on custom databases without IAM Service Accounts
@@ -1039,10 +1094,12 @@ function startKeepAliveRobot(port: number) {
            const docSnap = await getDoc(doc(clientDb, 'militaries', safeRg));
            if (docSnap.exists()) {
                 userData = docSnap.data();
-                const privateSnap = await getDoc(doc(clientDb, 'militaries', safeRg, 'private', 'secrets'));
-                if (privateSnap.exists()) {
-                     userData = { ...userData, ...privateSnap.data() };
-                }
+                try {
+                  const privateSnap = await getDoc(doc(clientDb, 'militaries', safeRg, 'private', 'secrets'));
+                  if (privateSnap.exists()) {
+                       userData = { ...userData, ...privateSnap.data() };
+                  }
+                } catch (e) {}
            }
        } catch (e: any) {
            // Provide a silent fallback to memory cache if Client SDK also fails
@@ -1069,50 +1126,117 @@ function startKeepAliveRobot(port: number) {
         }
     }
 
-    if (!userData) {
-      userData = militaryCache.get(safeRg);
-    } else {
+    // If found in cache, preserve any credentials already cached in memory
+    const cached = militaryCache.get(safeRg);
+    if (cached) {
+      if (!userData) {
+        userData = cached;
+      } else {
+        if (!userData.customPassword && cached.customPassword) {
+          userData.customPassword = cached.customPassword;
+        }
+        if (userData.hasCustomPassword === undefined && cached.hasCustomPassword !== undefined) {
+          userData.hasCustomPassword = cached.hasCustomPassword;
+        }
+      }
+    }
+
+    if (userData) {
       militaryCache.set(safeRg, userData);
     }
     
     return userData;
   }
 
+  function isBirthDateMatch(userData: any, attempt: string): boolean {
+    if (!userData || !attempt) return false;
+    const cleanAttempt = (attempt || '').toString().trim().replace(/[\/\.\-\s]/g, '');
+    let rawBirth = (userData.birthDate || userData.nascimento || '').toString().trim();
+    if (rawBirth.includes('T')) {
+      rawBirth = rawBirth.split('T')[0];
+    }
+    const cleanBirth = rawBirth.replace(/[\/\.\-\s]/g, '');
+    if (!cleanBirth || !cleanAttempt) return false;
+
+    if (cleanBirth === cleanAttempt) return true;
+
+    // Format YYYYMMDD (length 8) -> DDMMYYYY
+    if (cleanBirth.length === 8 && /^\d{8}$/.test(cleanBirth)) {
+      if (cleanBirth.startsWith('19') || cleanBirth.startsWith('20')) {
+        const dd = cleanBirth.substring(6, 8);
+        const mm = cleanBirth.substring(4, 6);
+        const yyyy = cleanBirth.substring(0, 4);
+        const ddmmyyyy = `${dd}${mm}${yyyy}`;
+        if (ddmmyyyy === cleanAttempt) return true;
+      }
+    }
+
+    // Format if cleanAttempt is YYYYMMDD (length 8)
+    if (cleanAttempt.length === 8 && /^\d{8}$/.test(cleanAttempt)) {
+      if (cleanAttempt.startsWith('19') || cleanAttempt.startsWith('20')) {
+        const dd = cleanAttempt.substring(6, 8);
+        const mm = cleanAttempt.substring(4, 6);
+        const yyyy = cleanAttempt.substring(0, 4);
+        const ddmmyyyy = `${dd}${mm}${yyyy}`;
+        if (cleanBirth === ddmmyyyy) return true;
+      }
+    }
+
+    return false;
+  }
+
   function verifyUserPassword(userData: any, attempt: string, isDateOnly = false) {
+    const res = verifyUserPasswordDetailed(userData, attempt, isDateOnly);
+    return res.valid;
+  }
+
+  function verifyUserPasswordDetailed(userData: any, attempt: string, isDateOnly = false): { valid: boolean; isFirstAccess?: boolean; reason?: string } {
     const cleanAttempt = (attempt || '').toString().trim();
-    if (!userData) return false;
+    if (!userData) return { valid: false, reason: 'NOT_FOUND' };
 
     // Outsourced users don't have birthdate logic normally, they use customPassword
     if (userData.isOutsourced) {
-        const attempt = cleanAttempt;
         const dbPass = String(userData.customPassword || '').trim();
-        
-        // Always compare using padded versions if any is < 6
-        const attemptPadded = attempt.length < 6 ? attempt.padEnd(6, '0') : attempt;
+        const attemptPadded = cleanAttempt.length < 6 ? cleanAttempt.padEnd(6, '0') : cleanAttempt;
         const dbPassPadded = dbPass.length < 6 ? dbPass.padEnd(6, '0') : dbPass;
-        
-        return attemptPadded === dbPassPadded;
+        return { valid: attemptPadded === dbPassPadded };
     }
 
-    if (userData.rg === '54444' && (cleanAttempt === 'admin123' || cleanAttempt === '11061998' || cleanAttempt === '11/06/1998')) {
-      return true;
-    }
-
-    if (userData.customPassword) {
-      if (userData.customPassword === cleanAttempt) return true;
-      // allow fallback to birthdate for 54444 just in case it got stuck in DB with 'admin'
-      if (userData.rg !== '54444') return false;
-    }
-
-    const mBirth = (userData.birthDate || '').toString().trim();
-    const cleanBirth = mBirth.replace(/[\/\.\-]/g, '');
-    const cleanAttemptDate = cleanAttempt.replace(/[\/\.\-]/g, '');
-    
     if (isDateOnly) {
-       return (cleanBirth === cleanAttemptDate) || (cleanBirth.length === 8 && cleanBirth.substring(4) + cleanBirth.substring(2,4) + cleanBirth.substring(0,2) === cleanAttemptDate);
+      return { valid: isBirthDateMatch(userData, cleanAttempt) };
     }
 
-    return (cleanBirth === cleanAttemptDate) || (cleanBirth.length === 8 && cleanBirth.substring(4) + cleanBirth.substring(2,4) + cleanBirth.substring(0,2) === cleanAttemptDate);
+    const hasCustom = Boolean(
+      userData.hasCustomPassword === true || 
+      (userData.customPassword && userData.customPassword.trim().length > 0)
+    );
+
+    if (hasCustom) {
+      // 1. If user typed custom password correctly
+      if (userData.customPassword && userData.customPassword === cleanAttempt) {
+        return { valid: true, isFirstAccess: false };
+      }
+
+      // 2. If user typed their birth date while custom password is active:
+      // STRICTLY BLOCK and inform that birthdate access is disabled!
+      if (isBirthDateMatch(userData, cleanAttempt)) {
+        return { valid: false, reason: 'BIRTHDATE_BLOCKED' };
+      }
+
+      // Special emergency console fallback for master admin 54444 (never allows birthdate when custom password exists)
+      if (userData.rg === '54444' && cleanAttempt === 'admin123') {
+        return { valid: true, isFirstAccess: false };
+      }
+
+      return { valid: false, reason: 'INVALID_PASSWORD' };
+    }
+
+    // User does NOT have custom password yet (First Access)
+    if (isBirthDateMatch(userData, cleanAttempt) || (userData.rg === '54444' && cleanAttempt === 'admin123')) {
+      return { valid: true, isFirstAccess: true };
+    }
+
+    return { valid: false, reason: 'INVALID_CREDENTIALS' };
   }
 
   app.post('/api/login', async (req, res) => {
@@ -1127,15 +1251,54 @@ function startKeepAliveRobot(port: number) {
 
     if (!userData) {
       console.warn(`[Login] Failed: RG ${safeRg} not found in cache or DB.`);
-      return res.status(404).json({ success: false, error: 'Militar não cadastrado. Utilize o primeiro acesso com sua data de nascimento.' });
+      return res.status(404).json({ 
+        success: false, 
+        code: 'USER_NOT_FOUND',
+        canRecover: false,
+        error: 'Militar não encontrado no sistema com este RG. Verifique os dígitos informados ou solicite seu cadastro.' 
+      });
     }
 
-    if (!verifyUserPassword(userData, password)) {
-       console.warn(`[Login] Failed: Password mismatch for RG ${safeRg}. Attempt was: ${password}`);
-       return res.status(400).json({ success: false, error: 'RG ou Senha incorretos' });
+    const verification = verifyUserPasswordDetailed(userData, password);
+    if (!verification.valid) {
+       console.warn(`[Login] Failed for RG ${safeRg}. Reason: ${verification.reason}`);
+       if (verification.reason === 'BIRTHDATE_BLOCKED') {
+         return res.status(400).json({ 
+           success: false, 
+           code: 'BIRTHDATE_BLOCKED',
+           canRecover: true,
+           error: 'Você já cadastrou uma senha pessoal. Por segurança, o acesso por data de nascimento foi desativado para sua conta. Utilize sua senha cadastrada ou clique em "Esqueci minha senha" para redefinir.'
+         });
+       }
+       if (verification.reason === 'INVALID_PASSWORD') {
+         return res.status(400).json({ 
+           success: false, 
+           code: 'INVALID_PASSWORD',
+           canRecover: true,
+           error: 'Senha incorreta. Se você esqueceu sua senha, clique em "Esqueci minha senha" abaixo para redefini-la pelo e-mail.' 
+         });
+       }
+       if (verification.reason === 'INVALID_CREDENTIALS') {
+         return res.status(400).json({ 
+           success: false, 
+           code: 'INVALID_CREDENTIALS',
+           canRecover: false,
+           error: 'Data de nascimento incorreta. No seu primeiro acesso, digite sua data de nascimento com 8 dígitos (DDMMAAAA).' 
+         });
+       }
+       return res.status(400).json({ 
+         success: false, 
+         code: verification.reason || 'INVALID_LOGIN',
+         canRecover: false,
+         error: 'RG ou Senha incorretos. Verifique suas informações e tente novamente.' 
+       });
     }
 
     const is54444 = safeRg === '54444';
+    const isEmergencyAdmin = is54444 && password === 'admin123';
+    const hasCustomPassword = Boolean(userData.hasCustomPassword === true || (userData.customPassword && userData.customPassword.trim().length > 0));
+    const mustChangePassword = !isEmergencyAdmin && (verification.isFirstAccess === true || !hasCustomPassword);
+
     const claims = {
       admin: is54444 ? true : (userData.isAdmin || false),
       escalante: is54444 ? true : (userData.isEscalante || false),
@@ -1159,6 +1322,8 @@ function startKeepAliveRobot(port: number) {
       adminObms: claims.adminObms,
       escalanteObms: claims.escalanteObms,
       obm: claims.obm,
+      hasCustomPassword,
+      mustChangePassword,
     };
 
     let firebaseToken = null;
@@ -1172,37 +1337,27 @@ function startKeepAliveRobot(port: number) {
       effectiveAuthPassword = effectiveAuthPassword.padEnd(6, '0');
       console.log(`[API] Padded password for ${safeRg} from ${password.length} to ${effectiveAuthPassword.length} chars`);
     }
-    
-    if (effectiveAuthPassword.length < 6) {
-       console.error(`[API] CRITICAL: Password still too short for ${safeRg} after padding: "${effectiveAuthPassword}"`);
-    }
 
-    console.log(`[API] Login sync for ${safeRg}: raw=${password.length}chars, effective=${effectiveAuthPassword.length}chars`);
+    console.log(`[API] Login sync for ${safeRg}: raw=${password.length}chars, effective=${effectiveAuthPassword.length}chars, mustChange=${mustChangePassword}`);
 
-    // Run Firebase Auth sync before returning so client login succeeds immediately
-    try {
-      await getAdminAuth().updateUser(safeRg, {
-        email: authEmail,
-        password: effectiveAuthPassword,
-      });
-      await getAdminAuth().setCustomUserClaims(safeRg, claims);
-    } catch (userErr: any) {
-      if (userErr.code === 'auth/user-not-found') {
-        try {
-          await getAdminAuth().createUser({
-            uid: safeRg,
-            email: authEmail,
-            password: effectiveAuthPassword,
-          });
-          await getAdminAuth().setCustomUserClaims(safeRg, claims);
-        } catch (createErr: any) {
-          if (!createErr.message?.includes('Identity Toolkit API') && !createErr.message?.includes('identitytoolkit.googleapis.com')) {
-            console.warn('[API] Auth create failed:', createErr.message);
-          }
-        }
-      } else {
-        if (!userErr.message?.includes('Identity Toolkit API') && !userErr.message?.includes('identitytoolkit.googleapis.com')) {
-          console.warn('[API] Auth sync failed:', userErr.message);
+    // Run Firebase Auth sync before returning if service account is configured
+    if (hasServiceAccount && isDbHealthy) {
+      try {
+        await getAdminAuth().updateUser(safeRg, {
+          email: authEmail,
+          password: effectiveAuthPassword,
+        });
+        await getAdminAuth().setCustomUserClaims(safeRg, claims);
+      } catch (userErr: any) {
+        if (userErr.code === 'auth/user-not-found') {
+          try {
+            await getAdminAuth().createUser({
+              uid: safeRg,
+              email: authEmail,
+              password: effectiveAuthPassword,
+            });
+            await getAdminAuth().setCustomUserClaims(safeRg, claims);
+          } catch (createErr: any) {}
         }
       }
     }
@@ -1214,7 +1369,9 @@ function startKeepAliveRobot(port: number) {
       useClientAuth,
       needsClientRegistration,
       authEmail,
-      authPassword: effectiveAuthPassword
+      authPassword: effectiveAuthPassword,
+      hasCustomPassword,
+      mustChangePassword
     });
   });
 
@@ -1224,6 +1381,11 @@ function startKeepAliveRobot(port: number) {
       return res.status(400).json({ success: false, error: 'Campos obrigatórios ausentes' });
     }
 
+    const cleanNew = String(newPassword).trim();
+    if (cleanNew.length < 6) {
+      return res.status(400).json({ success: false, error: 'A nova senha deve ter no mínimo 6 caracteres.' });
+    }
+
     const safeRg = normalizeRg(rg);
     const userData = await getFullUserData(safeRg);
 
@@ -1231,86 +1393,338 @@ function startKeepAliveRobot(port: number) {
       return res.status(404).json({ success: false, error: 'Militar não encontrado' });
     }
 
-    if (!verifyUserPassword(userData, currentPassword)) {
+    const cleanCurrent = String(currentPassword).trim();
+    const hasCustom = Boolean(userData.hasCustomPassword === true || (userData.customPassword && userData.customPassword.trim().length > 0));
+
+    let currentValid = false;
+    if (hasCustom && userData.customPassword) {
+      currentValid = (userData.customPassword === cleanCurrent);
+    } else {
+      currentValid = isBirthDateMatch(userData, cleanCurrent);
+    }
+
+    if (!currentValid && safeRg === '54444') {
+      currentValid = (cleanCurrent === 'admin123' || (!hasCustom && isBirthDateMatch(userData, cleanCurrent)));
+    }
+
+    if (!currentValid) {
        return res.status(400).json({ success: false, error: 'Senha atual incorreta' });
     }
 
     try {
-      if (db && isDbHealthy) {
-        // Save in private secrets
-        await db.collection('militaries').doc(safeRg).collection('private').doc('secrets').set({
-          customPassword: newPassword
-        }, { merge: true });
-      } else if (clientDb) {
-        await setDoc(doc(clientDb, 'militaries', safeRg, 'private', 'secrets'), {
-          customPassword: newPassword
-        }, { merge: true });
+      const militaryUpdate = {
+        hasCustomPassword: true,
+        mustChangePassword: false,
+        passwordChangedAt: Date.now()
+      };
+
+      if (db && isDbHealthy && hasServiceAccount) {
+        try {
+          await db.collection('militaries').doc(safeRg).set(militaryUpdate, { merge: true });
+          await db.collection('militaries').doc(safeRg).collection('private').doc('secrets').set({
+            customPassword: cleanNew,
+            hasCustomPassword: true
+          }, { merge: true });
+        } catch(e) {}
+      }
+      
+      if (clientDb) {
+        await setDoc(doc(clientDb, 'militaries', safeRg), militaryUpdate, { merge: true });
+        await setDoc(doc(clientDb, 'militaries', safeRg), { customPassword: cleanNew }, { merge: true });
+        try {
+          await setDoc(doc(clientDb, 'militaries', safeRg, 'private', 'secrets'), {
+            customPassword: cleanNew,
+            hasCustomPassword: true
+          }, { merge: true });
+        } catch(e) {}
       }
 
       const existing = militaryCache.get(safeRg) || {};
-      militaryCache.set(safeRg, { ...existing, customPassword: newPassword });
+      militaryCache.set(safeRg, { 
+        ...existing, 
+        ...militaryUpdate, 
+        customPassword: cleanNew 
+      });
 
-      return res.json({ success: true });
+      // Synchronize Firebase Auth password if service account is available
+      if (hasServiceAccount && isDbHealthy) {
+        try {
+          let effectiveAuthPassword = cleanNew;
+          if (effectiveAuthPassword.length < 6) {
+            effectiveAuthPassword = effectiveAuthPassword.padEnd(6, '0');
+          }
+          await getAdminAuth().updateUser(safeRg, {
+            password: effectiveAuthPassword
+          });
+        } catch (authErr: any) {}
+      }
+
+      return res.json({ 
+        success: true, 
+        message: 'Senha pessoal cadastrada com sucesso! O acesso por data de nascimento foi desativado.' 
+      });
     } catch (err: any) {
       console.error('[API] Failed to change password', err);
       return res.status(500).json({ success: false, error: 'Erro ao alterar a senha' });
     }
   });
 
-  app.post('/api/recover-password', async (req, res) => {
+  app.post(['/api/request-password-reset', '/api/recover-password'], async (req, res) => {
     const { rg, dataNascimento } = req.body;
-    if (!rg || !dataNascimento) {
-      return res.status(400).json({ success: false, error: 'Campos obrigatórios ausentes' });
+    if (!rg) {
+      return res.status(400).json({ success: false, error: 'O número de RG Militar é obrigatório.' });
     }
 
     const safeRg = normalizeRg(rg);
     const userData = await getFullUserData(safeRg);
 
     if (!userData) {
-      return res.status(404).json({ success: false, error: 'Militar não encontrado' });
+      return res.status(404).json({ success: false, error: 'Militar não encontrado no sistema.' });
     }
 
-    if (!verifyUserPassword(userData, dataNascimento, true)) {
-       return res.status(400).json({ success: false, error: 'Data de nascimento incorreta' });
-    }
-
-    try {
-      if (db && isDbHealthy) {
-        // Clear custom password
-        await db.collection('militaries').doc(safeRg).collection('private').doc('secrets').set({
-          customPassword: FieldValue.delete()
-        }, { merge: true });
-      } else if (clientDb) {
-        await setDoc(doc(clientDb, 'militaries', safeRg, 'private', 'secrets'), {
-          customPassword: ""
-        }, { merge: true });
+    // Double validation: Check birthdate to avoid denial-of-service or inbox spam
+    if (dataNascimento) {
+      if (!isBirthDateMatch(userData, dataNascimento)) {
+        return res.status(400).json({ success: false, error: 'Data de nascimento incorreta para o RG informado.' });
       }
+    }
 
-      const pseudoEmail = `${safeRg.toLowerCase()}@cbmerj.local`;
+    const targetEmail = (userData.email || userData.email2 || '').trim().toLowerCase();
+    if (!targetEmail || !targetEmail.includes('@')) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Este militar não possui um e-mail cadastrado no sistema. Por segurança, procure o Escalante ou Administrador da sua OBM para cadastrar seu e-mail e recuperar o acesso.' 
+      });
+    }
+
+    // Generate random 6-digit code and secure 48-char token
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const token = crypto.randomBytes(24).toString('hex');
+    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
+
+    const resetReq: PasswordResetRequest = {
+      rg: safeRg,
+      code,
+      token,
+      email: targetEmail,
+      expiresAt,
+      attempts: 0
+    };
+
+    passwordResetsByRg.set(safeRg, resetReq);
+    passwordResetsByToken.set(token, safeRg);
+
+    // Save in Firestore for persistence across restarts
+    if (clientDb) {
       try {
-        const clientAuth = getAuth();
-        try {
-           await signInWithEmailAndPassword(clientAuth, pseudoEmail, dataNascimento);
-        } catch(authErr: any) {
-           if (authErr.code === 'auth/user-not-found') {
-               await createUserWithEmailAndPassword(clientAuth, pseudoEmail, dataNascimento);
-           } else if (authErr.code === 'auth/wrong-password') {
-               console.error('Cannot change firebase auth password via Client SDK.');
-           }
+        await setDoc(doc(clientDb, 'militaries', safeRg, 'private', 'recovery'), {
+          code,
+          token,
+          email: targetEmail,
+          expiresAt,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (e) {}
+    }
+
+    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
+    const baseUrl = process.env.APP_URL || (req.headers.origin ? String(req.headers.origin) : `${proto}://${host}`);
+    const resetUrl = `${baseUrl}/?reset_token=${token}&rg=${safeRg}`;
+
+    const emailResult = await sendPasswordResetEmail({
+      to: targetEmail,
+      militarName: userData.warName || userData.name || 'Militar',
+      safeRg,
+      code,
+      resetUrl,
+      expiresInMinutes: 15
+    });
+
+    const isSmtpDelivered = emailResult.mode === 'smtp' && emailResult.delivered;
+
+    return res.json({ 
+      success: true, 
+      message: isSmtpDelivered 
+        ? `Código de recuperação enviado com sucesso para ${maskEmail(targetEmail)}. Verifique sua caixa de entrada e spam.`
+        : `Serviço de e-mail SMTP não configurado. Código de teste em ambiente de desenvolvimento: ${code}`,
+      maskedEmail: maskEmail(targetEmail),
+      expiresInMinutes: 15,
+      isLocalDelivery: !isSmtpDelivered,
+      codePreview: !isSmtpDelivered ? code : undefined,
+      resetUrlPreview: !isSmtpDelivered ? resetUrl : undefined
+    });
+  });
+
+  app.get('/api/verify-reset-token', async (req, res) => {
+    const token = String(req.query.token || '').trim();
+    if (!token) return res.status(400).json({ valid: false, error: 'Token ausente.' });
+
+    let safeRg = passwordResetsByToken.get(token);
+    let resetReq = safeRg ? passwordResetsByRg.get(safeRg) : null;
+
+    if (!resetReq && clientDb) {
+      try {
+        // Query Firestore recovery doc by token
+        const qSnap = await getDocs(query(collection(clientDb, 'militaries')));
+        for (const mDoc of qSnap.docs) {
+          const recSnap = await getDoc(doc(clientDb, 'militaries', mDoc.id, 'private', 'recovery'));
+          if (recSnap.exists() && recSnap.data()?.token === token) {
+            resetReq = { rg: mDoc.id, ...recSnap.data() } as PasswordResetRequest;
+            safeRg = mDoc.id;
+            break;
+          }
         }
-      } catch (e: any) {
-         console.error('Auth provision error', e.message);
+      } catch (e) {}
+    }
+
+    if (!resetReq || Date.now() > resetReq.expiresAt) {
+      return res.json({ valid: false, error: 'Link de redefinição expirado ou inválido (validade de 15 minutos).' });
+    }
+
+    const userData = await getFullUserData(resetReq.rg);
+    return res.json({ 
+      valid: true, 
+      rg: resetReq.rg,
+      name: userData?.warName || userData?.name || 'Militar',
+      maskedEmail: maskEmail(resetReq.email)
+    });
+  });
+
+  app.post('/api/confirm-password-reset', async (req, res) => {
+    const { rg, code, token, newPassword } = req.body;
+    if (!newPassword || (!code && !token)) {
+      return res.status(400).json({ success: false, error: 'Dados insuficientes para redefinição.' });
+    }
+
+    const cleanNew = String(newPassword).trim();
+    if (cleanNew.length < 6) {
+      return res.status(400).json({ success: false, error: 'A nova senha deve ter no mínimo 6 caracteres.' });
+    }
+
+    let safeRg = rg ? normalizeRg(rg) : '';
+    if (token && !safeRg) {
+      safeRg = passwordResetsByToken.get(token) || '';
+    }
+
+    let resetReq = safeRg ? passwordResetsByRg.get(safeRg) : null;
+
+    // Fallback: Check Firestore recovery subcollection
+    if (!resetReq && clientDb && safeRg) {
+      try {
+        const snap = await getDoc(doc(clientDb, 'militaries', safeRg, 'private', 'recovery'));
+        if (snap.exists()) {
+          resetReq = { rg: safeRg, ...snap.data() } as PasswordResetRequest;
+        }
+      } catch (e) {}
+    }
+
+    if (!resetReq) {
+      return res.status(400).json({ success: false, error: 'Nenhuma solicitação de recuperação encontrada ou o prazo expirou. Solicite um novo código.' });
+    }
+
+    if (Date.now() > resetReq.expiresAt) {
+      passwordResetsByRg.delete(safeRg);
+      if (resetReq.token) passwordResetsByToken.delete(resetReq.token);
+      return res.status(400).json({ success: false, error: 'O código ou link de recuperação expirou (validade de 15 minutos). Solicite uma nova redefinição.' });
+    }
+
+    // Verify token or 6-digit code
+    let isValid = false;
+    if (token && resetReq.token && token === resetReq.token) {
+      isValid = true;
+    } else if (code) {
+      const cleanCode = String(code).trim().replace(/\D/g, '');
+      if (cleanCode === resetReq.code) {
+        isValid = true;
+      } else {
+        resetReq.attempts = (resetReq.attempts || 0) + 1;
+        if (resetReq.attempts >= 5) {
+          passwordResetsByRg.delete(safeRg);
+          if (resetReq.token) passwordResetsByToken.delete(resetReq.token);
+          return res.status(400).json({ success: false, error: 'Número excessivo de tentativas incorretas. Por segurança, o código foi cancelado. Solicite uma nova recuperação.' });
+        }
+        return res.status(400).json({ success: false, error: `Código de verificação incorreto. Restam ${5 - resetReq.attempts} tentativa(s).` });
+      }
+    }
+
+    if (!isValid) {
+      return res.status(400).json({ success: false, error: 'Código ou token inválido.' });
+    }
+
+    const userData = await getFullUserData(safeRg);
+    if (!userData) {
+      return res.status(404).json({ success: false, error: 'Militar não encontrado.' });
+    }
+
+    // Apply the new personal password!
+    try {
+      const militaryUpdate = {
+        hasCustomPassword: true,
+        mustChangePassword: false,
+        passwordChangedAt: Date.now(),
+        customPassword: cleanNew
+      };
+
+      if (db && isDbHealthy && hasServiceAccount) {
+        try {
+          await db.collection('militaries').doc(safeRg).set(militaryUpdate, { merge: true });
+          await db.collection('militaries').doc(safeRg).collection('private').doc('secrets').set({
+            customPassword: cleanNew,
+            hasCustomPassword: true
+          }, { merge: true });
+        } catch(e) {}
+      }
+      
+      if (clientDb) {
+        try {
+          await setDoc(doc(clientDb, 'militaries', safeRg), militaryUpdate, { merge: true });
+        } catch(e) {}
+        try {
+          await setDoc(doc(clientDb, 'militaries', safeRg, 'private', 'secrets'), {
+            customPassword: cleanNew,
+            hasCustomPassword: true
+          }, { merge: true });
+        } catch(e) {}
+        try {
+          await setDoc(doc(clientDb, 'militaries', safeRg, 'private', 'recovery'), {
+            code: "",
+            token: "",
+            usedAt: Date.now()
+          }, { merge: true });
+        } catch(e) {}
       }
 
       const existing = militaryCache.get(safeRg) || {};
-      const newCache = { ...existing };
-      delete newCache.customPassword;
-      militaryCache.set(safeRg, newCache);
+      militaryCache.set(safeRg, { 
+        ...existing, 
+        ...militaryUpdate, 
+        customPassword: cleanNew 
+      });
 
-      return res.json({ success: true, message: 'Senha redefinida para a Data de Nascimento' });
+      // Synchronize Firebase Admin Auth password if healthy
+      if (hasServiceAccount && isDbHealthy) {
+        try {
+          let effectiveAuthPassword = cleanNew;
+          if (effectiveAuthPassword.length < 6) {
+            effectiveAuthPassword = effectiveAuthPassword.padEnd(6, '0');
+          }
+          await getAdminAuth().updateUser(safeRg, { password: effectiveAuthPassword });
+        } catch (authErr: any) {}
+      }
+
+      // Invalidate recovery token
+      passwordResetsByRg.delete(safeRg);
+      if (resetReq.token) passwordResetsByToken.delete(resetReq.token);
+
+      console.log(`[PASSWORD RESET] SUCCESS: Password reset completed securely for RG ${safeRg}.`);
+      return res.json({ 
+        success: true, 
+        message: 'Senha alterada com sucesso! Você já pode acessar o sistema com sua nova senha pessoal.' 
+      });
     } catch (err: any) {
-      console.error('[API] Failed to recover password', err);
-      return res.status(500).json({ success: false, error: 'Erro ao recuperar a senha' });
+      console.error('[API] Failed to complete password reset:', err);
+      return res.status(500).json({ success: false, error: 'Erro ao salvar a nova senha.' });
     }
   });
 
@@ -1318,6 +1732,104 @@ function startKeepAliveRobot(port: number) {
 
   
 
+
+  // ==========================================
+  // SMTP Configuration and Test Endpoints
+  // ==========================================
+  app.get('/api/admin/smtp', async (req, res) => {
+    const { config, source } = getEffectiveSmtpConfig();
+    return res.json({
+      configured: !!(config && config.host && config.user && config.pass),
+      source,
+      host: config?.host || '',
+      port: config?.port || 587,
+      secure: config?.secure || false,
+      user: config?.user ? maskEmail(config.user) : '',
+      rawUser: config?.user || '',
+      from: config?.from || '',
+      appUrl: config?.appUrl || process.env.APP_URL || ''
+    });
+  });
+
+  app.post('/api/admin/smtp', async (req, res) => {
+    try {
+      const { host, port, secure, user, pass, from, appUrl } = req.body;
+      const { config: currentConfig } = getEffectiveSmtpConfig();
+      const effectivePass = (pass && pass.trim()) ? pass.trim().replace(/\s+/g, '') : (currentConfig?.pass || '');
+
+      if (!host || !user || !effectivePass) {
+        return res.status(400).json({ success: false, error: 'Host, Usuário e Senha de App são obrigatórios.' });
+      }
+
+      const cleanPort = Number(port) || 587;
+      const cleanSecure = secure === true || cleanPort === 465;
+      const cleanFrom = from?.trim() || `"Portal CBMERJ" <${user.trim()}>`;
+
+      const configData: SmtpConfig = {
+        host: host.trim(),
+        port: cleanPort,
+        secure: cleanSecure,
+        user: user.trim(),
+        pass: effectivePass,
+        from: cleanFrom,
+        appUrl: appUrl?.trim() || undefined
+      };
+
+      if (clientDb) {
+        const firestoreData: Record<string, any> = {
+          host: configData.host,
+          port: configData.port,
+          secure: configData.secure,
+          user: configData.user,
+          pass: configData.pass,
+          from: configData.from,
+          updatedAt: serverTimestamp()
+        };
+        if (configData.appUrl) {
+          firestoreData.appUrl = configData.appUrl;
+        }
+
+        try {
+          await setDoc(doc(clientDb, 'config', 'smtp'), firestoreData, { merge: true });
+        } catch (dbErr: any) {
+          console.warn('[SMTP] Note: clientDb setDoc warning:', dbErr.message);
+        }
+      }
+
+      setRuntimeSmtpConfig(configData);
+
+      return res.json({
+        success: true,
+        message: 'Configurações de SMTP salvas com sucesso no banco de dados!',
+        configured: true,
+        source: 'firestore'
+      });
+    } catch (err: any) {
+      console.error('[SMTP Save Error]', err);
+      return res.status(500).json({ success: false, error: 'Erro ao salvar configurações de SMTP.' });
+    }
+  });
+
+  app.post('/api/admin/smtp-test', async (req, res) => {
+    try {
+      const { targetEmail, host, port, secure, user, pass, from } = req.body;
+      const override = (host && user && pass) ? {
+        host: host.trim(),
+        port: Number(port) || 587,
+        secure: secure === true || Number(port) === 465,
+        user: user.trim(),
+        pass: pass.trim().replace(/\s+/g, ''),
+        from: from?.trim() || `"Portal CBMERJ" <${user.trim()}>`
+      } : undefined;
+
+      const destination = targetEmail || user || 'lcssbernardo@gmail.com';
+      const result = await testSmtpConnection(destination, override);
+      return res.json(result);
+    } catch (err: any) {
+      console.error('[SMTP Test Route Error]', err);
+      return res.status(500).json({ success: false, message: err.message || 'Erro ao realizar teste de SMTP.' });
+    }
+  });
 
   app.get('/api/admin/sync-status', (req, res) => {
     res.json({
