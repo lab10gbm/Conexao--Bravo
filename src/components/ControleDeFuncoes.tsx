@@ -305,10 +305,11 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
         } else {
           updatePayload = { [path]: !getValue(militar, path) };
         }
-        await fetch('/api/militar/update', {
+        const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+      await fetch('/api/militar/update', {
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rg: safeRg, data: cleanUndefined(updatePayload) })
+            body: JSON.stringify({ rg: safeRg, data: cleanUndefined(updatePayload) })
         });
       }
       setTimeout(() => {
@@ -379,10 +380,11 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
             } else {
                updatePayload = { [path]: newState };
             }
+            const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
             return fetch('/api/militar/update', {
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ rg: safeRg, data: cleanUndefined(updatePayload) })
+                    body: JSON.stringify({ rg: safeRg, data: cleanUndefined(updatePayload) })
             }).catch(() => {});
         }
         return Promise.resolve();

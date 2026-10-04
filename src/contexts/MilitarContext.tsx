@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { UserProfile } from '../types';
-import { db } from '../lib/firebase';
+import { db, auth } from '../lib/firebase';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { cleanUndefined } from '../lib/utils';
 
@@ -37,7 +37,8 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
         } catch (e) {}
       }
 
-      const res = await fetch(`/api/militar${rg ? `?rg=${rg}` : ''}`, { cache: 'no-store' });
+      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+      const res = await fetch(`/api/militar${rg ? `?rg=${rg}` : ''}`, { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) {
         console.warn('[MilitarContext] Failed to fetch militars:', res.status, res.statusText);
         return;
@@ -55,7 +56,7 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Initial fetch to populate data before SSE connects
-    fetchMilitars();
+    auth.onAuthStateChanged((user) => { if (user) fetchMilitars(); });
 
     let eventSource: EventSource | null = null;
     let retryTimeout: NodeJS.Timeout | null = null;
@@ -72,7 +73,7 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
           if (data.version && data.version > cacheVersionRef.current) {
             console.log(`[MilitarContext] Cache version changed (${cacheVersionRef.current} -> ${data.version}). Fetching updates...`);
             cacheVersionRef.current = data.version;
-            fetchMilitars();
+            auth.onAuthStateChanged((user) => { if (user) fetchMilitars(); });
           }
         } catch (e) {
           console.error('[MilitarContext] Error parsing SSE data:', e);
@@ -104,7 +105,7 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshMilitars = async (rg?: string) => {
-    await fetchMilitars();
+    await auth.onAuthStateChanged((user) => { if (user) fetchMilitars(); });
   };
 
   const updateMilitarLocal = (rg: string, updates: Partial<UserProfile>) => {
@@ -126,7 +127,9 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
 
     try {
       // 2. Call backend DELETE endpoint (removes from memory cache, updates deleted set, triggers SSE)
+      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
       const res = await fetch(`/api/militar/${safeRg}`, {
+        headers: { Authorization: `Bearer ${token}` },
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -139,11 +142,11 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
       } catch (err) {}
 
       // 4. Trigger refetch to ensure 100% synchronization
-      await fetchMilitars();
+      await auth.onAuthStateChanged((user) => { if (user) fetchMilitars(); });
       return true;
     } catch (e) {
       console.error('[MilitarContext] Error deleting militar:', e);
-      await fetchMilitars();
+      await auth.onAuthStateChanged((user) => { if (user) fetchMilitars(); });
       return false;
     }
   };
@@ -166,9 +169,10 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
 
     try {
       // 2. Update backend server cache & Firestore
+      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
       await fetch('/api/militar/update', {
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rg: safeRg, data: payload })
       });
 
@@ -179,7 +183,7 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
         }
       } catch (err) {}
 
-      await fetchMilitars();
+      await auth.onAuthStateChanged((user) => { if (user) fetchMilitars(); });
       return true;
     } catch (e) {
       console.error('[MilitarContext] Error saving militar:', e);

@@ -918,7 +918,7 @@ function startKeepAliveRobot(port: number) {
   });
 
   app.get('/api/militar-sync', async (req, res) => {
-    const apiKey = process.env.SYNC_API_KEY || "MINHA_CHAVE_SECRETA_SUPER_SEGURA_123";
+    const apiKey = process.env.SYNC_API_KEY;
     const provided = req.headers['x-api-key'] || req.query.key;
     if (!apiKey || provided !== apiKey) return res.status(401).json({ error: 'Acesso Negado' });
 
@@ -935,7 +935,7 @@ function startKeepAliveRobot(port: number) {
   });
 
   app.post('/api/admin/sync', async (req, res) => {
-    const apiKey = process.env.SYNC_API_KEY || "MINHA_CHAVE_SECRETA_SUPER_SEGURA_123";
+    const apiKey = process.env.SYNC_API_KEY;
     const provided = req.headers['x-api-key'] || req.headers.authorization?.replace('Bearer ', '');
     if (!apiKey || provided !== apiKey) return res.status(401).json({ error: 'Acesso Negado' });
 
@@ -955,7 +955,7 @@ function startKeepAliveRobot(port: number) {
   });
 
   app.post('/api/admin/militaries/bulk-sync', async (req, res) => {
-    const apiKey = process.env.SYNC_API_KEY || "MINHA_CHAVE_SECRETA_SUPER_SEGURA_123";
+    const apiKey = process.env.SYNC_API_KEY;
     const provided = req.headers['x-api-key'] || req.headers.authorization?.replace('Bearer ', '');
     if (!apiKey || provided !== apiKey) return res.status(401).json({ error: 'Acesso Negado' });
 
@@ -1982,3 +1982,4 @@ function startKeepAliveRobot(port: number) {
 }
 
 const expressApp = startServer().catch(e => console.error('[Server] Fatal startup error:', e));
+

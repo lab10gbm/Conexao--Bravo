@@ -1,3 +1,4 @@
+import { getLocalIsoDateString } from "../lib/utils";
 import React, { useState, useEffect, useMemo } from "react";
 import { db } from "../lib/firebase";
 import {
@@ -155,7 +156,7 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
   const [loadingVehicles, setLoadingVehicles] = useState(true);
 
   const [date, setDate] = useState<string>(
-    () => new Date().toISOString().split("T")[0],
+    () => getLocalIsoDateString(),
   );
   const [selectedVehicle, setSelectedVehicle] =
     useState<TransladoVehicle | null>(null);

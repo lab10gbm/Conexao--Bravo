@@ -1,3 +1,4 @@
+import { getLocalIsoDateString } from '../lib/utils';
 import React, { useState, useEffect } from 'react';
 import { useMilitars } from '../contexts/MilitarContext';
 import { db } from '../lib/firebase';
@@ -217,7 +218,7 @@ export function AfastamentosAlaModule({ obmContext, type, filterAla }: Afastamen
   };
 
   // Categorizar e ordenar
-  const now = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const now = getLocalIsoDateString(); // YYYY-MM-DD
   
   const passados: Afastamento[] = [];
   const atuais: Afastamento[] = [];

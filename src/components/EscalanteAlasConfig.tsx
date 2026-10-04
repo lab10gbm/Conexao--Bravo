@@ -45,9 +45,10 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
   const assignAla = async (rg: string, ala: string) => {
     setAssigningRg(rg);
     try {
+      const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
       await fetch('/api/militar/role', {
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rg, role: 'ala', value: ala })
       });
       setTimeout(() => {

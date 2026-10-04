@@ -1,3 +1,4 @@
+import { verifyFirebaseSession } from "./auth";
 import express from 'express';
 import { collection, getDocs, getDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
 
@@ -70,10 +71,10 @@ export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
     });
   });
 
-  app.get('/api/militar', async (req, res) => {
+  app.get('/api/militar', verifyFirebaseSession, async (req: any, res) => {
     res.setHeader('Cache-Control', 'no-store');
     const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, normalizeObm, OBM_HIERARCHY, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
-    const requesterRg = req.query.rg as string;
+    const requesterRg = (req.user?.rg || req.user?.uid || req.query.rg) as string;
     let usersData: any[] = [];
     
     if (isCacheLoaded && militaryCache.size > 0) {

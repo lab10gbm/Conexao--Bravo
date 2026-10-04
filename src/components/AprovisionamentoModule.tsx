@@ -1,3 +1,4 @@
+import { getLocalIsoDateString } from '../lib/utils';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   ShoppingCart, 
@@ -382,9 +383,9 @@ const MOCK_RECEITAS: Receita[] = [
 ];
 
 const MOCK_CARDAPIO: CardapioDia[] = [
-  { id: 'c1', data: new Date().toISOString().split('T')[0], refeicao: 'ALMOCO', receitaId: 'r1', qtdMilitares: 67 },
-  { id: 'c2', data: new Date(Date.now() + 86400000).toISOString().split('T')[0], refeicao: 'ALMOCO', receitaId: 'r2', qtdMilitares: 80 },
-  { id: 'c3', data: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0], refeicao: 'ALMOCO', receitaId: 'r1', qtdMilitares: 75 },
+  { id: 'c1', data: getLocalIsoDateString(), refeicao: 'ALMOCO', receitaId: 'r1', qtdMilitares: 67 },
+  { id: 'c2', data: getLocalIsoDateString(new Date(Date.now() + 86400000)), refeicao: 'ALMOCO', receitaId: 'r2', qtdMilitares: 80 },
+  { id: 'c3', data: getLocalIsoDateString(new Date(Date.now() + 86400000 * 2)), refeicao: 'ALMOCO', receitaId: 'r1', qtdMilitares: 75 },
 ];
 
 export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfile | null }) {
@@ -516,7 +517,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
   const [expandedListaId, setExpandedListaId] = useState<string | null>(null);
   const [archiveForm, setArchiveForm] = useState({
      nome: '',
-     dataCriacao: new Date().toISOString().split('T')[0],
+     dataCriacao: getLocalIsoDateString(),
      estabelecimento: '',
      local: '',
      valorPago: 0
@@ -767,7 +768,7 @@ export function AprovisionamentoModule({ userProfile }: { userProfile: UserProfi
     setShowNovaListaModal(false);
     setArchiveForm({
        nome: '',
-       dataCriacao: new Date().toISOString().split('T')[0],
+       dataCriacao: getLocalIsoDateString(),
        estabelecimento: '',
        local: '',
        valorPago: 0
