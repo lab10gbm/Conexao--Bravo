@@ -262,7 +262,8 @@ export function MonthDetail({ month, userAla, obmContext, userRg, onDateSelect }
   const weekdays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
   const [grdDays, setGrdDays] = useState<Record<string, boolean>>({});
-  const [expedienteDays, setExpedienteDays] = useState<Record<string, 'SV' | 'EXP'>>({});
+  const [expedienteBaseDays, setExpedienteBaseDays] = useState<Record<string, 'SV' | 'EXP'>>({});
+  const [permutaStatusDays, setPermutaStatusDays] = useState<Record<string, 'SV_PERMUTA' | 'SV_PERMUTA_PENDING' | 'FOLGA_PERMUTA' | 'SV'>>({});
 
   useEffect(() => {
     if (!obmContext || !userRg) return;
@@ -303,29 +304,73 @@ export function MonthDetail({ month, userAla, obmContext, userRg, onDateSelect }
             const data = snapshot.data();
             const selections = data.selections || {};
             const exp = data.expedienteDays || {};
+            const swapRequests = data.swapRequests || [];
             
-            setExpedienteDays(prev => {
-                const updated = { ...prev };
-                
-                // Flexible RG matching
-                const matchedKeys = Object.keys(selections).filter(k => normalizeRg(k) === userRgEscaped);
-                const matchedExpKeys = Object.keys(exp).filter(k => normalizeRg(k) === userRgEscaped);
-                
-                matchedKeys.forEach(key => {
-                   (selections[key] || []).forEach((d: string) => { updated[d] = 'SV'; });
+            // 1. Set base days
+            const baseUpdated: Record<string, 'SV' | 'EXP'> = {};
+            const matchedKeys = Object.keys(selections).filter(k => normalizeRg(k) === userRgEscaped);
+            const matchedExpKeys = Object.keys(exp).filter(k => normalizeRg(k) === userRgEscaped);
+            
+            matchedKeys.forEach(key => {
+               (selections[key] || []).forEach((d: string) => { baseUpdated[d] = 'SV'; });
+            });
+            matchedExpKeys.forEach(key => {
+               (exp[key] || []).forEach((d: string) => { baseUpdated[d] = 'EXP'; });
+            });
+            setExpedienteBaseDays(baseUpdated);
+
+            // 2. Set internal permuta days
+            setPermutaStatusDays(prev => {
+                const pUpdated = { ...prev };
+                swapRequests.forEach((req: any) => {
+                    const subRg = normalizeRg(req.toUserRg);
+                    const reqRg = normalizeRg(req.rg);
+                    const isApproved = ['accepted', 'approved', 'scheduled'].includes(req.status);
+                    
+                    if (subRg === userRgEscaped) {
+                        pUpdated[req.toDay] = isApproved ? 'SV_PERMUTA' : 'SV_PERMUTA_PENDING';
+                    }
+                    if (reqRg === userRgEscaped) {
+                        if (isApproved) {
+                            pUpdated[req.fromDay] = 'FOLGA_PERMUTA';
+                            pUpdated[req.toDay] = 'SV';
+                        }
+                    }
                 });
-                matchedExpKeys.forEach(key => {
-                   (exp[key] || []).forEach((d: string) => { updated[d] = 'EXP'; });
-                });
-                
-                return updated;
+                return pUpdated;
             });
         }
+    });
+
+    // Fetch global permutas and update the SAME permutaStatusDays state
+    const unsubPermutas = onSnapshot(collection(db, 'permutas'), (snapshot) => {
+        const globalPermutas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        setPermutaStatusDays(prev => {
+            const pUpdated = { ...prev };
+            globalPermutas.forEach((p: any) => {
+                const subRg = normalizeRg(p.toUserRg);
+                const reqRg = normalizeRg(p.requesterRg) || normalizeRg(p.rg);
+                const isApproved = ['accepted', 'approved', 'scheduled'].includes(p.status);
+                
+                if (subRg === userRgEscaped) {
+                    pUpdated[p.toDay] = isApproved ? 'SV_PERMUTA' : 'SV_PERMUTA_PENDING';
+                }
+                if (reqRg === userRgEscaped) {
+                    if (isApproved) {
+                        pUpdated[p.fromDay] = 'FOLGA_PERMUTA';
+                        pUpdated[p.toDay] = 'SV';
+                    }
+                }
+            });
+            return pUpdated;
+        });
     });
 
     return () => {
         unsubGrd();
         unsubExp();
+        unsubPermutas();
     };
   }, [obmContext, userRg, month]);
 
@@ -352,7 +397,10 @@ export function MonthDetail({ month, userAla, obmContext, userRg, onDateSelect }
             const isMyAla = userAla && ala.toString() === userAla.toString();
             const dateStr = format(day, 'yyyy-MM-dd');
             const isGrd = grdDays[dateStr];
-            const expedienteStatus = expedienteDays[dateStr];
+            const pStatus = permutaStatusDays[dateStr];
+            const baseStatus = expedienteBaseDays[dateStr];
+            // If they passed their service to someone else, it's a folga.
+            const expedienteStatus = pStatus === 'FOLGA_PERMUTA' ? undefined : (pStatus || baseStatus);
             
             return (
               <motion.div 
@@ -363,7 +411,10 @@ export function MonthDetail({ month, userAla, obmContext, userRg, onDateSelect }
                   "relative aspect-square flex flex-col items-center justify-center rounded-lg text-[11px] sm:text-xs font-mono font-bold transition-all cursor-pointer border-2",
                   outsideMonth ? "opacity-0 pointer-events-none" : getAlaBg(ala),
                   isMyAla && !outsideMonth && !expedienteStatus && "ring-4 ring-amber-400 ring-opacity-20 shadow-[0_0_15px_rgba(251,191,36,0.5)] z-10 border-amber-200",
-                  expedienteStatus === 'SV' && !outsideMonth && "ring-[5px] ring-indigo-500 ring-opacity-50 shadow-[0_0_20px_rgba(79,70,229,0.5)] z-20 border-indigo-400 bg-indigo-50/50",
+                  (expedienteStatus === 'SV' || expedienteStatus === 'SV_PERMUTA' || expedienteStatus === 'SV_PERMUTA_PENDING') && !outsideMonth && "ring-[5px] ring-opacity-50 z-20",
+                  expedienteStatus === 'SV' && !outsideMonth && "ring-indigo-500 shadow-[0_0_20px_rgba(79,70,229,0.5)] border-indigo-400 bg-indigo-50/50",
+                  expedienteStatus === 'SV_PERMUTA' && !outsideMonth && "ring-purple-500 shadow-[0_0_20px_rgba(168,85,247,0.5)] border-purple-400 bg-purple-50/50",
+                  expedienteStatus === 'SV_PERMUTA_PENDING' && !outsideMonth && "ring-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.5)] border-amber-400 bg-amber-50/50 border-dashed",
                   expedienteStatus === 'EXP' && !outsideMonth && "ring-[5px] ring-emerald-500 ring-opacity-50 shadow-[0_0_20px_rgba(16,185,129,0.5)] z-20 border-emerald-400 bg-emerald-50/50"
                 )}
               >
@@ -371,6 +422,8 @@ export function MonthDetail({ month, userAla, obmContext, userRg, onDateSelect }
                    <div className={cn(
                        "absolute inset-0 rounded-lg animate-pulse-slow",
                        expedienteStatus === 'SV' ? "bg-indigo-500/20" : 
+                       expedienteStatus === 'SV_PERMUTA' ? "bg-purple-500/20" :
+                       expedienteStatus === 'SV_PERMUTA_PENDING' ? "bg-amber-500/20" :
                        expedienteStatus === 'EXP' ? "bg-emerald-500/20" : "bg-white/20"
                    )} />
                 )}

@@ -125,6 +125,39 @@ export const FUNCOES_ESCALA = [
   "Auxiliar de Rancho"
 ];
 
+const COMPETENCY_MAP: Record<string, string[]> = {
+  "Condutor de ABT": ["viaturas.ABT"],
+  "Condutor de ABSL": ["viaturas.ABSL"],
+  "Condutor de ASE": ["viaturas.ASE"],
+  "Condutor de AR": ["viaturas.AR"],
+  "Condutor de ARC": ["viaturas.ARC"],
+  "Chefe de Guarnição ABT": ["chefeAbt", "ativoChefeGua"],
+  "Chefe de Guarnição ABSL": ["chefeAbsl", "ativoChefeGua"],
+  "Auxiliar de ABT": ["auxAbt", "ativoAuxiliar"],
+  "Auxiliar de ABSL": ["auxAbsl", "ativoAuxiliar"],
+  "Auxiliar de ARC": ["auxArc", "ativoAuxiliar"],
+  "Auxiliar de ASE": ["auxAse", "ativoAuxiliar"],
+  "Mestre AL": ["mestreAl", "ativoMaritimo"],
+  "Mestre BIA": ["mestreBia", "ativoMaritimo"],
+  "Operador AMA": ["opAma", "ativoMaritimo"],
+  "Guarda-Vidas AMA": ["gvAma", "ativoMaritimo"],
+  "Marinheiro": ["marinheiros", "ativoMaritimo"],
+  "Enfermeiro": ["ativoEnfermeiro"],
+  "Comunicante": ["ativoComunicante"],
+  "Adjunto": ["adjunto", "ativoGraduado"],
+  "Sargento de Dia": ["sgtDia", "ativoGraduado"],
+  "Cmt da Guarda": ["cmtGuarda", "ativoGraduado"],
+  "Cabo da Guarda": ["cbGuarda", "ativoCbsSds"],
+  "Cabo de Dia": ["cbDia", "ativoCbsSds"],
+  "Sentinela": ["sentinela", "ativoCbsSds"],
+  "Faxina": ["faxina", "ativoCbsSds"],
+  "Armeque": ["deposito", "ativoCbsSds"],
+  "Toque de Fogo": ["toqueDeFogo", "ativoCbsSds"],
+  "Auxiliar de Rancho": ["auxRancho", "ativoCbsSds"]
+};
+
+
+
 const WORK_REGIMES = [
   "3 Exped. e 2 serv. 24h",
   "4 Exped. e 1 serv. 24h",
@@ -856,41 +889,6 @@ export function ExpedienteScheduler({
     const targetCleanRg = String(rg || '').replace(/\D/g, '').trim();
     if (!targetCleanRg) return null;
 
-    // 1. Troca interna do módulo ExpedienteScheduler (data.swapRequests)
-    const currentMonthSwapReqs = safeArr(data?.swapRequests);
-    const extraSwapReqs = safeArr(dataSource?.swapRequests);
-    const allSwapReqs = [...currentMonthSwapReqs, ...extraSwapReqs];
-
-    const enteringSwap = allSwapReqs.find(
-      r => String(r.rg || '').replace(/\D/g, '').trim() === targetCleanRg &&
-           r.toDay === dayStr &&
-           (r.status === 'approved' || r.status === 'pending')
-    );
-    if (enteringSwap) {
-      return {
-        hasPermuta: true,
-        role: 'substitute',
-        status: enteringSwap.status || 'approved',
-        otherPartyName: enteringSwap.userName,
-        source: 'internal'
-      };
-    }
-
-    const leavingSwap = allSwapReqs.find(
-      r => String(r.rg || '').replace(/\D/g, '').trim() === targetCleanRg &&
-           r.fromDay === dayStr &&
-           (r.status === 'approved' || r.status === 'pending')
-    );
-    if (leavingSwap) {
-      return {
-        hasPermuta: true,
-        role: 'requester',
-        status: leavingSwap.status || 'approved',
-        otherPartyName: leavingSwap.userName,
-        source: 'internal'
-      };
-    }
-
     // 2. Permutas gerais da coleção 'permutas'
     for (const p of generalPermutas) {
       if (p.archived) continue;
@@ -936,6 +934,42 @@ export function ExpedienteScheduler({
           permutaDocId: p.id
         };
       }
+    }
+
+
+    // 1. Troca interna do módulo ExpedienteScheduler (data.swapRequests)
+    const currentMonthSwapReqs = safeArr(data?.swapRequests);
+    const extraSwapReqs = safeArr(dataSource?.swapRequests);
+    const allSwapReqs = [...currentMonthSwapReqs, ...extraSwapReqs];
+
+    const enteringSwap = allSwapReqs.find(
+      r => String(r.rg || '').replace(/\D/g, '').trim() === targetCleanRg &&
+           r.toDay === dayStr &&
+           (r.status === 'approved' || r.status === 'pending')
+    );
+    if (enteringSwap) {
+      return {
+        hasPermuta: true,
+        role: 'substitute',
+        status: enteringSwap.status || 'approved',
+        otherPartyName: enteringSwap.userName,
+        source: 'internal'
+      };
+    }
+
+    const leavingSwap = allSwapReqs.find(
+      r => String(r.rg || '').replace(/\D/g, '').trim() === targetCleanRg &&
+           r.fromDay === dayStr &&
+           (r.status === 'approved' || r.status === 'pending')
+    );
+    if (leavingSwap) {
+      return {
+        hasPermuta: true,
+        role: 'requester',
+        status: leavingSwap.status || 'approved',
+        otherPartyName: leavingSwap.userName,
+        source: 'internal'
+      };
     }
 
     return null;
@@ -1105,33 +1139,49 @@ export function ExpedienteScheduler({
 
       // 1. Militar assumiu o serviço 24h via permuta (substituto)
       if (permutaInfo && permutaInfo.role === 'substitute') {
+          const isApproved = ['accepted', 'scheduled', 'approved'].includes(permutaInfo.status);
+          const textStr = isApproved ? 'PERMUTA DEFERIDA' : 'PERMUTA PENDENTE';
           return {
-              text: 'SERVIÇO (PERMUTA)',
+              text: textStr,
               type: 'servico' as const,
-              label: 'SERVIÇO (PERMUTA)',
+              label: textStr,
               isPermuta: true,
               permutaInfo
           };
       }
 
       // 2. Militar passou o serviço para outro via permuta aceita/homologada (solicitante)
-      if (permutaInfo && permutaInfo.role === 'requester' && (permutaInfo.status === 'accepted' || permutaInfo.status === 'scheduled' || permutaInfo.status === 'approved')) {
-          if (expDays.includes(dayStr)) {
+      if (permutaInfo && permutaInfo.role === 'requester') {
+          const isApproved = ['accepted', 'scheduled', 'approved'].includes(permutaInfo.status);
+          if (isApproved) {
+              if (expDays.includes(dayStr)) {
+                  return {
+                      text: 'EXPEDIENTE',
+                      type: 'expediente' as const,
+                      label: 'EXPEDIENTE',
+                      isPermuta: true,
+                      permutaInfo
+                  };
+              }
               return {
-                  text: 'EXPEDIENTE',
-                  type: 'expediente' as const,
-                  label: 'EXPEDIENTE',
+                  text: 'FOLGA (PERMUTA)',
+                  type: 'folga' as const,
+                  label: 'FOLGA (PERMUTA)',
+                  isPermuta: true,
+                  permutaInfo
+              };
+          } else {
+              // Se está pendente, o solicitante ainda está de serviço (pois a permuta não foi deferida)
+              // Vamos exibir PERMUTA PENDENTE para alertá-lo e aos outros
+              const textStr = 'PERMUTA PENDENTE';
+              return {
+                  text: textStr,
+                  type: 'servico' as const,
+                  label: textStr,
                   isPermuta: true,
                   permutaInfo
               };
           }
-          return {
-              text: 'FOLGA (PERMUTA)',
-              type: 'folga' as const,
-              label: 'FOLGA (PERMUTA)',
-              isPermuta: true,
-              permutaInfo
-          };
       }
 
       // 3. Seleção do calendário mensal ordinário (24h)
@@ -1161,6 +1211,34 @@ export function ExpedienteScheduler({
           label: 'FOLGA',
           isPermuta: false
       };
+  };
+
+
+  const checkNeedFulfilled = (funcStr: string, dayStr: string, qtRequired: number = 1): boolean => {
+      const { servicoList } = getWorkersForDay(dayStr);
+      // Necessidades (Vagas) no módulo 24h devem ser supridas por militares de serviço (24h)
+      const allWorkers = [...servicoList];
+      
+      const map = COMPETENCY_MAP[funcStr];
+      if (!map) return false;
+      
+      let fulfilledCount = 0;
+      
+      for (const worker of allWorkers) {
+          const m = militars.find(mil => (mil.rg || mil.uid) === worker.rg);
+          if (m) {
+              let hasCompetency = false;
+              for (const key of map) {
+                  if (key.startsWith('viaturas.')) {
+                      if (m.viaturas?.[key.split('.')[1]]) hasCompetency = true;
+                  } else {
+                      if ((m as any)[key] || m.dynamicFunctions?.[key]) hasCompetency = true;
+                  }
+              }
+              if (hasCompetency) fulfilledCount++;
+          }
+      }
+      return fulfilledCount >= qtRequired;
   };
 
   const getWorkersForDay = (dayStr: string) => {
@@ -1886,6 +1964,20 @@ export function ExpedienteScheduler({
     return getDayStatus(activeRg, dStr).type === 'expediente';
   }).length : 0;
 
+  const subShifts = currentMonthDays.map(d => {
+     if (!activeRg) return null;
+     const dStr = format(d, 'yyyy-MM-dd');
+     const st = getDayStatus(activeRg, dStr);
+     if (st.type === 'servico' && st.isPermuta && st.permutaInfo?.role === 'substitute') {
+         return {
+             date: d,
+             otherPartyName: st.permutaInfo.otherPartyName,
+             status: st.permutaInfo.status
+         }
+     }
+     return null;
+  }).filter(Boolean);
+
   const pendingUserWeeklyChangesCount = (data.weeklyChangeRequests || []).filter(
     r => r.rg === activeRg && r.status === 'pending'
   ).length;
@@ -1940,7 +2032,7 @@ export function ExpedienteScheduler({
                 {isExpanded ? "Escala Aberta" : "Status Resumido"}
               </span>
               <span className="text-xs font-bold text-slate-700">
-                {isExpanded ? "Clique para minimizar" : `${userSels.length} sv. 24h • ${currentWeekExpCount} exp.`}
+                {isExpanded ? "Clique para minimizar" : `${userSels.length + subShifts.length} sv. 24h • ${currentWeekExpCount} exp.`}
               </span>
             </div>
             <div className={cn(
@@ -1976,51 +2068,116 @@ export function ExpedienteScheduler({
       )}
 
       {/* DASHBOARD COMPACTO QUANDO MINIMIZADO (No Módulo de Permutas) */}
-      {!isExpanded && isCollapsible && (
-        <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-50 via-indigo-50/20 to-slate-50 border-t border-slate-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3 flex-1">
-            <div className="p-2.5 sm:p-3 bg-white rounded-xl border border-slate-200 shadow-2xs flex flex-col">
-              <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
-                <Calendar className="w-3 h-3 text-slate-400" /> Mês Referência
-              </span>
-              <span className="text-xs sm:text-sm font-black text-slate-800 capitalize mt-0.5">
-                {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
-              </span>
-            </div>
+      {(() => {
+        if (isExpanded || !isCollapsible) return null;
 
-            <div className="p-2.5 sm:p-3 bg-white rounded-xl border border-indigo-100 shadow-2xs flex flex-col">
-              <span className="text-[9px] font-black uppercase text-indigo-500 tracking-wider flex items-center gap-1">
-                <Clock className="w-3 h-3 text-indigo-500" /> Serviços 24h
-              </span>
-              <div className="flex items-baseline gap-1 mt-0.5">
-                <span className="text-xs sm:text-sm font-black text-indigo-900">{userSels.length}</span>
-                <span className="text-[10px] font-bold text-slate-500">
-                  {userReq > 0 ? `de ${userReq} previstos` : 'marcado(s)'}
+
+        
+        const sortedSels = [...(userSels || [])].sort();
+
+        return (
+          <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-50 via-slate-100/40 to-slate-50 border-t border-slate-200 flex flex-col gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 flex-1">
+              
+              {/* Mês Referência */}
+              <div className="md:col-span-3 p-4 bg-white rounded-2xl border border-slate-200 shadow-2xs flex flex-col justify-center gap-1 hover:border-slate-300 transition-colors">
+                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5 mb-1">
+                  <Calendar className="w-4 h-4 text-slate-400" /> Mês Referência
+                </span>
+                <span className="text-lg font-black text-slate-800 capitalize leading-none">
+                  {format(currentMonth, 'MMMM', { locale: ptBR })}
+                </span>
+                <span className="text-sm font-bold text-slate-500 capitalize">
+                  {format(currentMonth, 'yyyy', { locale: ptBR })}
                 </span>
               </div>
-            </div>
 
-            <div className="p-2.5 sm:p-3 bg-white rounded-xl border border-sky-100 shadow-2xs flex flex-col col-span-2 sm:col-span-1">
-              <span className="text-[9px] font-black uppercase text-sky-600 tracking-wider flex items-center gap-1">
-                <Briefcase className="w-3 h-3 text-sky-600" /> Semana Atual
-              </span>
-              <div className="flex items-baseline gap-1 mt-0.5">
-                <span className="text-xs sm:text-sm font-black text-sky-950">{currentWeekExpCount}</span>
-                <span className="text-[10px] font-bold text-slate-500">dias de expediente</span>
+              {/* Serviços 24h */}
+              <div className="md:col-span-6 p-4 bg-gradient-to-br from-indigo-50/80 to-blue-50/50 rounded-2xl border border-indigo-100 shadow-2xs flex flex-col gap-3 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                  <Clock className="w-32 h-32 text-indigo-900" />
+                </div>
+                
+                <div className="relative z-10 flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-indigo-200/50 pb-3">
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-indigo-500" /> Serviços 24h
+                    </span>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-3xl font-black text-indigo-950 leading-none">{userSels.length + subShifts.length}</span>
+                      <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">
+                        {userReq > 0 ? `(Previstos: ${userReq})` : 'Marcados'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-2 text-[9px] font-black tracking-widest uppercase mb-1">
+                     <span className="bg-white/70 text-indigo-800 px-2.5 py-1 rounded-md border border-indigo-200 shadow-sm flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                        {userSels.length} Ordinários
+                     </span>
+                     {subShifts.length > 0 && (
+                        <span className="bg-purple-100/90 text-purple-800 px-2.5 py-1 rounded-md border border-purple-300 shadow-sm flex items-center gap-1">
+                           <ArrowUpDown className="w-3 h-3 text-purple-500" />
+                           +{subShifts.length} Permuta{subShifts.length > 1 ? 's' : ''}
+                        </span>
+                     )}
+                  </div>
+                </div>
+
+                <div className="relative z-10 flex flex-wrap gap-2 mt-1">
+                  {userSels.length === 0 && subShifts.length === 0 && (
+                     <span className="text-xs font-bold text-slate-400 italic py-2">Nenhum serviço 24h agendado.</span>
+                  )}
+                  {sortedSels.map(s => (
+                    <div key={s} className="bg-white border-2 border-indigo-100 shadow-sm px-2.5 py-1.5 rounded-xl flex items-center gap-2 hover:border-indigo-300 transition-colors">
+                       <div className="w-6 h-6 rounded-lg bg-indigo-50 flex items-center justify-center border border-indigo-100">
+                          <span className="text-[10px] font-black text-indigo-600">{format(new Date(`${s}T12:00:00`), 'dd')}</span>
+                       </div>
+                       <span className="text-[10px] font-black text-indigo-900 uppercase tracking-wider pr-1">{format(new Date(`${s}T12:00:00`), 'MMM', { locale: ptBR })}</span>
+                    </div>
+                  ))}
+                  {subShifts.map((s, i) => (
+                    <div key={`sub-${i}`} className="bg-purple-600 border-2 border-purple-700 shadow-md px-2.5 py-1.5 rounded-xl flex flex-col justify-center hover:bg-purple-700 transition-colors" title={`Substituindo ${s.otherPartyName} (${s.status})`}>
+                       <div className="flex items-center justify-between gap-3">
+                           <div className="flex items-center gap-1.5">
+                             <ArrowUpDown className="w-3.5 h-3.5 text-purple-200" />
+                             <span className="text-[11px] font-black text-white">{format(s.date, 'dd/MM')}</span>
+                           </div>
+                           <span className={cn("text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded", s.status === 'pending' ? "bg-amber-400/20 text-amber-200" : "bg-emerald-400/20 text-emerald-200")}>
+                              {s.status === 'pending' ? 'Pendente' : 'Deferido'}
+                           </span>
+                       </div>
+                       <span className="text-[8px] font-bold text-purple-200 uppercase tracking-widest mt-1">Subs. {s.otherPartyName?.split(' ')[0] || 'Militar'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Semana Atual */}
+              <div className="md:col-span-3 p-4 bg-white rounded-2xl border border-slate-200 shadow-2xs flex flex-col justify-center gap-1 hover:border-slate-300 transition-colors">
+                <span className="text-[10px] font-black uppercase text-sky-500 tracking-widest flex items-center gap-1.5 mb-1">
+                  <Briefcase className="w-4 h-4 text-sky-500" /> Semana Atual
+                </span>
+                <div className="flex items-baseline gap-1.5">
+                   <span className="text-3xl font-black text-sky-950 leading-none">{currentWeekExpCount}</span>
+                   <span className="text-xs font-bold text-slate-500 capitalize leading-none mb-1">Dias</span>
+                </div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 border-t border-slate-100 pt-1.5">De Expediente</span>
               </div>
             </div>
-          </div>
 
-          {pendingUserWeeklyChangesCount > 0 && (
-            <div className="flex items-center gap-2 self-end md:self-center shrink-0">
-              <span className="text-[10px] font-black text-amber-800 bg-amber-100/90 border border-amber-300 px-2.5 py-1 rounded-lg flex items-center gap-1">
-                <AlertCircle className="w-3 h-3 text-amber-600" />
-                {pendingUserWeeklyChangesCount} alteração pendente
-              </span>
-            </div>
-          )}
-        </div>
-      )}
+            {pendingUserWeeklyChangesCount > 0 && (
+              <div className="flex items-center justify-end mt-1 shrink-0">
+                <span className="text-[10px] font-black text-amber-800 bg-amber-100/90 border border-amber-300 px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                  {pendingUserWeeklyChangesCount} alteração pendente
+                </span>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Conteúdo Expansível da Escala */}
       <AnimatePresence initial={false}>
@@ -3361,12 +3518,12 @@ export function ExpedienteScheduler({
                                                                                 cell.type === 'expediente' && "font-black",
                                                                                 cell.type === 'afastamento' && "bg-orange-50/70 text-orange-900"
                                                                             )}
-                                                                            title={canEdit ? (cell.isPermuta ? "Serviço 24h via Permuta" : "Clique para alternar: EXPEDIENTE -> SERVIÇO -> FOLGA") : (cell.isPermuta ? "Serviço 24h via Permuta" : undefined)}
+                                                                            title={canEdit ? (cell.isPermuta ? cell.text : "Clique para alternar: EXPEDIENTE -> SERVIÇO -> FOLGA") : (cell.isPermuta ? cell.text : undefined)}
                                                                         >
                                                                             {cell.isPermuta && cell.type === 'servico' ? (
                                                                                 <div className="flex flex-col items-center justify-center leading-tight">
                                                                                     <span>SERVIÇO</span>
-                                                                                    <span className="text-[9px] font-black text-purple-700 uppercase tracking-tighter">(PERMUTA)</span>
+                                                                                    <span className="text-[9px] font-black text-purple-700 uppercase tracking-tighter">({cell.text === 'PERMUTA PENDENTE' ? 'PENDENTE' : cell.text === 'PERMUTA DEFERIDA' ? 'DEFERIDA' : 'PERMUTA'})</span>
                                                                                 </div>
                                                                             ) : (
                                                                                 cell.text
@@ -4049,7 +4206,7 @@ export function ExpedienteScheduler({
                                                                  dayStatus.type === 'servico' ? <Shield className="w-3 h-3 text-red-600" /> :
                                                                  dayStatus.type === 'folga' ? <Coffee className="w-3 h-3 text-slate-500" /> :
                                                                  <AlertCircle className="w-3 h-3 text-orange-600" />}
-                                                                Atual: {dayStatus.isPermuta && dayStatus.type === 'servico' ? 'SV (PERMUTA)' : dayStatus.type === 'expediente' ? 'EXP' : dayStatus.type === 'servico' ? 'SV' : dayStatus.type === 'afastamento' ? 'AFASTADO' : 'FOLGA'}
+                                                                Atual: {dayStatus.isPermuta && dayStatus.type === 'servico' ? dayStatus.text : dayStatus.type === 'expediente' ? 'EXP' : dayStatus.type === 'servico' ? 'SV' : dayStatus.type === 'afastamento' ? 'AFASTADO' : 'FOLGA'}
                                                             </span>
 
                                                             {/* 24h Homologado se aplicável (visível no cabeçalho quando admin/escalante para evitar duplicidade com o botão da direita) */}
@@ -4058,7 +4215,7 @@ export function ExpedienteScheduler({
                                                                     "text-[9px] font-black uppercase px-1.5 py-0.5 rounded flex items-center gap-1 border",
                                                                     hasPermutaForDay ? "text-purple-800 bg-purple-100 border-purple-200" : "text-red-700 bg-red-100 border-red-200"
                                                                 )}>
-                                                                    <Lock className="w-2.5 h-2.5" /> {hasPermutaForDay ? "S.24h Homologado (Permuta)" : "S.24h Mensal Homologado"}
+                                                                    <Lock className="w-2.5 h-2.5" /> {dayStatus.isPermuta ? dayStatus.text : "S.24h Mensal Homologado"}
                                                                 </span>
                                                             )}
 
@@ -4138,7 +4295,7 @@ export function ExpedienteScheduler({
                                                                             title={hasPermutaForDay ? "Serviço 24h assumido via Permuta Homologada" : "Serviço 24h Ordinário escolhido no Calendário Mensal e Homologado"}
                                                                         >
                                                                             <Shield className={cn("w-3 h-3 shrink-0", hasPermutaForDay ? "text-purple-600" : "text-red-600")} />
-                                                                            <span>{hasPermutaForDay ? "S.24h Homologado (Permuta)" : "S.24h Mensal Homologado"}</span>
+                                                                            <span>{dayStatus.isPermuta ? dayStatus.text : "S.24h Mensal Homologado"}</span>
                                                                         </div>
                                                                     ) : isWeekLocked && !isAdmin && !user.isEscalante ? (
                                                                         <button
@@ -4340,6 +4497,17 @@ export function ExpedienteScheduler({
                                                                     {Object.entries(prefDetails).map(([func, qtRaw]) => {
                                                                         const qt = typeof qtRaw === 'number' ? qtRaw : Number(qtRaw || 1);
                                                                         const parsedFunc = formatPreferenceFunction(func, qt);
+                                                                        const isFulfilled = checkNeedFulfilled(func, dayStr, qt);
+                                                                        
+                                                                        if (isFulfilled) {
+                                                                            return (
+                                                                                <span key={func} className="text-[8px] font-bold bg-emerald-50 text-emerald-800 px-1.5 py-0.5 rounded border border-emerald-300 flex flex-col min-w-0" title={`Suprida por militares escalados: ${qt}x ${func}`}>
+                                                                                    <span className="text-[7.5px] text-emerald-600 font-black truncate leading-tight uppercase tracking-wider">Necessidade Suprida</span>
+                                                                                    <span className="text-[9px] text-emerald-950 font-black truncate leading-tight line-through opacity-70">{parsedFunc.line2}</span>
+                                                                                </span>
+                                                                            );
+                                                                        }
+                                                                        
                                                                         return (
                                                                             <span key={func} className="text-[8px] font-bold bg-white text-red-800 px-1.5 py-0.5 rounded border border-red-200 flex flex-col min-w-0" title={`${qt}x ${func}`}>
                                                                                 <span className="text-[7.5px] text-red-600 font-bold truncate leading-tight">{parsedFunc.line1}</span>
@@ -4368,8 +4536,8 @@ export function ExpedienteScheduler({
                                                                 </div>
                                                                 <span className="text-[9px] font-bold text-red-500">09h às 09h</span>
                                                                 {isOrd24hLocked && (isAdmin || user.isEscalante) && (
-                                                                    <span className="text-[8px] font-black uppercase text-red-700 bg-red-100 px-1.5 py-0.5 rounded border border-red-200 flex items-center gap-1 mt-0.5">
-                                                                        <Lock className="w-2.5 h-2.5" /> {hasPermutaForDay ? "S.24h Homologado (Permuta)" : "S.24h Mensal Homologado"}
+                                                                    <span className={cn("text-[8px] font-black uppercase px-1.5 py-0.5 rounded border flex items-center gap-1 mt-0.5", dayStatus.isPermuta ? "text-purple-700 bg-purple-100 border-purple-200" : "text-red-700 bg-red-100 border-red-200")}>
+                                                                        <Lock className="w-2.5 h-2.5" /> {dayStatus.isPermuta ? dayStatus.text : "S.24h Mensal Homologado"}
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -4454,7 +4622,7 @@ export function ExpedienteScheduler({
                                                                     title={hasPermutaForDay ? "Serviço 24h assumido via Permuta Homologada" : "Serviço 24h Ordinário escolhido no Calendário Mensal e Homologado"}
                                                                 >
                                                                     <Shield className={cn("w-3 h-3 shrink-0", hasPermutaForDay ? "text-purple-600" : "text-red-600")} />
-                                                                    <span>{hasPermutaForDay ? "S.24h Homologado (Permuta)" : "S.24h Mensal Homologado"}</span>
+                                                                    <span>{dayStatus.isPermuta ? dayStatus.text : "S.24h Mensal Homologado"}</span>
                                                                 </div>
                                                             ) : isWeekLocked && !isAdmin && !user.isEscalante ? (
                                                                 <button
@@ -4588,17 +4756,31 @@ export function ExpedienteScheduler({
                                     {preferredDays.map(day => {
                                         const dayStr = format(day, 'yyyy-MM-dd');
                                         const details = data.preferencesDetails?.[dayStr] || {};
-                                        const totalVagas = Object.values(details).reduce((sum, qt) => sum + qt, 0);
+                                        const needs = Object.entries(details);
+                                        const totalVagas = needs.reduce((sum, [_, qt]) => sum + (typeof qt === 'number' ? qt : Number(qt || 1)), 0);
+                                        
+                                        const isAllFulfilled = needs.length > 0 && needs.every(([func, qtRaw]) => {
+                                            const qt = typeof qtRaw === 'number' ? qtRaw : Number(qtRaw || 1);
+                                            return checkNeedFulfilled(func, dayStr, qt);
+                                        });
+
                                         return (
                                             <button 
                                                 key={dayStr}
                                                 onClick={() => handleToggleDay(day)}
-                                                className="relative flex flex-col items-center justify-center p-2 rounded-xl border-2 border-red-200 bg-red-50 hover:bg-red-100 transition-colors py-2 px-3 min-w-[54px] sm:min-w-[64px]"
+                                                className={cn(
+                                                    "relative flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-colors py-2 px-3 min-w-[54px] sm:min-w-[64px]",
+                                                    isAllFulfilled ? "border-emerald-200 bg-emerald-50 hover:bg-emerald-100" : "border-red-200 bg-red-50 hover:bg-red-100"
+                                                )}
+                                                title={isAllFulfilled ? "Todas as necessidades supridas!" : `${totalVagas} necessidades pendentes`}
                                             >
-                                                <span className="text-sm font-black text-red-800 leading-none mb-0.5">{format(day, 'dd')}</span>
-                                                <span className="text-[9px] font-bold text-red-600 uppercase tracking-widest leading-none">{format(day, 'MMM', {locale: ptBR})}</span>
-                                                <div className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
-                                                    {totalVagas}
+                                                <span className={cn("text-sm font-black leading-none mb-0.5", isAllFulfilled ? "text-emerald-800" : "text-red-800")}>{format(day, 'dd')}</span>
+                                                <span className={cn("text-[9px] font-bold uppercase tracking-widest leading-none", isAllFulfilled ? "text-emerald-600" : "text-red-600")}>{format(day, 'MMM', {locale: ptBR})}</span>
+                                                <div className={cn(
+                                                    "absolute -top-1.5 -right-1.5 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white shadow-sm",
+                                                    isAllFulfilled ? "bg-emerald-500" : "bg-red-500"
+                                                )}>
+                                                    {isAllFulfilled ? <Check className="w-2.5 h-2.5" strokeWidth={4} /> : totalVagas}
                                                 </div>
                                             </button>
                                         );
@@ -4702,6 +4884,25 @@ export function ExpedienteScheduler({
                                                {Object.entries(data.preferencesDetails?.[dayStr] || {}).map(([func, qtRaw]) => {
                                                   const qt = typeof qtRaw === "number" ? qtRaw : Number(qtRaw || 1);
                                                   const parsedFunc = formatPreferenceFunction(func, qt);
+                                                  const isFulfilled = checkNeedFulfilled(func, dayStr, qt);
+                                                  
+                                                  if (isFulfilled) {
+                                                      return (
+                                                        <span 
+                                                           key={func} 
+                                                           className="w-full text-left bg-emerald-100/90 text-emerald-800 border border-emerald-300/90 px-2 py-1 sm:px-1.5 sm:py-1 rounded-md uppercase cursor-help max-w-full flex flex-col justify-center shadow-xs transition-colors hover:bg-emerald-200/80" 
+                                                           title={`Suprida por militares escalados: ${qt}x ${func}`}
+                                                        >
+                                                           <span className="flex items-center gap-1 text-[8px] sm:text-[7.5px] font-black text-emerald-700 leading-tight truncate tracking-wider">
+                                                             <span className="truncate">NECESSIDADE SUPRIDA</span>
+                                                           </span>
+                                                           <span className="text-[10px] sm:text-[9.5px] font-black text-emerald-950 leading-tight truncate tracking-tight mt-0.5 line-through opacity-70">
+                                                             {parsedFunc.line2}
+                                                           </span>
+                                                        </span>
+                                                      );
+                                                  }
+
                                                   return (
                                                     <span 
                                                        key={func} 
