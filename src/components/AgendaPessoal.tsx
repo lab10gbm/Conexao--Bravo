@@ -72,17 +72,24 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
     const unsub = onSnapshot(q, (snapshot) => {
       if (!isMounted) return;
       
-      const safeRg = String(user.rg).replace(/\D/g, '');
+      const safeRg = String(user.rg || '').replace(/\D/g, '').replace(/^0+/, '');
+      const userUid = user?.uid || '';
       const allPermutas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
       
       const userPerms = allPermutas.filter(p => {
-        const strReq = String(p.requesterRg).replace(/\D/g, '');
-        const strSub = String(p.substituteRg).replace(/\D/g, '');
-        return strReq === safeRg || strSub === safeRg;
+        const strReq = String(p.requesterRg || '').replace(/\D/g, '').replace(/^0+/, '');
+        const strSub = String(p.substituteRg || '').replace(/\D/g, '').replace(/^0+/, '');
+        const subId = String(p.acceptedById || p.substituteId || '').replace(/\D/g, '').replace(/^0+/, '');
+        const reqId = String(p.requesterId || '').replace(/\D/g, '').replace(/^0+/, '');
+        return (safeRg && (strReq === safeRg || strSub === safeRg || subId === safeRg || reqId === safeRg)) ||
+               (userUid && (p.requesterId === userUid || p.substituteId === userUid || p.acceptedById === userUid));
       });
       
       const parsed = userPerms.map(p => {
-        const type = (String(p.requesterRg).replace(/\D/g, '') === safeRg) ? 'PAGOU' : 'COBREU';
+        const strReq = String(p.requesterRg || '').replace(/\D/g, '').replace(/^0+/, '');
+        const reqId = String(p.requesterId || '').replace(/\D/g, '').replace(/^0+/, '');
+        const isUserReq = (safeRg && (strReq === safeRg || reqId === safeRg)) || (userUid && p.requesterId === userUid);
+        const type = isUserReq ? 'PAGOU' : 'COBREU';
         return {
           date: new Date(p.date + 'T00:00:00'),
           type,
@@ -604,10 +611,21 @@ const MonthGrid = memo(function MonthGrid({ month, userAla, onDateSelect, mockAf
                     if (isSameDay(ev.date, day)) hasInstitutionalEvent = true;
                   });
 
+                  let permutaDuty: 'SV_PERMUTA' | 'SV_PERMUTA_PENDING' | 'FOLGA_PERMUTA' | null = null;
                   mockPermutas.forEach(p => {
                     if (isSameDay(p.date, day)) {
-                       if (p.type === 'COBREU') isWorkingDay = true;
-                       if (p.type === 'PAGOU') isWorkingDay = false;
+                       if (p.type === 'COBREU') {
+                          isWorkingDay = true;
+                          const isApproved = p.status === 'accepted' || p.status === 'approved';
+                          permutaDuty = isApproved ? 'SV_PERMUTA' : 'SV_PERMUTA_PENDING';
+                       }
+                       if (p.type === 'PAGOU') {
+                          const isApproved = p.status === 'accepted' || p.status === 'approved';
+                          if (isApproved) {
+                             isWorkingDay = false;
+                             permutaDuty = 'FOLGA_PERMUTA';
+                          }
+                       }
                     }
                   });
                   
@@ -640,6 +658,8 @@ const MonthGrid = memo(function MonthGrid({ month, userAla, onDateSelect, mockAf
                         isWorkingDayFinal && !outsideMonth && !isAfastamento && !shouldHide && "shadow-md ring-2 ring-blue-500 ring-offset-1 flex flex-col pt-1",
                         isGrd && !outsideMonth && !isAfastamento && !shouldHide && "bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500 ring-offset-1",
                         isAfastamento && !outsideMonth && !shouldHide && "bg-indigo-50 border-indigo-200 text-indigo-700 ring-1 ring-indigo-300",
+                        permutaDuty === 'SV_PERMUTA' && !outsideMonth && !shouldHide && "ring-[3px] ring-purple-600 bg-purple-50/80 shadow-[0_0_15px_rgba(168,85,247,0.4)] z-10 border-purple-500",
+                        permutaDuty === 'SV_PERMUTA_PENDING' && !outsideMonth && !shouldHide && "ring-[3px] ring-amber-400 border-dashed border-amber-500 bg-amber-50/80 shadow-[0_0_15px_rgba(245,158,11,0.4)] z-10",
                         expedienteStatus === 'SV' && !outsideMonth && "ring-[3px] ring-indigo-500 ring-offset-2 shadow-[0_0_15px_rgba(79,70,229,0.4)] z-10",
                         expedienteStatus === 'EXP' && !outsideMonth && "ring-[3px] ring-emerald-500 ring-offset-2 shadow-[0_0_15px_rgba(16,185,129,0.4)] z-10"
                       )}
@@ -662,12 +682,16 @@ const MonthGrid = memo(function MonthGrid({ month, userAla, onDateSelect, mockAf
                          <div className="flex gap-1 mt-0.5 z-10 w-full justify-center px-1">
                             {isWorkingDayFinal && !isAfastamento && (
                                <span className={cn(
-                                   "text-[6px] tracking-widest uppercase opacity-90 font-bold px-1 rounded-sm mt-0.5 inline-block truncate",
+                                   "text-[6px] tracking-widest uppercase opacity-90 font-black px-1 rounded-sm mt-0.5 inline-block truncate",
+                                   permutaDuty === 'SV_PERMUTA' ? "bg-purple-600 text-white" :
+                                   permutaDuty === 'SV_PERMUTA_PENDING' ? "bg-amber-500 text-white border border-amber-400" :
                                    expedienteStatus === 'SV' ? "bg-indigo-600 text-white" :
                                    expedienteStatus === 'EXP' ? "bg-emerald-600 text-white" :
                                    "bg-black/5 text-slate-800"
                                )}>
-                                   {expedienteStatus || 'Svc'}
+                                   {permutaDuty === 'SV_PERMUTA' ? 'SV 24H' :
+                                    permutaDuty === 'SV_PERMUTA_PENDING' ? '24H PEND' :
+                                    expedienteStatus || 'Svc'}
                                </span>
                             )}
                             {isAfastamento && (

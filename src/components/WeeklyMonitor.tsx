@@ -29,10 +29,11 @@ import {
   LayoutGrid,
   List,
   Sparkles,
+  Calendar,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { db } from "../lib/firebase";
-import { doc, onSnapshot, collection } from "firebase/firestore";
+import { doc, onSnapshot, collection, query, where, getDoc } from "firebase/firestore";
 
 interface WeeklyMonitorProps {
   user?: UserProfile;
@@ -45,6 +46,15 @@ interface UserPermutaItem {
   role: "substitute" | "requester";
   status: string; // 'accepted' | 'pending' | 'scheduled' | 'rejected'
   partnerName?: string;
+}
+
+interface RasDayItem {
+  id?: string;
+  duration: number;
+  description?: string;
+  local?: string;
+  functionId?: string;
+  status: string;
 }
 
 const ALA_THEME: Record<
@@ -185,6 +195,7 @@ export function WeeklyMonitor({
   const [userPermutasMap, setUserPermutasMap] = useState<
     Record<string, UserPermutaItem>
   >({});
+  const [rasDaysMap, setRasDaysMap] = useState<Record<string, RasDayItem>>({});
 
   const cardsContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -262,6 +273,72 @@ export function WeeklyMonitor({
 
     return () => unsub();
   }, [user?.rg, user?.uid, user?.name, user?.warName]);
+
+  // Listen for user's confirmed RAS duties (Regime Adicional de Serviço - Serviço Extra)
+  useEffect(() => {
+    if (!user?.rg && !user?.uid) return;
+
+    const userCleanRg = cleanDigits(user.rg);
+    const userUid = user.uid || "";
+
+    const qApps = query(collection(db, "ras_applications"));
+    const unsubApps = onSnapshot(
+      qApps,
+      async (snap) => {
+        const userSelected = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() } as any))
+          .filter((app) => {
+            const appRg = cleanDigits(app.militarRg);
+            const isMatch =
+              (userCleanRg && appRg === userCleanRg) ||
+              (userUid && app.militarId === userUid);
+            return (
+              isMatch && (app.status === "selected" || app.status === "completed")
+            );
+          });
+
+        if (userSelected.length === 0) {
+          setRasDaysMap({});
+          return;
+        }
+
+        const rasMap: Record<string, RasDayItem> = {};
+        await Promise.all(
+          userSelected.map(async (app) => {
+            if (!app.rasId) return;
+            try {
+              const oppDoc = await getDoc(
+                doc(db, "ras_opportunities", app.rasId),
+              );
+              if (oppDoc.exists()) {
+                const opp = oppDoc.data() as any;
+                if (opp.date) {
+                  rasMap[opp.date] = {
+                    id: oppDoc.id,
+                    duration: opp.duration || 24,
+                    description:
+                      opp.description || "Regime Adicional de Serviço",
+                    local: opp.local || "",
+                    functionId: app.functionId,
+                    status: app.status,
+                  };
+                }
+              }
+            } catch (err) {
+              console.error("Error fetching RAS opportunity for weekly monitor:", err);
+            }
+          }),
+        );
+
+        setRasDaysMap(rasMap);
+      },
+      (err) => {
+        console.error("Error listening to ras_applications for weekly monitor:", err);
+      },
+    );
+
+    return () => unsubApps();
+  }, [user?.rg, user?.uid]);
 
   // Listen for user's GRD and Expediente assignments covering both weeks
   useEffect(() => {
@@ -366,6 +443,7 @@ export function WeeklyMonitor({
       const dateStr = format(day, "yyyy-MM-dd");
       const isGrd = Boolean(grdDays[dateStr]);
       const expedienteStatus = expedienteDaysState[dateStr] || null;
+      const rasDay = rasDaysMap[dateStr] || null;
       const isToday = weekOffset === 0 && idx === 0;
       const isUserAla = userAlaNum === ala;
       const permuta = userPermutasMap[dateStr] || null;
@@ -472,7 +550,22 @@ export function WeeklyMonitor({
           }
         }
       } else {
-        if (isUserAla) {
+        if (rasDay) {
+          // Serviço Extra proveniente do módulo de RAS (Regime Adicional de Serviço)
+          dutyBadge = {
+            text: "SERVIÇO EXTRA (RAS)",
+            subtext: rasDay.description
+              ? `Regime Adicional · ${rasDay.duration}h`
+              : "Regime Adicional de Serviço",
+            badgeClass:
+              "bg-rose-50 border border-rose-200 text-rose-800 font-black shadow-xs",
+            expiredClass:
+              "bg-slate-200/80 border border-slate-300 text-slate-700 font-bold",
+            icon: "shield",
+            tooltip: `Escalado em Serviço Extra pelo RAS (${rasDay.duration}h)${rasDay.description ? ` - ${rasDay.description}` : ""}.`,
+            isDuty: true,
+          };
+        } else if (isUserAla) {
           dutyBadge = {
             text: "SEU PLANTÃO",
             subtext: "Plantão regular da sua Ala",
@@ -484,12 +577,12 @@ export function WeeklyMonitor({
           };
         } else if (expedienteStatus === "SV") {
           dutyBadge = {
-            text: "SERVIÇO EXTRA (SV)",
-            subtext: "Escalado em Serviço Voluntário",
+            text: "S.24h Mensal",
+            subtext: "Plantão Ordinário do Expediente",
             badgeClass: "bg-purple-50 border border-purple-200 text-purple-800 font-black shadow-xs",
             expiredClass: "bg-slate-200/80 border border-slate-300 text-slate-700 font-bold",
             icon: "calendar",
-            tooltip: "Escalado em Serviço Extra (SV).",
+            tooltip: "Escalado no S.24h Mensal ordinário da escala de expediente.",
             isDuty: true,
           };
         } else if (expedienteStatus === "EXP") {
@@ -1025,6 +1118,7 @@ export function WeeklyMonitor({
                               {dutyBadge.icon === "check" && <CheckCircle2 className="w-4 h-4 shrink-0" />}
                               {dutyBadge.icon === "alert" && <AlertTriangle className="w-4 h-4 shrink-0" />}
                               {dutyBadge.icon === "cross" && <X className="w-4 h-4 shrink-0" />}
+                              {dutyBadge.icon === "calendar" && <Calendar className="w-4 h-4 shrink-0" />}
                               <div className="flex flex-col min-w-0">
                                 <span className="leading-tight">{dutyBadge.text}</span>
                                 {dutyBadge.subtext && (
@@ -1250,6 +1344,9 @@ export function WeeklyMonitor({
                                   {dutyBadge.icon === "cross" && (
                                     <X className="w-3.5 h-3.5 shrink-0" />
                                   )}
+                                  {dutyBadge.icon === "calendar" && (
+                                    <Calendar className="w-3.5 h-3.5 shrink-0" />
+                                  )}
                                   <span className="font-black leading-tight">
                                     {dutyBadge.text}
                                   </span>
@@ -1425,6 +1522,9 @@ export function WeeklyMonitor({
                                 )}
                                 {dutyBadge.icon === "cross" && (
                                   <X className="w-3.5 h-3.5 shrink-0 opacity-80" />
+                                )}
+                                {dutyBadge.icon === "calendar" && (
+                                  <Calendar className="w-3.5 h-3.5 shrink-0 opacity-80" />
                                 )}
                                 <span className="font-bold leading-tight">
                                   {dutyBadge.text}

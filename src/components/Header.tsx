@@ -520,7 +520,7 @@ export function Header({
       )}
     >
       <div className="p-4 sm:p-6">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 sm:gap-8 min-w-0">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6 min-w-0">
           <div className="flex-1 min-w-0 w-full">
             <div className="flex items-start sm:items-center gap-2 mb-3 sm:mb-2">
               <div className="w-1.5 sm:w-2 h-7 bg-[var(--color-brand-red)] shrink-0" />
@@ -640,7 +640,14 @@ export function Header({
             </div>
           </div>
 
-          <div className="hidden sm:flex items-center gap-2 mt-6 md:mt-0">
+          <div
+            className={cn(
+              "shrink-0",
+              isOfficerMode
+                ? "flex items-center mt-4 min-[880px]:mt-0"
+                : "grid grid-cols-2 min-[880px]:grid-cols-4 gap-1.5 sm:gap-2 min-[880px]:gap-2 mt-4 min-[880px]:mt-0 self-center min-[880px]:self-auto",
+            )}
+          >
             {isOfficerMode ? (
               <div className="p-3 rounded-lg shadow-sm border border-[var(--color-brand-red)] bg-red-50 text-[var(--color-brand-red)] w-auto min-w-[200px] text-center flex flex-col items-center justify-center">
                 <div className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
@@ -654,7 +661,8 @@ export function Header({
               <>
                 <div
                   className={cn(
-                    "p-3 rounded-lg shadow-sm w-20 text-center flex flex-col items-center border",
+                    "rounded-lg shadow-sm text-center flex flex-col items-center justify-center border transition-all",
+                    "w-[72px] sm:w-20 min-[880px]:w-20 py-2 sm:py-2.5 min-[880px]:p-3",
                     alaType === "1"
                       ? "bg-emerald-600 text-white border-transparent"
                       : "bg-white text-slate-400 border-slate-200",
@@ -670,7 +678,7 @@ export function Header({
                   </div>
                   <div
                     className={cn(
-                      "text-[10px] font-black leading-none",
+                      "text-[9px] sm:text-[10px] font-black leading-tight min-[880px]:leading-none",
                       alaType === "1" ? "" : "text-slate-300",
                     )}
                   >
@@ -679,7 +687,8 @@ export function Header({
                 </div>
                 <div
                   className={cn(
-                    "p-3 rounded-lg shadow-sm w-20 text-center flex flex-col items-center border",
+                    "rounded-lg shadow-sm text-center flex flex-col items-center justify-center border transition-all",
+                    "w-[72px] sm:w-20 min-[880px]:w-20 py-2 sm:py-2.5 min-[880px]:p-3",
                     alaType === "2"
                       ? "bg-rose-600 text-white border-transparent"
                       : "bg-white text-slate-400 border-slate-200",
@@ -695,7 +704,7 @@ export function Header({
                   </div>
                   <div
                     className={cn(
-                      "text-[10px] font-black leading-none",
+                      "text-[9px] sm:text-[10px] font-black leading-tight min-[880px]:leading-none",
                       alaType === "2" ? "" : "text-slate-300",
                     )}
                   >
@@ -704,7 +713,8 @@ export function Header({
                 </div>
                 <div
                   className={cn(
-                    "p-3 rounded-lg shadow-sm w-20 text-center flex flex-col items-center border",
+                    "rounded-lg shadow-sm text-center flex flex-col items-center justify-center border transition-all",
+                    "w-[72px] sm:w-20 min-[880px]:w-20 py-2 sm:py-2.5 min-[880px]:p-3",
                     alaType === "3"
                       ? "bg-sky-600 text-white border-transparent"
                       : "bg-white text-slate-400 border-slate-200",
@@ -720,7 +730,7 @@ export function Header({
                   </div>
                   <div
                     className={cn(
-                      "text-[10px] font-black leading-none",
+                      "text-[9px] sm:text-[10px] font-black leading-tight min-[880px]:leading-none",
                       alaType === "3" ? "" : "text-slate-300",
                     )}
                   >
@@ -729,7 +739,8 @@ export function Header({
                 </div>
                 <div
                   className={cn(
-                    "p-3 rounded-lg shadow-sm w-20 text-center flex flex-col items-center border",
+                    "rounded-lg shadow-sm text-center flex flex-col items-center justify-center border transition-all",
+                    "w-[72px] sm:w-20 min-[880px]:w-20 py-2 sm:py-2.5 min-[880px]:p-3",
                     alaType === "4"
                       ? "bg-amber-500 text-white border-transparent"
                       : "bg-white text-slate-400 border-slate-200",
@@ -745,7 +756,7 @@ export function Header({
                   </div>
                   <div
                     className={cn(
-                      "text-[10px] font-black leading-none",
+                      "text-[9px] sm:text-[10px] font-black leading-tight min-[880px]:leading-none",
                       alaType === "4" ? "" : "text-slate-300",
                     )}
                   >
