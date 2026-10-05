@@ -2,19 +2,22 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, RasOpportunity, RasApplication } from '../types';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
-import { Plus, BriefcaseBusiness, Calendar, Clock, Users, ChevronDown, CheckCircle2, XCircle, Edit, Trash2, Settings } from 'lucide-react';
+import { Plus, BriefcaseBusiness, Calendar, Clock, Users, ChevronDown, CheckCircle2, XCircle, Edit, Trash2, Settings, ArrowRight, Check, Sparkles, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { createPortal } from 'react-dom';
 import { cn, normalizeObm, getUserObmAccess } from '../lib/utils';
 import { parsePromotionDate, ALL_RANKS_IN_ORDER, parseRank, sortAllBySeniority } from '../lib/rankUtils';
 import { useMilitars } from '../contexts/MilitarContext';
+import { RankInsignia } from './RankInsignia';
+import { RAS_FUNCTION_MAP, DEFAULT_VIATURAS } from '../constants';
 
 interface RasManagerModuleProps {
   obmContext: string;
   user: UserProfile;
+  onNavigateToEscala?: (date?: string) => void;
 }
 
-export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
+export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasManagerModuleProps) {
   const [opportunities, setOpportunities] = useState<RasOpportunity[]>([]);
   const [applications, setApplications] = useState<Record<string, RasApplication[]>>({});
   const [isCreating, setIsCreating] = useState(false);
@@ -25,6 +28,7 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
   const [activeTab, setActiveTab] = useState<'oportunidades' | 'banco-horas'>('oportunidades');
   const [editingHoursRg, setEditingHoursRg] = useState<string | null>(null);
   const [editingHoursValue, setEditingHoursValue] = useState<number>(0);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info'; date?: string } | null>(null);
   const [formData, setFormData] = useState({
     date: '',
     duration: 24 as 12 | 24,
@@ -205,26 +209,110 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
     }
   };
 
-  const handleApplicationStatus = async (app: RasApplication, opp: RasOpportunity, newStatus: 'selected' | 'rejected') => {
+  const handleApplicationStatus = async (app: RasApplication, opp: RasOpportunity, newStatus: 'selected' | 'rejected' | 'applied') => {
     try {
+      const prevStatus = app.status;
       await updateDoc(doc(db, 'ras_applications', app.id!), {
-        status: newStatus
+        status: newStatus,
+        updatedAt: Date.now(),
+        ...(newStatus === 'selected' ? { selectedAt: Date.now(), selectedBy: user.rg } : {})
       });
 
-      // Update hours if selected
+      // Update hours in user's profile
+      const userRef = doc(db, 'militaries', app.militarRg);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        const currentHours = userData.rasHours || 0;
+        let nextHours = currentHours;
+        if (newStatus === 'selected' && prevStatus !== 'selected') {
+          nextHours = currentHours + opp.duration;
+        } else if (newStatus !== 'selected' && prevStatus === 'selected') {
+          nextHours = Math.max(0, currentHours - opp.duration);
+        }
+        if (nextHours !== currentHours) {
+          await updateDoc(userRef, { rasHours: nextHours });
+        }
+      }
+
+      // Synchronize with Escala 24h for opp.date and opp.obm
+      const targetObm = opp.obm || obmContext;
+      const normalizedObm = targetObm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+      const escalaRef = doc(db, `escala24h_${normalizedObm}`, opp.date);
+      const escalaSnap = await getDoc(escalaRef);
+      const mappedRole = app.functionId ? RAS_FUNCTION_MAP[app.functionId] : undefined;
+
       if (newStatus === 'selected') {
-        const userRef = doc(db, 'militaries', app.militarRg);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          const userData = userSnap.data();
-          const currentHours = userData.rasHours || 0;
-          await updateDoc(userRef, {
-            rasHours: currentHours + opp.duration
+        if (escalaSnap.exists()) {
+          const escalaData = escalaSnap.data();
+          const manualRgs: string[] = escalaData.manuallyAddedRgs || [];
+          const funcs: Record<string, string[]> = escalaData.selectedFunctions || {};
+
+          let changed = false;
+          if (!manualRgs.includes(app.militarRg)) {
+            manualRgs.push(app.militarRg);
+            changed = true;
+          }
+          if (mappedRole && (!funcs[app.militarRg] || funcs[app.militarRg].length === 0)) {
+            funcs[app.militarRg] = [mappedRole];
+            changed = true;
+          }
+          if (changed) {
+            await updateDoc(escalaRef, {
+              manuallyAddedRgs: manualRgs,
+              selectedFunctions: funcs,
+              updatedAt: Date.now()
+            });
+          }
+        } else {
+          await setDoc(escalaRef, {
+            manuallyAddedRgs: [app.militarRg],
+            selectedFunctions: mappedRole ? { [app.militarRg]: [mappedRole] } : {},
+            viaturasInfo: DEFAULT_VIATURAS,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          });
+        }
+
+        const milName = app.militarWarName || app.militarName;
+        const [y, m, d] = opp.date.split('-');
+        const dateFormatted = `${d}/${m}/${y}`;
+        setNotification({
+          message: `${app.militarRank} ${milName} (RG: ${app.militarRg}) contemplado e inserido na Escala 24h de ${dateFormatted}!`,
+          type: 'success',
+          date: opp.date
+        });
+      } else if (prevStatus === 'selected') {
+        // If it was selected and is now unselected/rejected, clean up from escala24h manuallyAddedRgs
+        if (escalaSnap.exists()) {
+          const escalaData = escalaSnap.data();
+          const manualRgs: string[] = escalaData.manuallyAddedRgs || [];
+          const funcs: Record<string, string[]> = escalaData.selectedFunctions || {};
+
+          const newManual = manualRgs.filter(rg => rg !== app.militarRg);
+          const newFuncs = { ...funcs };
+          if (mappedRole && newFuncs[app.militarRg]?.includes(mappedRole)) {
+            newFuncs[app.militarRg] = newFuncs[app.militarRg].filter(f => f !== mappedRole);
+            if (newFuncs[app.militarRg].length === 0) {
+              delete newFuncs[app.militarRg];
+            }
+          }
+
+          await updateDoc(escalaRef, {
+            manuallyAddedRgs: newManual,
+            selectedFunctions: newFuncs,
+            updatedAt: Date.now()
           });
         }
       }
     } catch (err) {
-      console.error(err);
+      console.error("Error updating application status:", err);
+    }
+  };
+
+  const handleDeferAllForFunction = async (opp: RasOpportunity, funcId: string, pendingEleitos: RasApplication[]) => {
+    for (const app of pendingEleitos) {
+      await handleApplicationStatus(app, opp, 'selected');
     }
   };
 
@@ -350,6 +438,33 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
 
   return (
     <div className="space-y-6">
+      {notification && (
+        <div className="bg-emerald-600 text-white p-3.5 px-4 rounded-2xl shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-5 h-5 text-emerald-200 shrink-0" />
+            <span className="text-xs font-black uppercase tracking-wide">{notification.message}</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+            {notification.date && onNavigateToEscala && (
+              <button
+                onClick={() => onNavigateToEscala(notification.date)}
+                className="bg-white text-emerald-800 hover:bg-emerald-50 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-sm transition-all"
+              >
+                <span>Ver na Escala 24h</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <button
+              onClick={() => setNotification(null)}
+              className="p-1 hover:bg-white/20 rounded-lg transition-colors"
+              title="Fechar"
+            >
+              <XCircle className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex bg-slate-100 p-1 rounded-xl">
           <button
@@ -695,65 +810,173 @@ export function RasManagerModule({ obmContext, user }: RasManagerModuleProps) {
                           const funcLabel = availableFunctions.find(af => af.id === f)?.label || f;
                           
                           return (
-                            <div key={f} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                              <div className="p-3 bg-slate-100 border-b border-slate-200 flex justify-between items-center">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">Função: {funcLabel}</span>
-                                <span className="text-[9px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded">{funcApps.length} Interessados</span>
+                            <div key={f} className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+                              <div className="p-3 bg-slate-100 border-b border-slate-200 flex flex-wrap justify-between items-center gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">Função: {funcLabel}</span>
+                                  <span className="text-[9px] font-bold text-slate-500 bg-slate-200 px-2 py-0.5 rounded">{funcApps.length} Interessados</span>
+                                  <span className="text-[9px] font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded">
+                                    Vagas: {opp.functionVacancies?.[f] || opp.vacancies || 1}
+                                  </span>
+                                </div>
+                                {(() => {
+                                  const vacancyLimit = opp.functionVacancies?.[f] || opp.vacancies || 1;
+                                  const eleitosPending = funcApps.filter((app, index) => index < vacancyLimit && app.status === 'applied');
+                                  if (eleitosPending.length > 0) {
+                                    return (
+                                      <button
+                                        onClick={() => handleDeferAllForFunction(opp, f, eleitosPending)}
+                                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg shadow-sm flex items-center gap-1 transition-all"
+                                        title="Deferir todos os candidatos eleitos nesta função e incluir na Escala 24h"
+                                      >
+                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                        Deferir Eleitos ({eleitosPending.length})
+                                      </button>
+                                    );
+                                  }
+                                  return null;
+                                })()}
                               </div>
-                              <div className="flex flex-col gap-2">
+                              <div className="flex flex-col gap-2 p-2">
                                 {funcApps.length === 0 && (
                                   <div className="p-4 text-center text-sm font-bold text-slate-400 uppercase tracking-widest">Nenhum interessado para esta função.</div>
                                 )}
-                                {funcApps.map((app, index) => (
-                                  <div key={app.id} className="p-4 border-b border-slate-100 last:border-0 flex items-center justify-between bg-[#ffeceb] hover:bg-[#ffe1e0] transition-colors rounded-lg mx-2 mb-2 shadow-sm relative">
-                                    {index < (opp.functionVacancies?.[f] || opp.vacancies || 1) && app.status === 'applied' && (
-                                      <div className="absolute -top-2 left-4 bg-emerald-500 text-white text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded shadow-sm border border-emerald-600 z-10">
-                                        Eleito (Prévia)
+                                {funcApps.map((app, index) => {
+                                  const vacancyLimit = opp.functionVacancies?.[f] || opp.vacancies || 1;
+                                  const isPreviaEleito = index < vacancyLimit && app.status === 'applied';
+                                  const isSelected = app.status === 'selected';
+                                  const isRejected = app.status === 'rejected';
+
+                                  return (
+                                    <div 
+                                      key={app.id} 
+                                      className={cn(
+                                        "p-4 border-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl mx-1 mb-1 shadow-xs relative transition-all",
+                                        isSelected 
+                                          ? "bg-emerald-50/90 border-emerald-400 shadow-emerald-100" 
+                                          : isRejected 
+                                            ? "bg-rose-50/50 border-rose-200 opacity-60" 
+                                            : isPreviaEleito 
+                                              ? "bg-amber-50/70 border-amber-300 hover:bg-amber-50" 
+                                              : "bg-white border-slate-200 hover:bg-slate-50"
+                                      )}
+                                    >
+                                      {isPreviaEleito && (
+                                        <div className="absolute -top-2.5 left-4 bg-amber-500 text-white text-[8px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded shadow-sm border border-amber-600 z-10 flex items-center gap-1">
+                                          <Sparkles className="w-2.5 h-2.5" />
+                                          Eleito por Antiguidade / Horas (Prévia)
+                                        </div>
+                                      )}
+                                      {isSelected && (
+                                        <div className="absolute -top-2.5 left-4 bg-emerald-600 text-white text-[8px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded shadow-sm border border-emerald-700 z-10 flex items-center gap-1">
+                                          <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                          Contemplado na Escala 24h ({opp.date.split('-').reverse().join('/')})
+                                        </div>
+                                      )}
+
+                                      <div className="flex items-center gap-3">
+                                        <div className="origin-left shrink-0">
+                                          <RankInsignia rankStr={app.militarRank} className="w-7 h-7" />
+                                        </div>
+                                        <div className="flex flex-col text-left">
+                                          <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-0.5 flex items-center gap-1.5">
+                                            {app.militarRank} {app.militarQuadro ? `(${app.militarQuadro})` : ''}
+                                            {isSelected && (
+                                              <span className="text-[8px] bg-emerald-200/80 text-emerald-800 px-1.5 py-0.2 rounded font-black">
+                                                ESCALA 24H
+                                              </span>
+                                            )}
+                                          </span>
+                                          <span className="text-lg font-black text-slate-800 uppercase leading-none mb-1 tracking-tight">
+                                            {app.militarWarName || app.militarName}
+                                          </span>
+                                          <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                            <span>RG: {app.militarRg}</span>
+                                            {app.militarPromotionDate && (
+                                              <>
+                                                <span>•</span>
+                                                <span>Prom: {app.militarPromotionDate}</span>
+                                              </>
+                                            )}
+                                          </div>
+                                        </div>
                                       </div>
-                                    )}
-                                    <div className="flex items-center gap-4">
-                                      <ChevronDown className="w-6 h-6 text-rose-400 stroke-[3]" />
-                                      <div className="flex flex-col">
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-0.5">
-                                          {app.militarRank} {app.militarQuadro ? `${app.militarQuadro}` : ''}
-                                        </span>
-                                        <span className="text-xl font-black text-slate-800 uppercase leading-none mb-1">
-                                          {app.militarWarName || app.militarName}
-                                        </span>
-                                        <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">RG: {app.militarRg}</span>
-                                      </div>
-                                    </div>
-                                    
-                                    <div className="flex flex-col items-end gap-2">
-                                       <div className="flex items-center gap-2">
-                                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Horas:</span>
-                                         <div className="text-sm font-black text-slate-700 bg-white px-3 py-1 rounded-lg shadow-sm border border-slate-200">
-                                           {(app as any).militarRasHours || 0}h
+                                      
+                                      <div className="flex flex-wrap items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200">
+                                         <div className="flex items-center gap-2">
+                                           <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Banco:</span>
+                                           <div className="text-xs font-black text-slate-700 bg-white px-2.5 py-1 rounded-lg shadow-sm border border-slate-200">
+                                             {(app as any).militarRasHours || 0}h
+                                           </div>
                                          </div>
-                                       </div>
-                                       <div className="flex items-center gap-2 mt-1">
-                                         {app.status === 'applied' && (
-                                           <>
-                                             <button onClick={() => handleApplicationStatus(app, opp, 'selected')} className="p-1.5 bg-emerald-100 text-emerald-600 hover:bg-emerald-200 rounded-lg transition-colors" title="Aprovar">
-                                               <CheckCircle2 className="w-5 h-5" />
-                                             </button>
-                                             <button onClick={() => handleApplicationStatus(app, opp, 'rejected')} className="p-1.5 bg-red-100 text-red-600 hover:bg-red-200 rounded-lg transition-colors" title="Rejeitar">
-                                               <XCircle className="w-5 h-5" />
-                                             </button>
-                                           </>
-                                         )}
-                                         {app.status !== 'applied' && (
-                                            <span className={cn(
-                                              "text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full",
-                                              app.status === 'selected' ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
-                                            )}>
-                                              {app.status === 'selected' ? 'Selecionado' : 'Rejeitado'}
-                                            </span>
-                                         )}
-                                       </div>
+
+                                         <div className="flex items-center gap-2">
+                                           {app.status === 'applied' && (
+                                             <>
+                                               <button 
+                                                 onClick={() => handleApplicationStatus(app, opp, 'selected')} 
+                                                 className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl transition-all shadow-sm font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 active:scale-95" 
+                                                 title="Deferir e incluir na Escala 24h"
+                                               >
+                                                 <CheckCircle2 className="w-4 h-4" />
+                                                 Deferir / Contemplar
+                                               </button>
+                                               <button 
+                                                 onClick={() => handleApplicationStatus(app, opp, 'rejected')} 
+                                                 className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl transition-colors font-bold" 
+                                                 title="Indeferir"
+                                               >
+                                                 <XCircle className="w-4 h-4" />
+                                               </button>
+                                             </>
+                                           )}
+                                           {isSelected && (
+                                             <div className="flex items-center gap-2">
+                                               {onNavigateToEscala && (
+                                                 <button
+                                                   onClick={() => onNavigateToEscala(opp.date)}
+                                                   className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-1 border border-indigo-200 transition-colors"
+                                                   title="Abrir a data desta oportunidade na Escala 24h"
+                                                 >
+                                                   <ExternalLink className="w-3 h-3" />
+                                                   Ver na Escala 24h
+                                                 </button>
+                                               )}
+                                               <button
+                                                 onClick={() => handleApplicationStatus(app, opp, 'applied')}
+                                                 className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
+                                                 title="Reverter para análise"
+                                               >
+                                                 Reverter
+                                               </button>
+                                               <button
+                                                 onClick={() => handleApplicationStatus(app, opp, 'rejected')}
+                                                 className="p-1.5 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-lg transition-colors"
+                                                 title="Indeferir e retirar da Escala"
+                                               >
+                                                 <XCircle className="w-4 h-4" />
+                                               </button>
+                                             </div>
+                                           )}
+                                           {isRejected && (
+                                             <div className="flex items-center gap-2">
+                                               <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                                                 Indeferido
+                                               </span>
+                                               <button
+                                                 onClick={() => handleApplicationStatus(app, opp, 'selected')}
+                                                 className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors"
+                                                 title="Deferir e incluir na Escala 24h"
+                                               >
+                                                 Deferir
+                                               </button>
+                                             </div>
+                                           )}
+                                         </div>
+                                      </div>
                                     </div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
                           )

@@ -12,7 +12,7 @@ import { RankInsignia } from "./RankInsignia";
 import { EscalaPrintView } from "./EscalaPrintView";
 import { RequestPermuta } from "./RequestPermuta";
 import { AfastamentosAlaModule } from "./AfastamentosAlaModule";
-import { Calendar as CalendarIcon, Users, ArrowRightLeft, ArrowRight, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, Check, X, Clock, Printer, Shuffle, Plus, Settings, Activity, TrendingDown, PieChart, BriefcaseBusiness, Download } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, ArrowRightLeft, ArrowRight, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, Check, X, Clock, Printer, Shuffle, Plus, Settings, Activity, TrendingDown, PieChart, BriefcaseBusiness, Download, RotateCcw } from 'lucide-react';
 
 import { motion } from "framer-motion";
 import { cleanUndefined, getUserObmAccess, normalizeObm, getAlaForDate, cn, getAlaColor, getAlaName, formatMilitaryName, normalizeAlaField } from '../lib/utils';
@@ -144,10 +144,12 @@ function FuncoesMultiSelect({
 }
 
 import { UserProfile } from "../types";
+import { RAS_FUNCTION_MAP } from "../constants";
 
 interface EscalaEspelhoModuleProps {
   obmContext: string;
   user: UserProfile;
+  initialDate?: string;
 }
 
 const DEFAULT_VIATURAS: any[] = [
@@ -162,11 +164,17 @@ const DEFAULT_VIATURAS: any[] = [
   { id: "ABT-12", vtr: "ABT-12", ativa: false, exibir: false, maritima: false, condutor: false, g1: false, g2: false, g3: false, g4: false, cg: false, blocked: [] },
 ];
 
-export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModuleProps) {
+export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEspelhoModuleProps) {
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState<string>(
-    format(new Date(), "yyyy-MM-dd"),
+    initialDate || format(new Date(), "yyyy-MM-dd"),
   );
+
+  useEffect(() => {
+    if (initialDate) {
+      setSelectedDate(initialDate);
+    }
+  }, [initialDate]);
   const { militars, loading: militarsLoading } = useMilitars();
   const [permutas, setPermutas] = useState<PermutaRequest[]>([]);
   const [afastamentos, setAfastamentos] = useState<any[]>([]);
@@ -342,24 +350,25 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                    if (filtered.length > 0) baseVtrs = filtered;
                }
 
-               if (savedViaturas) {
-                   const merged = baseVtrs.map(base => {
-                       const saved = savedViaturas!.find((s: any) => s.id === base.id);
-                       if (saved) {
-                           return { 
-                               ...base, 
-                               ativa: saved.ativa !== undefined ? saved.ativa : base.ativa,
-                               condutor: saved.condutor !== undefined ? saved.condutor : base.condutor,
-                               g1: saved.g1 !== undefined ? saved.g1 : base.g1,
-                               g2: saved.g2 !== undefined ? saved.g2 : base.g2,
-                               g3: saved.g3 !== undefined ? saved.g3 : base.g3,
-                               g4: saved.g4 !== undefined ? saved.g4 : base.g4,
-                               cg: saved.cg !== undefined ? saved.cg : base.cg
-                           };
-                       }
-                       return base;
+               if (savedViaturas && Array.isArray(savedViaturas) && savedViaturas.length > 0) {
+                   const mergedSaved = savedViaturas.map((saved: any) => {
+                       const base = baseVtrs.find((b: any) => b.id === saved.id || b.vtr === saved.vtr) || {};
+                       return { 
+                           ...base, 
+                           ...saved,
+                           ativa: saved.ativa !== undefined ? saved.ativa : (base.ativa !== undefined ? base.ativa : true),
+                           exibir: saved.exibir !== undefined ? saved.exibir : (base.exibir !== undefined ? base.exibir : true),
+                           espaco: saved.espaco || base.espaco || (base.maritima || base.vtr?.startsWith('L-') || base.vtr?.startsWith('BIA') ? '1/3' : (base.vtr?.startsWith('AR') || base.vtr?.startsWith('ARC') ? '1/2' : '1')),
+                           condutor: saved.condutor !== undefined ? saved.condutor : base.condutor,
+                           g1: saved.g1 !== undefined ? saved.g1 : base.g1,
+                           g2: saved.g2 !== undefined ? saved.g2 : base.g2,
+                           g3: saved.g3 !== undefined ? saved.g3 : base.g3,
+                           g4: saved.g4 !== undefined ? saved.g4 : base.g4,
+                           cg: saved.cg !== undefined ? saved.cg : base.cg
+                       };
                    });
-                   setViaturasInfo(merged);
+                   const remainingBase = baseVtrs.filter((b: any) => !savedViaturas!.some((s: any) => s.id === b.id || s.vtr === b.vtr));
+                   setViaturasInfo([...mergedSaved, ...remainingBase]);
                } else {
                    setViaturasInfo(baseVtrs);
                }
@@ -443,6 +452,85 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     };
   }, [selectedDate, obmContext]);
 
+  // Real-time listener for RAS opportunities and contemplated applications on selectedDate
+  useEffect(() => {
+    if (!selectedDate || !obmContext) return;
+
+    let isCancelled = false;
+    let appUnsubscribers: (() => void)[] = [];
+
+    const cleanAppUnsubs = () => {
+      appUnsubscribers.forEach(u => u());
+      appUnsubscribers = [];
+    };
+
+    const qOpps = query(
+      collection(db, 'ras_opportunities'),
+      where('date', '==', selectedDate)
+    );
+
+    const unsubOpps = onSnapshot(qOpps, (oppsSnap) => {
+      if (isCancelled) return;
+      cleanAppUnsubs();
+
+      const matchingOpps = oppsSnap.docs
+        .map(d => ({ id: d.id, ...d.data() } as any))
+        .filter(o => !o.obm || obmContext === 'GLOBAL' || normalizeObm(o.obm) === normalizeObm(obmContext));
+
+      if (matchingOpps.length === 0) {
+        setRasApplications([]);
+        return;
+      }
+
+      const appsMap: Record<string, any[]> = {};
+      matchingOpps.forEach(opp => {
+        const qApps = query(
+          collection(db, 'ras_applications'),
+          where('rasId', '==', opp.id)
+        );
+        const unsubApp = onSnapshot(qApps, (appSnap) => {
+          if (isCancelled) return;
+          const apps = appSnap.docs
+            .map(d => ({ id: d.id, ...d.data(), oppDate: opp.date, oppDuration: opp.duration, oppLocal: opp.local }))
+            .filter((a: any) => a.status === 'selected' || a.status === 'completed');
+          appsMap[opp.id] = apps;
+          const merged = Object.values(appsMap).flat();
+          setRasApplications(merged);
+        });
+        appUnsubscribers.push(unsubApp);
+      });
+    });
+
+    return () => {
+      isCancelled = true;
+      cleanAppUnsubs();
+      unsubOpps();
+    };
+  }, [selectedDate, obmContext]);
+
+  // Sincroniza funções pré-definidas no RAS quando os contemplados carregam
+  const autoFilledRas = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (rasApplications.length > 0) {
+      setSelectedFunctions(prev => {
+        const next = { ...prev };
+        let changed = false;
+        rasApplications.forEach(app => {
+          if (app.id && !autoFilledRas.current.has(app.id) && app.militarRg) {
+            const mappedRole = app.functionId ? RAS_FUNCTION_MAP[app.functionId] : undefined;
+            if (mappedRole && (!next[app.militarRg] || next[app.militarRg].length === 0)) {
+              next[app.militarRg] = [mappedRole];
+              changed = true;
+              autoFilledRas.current.add(app.id);
+            }
+          }
+        });
+        return changed ? next : prev;
+      });
+    }
+  }, [rasApplications]);
+
   // Sincroniza funções pré-definidas nas permutas quando elas carregam
   const autoFilledPermutas = useRef(new Set<string>());
 
@@ -486,7 +574,20 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
   // Base Roster for the identified Ala
   const baseRoster = useMemo(() => {
     const manualRgs = manuallyAddedRgs[selectedDate] || [];
-    const allMilitarsPool = [...militars, ...extraMilitars];
+    const rasRgs = rasApplications.map((a: any) => a.militarRg);
+
+    // Make sure all militars in rasApplications exist in the pool even if from another OBM or external search
+    const rasPoolMilitars = rasApplications.map((app: any) => ({
+      id: app.militarId || app.militarRg,
+      rg: app.militarRg,
+      name: app.militarName,
+      warName: app.militarWarName || '',
+      rank: app.militarRank,
+      quadro: app.militarQuadro || '',
+      obm: obmContext
+    } as any));
+
+    const allMilitarsPool = [...militars, ...extraMilitars, ...rasPoolMilitars];
     // Remove duplicates
     const uniquePool = Array.from(new Map(allMilitarsPool.map(m => [m.rg, m])).values());
     
@@ -501,9 +602,10 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
         const isAla = isInCtx && normalizeAlaField(m.ala) === identifiedAlaStr;
         const isManual = manualRgs.includes(m.rg || '');
         const isExpediente = isInCtx && expedienteRgs.includes(m.rg || '');
+        const isRas = rasRgs.includes(m.rg || '');
         
-        if (!isActive && !isManual) return false;
-        if (!isAla && !isManual && !isExpediente) return false;
+        if (!isActive && !isManual && !isRas) return false;
+        if (!isAla && !isManual && !isExpediente && !isRas) return false;
         
         // Verifica se há afastamento para o militar na data selecionada
         const hasAfastamento = afastamentos.some((a) => {
@@ -516,8 +618,8 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
         return !hasAfastamento;
       })
       .sort((a, b) => {
-        const isManualA = manualRgs.includes(a.rg || '');
-        const isManualB = manualRgs.includes(b.rg || '');
+        const isManualA = manualRgs.includes(a.rg || '') || rasRgs.includes(a.rg || '');
+        const isManualB = manualRgs.includes(b.rg || '') || rasRgs.includes(b.rg || '');
         
         if (isManualA && !isManualB) return 1;
         if (!isManualA && isManualB) return -1;
@@ -526,7 +628,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
         const rgB = parseInt((b.rg || "").replace(/\D/g, "") || "0");
         return rgA - rgB;
       });
-  }, [militars, extraMilitars, identifiedAlaStr, afastamentos, selectedDate, manuallyAddedRgs, expedienteRgs, obmContext]);
+  }, [militars, extraMilitars, identifiedAlaStr, afastamentos, selectedDate, manuallyAddedRgs, expedienteRgs, rasApplications, obmContext]);
 
   // Map to easily find if a militar is swapping out
   const permutasOut = useMemo(() => {
@@ -933,6 +1035,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
         vtr: id,
         ativa: true,
         exibir: true,
+        espaco: (maritima ? '1/3' : (id.startsWith('AR') || id.startsWith('ARC') ? '1/2' : '1')),
         maritima,
         condutor: true,
         g1: true,
@@ -1912,6 +2015,12 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                                 EXPEDIENTE
                               </span>
                             )}
+                            {rasApplications.some(a => a.militarRg === rg) && (
+                              <span className="mt-1 text-[8px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded w-max uppercase tracking-widest flex items-center gap-1 shadow-xs">
+                                <BriefcaseBusiness className="w-2.5 h-2.5 text-amber-600" />
+                                RAS {rasApplications.find(a => a.militarRg === rg)?.oppDuration ? `(${rasApplications.find(a => a.militarRg === rg)?.oppDuration}h)` : ''}
+                              </span>
+                            )}
                           </div>
                         </div>
                         {manuallyAddedRgs[selectedDate]?.includes(rg) && (
@@ -2371,8 +2480,14 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
               <thead className="bg-[#1e293b] text-white text-[11px]">
                 <tr>
                   <th
-                    className="p-3 px-2 border-b border-r border-[#334155] w-12 text-center"
-                    title="Exibir VTR na escala gerada?"
+                    className="p-3 px-2 border-b border-r border-[#334155] w-14 text-center"
+                    title="Alterar ordem da viatura na escala (mover para esquerda ou direita no arquivo gerado)"
+                  >
+                    Ordem
+                  </th>
+                  <th
+                    className="p-3 px-2 border-b border-r border-[#334155] w-36 text-center"
+                    title="Exibir VTR na escala gerada e definir espaço (1, 1/2 ou 1/3)"
                   >
                     Exibição
                   </th>
@@ -2409,22 +2524,58 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {viaturasInfo.map((vtr) => {
-                  const isAtiva = vtr.ativa;
-                  const isExibir = vtr.exibir ?? vtr.ativa;
+                {viaturasInfo.map((vtr, vtrIdx) => {
+                  const isAtiva = Boolean(vtr.ativa);
+                  const isExibir = vtr.exibir !== undefined ? Boolean(vtr.exibir) : true;
+                  const vtrEspaco: '1' | '1/2' | '1/3' = vtr.espaco === '1/3' ? '1/3' : (vtr.espaco === '1/2' ? '1/2' : '1');
 
-                  const toggleVtr = () => {
+                  const moveVtrUp = (e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    if (vtrIdx <= 0) return;
+                    setViaturasInfo((prev) => {
+                      const next = [...prev];
+                      const temp = next[vtrIdx - 1];
+                      next[vtrIdx - 1] = next[vtrIdx];
+                      next[vtrIdx] = temp;
+                      return next;
+                    });
+                  };
+
+                  const moveVtrDown = (e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    if (vtrIdx >= viaturasInfo.length - 1) return;
+                    setViaturasInfo((prev) => {
+                      const next = [...prev];
+                      const temp = next[vtrIdx + 1];
+                      next[vtrIdx + 1] = next[vtrIdx];
+                      next[vtrIdx] = temp;
+                      return next;
+                    });
+                  };
+
+                  const toggleVtr = (e: React.MouseEvent) => {
+                    e.stopPropagation();
                     setViaturasInfo((prev) =>
-                      prev.map((v) =>
-                        v.id === vtr.id ? { ...v, ativa: !v.ativa } : v,
+                      prev.map((v, i) =>
+                        i === vtrIdx ? { ...v, ativa: !Boolean(v.ativa) } : v,
                       ),
                     );
                   };
 
-                  const toggleExibir = () => {
+                  const toggleExibir = (e: React.MouseEvent) => {
+                    e.stopPropagation();
                     setViaturasInfo((prev) =>
-                      prev.map((v) =>
-                        v.id === vtr.id ? { ...v, exibir: !(v.exibir ?? v.ativa) } : v,
+                      prev.map((v, i) =>
+                        i === vtrIdx ? { ...v, exibir: !(v.exibir !== undefined ? Boolean(v.exibir) : true) } : v,
+                      ),
+                    );
+                  };
+
+                  const setEspaco = (e: React.MouseEvent, esp: '1' | '1/2' | '1/3') => {
+                    e.stopPropagation();
+                    setViaturasInfo((prev) =>
+                      prev.map((v, i) =>
+                        i === vtrIdx ? { ...v, espaco: esp } : v,
                       ),
                     );
                   };
@@ -2432,10 +2583,10 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                   const toggleCheck = (
                     field: "condutor" | "g1" | "g2" | "g3" | "g4" | "cg",
                   ) => {
-                    if (vtr.blocked.includes(field)) return;
+                    if (vtr.blocked?.includes(field)) return;
                     setViaturasInfo((prev) =>
-                      prev.map((v) =>
-                        v.id === vtr.id ? { ...v, [field]: !v[field] } : v,
+                      prev.map((v, i) =>
+                        i === vtrIdx ? { ...v, [field]: !v[field] } : v,
                       ),
                     );
                   };
@@ -2443,7 +2594,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                   const renderCheckbox = (
                     field: "condutor" | "g1" | "g2" | "g3" | "g4" | "cg",
                   ) => {
-                    if (vtr.blocked.includes(field)) {
+                    if (vtr.blocked?.includes(field)) {
                       return (
                         <div className="bg-slate-700 opacity-90 w-full h-full min-h-[32px] flex items-center justify-center"></div>
                       );
@@ -2466,31 +2617,121 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
 
                   return (
                     <tr
-                      key={vtr.id}
+                      key={vtr.id || vtrIdx}
                       className="hover:bg-slate-50 transition-colors group"
                     >
-                      <td
-                        className="p-1 border-r border-slate-200 text-center align-middle"
-                        onClick={toggleExibir}
-                      >
-                        {isExibir ? (
-                          <div className="w-3.5 h-3.5 bg-slate-700/80 rounded-[3px] text-white flex items-center justify-center mx-auto shadow-sm cursor-pointer hover:bg-slate-800 transition">
-                            <span className="text-[10px]">✓</span>
+                      {/* Botões de Alterar Ordem */}
+                      <td className="p-1 px-1.5 border-r border-slate-200 text-center align-middle">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={moveVtrUp}
+                            disabled={vtrIdx === 0}
+                            className={cn(
+                              "w-5 h-5 rounded flex items-center justify-center text-[10px] font-black transition-colors cursor-pointer",
+                              vtrIdx === 0
+                                ? "text-slate-300 cursor-not-allowed"
+                                : "bg-slate-100 hover:bg-slate-700 hover:text-white text-slate-700 shadow-xs"
+                            )}
+                            title="Mover viatura para cima (posiciona mais à esquerda no arquivo gerado)"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            type="button"
+                            onClick={moveVtrDown}
+                            disabled={vtrIdx === viaturasInfo.length - 1}
+                            className={cn(
+                              "w-5 h-5 rounded flex items-center justify-center text-[10px] font-black transition-colors cursor-pointer",
+                              vtrIdx === viaturasInfo.length - 1
+                                ? "text-slate-300 cursor-not-allowed"
+                                : "bg-slate-100 hover:bg-slate-700 hover:text-white text-slate-700 shadow-xs"
+                            )}
+                            title="Mover viatura para baixo (posiciona mais à direita no arquivo gerado)"
+                          >
+                            ▼
+                          </button>
+                        </div>
+                      </td>
+
+                      {/* Coluna Exibição + Seletor de Espaço */}
+                      <td className="p-1 px-2 border-r border-slate-200 text-center align-middle">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {/* Checkbox Exibir */}
+                          <div
+                            onClick={toggleExibir}
+                            title={isExibir ? "Viatura exibida na escala" : "Viatura oculta na escala"}
+                            className="cursor-pointer shrink-0"
+                          >
+                            {isExibir ? (
+                              <div className="w-4 h-4 bg-slate-700/80 rounded-[3px] text-white flex items-center justify-center shadow-sm hover:bg-slate-800 transition">
+                                <span className="text-[10px]">✓</span>
+                              </div>
+                            ) : (
+                              <div className="w-4 h-4 border border-slate-300 rounded-[3px] hover:border-slate-500 transition" />
+                            )}
                           </div>
-                        ) : (
-                          <div className="w-3.5 h-3.5 border border-slate-300 rounded-[3px] mx-auto cursor-pointer hover:border-slate-500 transition" />
-                        )}
+
+                          {/* Seletor de Espaço 1, 1/2 ou 1/3 */}
+                          <div
+                            className={cn(
+                              "inline-flex items-center rounded border border-slate-200 overflow-hidden bg-slate-100 text-[9px] font-black transition-opacity",
+                              !isExibir && "opacity-40"
+                            )}
+                          >
+                            <button
+                              type="button"
+                              onClick={(e) => setEspaco(e, '1')}
+                              className={cn(
+                                "px-1.5 py-0.5 transition-colors cursor-pointer",
+                                vtrEspaco === '1'
+                                  ? "bg-slate-800 text-white font-black"
+                                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
+                              )}
+                              title="1 espaço completo (coluna inteira)"
+                            >
+                              1
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => setEspaco(e, '1/2')}
+                              className={cn(
+                                "px-1 py-0.5 border-l border-slate-200 transition-colors cursor-pointer",
+                                vtrEspaco === '1/2'
+                                  ? "bg-slate-800 text-white font-black"
+                                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
+                              )}
+                              title="1/2 espaço (meia coluna compartilhada)"
+                            >
+                              1/2
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => setEspaco(e, '1/3')}
+                              className={cn(
+                                "px-1 py-0.5 border-l border-slate-200 transition-colors cursor-pointer",
+                                vtrEspaco === '1/3'
+                                  ? "bg-slate-800 text-white font-black"
+                                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
+                              )}
+                              title="1/3 espaço (terço de coluna compartilhada, ex: L-09, BIA-13 e BIA juntas)"
+                            >
+                              1/3
+                            </button>
+                          </div>
+                        </div>
                       </td>
                       <td
-                        className="p-1 border-r border-slate-200 text-center align-middle"
+                        className="p-1 border-r border-slate-200 text-center align-middle cursor-pointer"
                         onClick={toggleVtr}
+                        title={isAtiva ? "Viatura ativa" : "Viatura inativa"}
                       >
                         {isAtiva ? (
-                          <div className="w-3.5 h-3.5 bg-slate-700/80 rounded-[3px] text-white flex items-center justify-center mx-auto shadow-sm cursor-pointer hover:bg-slate-800 transition">
+                          <div className="w-4 h-4 bg-slate-700/80 rounded-[3px] text-white flex items-center justify-center mx-auto shadow-sm hover:bg-slate-800 transition">
                             <span className="text-[10px]">✓</span>
                           </div>
                         ) : (
-                          <div className="w-3.5 h-3.5 border border-slate-300 rounded-[3px] mx-auto cursor-pointer hover:border-slate-500 transition" />
+                          <div className="w-4 h-4 border border-slate-300 rounded-[3px] mx-auto hover:border-slate-500 transition" />
                         )}
                       </td>
                       <td className="p-1.5 border-r border-slate-200 text-center text-slate-700 font-black">

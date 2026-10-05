@@ -42,6 +42,7 @@ const ESCALANTE_APPS = [
 
 export function EscalanteDashboard({ user, obmContext, setObmContext, availableObms, onBack }: EscalanteDashboardProps) {
   const [activeApp, setActiveApp] = useState<string | null>(null);
+  const [escalaInitialDate, setEscalaInitialDate] = useState<string | undefined>(undefined);
   const [isPending, startTransition] = useTransition();
 
   const handleObmChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -166,7 +167,7 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
 
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col">
            <div className="w-full p-2 sm:p-6">
-             <EscalaEspelhoModule obmContext={obmContext} user={user} />
+             <EscalaEspelhoModule obmContext={obmContext} user={user} initialDate={escalaInitialDate} />
            </div>
         </div>
       </div>
@@ -316,7 +317,14 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
 
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col">
            <div className="w-full p-4 sm:p-6">
-             <RasManagerModule obmContext={obmContext} user={user} />
+             <RasManagerModule 
+               obmContext={obmContext} 
+               user={user} 
+               onNavigateToEscala={(date) => {
+                 if (date) setEscalaInitialDate(date);
+                 setActiveApp('escala');
+               }}
+             />
            </div>
         </div>
       </div>

@@ -21,7 +21,7 @@ export function EscalaPrintView({
   // Helper to get active viaturas dynamically
   const getActiveVtr = (prefix: string, index: number = 0) => {
      if (!viaturasInfo) return prefix;
-     const activeVtrs = viaturasInfo.filter((v: any) => (v.exibir ?? v.ativa) && (prefix === 'AR' ? v.vtr.startsWith('AR-') : v.vtr.startsWith(prefix)));
+     const activeVtrs = viaturasInfo.filter((v: any) => (v.exibir !== undefined ? Boolean(v.exibir) : true) && (prefix === 'AR' ? v.vtr.startsWith('AR-') : v.vtr.startsWith(prefix)));
      if (activeVtrs.length > index) return activeVtrs[index].vtr;
      return `${prefix}-???`; 
   };
@@ -41,16 +41,28 @@ export function EscalaPrintView({
   };
   const headerColorClass = getPrintColor(identifiedAla);
   
+  // Normalize function names for robust matching
+  const normalize = (s: string) => {
+    if (!s) return '';
+    return s.replace(/[-_]/g, ' ').replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim().toUpperCase();
+  };
+
   // Helpers to get militars by function
   const getByFunc = (funcName: string) => {
+    const targetNorm = normalize(funcName);
     return baseRoster.filter((m: any) => {
       const rg = m.rg || '';
       const funcs = selectedFunctions[rg] || [];
-      return funcs.includes(funcName);
+      return funcs.some((f: string) => {
+        const fNorm = normalize(f);
+        if (fNorm === targetNorm) return true;
+        if (f.trim().toUpperCase() === funcName.trim().toUpperCase()) return true;
+        return false;
+      });
     }).map((m: any) => {
       const rg = m.rg || '';
       const isSwapped = permutasOut.has(rg);
-      const actualMilitar = isSwapped ? (militars.find((x: any) => x.rg === permutasOut.get(rg).substituteRg) || m) : m;
+      const actualMilitar = isSwapped ? (militars.find((x: any) => x.rg === permutasOut.get(rg)?.substituteRg) || m) : m;
       return actualMilitar;
     });
   };
@@ -77,7 +89,7 @@ export function EscalaPrintView({
   let usedMilitars = new Set<string>();
   const getVtrByPrefix = (prefix: string, index: number = 0) => {
      if (!viaturasInfo) return null;
-     const activeVtrs = viaturasInfo.filter((v: any) => (v.exibir ?? v.ativa) && (prefix === 'AR' ? v.vtr.startsWith('AR-') : v.vtr.startsWith(prefix)));
+     const activeVtrs = viaturasInfo.filter((v: any) => (v.exibir !== undefined ? Boolean(v.exibir) : true) && (prefix === 'AR' ? (v.vtr.startsWith('AR-') || v.vtr.startsWith('AR ')) && !v.vtr.startsWith('ARC') : (v.vtr.startsWith(prefix) || v.vtr.includes(prefix))));
      return activeVtrs[index] || null;
   };
 
@@ -86,30 +98,163 @@ export function EscalaPrintView({
      if (v.customNames?.[slot]?.trim()) {
         const custom = v.customNames[slot].trim().toUpperCase();
         const sigla = (v.vtr || "").split('-')[0].trim();
-        if (slot === 'cg' && custom === 'CHEFE') return `CHEFE-${sigla}`;
+        if (custom === 'ENFERMEIRO') return 'ENFERMEIRO';
+        if (custom === 'AUXILIAR/CHEFE ARC' || custom === 'AUXILIAR / CHEFE ARC') return 'AUXILIAR/CHEFE ARC';
+        if (custom === 'MESTRE L' || custom === 'MESTRE BIA') return custom;
+        if (custom.endsWith(sigla)) return custom;
+        if (slot === 'cg' && (custom === 'CHEFE' || custom === 'CHEFE DE GUARNIÇÃO' || custom === 'CHEFE GUA')) return `CHEFE ${sigla}`;
         return `${custom} ${sigla}`.trim();
      }
      return defaultName;
   };
 
-  const getVtrSlotMilitar = (v: any, slot: string, defaultName: string) => {
-     if (!v || v[slot] === false || v.blocked?.includes(slot)) return null;
+  const getVtrSlotMilitar = (v: any, slot: string, defaultName: string, forceRender = false) => {
+     if (!forceRender && (!v || v[slot] === false || v.blocked?.includes(slot))) return null;
      const funcName = getSlotName(v, slot, defaultName);
+     const rawSigla = (v?.vtr || defaultName || "").split(/[-_\s]/);
+     const sigla = rawSigla[0] === 'CHEFE' || rawSigla[0] === 'CONDUTOR' || rawSigla[0] === 'AUXILIAR'
+        ? rawSigla[1] || ''
+        : rawSigla[0] || '';
+     
+     // 1. Primary check: exact or normalized slot function name
      const candidates = getByFunc(funcName);
-     const unused = candidates.find((m: any) => !usedMilitars.has(m.rg));
+     let unused = candidates.find((m: any) => !usedMilitars.has(m.rg));
      if (unused) {
         usedMilitars.add(unused.rg);
         return unused;
      }
+
+     // 2. Specific Fallbacks for Chefe (cg)
+     if (slot === 'cg') {
+        // Fallback A: specific "CHEFE <SIGLA>" (e.g. CHEFE ABT, CHEFE ABSL)
+        if (sigla) {
+           const specificCandidates = getByFunc(`CHEFE ${sigla}`);
+           unused = specificCandidates.find((m: any) => !usedMilitars.has(m.rg));
+           if (unused) {
+              usedMilitars.add(unused.rg);
+              return unused;
+           }
+        }
+
+        // Fallback B: any function with both "CHEFE" and sigla (e.g. CHEFE DA GU ABT, CHEFE DE OPERAÇÃO ABT)
+        const anyChefeSigla = baseRoster.filter((m: any) => {
+           if (usedMilitars.has(m.rg)) return false;
+           const funcs = (selectedFunctions[m.rg] || []).map(normalize);
+           return funcs.some(f => f.includes('CHEFE') && (sigla ? f.includes(sigla) : true));
+        });
+        if (anyChefeSigla.length > 0) {
+           const chosen = anyChefeSigla[0];
+           const isSwapped = permutasOut.has(chosen.rg);
+           const actualMilitar = isSwapped ? (militars.find((x: any) => x.rg === permutasOut.get(chosen.rg)?.substituteRg) || chosen) : chosen;
+           usedMilitars.add(chosen.rg);
+           return actualMilitar;
+        }
+
+        // Fallback C: generic CHEFE GUA / CHEFE DE GU / CHEFE GUARNIÇÃO / CHEFE
+        const genericChefe = baseRoster.filter((m: any) => {
+           if (usedMilitars.has(m.rg)) return false;
+           const funcs = (selectedFunctions[m.rg] || []).map(normalize);
+           return funcs.some(f => f === 'CHEFE GUA' || f === 'CHEFE DE GU' || f === 'CHEFE GUARNIÇÃO' || f === 'CHEFE' || f === 'CHEFE GUA ABT' || f === 'CHEFE GUA ABSL');
+        });
+        if (genericChefe.length > 0) {
+           // If slot is ABT, prefer militar with chefeAbt: true if available
+           if (sigla === 'ABT') {
+              const pref = genericChefe.find((m: any) => m.chefeAbt);
+              if (pref) {
+                 const isSwapped = permutasOut.has(pref.rg);
+                 const actualMilitar = isSwapped ? (militars.find((x: any) => x.rg === permutasOut.get(pref.rg)?.substituteRg) || pref) : pref;
+                 usedMilitars.add(pref.rg);
+                 return actualMilitar;
+              }
+           } else if (sigla === 'ABSL') {
+              const pref = genericChefe.find((m: any) => m.chefeAbsl);
+              if (pref) {
+                 const isSwapped = permutasOut.has(pref.rg);
+                 const actualMilitar = isSwapped ? (militars.find((x: any) => x.rg === permutasOut.get(pref.rg)?.substituteRg) || pref) : pref;
+                 usedMilitars.add(pref.rg);
+                 return actualMilitar;
+              }
+           }
+           const chosen = genericChefe[0];
+           const isSwapped = permutasOut.has(chosen.rg);
+           const actualMilitar = isSwapped ? (militars.find((x: any) => x.rg === permutasOut.get(chosen.rg)?.substituteRg) || chosen) : chosen;
+           usedMilitars.add(chosen.rg);
+           return actualMilitar;
+        }
+     }
+
+     // 3. Fallbacks for Condutor
+     if (slot === 'condutor') {
+        if (sigla) {
+           const condutorSigla = getByFunc(`CONDUTOR ${sigla}`);
+           unused = condutorSigla.find((m: any) => !usedMilitars.has(m.rg));
+           if (unused) {
+              usedMilitars.add(unused.rg);
+              return unused;
+           }
+        }
+        if (sigla === 'L' || sigla === 'BIA' || v?.maritima) {
+           const mestreGeneric = getByFunc(sigla === 'BIA' ? 'MESTRE BIA' : 'MESTRE L');
+           unused = mestreGeneric.find((m: any) => !usedMilitars.has(m.rg));
+           if (unused) {
+              usedMilitars.add(unused.rg);
+              return unused;
+           }
+           const anyMaritimo = baseRoster.filter((m: any) => {
+              if (usedMilitars.has(m.rg)) return false;
+              const funcs = (selectedFunctions[m.rg] || []).map(normalize);
+              return funcs.some(f => f.includes('MESTRE') || f.includes('MARITIMO'));
+           });
+           if (anyMaritimo.length > 0) {
+              const chosen = anyMaritimo[0];
+              const isSwapped = permutasOut.has(chosen.rg);
+              const actualMilitar = isSwapped ? (militars.find((x: any) => x.rg === permutasOut.get(chosen.rg)?.substituteRg) || chosen) : chosen;
+              usedMilitars.add(chosen.rg);
+              return actualMilitar;
+           }
+        }
+     }
+
+     // 4. Fallbacks for Auxiliar (g1..g4)
+     if (slot.startsWith('g')) {
+        if (sigla) {
+           const auxSigla = getByFunc(`AUXILIAR ${sigla}`);
+           unused = auxSigla.find((m: any) => !usedMilitars.has(m.rg));
+           if (unused) {
+              usedMilitars.add(unused.rg);
+              return unused;
+           }
+        }
+        if (sigla === 'L' || sigla === 'BIA' || v?.maritima) {
+           const marinheiroGeneric = getByFunc(sigla === 'BIA' ? 'MARINHEIRO BIA' : 'MARINHEIRO L');
+           unused = marinheiroGeneric.find((m: any) => !usedMilitars.has(m.rg));
+           if (unused) {
+              usedMilitars.add(unused.rg);
+              return unused;
+           }
+           const anyMarinheiro = baseRoster.filter((m: any) => {
+              if (usedMilitars.has(m.rg)) return false;
+              const funcs = (selectedFunctions[m.rg] || []).map(normalize);
+              return funcs.some(f => f.includes('MARINHEIRO') || f.includes('MARITIMO') || f.includes('GV AMA') || f.includes('OP AMA'));
+           });
+           if (anyMarinheiro.length > 0) {
+              const chosen = anyMarinheiro[0];
+              const isSwapped = permutasOut.has(chosen.rg);
+              const actualMilitar = isSwapped ? (militars.find((x: any) => x.rg === permutasOut.get(chosen.rg)?.substituteRg) || chosen) : chosen;
+              usedMilitars.add(chosen.rg);
+              return actualMilitar;
+           }
+        }
+     }
+
      return null;
   };
 
   const renderVtrSlot = (v: any, slot: string, defaultName: string, fallbackLabel: string, forceRender = false, invisible = false) => {
      if (!forceRender && (!v || v[slot] === false || v.blocked?.includes(slot))) return null;
-     const m = getVtrSlotMilitar(v, slot, defaultName);
-     const label = getSlotName(v, slot, defaultName);
-     // Shorten label if it's too long, or just use it.
-     const displayLabel = v?.customNames?.[slot] ? v.customNames[slot].substring(0, 15) : fallbackLabel;
+     const m = getVtrSlotMilitar(v, slot, defaultName, forceRender);
+     // Shorten label if it's too long, or just use fallbackLabel
+     const displayLabel = v?.customNames?.[slot]?.trim() ? v.customNames[slot].trim().substring(0, 15) : fallbackLabel;
      
      return (
        <div className={`flex gap-1 items-center min-h-[20px] ${invisible ? 'opacity-0' : ''}`}>
@@ -145,9 +290,9 @@ export function EscalaPrintView({
   const shortDateStr = selectedDate ? format(new Date(`${selectedDate}T12:00:00`), "dd/MM/yyyy") : '';
 
   const renderInativaMsg = () => (
-     <div className="flex-1 flex flex-col items-center justify-center text-center font-black text-slate-500 px-2 leading-tight py-4 opacity-60">
-        <span>INATIVA NO SERVIÇO</span>
-        <span className="text-[10px]">({shortDateStr})</span>
+     <div className="flex flex-col items-center justify-center text-center font-bold text-slate-500 px-1 py-1 leading-tight opacity-60">
+        <span className="text-[9px] uppercase tracking-wide">INATIVA NO SERVIÇO</span>
+        <span className="text-[8px] opacity-75">({shortDateStr})</span>
      </div>
   );
 
@@ -206,138 +351,249 @@ export function EscalaPrintView({
 
         {/* VIATURAS TABLE */}
         {(() => {
-          const vArr = viaturasInfo || [];
-          const vis = (prefix: string) => getVtrByPrefix(prefix) !== null;
-          const hasABT = vis('ABT');
-          const hasABSL = vis('ABSL');
-          const hasASE = vis('ASE');
-          const hasARC = vis('ARC');
-          const hasAR = vis('AR');
-          const hasL = vis('L-');
-          const hasBIA0 = getVtrByPrefix('BIA', 0) !== null;
-          const hasBIA1 = getVtrByPrefix('BIA', 1) !== null;
-          const showCol4 = hasARC || hasAR;
-          const showCol5 = hasL || hasBIA0 || hasBIA1;
-          const cols = [hasABT, hasABSL, hasASE, showCol4, showCol5].filter(Boolean).length;
-          if (viaturasInfo && cols === 0) return null;
+          usedMilitars.clear();
+          const displayedVtrs = (viaturasInfo || []).filter((v: any) => v.exibir !== undefined ? Boolean(v.exibir) : true);
+          if (displayedVtrs.length === 0) return null;
 
-          const body = (prefix: string, idx: number, slots: any) => {
-            const v = getVtrByPrefix(prefix, idx);
-            return v && !v.ativa && (v.exibir ?? v.ativa) ? renderInativaMsg() : slots(v);
+          const getVtrEspaco = (v: any): '1' | '1/2' | '1/3' => {
+            if (v.espaco === '1/3' || v.espaco === '1/2' || v.espaco === '1') return v.espaco;
+            const name = (v.vtr || '').toUpperCase();
+            if (v.maritima || name.startsWith('L-') || name.startsWith('L ') || name.startsWith('BIA')) return '1/3';
+            if (name.startsWith('AR-') || name.startsWith('AR ') || name.startsWith('ARC-') || name.startsWith('ARC ') || name === 'AR' || name === 'ARC') return '1/2';
+            return '1';
           };
-          const sepHeader = (label: string, extra: string = '') => (
-            <div className={`border-y-2 border-black ${headerColorClass} font-bold text-center py-0.5 ${extra}`}>{label}</div>
-          );
-          const th = (label: string) => (
-            <th className="border-2 border-black py-1 px-1">{label}</th>
-          );
+
+          type VtrColumn = 
+            | { type: 'full'; vtr: any }
+            | { type: 'pair'; top: any; bottom: any }
+            | { type: 'trio'; items: any[] }
+            | { type: 'half'; vtr: any };
+
+          const columns: VtrColumn[] = [];
+
+          // Group 1/2 viaturas into pairs
+          const halfPool: any[] = [];
+          displayedVtrs.forEach((v: any) => {
+            if (getVtrEspaco(v) === '1/2') {
+              halfPool.push(v);
+            }
+          });
+
+          const halfPairs: Array<{ top: any; bottom: any } | { vtr: any }> = [];
+          for (let i = 0; i < halfPool.length; i += 2) {
+            if (i + 1 < halfPool.length) {
+              halfPairs.push({ top: halfPool[i], bottom: halfPool[i + 1] });
+            } else {
+              halfPairs.push({ vtr: halfPool[i] });
+            }
+          }
+
+          // Group 1/3 viaturas into trios (up to 3 viaturas sharing 1 space)
+          const thirdPool: any[] = [];
+          displayedVtrs.forEach((v: any) => {
+            if (getVtrEspaco(v) === '1/3') {
+              thirdPool.push(v);
+            }
+          });
+
+          const thirdGroups: Array<any[]> = [];
+          for (let i = 0; i < thirdPool.length; i += 3) {
+            thirdGroups.push(thirdPool.slice(i, i + 3));
+          }
+
+          let pairIdx = 0;
+          let trioIdx = 0;
+          const consumedIds = new Set<string>();
+
+          displayedVtrs.forEach((v: any) => {
+            if (consumedIds.has(v.id)) return;
+            const esp = getVtrEspaco(v);
+            if (esp === '1') {
+              columns.push({ type: 'full', vtr: v });
+              consumedIds.add(v.id);
+            } else if (esp === '1/2') {
+              const pair = halfPairs[pairIdx++];
+              if (pair && 'top' in pair) {
+                consumedIds.add(pair.top.id);
+                consumedIds.add(pair.bottom.id);
+                columns.push({ type: 'pair', top: pair.top, bottom: pair.bottom });
+              } else if (pair && 'vtr' in pair) {
+                consumedIds.add(pair.vtr.id);
+                columns.push({ type: 'half', vtr: pair.vtr });
+              }
+            } else if (esp === '1/3') {
+              const group = thirdGroups[trioIdx++];
+              if (group && group.length > 0) {
+                group.forEach((item: any) => consumedIds.add(item.id));
+                columns.push({ type: 'trio', items: group });
+              }
+            }
+          });
+
+          const renderSlotsForVtr = (v: any) => {
+            const vtrName = (v.vtr || "").toUpperCase();
+            const rawSigla = vtrName.split(/[-_\s]/)[0] || '';
+            const sigla = (rawSigla.startsWith('AR') && rawSigla !== 'ARC') ? 'AR' : rawSigla;
+            const isMaritima = Boolean(v.maritima || sigla === 'L' || sigla === 'BIA');
+
+            // 1. Chefe (cg)
+            const defaultCg = sigla === 'ABSL' ? 'CHEFE ABSL' : sigla === 'ABT' ? 'CHEFE ABT' : sigla === 'ARC' ? 'AUXILIAR/CHEFE ARC' : sigla === 'ASE' ? 'CHEFE ASE' : 'CHEFE GUA';
+            const fallbackCg = sigla === 'ARC' ? 'AUXILIAR/CHEFE' : 'CHEFE';
+            const forceCg = sigla === 'ABT' || sigla === 'ABSL';
+
+            // 2. Auxiliares (g1..g4)
+            const getAuxDefault = (slot: string) => {
+              if (sigla === 'ASE') return 'ENFERMEIRO';
+              if (sigla === 'ARC') return 'AUXILIAR/CHEFE ARC';
+              if (isMaritima) return vtrName.startsWith('BIA') ? 'MARINHEIRO BIA' : 'MARINHEIRO L';
+              if (sigla === 'ABT') return 'AUXILIAR ABT';
+              if (sigla === 'ABSL') return 'AUXILIAR ABSL';
+              return `AUXILIAR ${sigla}`;
+            };
+
+            const getAuxFallback = (slot: string) => {
+              if (sigla === 'ASE') return 'ENFERMEIRO';
+              if (sigla === 'ARC') return 'AUXILIAR/CHEFE';
+              return 'AUXILIAR';
+            };
+
+            // 3. Condutor
+            const defaultCondutor = isMaritima
+              ? (vtrName.startsWith('BIA') ? 'MESTRE BIA' : 'MESTRE L')
+              : `CONDUTOR ${sigla || 'AR'}`;
+            const fallbackCondutor = 'CONDUTOR';
+
+            return (
+              <>
+                {/* Chefe (cg) */}
+                {(v.cg === true || forceCg) && renderVtrSlot(v, 'cg', defaultCg, fallbackCg, forceCg)}
+
+                {/* Auxiliares / Guarnição / Enfermeiro (g1..g4) */}
+                {v.g1 === true && renderVtrSlot(v, 'g1', getAuxDefault('g1'), getAuxFallback('g1'))}
+                {v.g2 === true && renderVtrSlot(v, 'g2', getAuxDefault('g2'), getAuxFallback('g2'))}
+                {v.g3 === true && renderVtrSlot(v, 'g3', getAuxDefault('g3'), getAuxFallback('g3'))}
+                {v.g4 === true && renderVtrSlot(v, 'g4', getAuxDefault('g4'), getAuxFallback('g4'))}
+
+                {/* Condutor */}
+                {v.condutor === true && renderVtrSlot(v, 'condutor', defaultCondutor, fallbackCondutor, true)}
+              </>
+            );
+          };
+
+          const getSlotCount = (v: any) => {
+            if (!v || !v.ativa) return 1;
+            let count = 0;
+            const vtrName = (v.vtr || "").toUpperCase();
+            const rawSigla = vtrName.split(/[-_\s]/)[0] || '';
+            const sigla = (rawSigla.startsWith('AR') && rawSigla !== 'ARC') ? 'AR' : rawSigla;
+            const forceCg = sigla === 'ABT' || sigla === 'ABSL';
+
+            if ((v.cg === true || forceCg) && (forceCg || !v.blocked?.includes('cg'))) count++;
+            if (v.g1 === true && !v.blocked?.includes('g1')) count++;
+            if (v.g2 === true && !v.blocked?.includes('g2')) count++;
+            if (v.g3 === true && !v.blocked?.includes('g3')) count++;
+            if (v.g4 === true && !v.blocked?.includes('g4')) count++;
+            if (v.condutor === true && !v.blocked?.includes('condutor')) count++;
+            return Math.max(1, count);
+          };
+
+          const getDistributionClass = (count: number, isFraction: boolean = false) => {
+            if (count <= 1) {
+              return 'justify-center';
+            }
+            if (count === 2) {
+              return isFraction ? 'justify-center gap-1.5' : 'justify-center gap-3.5';
+            }
+            if (count === 3) {
+              return isFraction ? 'justify-evenly py-0.5' : 'justify-evenly py-1';
+            }
+            // 4 ou mais slots: distribui proporcionalmente no espaço
+            return isFraction ? 'justify-between' : 'justify-between py-0.5';
+          };
 
           return (
-        <table className="w-full border-collapse border-2 border-black text-left mb-2 table-fixed text-[11px]">
-           <thead>
-              <tr className={`${headerColorClass} font-bold border-b-2 border-black text-center text-xs`}>
-                 {hasABT && th(getActiveVtr('ABT'))}
-                 {hasABSL && th(getActiveVtr('ABSL'))}
-                 {hasASE && th(getActiveVtr('ASE'))}
-                 {showCol4 && th(hasARC ? getActiveVtr('ARC') : getActiveVtr('AR'))}
-                 {showCol5 && th(hasL ? getActiveVtr('L-') : getActiveVtr('BIA', hasBIA0 ? 0 : 1))}
-              </tr>
-           </thead>
-           <tbody>
-              <tr>
-                 {hasABT && (
-                 <td className="border border-black p-0 align-top">
-                    <div className="flex flex-col h-full min-h-[180px] p-2 justify-between">
-                       {body('ABT', 0, (v: any) => <>
-                          {renderVtrSlot(v, 'cg', 'CHEFE ABT', 'CG')}
-                          {renderVtrSlot(v, 'g1', 'AUXILIAR ABT', 'P1')}
-                          {renderVtrSlot(v, 'g2', 'AUXILIAR ABT', 'P2')}
-                          {renderVtrSlot(v, 'g3', 'AUXILIAR ABT', 'P3')}
-                          {renderVtrSlot(v, 'g4', 'AUXILIAR ABT', 'P4')}
-                          {renderVtrSlot(v, 'condutor', 'CONDUTOR ABT', 'Mot')}
-                       </>)}
-                    </div>
-                 </td>)}
-                 {hasABSL && (
-                 <td className="border border-black p-0 align-top">
-                    <div className="flex flex-col h-full min-h-[180px] p-2 justify-between">
-                       {body('ABSL', 0, (v: any) => <>
-                          {renderVtrSlot(v, 'cg', 'CHEFE ABSL', 'CG')}
-                          {renderVtrSlot(v, 'g1', 'AUXILIAR ABSL', 'Guarnição')}
-                          {renderVtrSlot(v, 'g2', 'AUXILIAR ABSL', 'Guarnição')}
-                          {renderVtrSlot(v, 'g3', 'AUXILIAR ABSL', 'Guarnição')}
-                          {renderVtrSlot(v, 'g4', 'AUXILIAR ABSL', 'Guarnição')}
-                          {renderVtrSlot(v, 'condutor', 'CONDUTOR ABSL', 'Mot')}
-                       </>)}
-                    </div>
-                 </td>)}
-                 {hasASE && (
-                 <td className="border border-black p-0 align-top">
-                    <div className="flex flex-col h-full min-h-[180px] p-2 justify-between">
-                       {body('ASE', 0, (v: any) => <>
-                          {renderVtrSlot(v, 'g1', 'ENFERMEIRO', 'Enfermeiro(a)')}
-                          {renderVtrSlot(v, 'g2', 'ENFERMEIRO', 'Enfermeiro(a)')}
-                          {renderVtrSlot(v, 'g3', 'AUXILIAR ASE', 'Auxiliar')}
-                          {renderVtrSlot(v, 'g4', 'AUXILIAR ASE', 'Auxiliar')}
-                          {renderVtrSlot(v, 'cg', 'CHEFE ASE', 'CG')}
-                          {renderVtrSlot(v, 'condutor', 'CONDUTOR ASE', 'Mot')}
-                       </>)}
-                    </div>
-                 </td>)}
-                 {showCol4 && (
-                 <td className="border border-black p-0 align-top">
-                    <div className="flex flex-col h-full min-h-[180px]">
-                       {hasARC && (
-                       <div className="p-2 flex-1 flex flex-col justify-between">
-                       {body('ARC', 0, (v: any) => <>
-                          {renderVtrSlot(v, 'cg', 'AUXILIAR/CHEFE ARC', 'Guarnição')}
-                          {renderVtrSlot(v, 'g1', 'AUXILIAR/CHEFE ARC', 'Guarnição')}
-                          {renderVtrSlot(v, 'g2', 'AUXILIAR/CHEFE ARC', 'Guarnição')}
-                          {renderVtrSlot(v, 'condutor', 'CONDUTOR ARC', 'Mot')}
-                       </>)}
-                       </div>)}
-                       {hasAR && hasARC && sepHeader(getActiveVtr('AR'), 'mt-auto')}
-                       {hasAR && (
-                       <div className="p-2 flex-1 flex flex-col justify-end">
-                       {body('AR', 0, (v: any) => <>
-                          {renderVtrSlot(v, 'condutor', 'CONDUTOR AR', 'Mot', true)}
-                       </>)}
-                       </div>)}
-                    </div>
-                 </td>)}
-                 {showCol5 && (
-                 <td className="border border-black p-0 align-top">
-                    <div className="flex flex-col h-full min-h-[180px]">
-                       {hasL && (
-                       <div className="p-2 flex-1 flex flex-col justify-center gap-1">
-                       {body('L-', 0, (v: any) => <>
-                          {renderVtrSlot(v, 'condutor', 'MESTRE L', 'MS', true)}
-                          {renderVtrSlot(v, 'g1', 'MARINHEIRO', 'MN', true)}
-                          {renderVtrSlot(v, 'g2', 'MARINHEIRO', 'MN')}
-                       </>)}
-                       </div>)}
-                       {hasBIA0 && hasL && sepHeader(getActiveVtr('BIA', 0))}
-                       {hasBIA0 && (
-                       <div className="p-2 flex-1 flex flex-col justify-center gap-1">
-                       {body('BIA', 0, (v: any) => <>
-                          {renderVtrSlot(v, 'condutor', 'MESTRE BIA', 'MS', true)}
-                          {renderVtrSlot(v, 'g1', 'MARINHEIRO', 'MN', true)}
-                          {renderVtrSlot(v, 'g2', 'MARINHEIRO', 'MN')}
-                       </>)}
-                       </div>)}
-                       {hasBIA1 && (hasL || hasBIA0) && sepHeader(getActiveVtr('BIA', 1))}
-                       {hasBIA1 && (
-                       <div className="p-2 flex-1 flex flex-col justify-center gap-1">
-                       {body('BIA', 1, (v: any) => <>
-                          {renderVtrSlot(v, 'condutor', 'MESTRE BIA', 'MS', true)}
-                          {renderVtrSlot(v, 'g1', 'MARINHEIRO', 'MN')}
-                       </>)}
-                       </div>)}
-                    </div>
-                 </td>)}
-              </tr>
-           </tbody>
-        </table>
+            <table className="w-full border-collapse border-2 border-black text-left mb-2 table-fixed text-[11px]">
+               <thead>
+                  <tr className={`${headerColorClass} font-bold border-b-2 border-black text-center text-xs`}>
+                     {columns.map((col, idx) => {
+                        let headerTitle = '';
+                        if (col.type === 'pair') headerTitle = col.top.vtr;
+                        else if (col.type === 'trio') headerTitle = col.items[0]?.vtr || '';
+                        else headerTitle = col.vtr.vtr;
+
+                        return (
+                           <th key={idx} className="border-2 border-black py-1 px-1">
+                              {headerTitle}
+                           </th>
+                        );
+                     })}
+                  </tr>
+               </thead>
+               <tbody>
+                  <tr>
+                     {columns.map((col, colIdx) => {
+                        if (col.type === 'pair') {
+                           const topCount = col.top.ativa ? getSlotCount(col.top) : 1;
+                           const bottomCount = col.bottom.ativa ? getSlotCount(col.bottom) : 1;
+
+                           return (
+                              <td key={colIdx} className="border border-black p-0 align-top">
+                                 <div className="flex flex-col h-full">
+                                    {/* Top viatura (1/2 espaço) */}
+                                    <div className={`p-1 px-1.5 flex-1 flex flex-col ${getDistributionClass(topCount, true)}`}>
+                                       {!col.top.ativa ? renderInativaMsg() : renderSlotsForVtr(col.top)}
+                                    </div>
+
+                                    {/* Separador com o nome da viatura inferior */}
+                                    <div className={`border-y-2 border-black ${headerColorClass} font-bold text-center py-0.5 shrink-0`}>
+                                       {col.bottom.vtr}
+                                    </div>
+
+                                    {/* Bottom viatura (1/2 espaço) */}
+                                    <div className={`p-1 px-1.5 flex-1 flex flex-col ${getDistributionClass(bottomCount, true)}`}>
+                                       {!col.bottom.ativa ? renderInativaMsg() : renderSlotsForVtr(col.bottom)}
+                                    </div>
+                                 </div>
+                              </td>
+                           );
+                        }
+
+                        if (col.type === 'trio') {
+                           return (
+                              <td key={colIdx} className="border border-black p-0 align-top">
+                                 <div className="flex flex-col h-full">
+                                    {col.items.map((itemVtr: any, itemIdx: number) => {
+                                       const count = itemVtr.ativa ? getSlotCount(itemVtr) : 1;
+                                       return (
+                                          <React.Fragment key={itemVtr.id || itemIdx}>
+                                             {itemIdx > 0 && (
+                                                <div className={`border-y-2 border-black ${headerColorClass} font-bold text-center py-0.5 shrink-0`}>
+                                                   {itemVtr.vtr}
+                                                </div>
+                                             )}
+                                             <div className={`p-1 px-1.5 flex-1 flex flex-col ${getDistributionClass(count, true)}`}>
+                                                {!itemVtr.ativa ? renderInativaMsg() : renderSlotsForVtr(itemVtr)}
+                                             </div>
+                                          </React.Fragment>
+                                       );
+                                    })}
+                                 </div>
+                              </td>
+                           );
+                        }
+
+                        const fullCount = col.vtr.ativa ? getSlotCount(col.vtr) : 1;
+                        return (
+                           <td key={colIdx} className="border border-black p-0 align-top">
+                              <div className={`flex flex-col h-full p-1.5 px-2 ${getDistributionClass(fullCount, false)}`}>
+                                 {!col.vtr.ativa ? renderInativaMsg() : renderSlotsForVtr(col.vtr)}
+                              </div>
+                           </td>
+                        );
+                     })}
+                  </tr>
+               </tbody>
+            </table>
           );
         })()}
 
@@ -363,52 +619,91 @@ export function EscalaPrintView({
 
         {/* SENTINELAS & COMUNICANTES */}
         <table className="w-full border-collapse border-2 border-black text-center mb-2 table-fixed">
+           <colgroup>
+              <col className="w-[23%]" />
+              <col className="w-[17%]" />
+              <col className="w-[23%]" />
+              <col className="w-[17%]" />
+              <col className="w-[20%]" />
+           </colgroup>
            <thead>
               <tr className={`${headerColorClass} font-bold border-b-2 border-black`}>
-                 <th className="border-r border-black p-1 uppercase w-[40%] text-left pl-2" colSpan={3}>SENTINELAS: <span className="ml-8">GUARDA NORTE</span></th>
-                 <th className="border-r border-black p-1 uppercase w-[40%] text-left pl-2" colSpan={3}>SENTINELAS:</th>
-                 <th className="p-1 uppercase w-[20%] border-black border-l-2">COMUNICANTE 1:</th>
+                 <th className="border-r border-black p-1 uppercase text-left pl-2" colSpan={2}>SENTINELAS: <span className="ml-8">GUARDA NORTE</span></th>
+                 <th className="border-r border-black p-1 uppercase text-left pl-2" colSpan={2}>SENTINELAS:</th>
+                 <th className="p-1 uppercase border-black border-l-2 text-center" colSpan={1}>COMUNICANTE 1:</th>
               </tr>
            </thead>
            <tbody className="text-left font-bold uppercase">
               <tr>
-                 <td className="border-r border-black p-1 pl-2 w-8 text-center border-b">1º</td>
-                 <td className="border-r border-black p-1 text-center font-normal border-b">6 às 8 / 14 às 16 / 22 às 00:00</td>
-                  <td className="border-r border-black p-1 text-center font-bold border-b truncate text-[10px]">{renderMilitar(sentinelas[0])}</td>
-                 <td className="border-r border-black p-1 pl-2 w-8 text-center border-b">1º</td>
-                 <td className="border-r border-black p-1 text-center font-normal border-b">6 às 7:30 / 12 às 13:30</td>
-                  <td className="border-r border-black p-1 text-center font-bold border-b truncate text-[10px]">{renderMilitar(sentinelas[4])}</td>
+                 <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
+                   <div className="flex items-center gap-1.5 min-w-0">
+                     <span className="font-black shrink-0">1º</span>
+                     <span className="truncate">{renderMilitar(sentinelas[0])}</span>
+                   </div>
+                 </td>
+                 <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">6 às 8 / 14 às 16 / 22 às 00:00</td>
+                 <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
+                   <div className="flex items-center gap-1.5 min-w-0">
+                     <span className="font-black shrink-0">1º</span>
+                     <span className="truncate">{renderMilitar(sentinelas[4])}</span>
+                   </div>
+                 </td>
+                 <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">6 às 7:30 / 12 às 13:30</td>
                  <td className="border-l-2 border-black p-1 font-normal text-center border-b truncate" rowSpan={2}><div className="flex justify-center">{renderMilitar(comunicantes[0])}</div></td>
               </tr>
               <tr>
-                 <td className="border-r border-black p-1 pl-2 text-center border-b">2º</td>
-                 <td className="border-r border-black p-1 text-center font-normal border-b">8 às 10 / 16 às 18 / 00 às 02:00</td>
-                  <td className="border-r border-black p-1 text-center font-bold border-b truncate text-[10px]">{renderMilitar(sentinelas[1])}</td>
-                 <td className="border-r border-black p-1 pl-2 text-center border-b">2º</td>
-                 <td className="border-r border-black p-1 text-center font-normal border-b">7:30 às 9 / 13:30 às 15</td>
-                  <td className="border-r border-black p-1 text-center font-bold border-b truncate text-[10px]">{renderMilitar(sentinelas[5])}</td>
+                 <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
+                   <div className="flex items-center gap-1.5 min-w-0">
+                     <span className="font-black shrink-0">2º</span>
+                     <span className="truncate">{renderMilitar(sentinelas[1])}</span>
+                   </div>
+                 </td>
+                 <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">8 às 10 / 16 às 18 / 00 às 02:00</td>
+                 <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
+                   <div className="flex items-center gap-1.5 min-w-0">
+                     <span className="font-black shrink-0">2º</span>
+                     <span className="truncate">{renderMilitar(sentinelas[5])}</span>
+                   </div>
+                 </td>
+                 <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">7:30 às 9 / 13:30 às 15</td>
               </tr>
               <tr>
-                 <td className="border-r border-black p-1 pl-2 text-center border-b">3º</td>
-                 <td className="border-r border-black p-1 text-center font-normal border-b">10 às 12 / 18 às 20 / 02 às 04:00</td>
-                  <td className="border-r border-black p-1 text-center font-bold border-b truncate text-[10px]">{renderMilitar(sentinelas[2])}</td>
-                 <td className="border-r border-black p-1 pl-2 text-center border-b">3º</td>
-                 <td className="border-r border-black p-1 text-center font-normal border-b">9 às 10:30 / 15 às 16:30</td>
-                  <td className="border-r border-black p-1 text-center font-bold border-b truncate text-[10px]">{renderMilitar(sentinelas[6])}</td>
+                 <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
+                   <div className="flex items-center gap-1.5 min-w-0">
+                     <span className="font-black shrink-0">3º</span>
+                     <span className="truncate">{renderMilitar(sentinelas[2])}</span>
+                   </div>
+                 </td>
+                 <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">10 às 12 / 18 às 20 / 02 às 04:00</td>
+                 <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
+                   <div className="flex items-center gap-1.5 min-w-0">
+                     <span className="font-black shrink-0">3º</span>
+                     <span className="truncate">{renderMilitar(sentinelas[6])}</span>
+                   </div>
+                 </td>
+                 <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">9 às 10:30 / 15 às 16:30</td>
                  <td className={`border-y-2 border-l-2 border-black p-1 ${headerColorClass} font-bold text-center`}>COMUNICANTE 2:</td>
               </tr>
               <tr>
-                 <td className="border-r border-black p-1 pl-2 text-center border-b">4º</td>
-                 <td className="border-r border-black p-1 text-center font-normal border-b">12 às 14 / 20 às 22 / 04 às 06:00</td>
-                  <td className="border-r border-black p-1 text-center font-bold border-b truncate text-[10px]">{renderMilitar(sentinelas[3])}</td>
-                 <td className="border-r border-black p-1 pl-2 text-center border-b">4º</td>
-                 <td className="border-r border-black p-1 text-center font-normal border-b">10:30 às 12/16:30 às 18</td>
-                  <td className="border-r border-black p-1 text-center font-bold border-b truncate text-[10px]">{renderMilitar(sentinelas[7])}</td>
+                 <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
+                   <div className="flex items-center gap-1.5 min-w-0">
+                     <span className="font-black shrink-0">4º</span>
+                     <span className="truncate">{renderMilitar(sentinelas[3])}</span>
+                   </div>
+                 </td>
+                 <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">12 às 14 / 20 às 22 / 04 às 06:00</td>
+                 <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
+                   <div className="flex items-center gap-1.5 min-w-0">
+                     <span className="font-black shrink-0">4º</span>
+                     <span className="truncate">{renderMilitar(sentinelas[7])}</span>
+                   </div>
+                 </td>
+                 <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">10:30 às 12/16:30 às 18</td>
                  <td className="border-l-2 border-black p-1 font-normal text-center border-b truncate"><div className="flex justify-center">{renderMilitar(comunicantes[1])}</div></td>
               </tr>
               <tr className={`${headerColorClass} font-bold border-t-2 border-black`}>
-                 <td className="border-r border-black p-1 text-center uppercase" colSpan={2}>AUX. RANCHO:</td>
-                 <td className="border-r border-black p-1 font-normal bg-white text-center truncate">
+                 <td className="border-r border-black p-1 text-center uppercase" colSpan={1}>AUX. RANCHO:</td>
+                 <td className="border-r border-black p-1 font-normal bg-white text-center truncate" colSpan={1}>
                    <div className="flex items-center justify-center gap-2">
                      {auxRancho.map((m: any, i: number) => <React.Fragment key={i}>{i > 0 && <span>/</span>}{renderMilitar(m)}</React.Fragment>)}
                    </div>
