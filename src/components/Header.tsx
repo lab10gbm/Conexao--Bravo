@@ -645,7 +645,7 @@ export function Header({
               "shrink-0",
               isOfficerMode
                 ? "flex items-center mt-4 min-[880px]:mt-0"
-                : "grid grid-cols-2 min-[880px]:grid-cols-4 gap-1.5 sm:gap-2 min-[880px]:gap-2 mt-4 min-[880px]:mt-0 self-center min-[880px]:self-auto",
+                : "hidden sm:grid grid-cols-2 min-[880px]:grid-cols-4 gap-1.5 sm:gap-2 min-[880px]:gap-2 mt-4 min-[880px]:mt-0 self-center min-[880px]:self-auto",
             )}
           >
             {isOfficerMode ? (
