@@ -1383,7 +1383,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
 
       <div className="p-4 sm:p-6 space-y-6">
         {/* SECTION 1: IMPORT_PERMUTA (Permutas Deferidas) */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative z-40">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative z-50">
           <div className="bg-emerald-50 rounded-t-2xl border-b border-emerald-100 p-3 px-4 flex items-center justify-between">
             <h3 className="text-xs font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
               <ArrowRightLeft className="w-4 h-4 text-emerald-600" />
@@ -1631,7 +1631,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
 
         
         {/* SECTION 1.5: RAS_MODULE */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative z-30 mb-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative z-40 mb-6">
           <div className="bg-amber-50 rounded-t-2xl border-b border-amber-100 p-3 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h3 className="text-xs font-black text-amber-900 uppercase tracking-widest flex items-center gap-2 shrink-0">
               <BriefcaseBusiness className="w-4 h-4 text-amber-600" />
