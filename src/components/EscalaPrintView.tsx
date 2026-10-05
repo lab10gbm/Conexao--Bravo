@@ -205,7 +205,7 @@ export function EscalaPrintView({
         </div>
 
         {/* VIATURAS TABLE */}
-        {viaturasData.some(v => v.ativa || v.exibir) && (
+        {(!viaturasInfo || viaturasInfo.some((v: any) => (v.exibir ?? v.ativa))) && (
         <table className="w-full border-collapse border-2 border-black text-left mb-2 table-fixed text-[11px]">
            <thead>
               <tr className={`${headerColorClass} font-bold border-b-2 border-black text-center text-xs`}>
