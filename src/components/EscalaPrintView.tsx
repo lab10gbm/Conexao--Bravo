@@ -139,6 +139,7 @@ export function EscalaPrintView({
   const comunicantes = getByFunc('COMUNICANTE');
   const auxRancho = getByFunc('AUXILIAR RANCHO');
   const toqueFogo = getByFunc('TOQUE DE FOGO');
+  const sentinelas = getByFunc('SENTINELA');
 
   const dateStr = selectedDate ? format(new Date(`${selectedDate}T12:00:00`), "dd 'DE' MMMM 'DE' yyyy", { locale: ptBR }).toUpperCase() : '';
   const shortDateStr = selectedDate ? format(new Date(`${selectedDate}T12:00:00`), "dd/MM/yyyy") : '';
@@ -331,8 +332,8 @@ export function EscalaPrintView({
         <table className="w-full border-collapse border-2 border-black text-center mb-2 table-fixed">
            <thead>
               <tr className={`${headerColorClass} font-bold border-b-2 border-black`}>
-                 <th className="border-r border-black p-1 uppercase w-[40%] text-left pl-2" colSpan={2}>SENTINELAS: <span className="ml-8">GUARDA NORTE</span></th>
-                 <th className="border-r border-black p-1 uppercase w-[40%] text-left pl-2" colSpan={2}>SENTINELAS:</th>
+                 <th className="border-r border-black p-1 uppercase w-[40%] text-left pl-2" colSpan={3}>SENTINELAS: <span className="ml-8">GUARDA NORTE</span></th>
+                 <th className="border-r border-black p-1 uppercase w-[40%] text-left pl-2" colSpan={3}>SENTINELAS:</th>
                  <th className="p-1 uppercase w-[20%] border-black border-l-2">COMUNICANTE 1:</th>
               </tr>
            </thead>
@@ -340,32 +341,40 @@ export function EscalaPrintView({
               <tr>
                  <td className="border-r border-black p-1 pl-2 w-8 text-center border-b">1º</td>
                  <td className="border-r border-black p-1 text-center font-normal border-b">6 às 8 / 14 às 16 / 22 às 00:00</td>
+                  <td className="border-r border-black p-1 text-center font-bold border-b truncate text-[10px]">{renderMilitar(sentinelas[0])}</td>
                  <td className="border-r border-black p-1 pl-2 w-8 text-center border-b">1º</td>
                  <td className="border-r border-black p-1 text-center font-normal border-b">6 às 7:30 / 12 às 13:30</td>
+                  <td className="border-r border-black p-1 text-center font-bold border-b truncate text-[10px]">{renderMilitar(sentinelas[4])}</td>
                  <td className="border-l-2 border-black p-1 font-normal text-center border-b truncate" rowSpan={2}><div className="flex justify-center">{renderMilitar(comunicantes[0])}</div></td>
               </tr>
               <tr>
                  <td className="border-r border-black p-1 pl-2 text-center border-b">2º</td>
                  <td className="border-r border-black p-1 text-center font-normal border-b">8 às 10 / 16 às 18 / 00 às 02:00</td>
+                  <td className="border-r border-black p-1 text-center font-bold border-b truncate text-[10px]">{renderMilitar(sentinelas[1])}</td>
                  <td className="border-r border-black p-1 pl-2 text-center border-b">2º</td>
                  <td className="border-r border-black p-1 text-center font-normal border-b">7:30 às 9 / 13:30 às 15</td>
+                  <td className="border-r border-black p-1 text-center font-bold border-b truncate text-[10px]">{renderMilitar(sentinelas[5])}</td>
               </tr>
               <tr>
                  <td className="border-r border-black p-1 pl-2 text-center border-b">3º</td>
                  <td className="border-r border-black p-1 text-center font-normal border-b">10 às 12 / 18 às 20 / 02 às 04:00</td>
+                  <td className="border-r border-black p-1 text-center font-bold border-b truncate text-[10px]">{renderMilitar(sentinelas[2])}</td>
                  <td className="border-r border-black p-1 pl-2 text-center border-b">3º</td>
                  <td className="border-r border-black p-1 text-center font-normal border-b">9 às 10:30 / 15 às 16:30</td>
+                  <td className="border-r border-black p-1 text-center font-bold border-b truncate text-[10px]">{renderMilitar(sentinelas[6])}</td>
                  <td className={`border-y-2 border-l-2 border-black p-1 ${headerColorClass} font-bold text-center`}>COMUNICANTE 2:</td>
               </tr>
               <tr>
                  <td className="border-r border-black p-1 pl-2 text-center border-b">4º</td>
                  <td className="border-r border-black p-1 text-center font-normal border-b">12 às 14 / 20 às 22 / 04 às 06:00</td>
+                  <td className="border-r border-black p-1 text-center font-bold border-b truncate text-[10px]">{renderMilitar(sentinelas[3])}</td>
                  <td className="border-r border-black p-1 pl-2 text-center border-b">4º</td>
                  <td className="border-r border-black p-1 text-center font-normal border-b">10:30 às 12/16:30 às 18</td>
+                  <td className="border-r border-black p-1 text-center font-bold border-b truncate text-[10px]">{renderMilitar(sentinelas[7])}</td>
                  <td className="border-l-2 border-black p-1 font-normal text-center border-b truncate"><div className="flex justify-center">{renderMilitar(comunicantes[1])}</div></td>
               </tr>
               <tr className={`${headerColorClass} font-bold border-t-2 border-black`}>
-                 <td className="border-r border-black p-1 text-center uppercase" colSpan={1}>AUX. RANCHO:</td>
+                 <td className="border-r border-black p-1 text-center uppercase" colSpan={2}>AUX. RANCHO:</td>
                  <td className="border-r border-black p-1 font-normal bg-white text-center truncate">
                    <div className="flex items-center justify-center gap-2">
                      {auxRancho.map((m: any, i: number) => <React.Fragment key={i}>{i > 0 && <span>/</span>}{renderMilitar(m)}</React.Fragment>)}
@@ -400,7 +409,7 @@ export function EscalaPrintView({
            <thead>
               <tr className={`${headerColorClass} font-bold border-b-2 border-black`}>
                  <th className="border-r border-black p-1 text-center uppercase" colSpan={3}>CHAMADA GERAL</th>
-                 <th className="p-1 text-center w-16 uppercase">PROG</th>
+                 <th className="p-1 text-center w-[20%] uppercase">PROG</th>
               </tr>
            </thead>
            <tbody>
@@ -420,9 +429,9 @@ export function EscalaPrintView({
                        <td className="border-r border-b border-black p-0.5 px-2 truncate">
                           {m3 ? <div className="flex gap-1 items-center min-h-[20px]"><span className="shrink-0">{m3.rg} -</span> <span className="truncate">{renderMilitar(m3.militar)}</span></div> : ''}
                        </td>
-                       <td className="border-b border-black p-0.5 text-center font-bold">
-                          {i + 1}
-                       </td>
+                       <td className="border-b border-black p-0.5 text-center font-bold text-[9px] truncate">
+                           {i + 1} {sentinelas[i] ? `- ${renderMilitar(sentinelas[i])}` : ''}
+                        </td>
                     </tr>
                  );
               })}
