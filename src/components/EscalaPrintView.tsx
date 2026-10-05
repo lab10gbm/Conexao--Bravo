@@ -205,6 +205,7 @@ export function EscalaPrintView({
         </div>
 
         {/* VIATURAS TABLE */}
+        {viaturasData.some(v => v.ativa || v.exibir) && (
         <table className="w-full border-collapse border-2 border-black text-left mb-2 table-fixed text-[11px]">
            <thead>
               <tr className={`${headerColorClass} font-bold border-b-2 border-black text-center text-xs`}>
@@ -307,6 +308,7 @@ export function EscalaPrintView({
             </tbody>
 
         </table>
+        )}
 
         {/* ADMIN ROLES */}
         <div className="flex border-2 border-black mb-2 p-1 font-bold uppercase min-h-[90px] text-xs">
