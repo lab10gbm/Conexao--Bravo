@@ -451,6 +451,127 @@ export function ExpedienteScheduler({
   const [confirmLock, setConfirmLock] = useState(false);
   const [removeMemberRg, setRemoveMemberRg] = useState<string | null>(null);
   const [removeMemberAla, setRemoveMemberAla] = useState('');
+  const [militaryMoveModal, setMilitaryMoveModal] = useState<{
+    isOpen: boolean;
+    type: 'mensal_s24h' | 'semanal_exp';
+    militarRg: string;
+    militarName: string;
+    currentDayStr: string;
+    currentStatus?: 'servico' | 'expediente' | 'folga';
+  } | null>(null);
+  const [quickAddModal, setQuickAddModal] = useState<{
+    isOpen: boolean;
+    type: 'mensal_s24h' | 'semanal_exp';
+    dayStr: string;
+  } | null>(null);
+  const [quickAddSearch, setQuickAddSearch] = useState('');
+
+  const handleMoveMilitaryDay = async (rg: string, fromDayStr: string, toDayStr: string) => {
+    if (!rg || !fromDayStr || !toDayStr || fromDayStr === toDayStr) return;
+    const userSels = safeArr(data.selections[rg]);
+    let newSels = userSels.filter(d => d !== fromDayStr);
+    if (!newSels.includes(toDayStr)) {
+      newSels.push(toDayStr);
+    }
+    const userExp = safeArr(data.expedienteDays?.[rg]);
+    const newExp = userExp.filter(d => d !== toDayStr);
+
+    setData(prev => ({
+      ...prev,
+      selections: { ...prev.selections, [rg]: newSels },
+      expedienteDays: { ...(prev.expedienteDays || {}), [rg]: newExp }
+    }));
+
+    await setDoc(monthDocRef, cleanUndefined({
+      selections: { [rg]: newSels },
+      expedienteDays: { [rg]: newExp }
+    }), { merge: true });
+
+    setActionFeedback({ type: 'success', message: `Militar remanejado com sucesso para ${toDayStr.split('-').reverse().join('/')}!` });
+    setMilitaryMoveModal(null);
+  };
+
+  const handleRemoveMilitaryFromDay = async (rg: string, dayStr: string, isExpOnly: boolean = false) => {
+    if (!rg || !dayStr) return;
+    const userSels = safeArr(data.selections[rg]);
+    const userExp = safeArr(data.expedienteDays?.[rg]);
+
+    const newSels = isExpOnly ? userSels : userSels.filter(d => d !== dayStr);
+    const newExp = userExp.filter(d => d !== dayStr);
+
+    setData(prev => ({
+      ...prev,
+      selections: { ...prev.selections, [rg]: newSels },
+      expedienteDays: { ...(prev.expedienteDays || {}), [rg]: newExp }
+    }));
+
+    await setDoc(monthDocRef, cleanUndefined({
+      selections: { [rg]: newSels },
+      expedienteDays: { [rg]: newExp }
+    }), { merge: true });
+
+    setActionFeedback({ type: 'success', message: `Escalação removida do dia ${dayStr.split('-').reverse().join('/')}!` });
+    setMilitaryMoveModal(null);
+  };
+
+  const handleSwapMilitaryDays = async (rgA: string, dayA: string, rgB: string, dayB: string) => {
+    if (!rgA || !rgB || !dayA || !dayB) return;
+    const selsA = safeArr(data.selections[rgA]).filter(d => d !== dayA);
+    if (!selsA.includes(dayB)) selsA.push(dayB);
+
+    const selsB = safeArr(data.selections[rgB]).filter(d => d !== dayB);
+    if (!selsB.includes(dayA)) selsB.push(dayA);
+
+    setData(prev => ({
+      ...prev,
+      selections: {
+        ...prev.selections,
+        [rgA]: selsA,
+        [rgB]: selsB
+      }
+    }));
+
+    await setDoc(monthDocRef, cleanUndefined({
+      selections: {
+        [rgA]: selsA,
+        [rgB]: selsB
+      }
+    }), { merge: true });
+
+    setActionFeedback({ type: 'success', message: 'Posição trocada com sucesso entre os militares!' });
+    setMilitaryMoveModal(null);
+  };
+
+  const handleQuickAssignMilitary = async (rg: string, dayStr: string, mode: 'servico' | 'expediente' = 'servico') => {
+    if (!rg || !dayStr) return;
+    const userSels = safeArr(data.selections[rg]);
+    const userExp = safeArr(data.expedienteDays?.[rg]);
+
+    let newSels = [...userSels];
+    let newExp = [...userExp];
+
+    if (mode === 'servico') {
+      if (!newSels.includes(dayStr)) newSels.push(dayStr);
+      newExp = newExp.filter(d => d !== dayStr);
+    } else {
+      if (!newExp.includes(dayStr)) newExp.push(dayStr);
+      newSels = newSels.filter(d => d !== dayStr);
+    }
+
+    setData(prev => ({
+      ...prev,
+      selections: { ...prev.selections, [rg]: newSels },
+      expedienteDays: { ...(prev.expedienteDays || {}), [rg]: newExp }
+    }));
+
+    await setDoc(monthDocRef, cleanUndefined({
+      selections: { [rg]: newSels },
+      expedienteDays: { [rg]: newExp }
+    }), { merge: true });
+
+    setActionFeedback({ type: 'success', message: `Militar adicionado com sucesso ao dia ${dayStr.split('-').reverse().join('/')}!` });
+    setQuickAddModal(null);
+  };
 
   const handleCopyTables = async () => {
       const activeVisualMode = viewMode === 'mapeamento' ? mapeamentoSubView : viewMode;
@@ -716,7 +837,7 @@ export function ExpedienteScheduler({
 
     const mergeData = () => {
       setData({
-        requirements: globalData.requirements || {},
+        requirements: { ...(globalData.requirements || {}), ...(monthData.requirements || {}) },
         selections: monthData.selections || {},
         locked: monthData.locked || {},
         lockedOrdinario: monthData.lockedOrdinario || monthData.locked || {},
@@ -726,9 +847,9 @@ export function ExpedienteScheduler({
         preferencesDetails: monthData.preferencesDetails || {},
         expedienteDays: monthData.expedienteDays || {},
         expQuotas: globalData.expQuotas || {},
-        userNames: globalData.userNames || {},
-        sectors: globalData.sectors || {},
-        regimes: globalData.regimes || {},
+        userNames: { ...(globalData.userNames || {}), ...(monthData.userNames || {}) },
+        sectors: { ...(globalData.sectors || {}), ...(monthData.sectors || {}) },
+        regimes: { ...(globalData.regimes || {}), ...(monthData.regimes || {}) },
         grdData: grdData || {}
       });
       setLoading(false);
@@ -875,12 +996,44 @@ export function ExpedienteScheduler({
   };
 
   const getReqAmount = (rg: string) => {
-      const val = data.requirements?.[rg];
-      return (typeof val === 'number' && !isNaN(val)) ? val : 0;
+      if (!rg) return 0;
+      const clean = String(rg).replace(/[^A-Z0-9]/g, '').replace(/^0+/, '');
+
+      let val = data.requirements?.[rg];
+      if (val === undefined || isNaN(val)) {
+          val = data.requirements?.[clean];
+      }
+      if (val === undefined || isNaN(val)) {
+          const foundKey = Object.keys(data.requirements || {}).find(k => k.replace(/[^A-Z0-9]/g, '').replace(/^0+/, '') === clean);
+          if (foundKey && data.requirements?.[foundKey] !== undefined) val = data.requirements[foundKey];
+      }
+
+      // If requirement is explicitly defined in data.requirements (e.g. from Controle de Membros), IT PREVAILS!
+      if (typeof val === 'number' && !isNaN(val)) {
+          return val;
+      }
+
+      // Check regime string ONLY to infer if requirement is not explicitly defined in data.requirements
+      const reg = getRegime(rg);
+      if (reg) {
+          if (/1\s*exped.*3\s*serv/i.test(reg)) return 3;
+          if (/3\s*exped.*(?:2\s*serv|serv)/i.test(reg)) return 2;
+          if (/4\s*exped.*1\s*serv/i.test(reg)) return 1;
+          if (/readaptado|redu[çc][ãa]o/i.test(reg)) return 0;
+      }
+
+      return 0;
   };
   const getRegime = (rg: string) => {
-      const val = data.regimes?.[rg];
-  return typeof val === 'string' ? val : '';
+      if (!rg) return '';
+      const clean = String(rg).replace(/[^A-Z0-9]/g, '').replace(/^0+/, '');
+      let val = data.regimes?.[rg];
+      if (!val) val = data.regimes?.[clean];
+      if (!val) {
+          const foundKey = Object.keys(data.regimes || {}).find(k => k.replace(/[^A-Z0-9]/g, '').replace(/^0+/, '') === clean);
+          if (foundKey) val = data.regimes[foundKey];
+      }
+      return typeof val === 'string' ? val : '';
   };
   const safeArr = (val: any) => Array.isArray(val) ? val : [];
 
@@ -987,18 +1140,18 @@ export function ExpedienteScheduler({
   const getRegimeDisplay = (rg: string) => {
       const raw = getRegime(rg);
       if (raw) {
-          if (/3\s*Exped.*2\s*serv/i.test(raw)) return "03 Expedientes e 02 serviços";
-          if (/4\s*Exped.*1\s*serv/i.test(raw)) return "04 Expedientes e 01 serviço";
-          if (/4\s*Expedientes/i.test(raw)) return "04 Expedientes";
           if (/1\s*Exped.*3\s*serv/i.test(raw)) return "01 Expediente e 03 serviços";
-          if (/2\s*(?:e\s*)?1\/2\s*Exped/i.test(raw)) return "02 e 1/2 Expedientes";
+          if (/3\s*Exped.*(?:2\s*serv|serv)/i.test(raw)) return "03 Expedientes e 02 serviços";
+          if (/4\s*Exped.*1\s*serv/i.test(raw)) return "04 Expedientes e 01 serviço";
+          if (/4\s*Expedientes/i.test(raw) || /readaptado/i.test(raw)) return "04 Expedientes";
+          if (/2\s*(?:e\s*)?1\/2\s*Exped/i.test(raw) || /redu[çc][ãa]o/i.test(raw)) return "02 e 1/2 Expedientes";
           return raw;
       }
       const req = getReqAmount(rg);
+      if (req === 3) return "01 Expediente e 03 serviços";
       if (req === 2) return "03 Expedientes e 02 serviços";
       if (req === 1) return "04 Expedientes e 01 serviço";
       if (req === 0) return "04 Expedientes";
-      if (req === 3) return "01 Expediente e 03 serviços";
       return "-";
   };
 
@@ -1301,7 +1454,16 @@ export function ExpedienteScheduler({
   const isOrdinarioLockedForUser = (rg: string, targetMonthKey: string = monthKey): boolean => {
       if (!rg || rg === 'ESCALANTE_PREF') return false;
       const source = targetMonthKey === monthKey ? data : (extraMonthData[targetMonthKey] || {});
-      return !!(source.lockedOrdinario?.[rg] ?? source.locked?.[rg]);
+      const isLocked = !!(source.lockedOrdinario?.[rg] ?? source.locked?.[rg]);
+      if (!isLocked) return false;
+
+      // Se a cota ainda não foi atingida, o militar não deve ser bloqueado de preencher os dias restantes
+      const req = getReqAmount(rg);
+      const userSels = safeArr(source.selections?.[rg]);
+      if (req > 0 && userSels.length < req) {
+          return false;
+      }
+      return true;
   };
 
   // Helper: Verifica se a semana de expediente específica está bloqueada para o militar
@@ -1853,20 +2015,25 @@ export function ExpedienteScheduler({
       alert("Nenhum militar selecionado.");
       return;
     }
+    const dayStr = format(day, 'yyyy-MM-dd');
+    let userSelections = safeArr(data.selections[rgSelection]);
+    const req = getReqAmount(rgSelection);
     const isLocked = isOrdinarioLockedForUser(rgSelection, monthKey);
+
+    // Se estiver bloqueado e o militar já completou a cota devida:
     if (isLocked && rgSelection !== 'ESCALANTE_PREF' && !isAdmin && !user.isEscalante) {
-      alert("Sua escala ordinária (24h) deste mês já foi confirmada e está bloqueada. Use a opção 'Solicitar Troca' se precisar permutar.");
-      return;
+      if (userSelections.length >= req && !userSelections.includes(dayStr)) {
+        alert("Sua escala ordinária (24h) deste mês já foi confirmada e está bloqueada. Use a opção 'Solicitar Troca' se precisar permutar.");
+        return;
+      }
     }
 
-    const dayStr = format(day, 'yyyy-MM-dd');
     const permuta = getPermutaForDay(rgSelection, dayStr);
     if (permuta && permuta.role === 'substitute' && !isAdmin && !user.isEscalante) {
       alert("Você está escalado neste dia através de Permuta Homologada. Este serviço não pode ser alterado diretamente pelo calendário.");
       return;
     }
 
-    let userSelections = safeArr(data.selections[rgSelection]);
     let userExpDays = safeArr(data.expedienteDays?.[rgSelection]);
     let isRemovingExp = false;
     
@@ -1881,7 +2048,6 @@ export function ExpedienteScheduler({
            userSelections = [...userSelections, dayStr];
         }
     } else {
-        const req = getReqAmount(rgSelection);
         if (req === 0) {
            alert("Este militar não possui serviços definidos para este mês. Configure-os na aba de Configurar Membros.");
            return;
@@ -1891,7 +2057,7 @@ export function ExpedienteScheduler({
            userSelections = userSelections.filter(d => d !== dayStr);
         } else {
            if (userSelections.length >= req) {
-              alert(`Você já selecionou todos os ${req} serviços permitidos.`);
+              alert(`Você já selecionou todos os ${req} serviços permitidos (${userSelections.length}/${req}). Para escolher esta data (${format(day, 'dd/MM')}), desmarque primeiro outro dia selecionado.`);
               return;
            }
            userSelections = [...userSelections, dayStr];
@@ -1939,7 +2105,7 @@ export function ExpedienteScheduler({
     await handleTargetedToggle(activeRg, day);
   };
 
-  const start = startOfWeek(currentMonth, { weekStartsOn: 0 });
+  const start = startOfWeek(startOfMonth(currentMonth), { weekStartsOn: 0 });
   const end = endOfWeek(endOfMonth(currentMonth), { weekStartsOn: 0 });
   const days = eachDayOfInterval({ start, end });
   const currentMonthDays = eachDayOfInterval({ start: startOfMonth(currentMonth), end: endOfMonth(currentMonth) });
@@ -1950,7 +2116,7 @@ export function ExpedienteScheduler({
   const progress = userReq > 0 ? Math.round((userSels.length / userReq) * 100) : 0;
 
   let activeMilitaryName = "Seu Status";
-  if (isAdmin && adminTargetRg && adminTargetRg !== user.rg) {
+  if ((isAdmin || user.isEscalante) && adminTargetRg && adminTargetRg !== user.rg) {
       const u = expedienteUsers.find(x => x.rg === adminTargetRg);
       if (u) {
          activeMilitaryName = formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name);
@@ -2506,39 +2672,48 @@ export function ExpedienteScheduler({
                                      <td className="py-3 px-4 border-l-2 border-slate-50">
                                          <div className="flex flex-col gap-2">
                                              <select 
-                                               value={WORK_REGIMES.includes(currentRegime) ? currentRegime : (currentRegime ? "Outro" : "")}
+                                               value={(() => {
+                                                   if (!currentRegime) return "";
+                                                   if (WORK_REGIMES.includes(currentRegime)) return currentRegime;
+                                                   if (/3\s*exped.*(?:2\s*serv|serv)/i.test(currentRegime)) return "3 Exped. e 2 serv. 24h";
+                                                   if (/4\s*exped.*1\s*serv/i.test(currentRegime)) return "4 Exped. e 1 serv. 24h";
+                                                   if (/1\s*exped.*3\s*serv/i.test(currentRegime)) return "1 Exped. e 3 Serv. 24h (Militar com Redução de Carga Horária)";
+                                                   if (/readaptado/i.test(currentRegime)) return "4 Expedientes (Militar Readaptado)";
+                                                   if (/redu[çc][ãa]o/i.test(currentRegime)) return "2 e 1/2 Expedientes (Militar com Redução de Carga Horária)";
+                                                   return "Outro";
+                                               })()}
                                                onChange={async (e) => {
                                                   const val = e.target.value;
                                                   let r = val;
                                                   if (val === "Outro") r = "";
                                                   
-                                                  const newGlobal: any = {};
-                                                  
                                                   // Auto-calculate required days based on selected regime
-                                                  let autoReq = (typeof data.requirements?.[rg] === 'number' && !isNaN(data.requirements[rg])) ? data.requirements[rg] : undefined;
-                                                  if (val === "3 Exped. e 2 serv. 24h") autoReq = 2;
-                                                  else if (val === "4 Exped. e 1 serv. 24h") autoReq = 1;
-                                                  else if (val === "1 Exped. e 3 Serv. 24h (Militar com Redução de Carga Horária)") autoReq = 3;
-                                                  else if (val === "4 Expedientes (Militar Readaptado)") autoReq = 0;
-                                                  else if (val === "2 e 1/2 Expedientes (Militar com Redução de Carga Horária)") autoReq = 0;
+                                                  let autoReq = 0;
+                                                  if (/1\s*exped.*3\s*serv/i.test(val)) autoReq = 3;
+                                                  else if (/3\s*exped.*(?:2\s*serv|serv)/i.test(val)) autoReq = 2;
+                                                  else if (/4\s*exped.*1\s*serv/i.test(val)) autoReq = 1;
+                                                  else if (/readaptado|redu[çc][ãa]o/i.test(val)) autoReq = 0;
+                                                  else if (val === "Outro") autoReq = reqAmount;
+
+                                                  setData(prev => ({
+                                                      ...prev,
+                                                      regimes: { ...prev.regimes, [rg]: r },
+                                                      requirements: { ...prev.requirements, [rg]: autoReq }
+                                                  }));
+
+                                                  const newGlobal: any = {
+                                                      regimes: { [rg]: r },
+                                                      requirements: { [rg]: autoReq },
+                                                      userNames: { [rg]: formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name) }
+                                                  };
 
                                                   if (r === "") {
                                                       updateDoc(globalDocRef, { [`regimes.${rg}`]: deleteField() }).catch(console.error);
-                                                  } else {
-                                                      newGlobal.regimes = { [rg]: r };
-                                                  }
-                                                  
-                                                  newGlobal.userNames = { [rg]: formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name) };
-                                                  
-                                                  if (autoReq !== undefined && autoReq !== data.requirements?.[rg]) {
-                                                      if (autoReq === 0) {
-                                                          updateDoc(globalDocRef, { [`requirements.${rg}`]: deleteField() }).catch(console.error);
-                                                      } else {
-                                                          newGlobal.requirements = { [rg]: autoReq };
-                                                      }
+                                                      delete newGlobal.regimes;
                                                   }
                                                   
                                                   await setDoc(globalDocRef, cleanUndefined(newGlobal), { merge: true });
+                                                  await setDoc(monthDocRef, cleanUndefined({ requirements: { [rg]: autoReq } }), { merge: true });
                                                }}
                                                className="w-full text-[10px] font-bold p-1.5 border-2 border-slate-200 rounded-md bg-white text-slate-700 hover:border-indigo-300 focus:border-indigo-500 outline-none transition-colors"
                                              >
@@ -2556,6 +2731,10 @@ export function ExpedienteScheduler({
                                                     onBlur={async (e) => {
                                                         const r = e.target.value;
                                                         if (r === currentRegime) return;
+                                                        setData(prev => ({
+                                                            ...prev,
+                                                            regimes: { ...prev.regimes, [rg]: r }
+                                                        }));
                                                         const newGlobal: any = {
                                                             regimes: { [rg]: r },
                                                             userNames: { [rg]: formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name) }
@@ -2573,18 +2752,28 @@ export function ExpedienteScheduler({
                                              min="0"
                                              defaultValue={reqAmount}
                                              key={`req-${reqAmount}`}
+                                             onKeyDown={(e) => {
+                                                 if (e.key === 'Enter') {
+                                                     (e.target as HTMLInputElement).blur();
+                                                 }
+                                             }}
                                              onBlur={async (e) => {
                                                 const req = parseInt(e.target.value) || 0;
                                                 if (req === reqAmount) return;
+                                                setData(prev => ({
+                                                    ...prev,
+                                                    requirements: { ...prev.requirements, [rg]: req }
+                                                }));
                                                 const newGlobal: any = {
+                                                    requirements: { [rg]: req },
                                                     userNames: { [rg]: formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name) }
                                                 };
                                                 if (req <= 0) {
                                                     updateDoc(globalDocRef, { [`requirements.${rg}`]: deleteField() }).catch(console.error);
-                                                } else {
-                                                    newGlobal.requirements = { [rg]: req };
+                                                    delete newGlobal.requirements;
                                                 }
                                                 await setDoc(globalDocRef, cleanUndefined(newGlobal), { merge: true });
+                                                await setDoc(monthDocRef, cleanUndefined({ requirements: { [rg]: req } }), { merge: true });
                                              }}
                                              className="w-16 p-2 text-center text-sm border-2 border-indigo-200 rounded-md bg-white font-black text-indigo-900 hover:border-indigo-400 focus:border-indigo-500 outline-none transition-colors mx-auto block"
                                          />
@@ -2787,7 +2976,7 @@ export function ExpedienteScheduler({
                                                  const isExp = safeArr(data.expedienteDays?.[rg]).includes(dayStr);
                                                  const isGrd = !isEscalantePref && data.grdData?.[dayStr]?.includes(rg);
                                                  const isTargetUser = activeRg === rg;
-                                                 const canEdit = isAdmin || isTargetUser || (isEscalantePref && (isAdmin || user.isEscalante));
+                                                 const canEdit = isAdmin || user.isEscalante || isTargetUser;
                                                  
                                                  const isSwapDay = !isEscalantePref && data.swapRequests?.some(r => r.rg === rg && r.status === 'pending' && (r.fromDay === dayStr || r.toDay === dayStr));
                                                  
@@ -2908,7 +3097,7 @@ export function ExpedienteScheduler({
                                  const userSels = safeArr(data.selections[rg]);
                                  const reqAmount = getReqAmount(rg);
                                  const isTargetUser = activeRg === rg;
-                                 const canEdit = isAdmin || isTargetUser || (isEscalantePref && (isAdmin || user.isEscalante));
+                                 const canEdit = isAdmin || user.isEscalante || isTargetUser;
                                  const isEven = i % 2 === 0;
                                  
                                  return (
@@ -4349,9 +4538,30 @@ export function ExpedienteScheduler({
                                                                         <div className="flex items-center gap-1.5 flex-wrap">
                                                                             <span className="text-[8px] font-black uppercase text-red-600 shrink-0">Serviço:</span>
                                                                             {servicoList.map((w, idx) => (
-                                                                                <span key={idx} className="bg-red-50 text-red-700 border border-red-200 px-1.5 py-0.5 rounded text-[8px] font-bold">
+                                                                                <button 
+                                                                                    key={idx}
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                        if (isAdmin || user.isEscalante) {
+                                                                                            setMilitaryMoveModal({
+                                                                                                isOpen: true,
+                                                                                                type: 'semanal_exp',
+                                                                                                militarRg: w.rg,
+                                                                                                militarName: w.name,
+                                                                                                currentDayStr: dayStr,
+                                                                                                currentStatus: 'servico'
+                                                                                            });
+                                                                                        }
+                                                                                    }}
+                                                                                    className={cn(
+                                                                                        "bg-red-50 text-red-700 border border-red-200 px-1.5 py-0.5 rounded text-[8px] font-bold flex items-center gap-1 transition-colors",
+                                                                                        (isAdmin || user.isEscalante) && "hover:bg-red-100 hover:border-red-400 cursor-pointer"
+                                                                                    )}
+                                                                                    title={(isAdmin || user.isEscalante) ? `Mudar posição / status de ${w.name}` : w.name}
+                                                                                >
                                                                                     {w.isGrd && '🛡️ '}{w.name}
-                                                                                </span>
+                                                                                    {(isAdmin || user.isEscalante) && <ArrowUpDown className="w-2.5 h-2.5 text-red-600" />}
+                                                                                </button>
                                                                             ))}
                                                                         </div>
                                                                     )}
@@ -4359,9 +4569,30 @@ export function ExpedienteScheduler({
                                                                         <div className="flex items-center gap-1.5 flex-wrap">
                                                                             <span className="text-[8px] font-black uppercase text-indigo-600 shrink-0">Expediente:</span>
                                                                             {expedienteList.map((w, idx) => (
-                                                                                <span key={idx} className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded text-[8px] font-bold">
+                                                                                <button 
+                                                                                    key={idx}
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                        if (isAdmin || user.isEscalante) {
+                                                                                            setMilitaryMoveModal({
+                                                                                                isOpen: true,
+                                                                                                type: 'semanal_exp',
+                                                                                                militarRg: w.rg,
+                                                                                                militarName: w.name,
+                                                                                                currentDayStr: dayStr,
+                                                                                                currentStatus: 'expediente'
+                                                                                            });
+                                                                                        }
+                                                                                    }}
+                                                                                    className={cn(
+                                                                                        "bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded text-[8px] font-bold flex items-center gap-1 transition-colors",
+                                                                                        (isAdmin || user.isEscalante) && "hover:bg-indigo-100 hover:border-indigo-400 cursor-pointer"
+                                                                                    )}
+                                                                                    title={(isAdmin || user.isEscalante) ? `Mudar posição / status de ${w.name}` : w.name}
+                                                                                >
                                                                                     {w.name}
-                                                                                </span>
+                                                                                    {(isAdmin || user.isEscalante) && <ArrowUpDown className="w-2.5 h-2.5 text-indigo-600" />}
+                                                                                </button>
                                                                             ))}
                                                                         </div>
                                                                     )}
@@ -4871,9 +5102,29 @@ export function ExpedienteScheduler({
                                        </span>
                                    </div>
                                    {!outsideMonth && (
-                                       <span className="text-[18px] sm:text-[14px] leading-none text-red-500">
-                                            {isPreferredDate && "★"}
-                                       </span>
+                                       <div className="flex items-center gap-1">
+                                           {(isAdmin || user.isEscalante) && (
+                                               <button
+                                                   type="button"
+                                                   onClick={(e) => {
+                                                       e.stopPropagation();
+                                                       setQuickAddSearch('');
+                                                       setQuickAddModal({
+                                                           isOpen: true,
+                                                           type: 'mensal_s24h',
+                                                           dayStr
+                                                       });
+                                                   }}
+                                                   className="p-1 rounded-md bg-white/90 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-400 text-slate-500 hover:text-indigo-700 transition-colors shadow-2xs cursor-pointer"
+                                                   title={`Adicionar/escalar militar no serviço 24h deste dia (${format(day, 'dd/MM')})`}
+                                               >
+                                                   <UserPlus className="w-3 h-3" />
+                                               </button>
+                                           )}
+                                           <span className="text-[18px] sm:text-[14px] leading-none text-red-500">
+                                                {isPreferredDate && "★"}
+                                           </span>
+                                       </div>
                                    )}
                                </div>
                                
@@ -4964,36 +5215,6 @@ export function ExpedienteScheduler({
                                    </div>
                                )}
 
-                               {!outsideMonth && isTargetUserSelected && activeRg && activeRg !== 'ESCALANTE_PREF' && !isOrdinarioLockedForUser(activeRg, monthKey) && (
-                                   <button 
-                                      onClick={async (e) => {
-                                          e.stopPropagation();
-                                          const newMonthData = {
-                                              lockedOrdinario: {
-                                                  [activeRg]: true
-                                              },
-                                              locked: {
-                                                  [activeRg]: true
-                                              }
-                                          };
-                                          setData(prev => ({
-                                              ...prev,
-                                              lockedOrdinario: {
-                                                  ...(prev.lockedOrdinario || {}),
-                                                  [activeRg]: true
-                                              },
-                                              locked: {
-                                                  ...(prev.locked || {}),
-                                                  [activeRg]: true
-                                              }
-                                          }));
-                                          await setDoc(monthDocRef, cleanUndefined(newMonthData), { merge: true });
-                                      }}
-                                      className="sm:hidden mt-3 w-full bg-indigo-600 active:bg-indigo-700 hover:bg-indigo-500 text-white py-2.5 px-2 rounded-lg text-[9px] items-center justify-center font-black uppercase tracking-widest flex gap-1 shadow-sm transition-colors"
-                                   >
-                                      <Save className="w-3.5 h-3.5 shrink-0"/> Confirmar e Registrar esta data
-                                   </button>
-                               )}
                             </motion.div>
                           );
                         })}
@@ -5005,7 +5226,7 @@ export function ExpedienteScheduler({
                  {/* Legend / Status Column */}
                  <div className="w-full lg:w-80 flex flex-col gap-6">
                      {/* User Status Card */}
-                     {(isExp || isAdmin) && user.rg && (
+                     {(isExp || isAdmin || user.isEscalante) && user.rg && (
                          <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-xl p-4 text-white shadow-md relative overflow-hidden shrink-0">
                              <div className="absolute top-0 right-0 w-24 h-24 bg-white/10 rounded-full blur-2xl -mr-8 -mt-8 pointer-events-none"></div>
                              <div className="flex flex-col gap-2 mb-3">
@@ -5029,7 +5250,7 @@ export function ExpedienteScheduler({
                                         <optgroup label="Preferências (Escalante)" className="text-slate-800">
                                             <option value="ESCALANTE_PREF" className="text-red-700 font-bold bg-red-50">★ DATAS PREFERENCIAIS</option>
                                         </optgroup>
-                                        {isAdmin && (
+                                        {(isAdmin || user.isEscalante) && (
                                           <optgroup label="Militares do Expediente" className="text-slate-800">
                                               {expedienteUsers.filter(u => (u.rg || u.uid) !== 'ESCALANTE_PREF').map((u, i) => {
                                                   const val = u.rg || u.uid || `usr-${i}`;
@@ -5075,17 +5296,18 @@ export function ExpedienteScheduler({
                                 </p>
                              )}
 
-                             {activeRg && activeRg !== 'ESCALANTE_PREF' && userReq > 0 && userSels.length > 0 && (
+                             {activeRg && activeRg !== 'ESCALANTE_PREF' && userReq > 0 && (
                                 <div className="mt-4 pt-3 border-t border-white/20">
                                    {!isOrdinarioLockedForUser(activeRg, monthKey) ? (
-                                      !confirmLock ? (
-                                          <button 
-                                            onClick={() => setConfirmLock(true)}
-                                            className="w-full flex items-center justify-center gap-2 bg-indigo-500 hover:bg-indigo-400 text-white py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors shadow-sm"
-                                          >
-                                            <Save className="w-3.5 h-3.5" /> Enviar Escolhas (Escala 24h)
-                                          </button>
-                                      ) : (
+                                      userSels.length >= userReq ? (
+                                          !confirmLock ? (
+                                              <button 
+                                                onClick={() => setConfirmLock(true)}
+                                                className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors shadow-sm"
+                                              >
+                                                <Save className="w-3.5 h-3.5" /> Enviar Escolhas (Escala 24h)
+                                              </button>
+                                          ) : (
                                           <div className="flex flex-col gap-2">
                                               <span className="text-[10px] text-white/80 font-bold text-center">Confirmar o envio definitivo da escala 24h?</span>
                                               <div className="flex gap-2">
@@ -5127,10 +5349,20 @@ export function ExpedienteScheduler({
                                           </div>
                                       )
                                    ) : (
+                                       <div className="bg-amber-500/20 border border-amber-500/40 rounded-lg p-2.5 text-center flex flex-col gap-1">
+                                         <span className="text-[10px] font-black text-amber-200 uppercase tracking-wider">
+                                           Cota: {userSels.length} de {userReq} serviço{userReq > 1 ? 's' : ''}
+                                         </span>
+                                         <span className="text-[9px] text-amber-100/90 font-medium leading-snug">
+                                           Selecione mais {userReq - userSels.length} dia{userReq - userSels.length > 1 ? 's' : ''} no calendário para completar antes de enviar.
+                                         </span>
+                                       </div>
+                                   )
+                                ) : (
                                       <div className="flex flex-col gap-2">
                                           <div className="bg-green-500/20 border border-green-500/30 rounded p-2 flex items-center justify-center gap-2 text-green-100 text-[10px] font-bold uppercase text-center">
                                               <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
-                                              <span>Escala 24h Homologada</span>
+                                              <span>Escala 24h Confirmada ({userSels.length}/{userReq})</span>
                                           </div>
                                           {(isAdmin || user.isEscalante) && (
                                               <button
@@ -5702,6 +5934,287 @@ export function ExpedienteScheduler({
           </motion.div>
         )}
         
+        {militaryMoveModal && militaryMoveModal.isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 min-h-screen bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 overflow-y-auto"
+            onClick={() => setMilitaryMoveModal(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white max-w-lg w-full rounded-2xl shadow-2xl overflow-hidden pointer-events-auto my-auto border-2 border-indigo-100"
+            >
+              <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-lg bg-indigo-500/20 border border-indigo-400/30 text-indigo-300">
+                    <ArrowUpDown className="w-4 h-4" />
+                  </div>
+                  <div className="flex flex-col">
+                    <h3 className="font-black text-sm uppercase tracking-wider text-white">
+                      Remanejar / Mudar Posição
+                    </h3>
+                    <span className="text-[10px] font-bold text-indigo-200">
+                      Modo Escalante & Moderador
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMilitaryMoveModal(null)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 flex flex-col gap-5">
+                {/* Cartão do Militar e Data Atual */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-800">{militaryMoveModal.militarName}</span>
+                    <span className="text-[10px] font-bold text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded">
+                      RG: {militaryMoveModal.militarRg}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap text-xs">
+                    <span className="text-slate-500 font-bold">Dia escalado:</span>
+                    <span className="font-black text-slate-800 bg-white border border-slate-200 px-2 py-0.5 rounded">
+                      {militaryMoveModal.currentDayStr.split('-').reverse().join('/')}
+                    </span>
+                    <span className={cn(
+                      "text-[9px] font-black uppercase px-2 py-0.5 rounded",
+                      militaryMoveModal.currentStatus === 'servico' ? "bg-red-100 text-red-700" : "bg-indigo-100 text-indigo-700"
+                    )}>
+                      {militaryMoveModal.currentStatus === 'servico' ? 'Serviço 24h' : 'Expediente'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Opções de Ação Direta */}
+                <div className="flex flex-col gap-4">
+                  {/* Opção 1: Mover para outro dia do mês */}
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                      Mover para outro dia do mês ({format(currentMonth, 'MMMM yyyy', { locale: ptBR })})
+                    </span>
+                    <div className="grid grid-cols-7 gap-1.5 max-h-36 overflow-y-auto p-2 bg-slate-50 border border-slate-200 rounded-xl custom-scrollbar">
+                      {currentMonthDays.map(d => {
+                        const dStr = format(d, 'yyyy-MM-dd');
+                        const isCurrent = dStr === militaryMoveModal.currentDayStr;
+                        const isAlreadyHas = safeArr(data.selections[militaryMoveModal.militarRg]).includes(dStr);
+                        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+
+                        return (
+                          <button
+                            key={dStr}
+                            type="button"
+                            disabled={isCurrent}
+                            onClick={() => handleMoveMilitaryDay(militaryMoveModal.militarRg, militaryMoveModal.currentDayStr, dStr)}
+                            className={cn(
+                              "p-2 rounded-lg text-center flex flex-col items-center justify-center transition-all cursor-pointer border text-xs font-black",
+                              isCurrent ? "bg-slate-200 text-slate-400 border-slate-300 cursor-not-allowed" :
+                              isAlreadyHas ? "bg-red-50 text-red-700 border-red-300 hover:bg-red-100" :
+                              isWeekend ? "bg-amber-50 text-amber-900 border-amber-200 hover:bg-indigo-100 hover:border-indigo-400" :
+                              "bg-white text-slate-700 border-slate-200 hover:bg-indigo-50 hover:border-indigo-400 hover:text-indigo-700"
+                            )}
+                            title={isCurrent ? "Dia atual" : isAlreadyHas ? "Militar já tem serviço neste dia" : "Clique para mover para este dia"}
+                          >
+                            <span className="text-[8px] font-bold uppercase opacity-60 leading-none">{format(d, 'eee', { locale: ptBR }).slice(0, 3)}</span>
+                            <span className="leading-tight mt-0.5">{format(d, 'dd')}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Opção 2: Trocar de posição com outro militar escalado */}
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <ArrowUpDown className="w-3.5 h-3.5 text-indigo-600" />
+                      Trocar serviço diretamente com outro militar do expediente
+                    </span>
+                    <select
+                      className="w-full text-xs font-bold p-2.5 bg-white border-2 border-slate-200 rounded-xl outline-none focus:border-indigo-500 cursor-pointer"
+                      defaultValue=""
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (!val) return;
+                        const [targetRg, targetDay] = val.split(':::');
+                        if (targetRg && targetDay) {
+                          handleSwapMilitaryDays(militaryMoveModal.militarRg, militaryMoveModal.currentDayStr, targetRg, targetDay);
+                        }
+                      }}
+                    >
+                      <option value="">Selecione outro militar escalado para permutar...</option>
+                      {expedienteUsers
+                        .filter(u => {
+                          const rg = u.rg || u.uid;
+                          return rg !== 'ESCALANTE_PREF' && rg !== militaryMoveModal.militarRg;
+                        })
+                        .flatMap(u => {
+                          const rg = u.rg || u.uid;
+                          const name = formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name);
+                          const sels = safeArr(data.selections[rg]);
+                          return sels.map(dStr => ({
+                            rg,
+                            name,
+                            dayStr: dStr
+                          }));
+                        })
+                        .map(item => (
+                          <option key={`${item.rg}:::${item.dayStr}`} value={`${item.rg}:::${item.dayStr}`}>
+                            {item.name} — dia {item.dayStr.split('-').reverse().join('/')}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  {/* Opção 3 & 4: Alternar status semanal ou remover do dia */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveMilitaryFromDay(militaryMoveModal.militarRg, militaryMoveModal.currentDayStr, militaryMoveModal.currentStatus === 'expediente')}
+                      className="px-3.5 py-2 rounded-xl border border-red-300 bg-red-50 hover:bg-red-100 text-red-700 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Remover deste Dia (Folga)
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdminTargetRg(militaryMoveModal.militarRg);
+                        setMilitaryMoveModal(null);
+                        setActionFeedback({ type: 'success', message: `Militar ${militaryMoveModal.militarName} selecionado para edição!` });
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" /> Editar Calendário deste Militar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {quickAddModal && quickAddModal.isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 min-h-screen bg-slate-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 overflow-y-auto"
+            onClick={() => setQuickAddModal(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white max-w-md w-full rounded-2xl shadow-2xl overflow-hidden pointer-events-auto my-auto border-2 border-indigo-100"
+            >
+              <div className="flex items-center justify-between p-4 border-b border-slate-100 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white">
+                <div className="flex items-center gap-2">
+                  <UserPlus className="w-4 h-4 text-indigo-300" />
+                  <div className="flex flex-col">
+                    <h3 className="font-black text-sm uppercase tracking-wider text-white">
+                      Escalar Militar no Dia {quickAddModal.dayStr.split('-').reverse().join('/')}
+                    </h3>
+                    <span className="text-[10px] font-bold text-indigo-200">
+                      Modo Escalante & Moderador
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setQuickAddModal(null)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 flex flex-col gap-4">
+                <input
+                  type="text"
+                  value={quickAddSearch}
+                  onChange={(e) => setQuickAddSearch(e.target.value)}
+                  placeholder="Buscar militar por nome ou RG..."
+                  className="w-full text-xs p-3 bg-slate-50 border-2 border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold"
+                  autoFocus
+                />
+
+                <div className="flex flex-col gap-2 max-h-72 overflow-y-auto custom-scrollbar">
+                  {expedienteUsers
+                    .filter(u => (u.rg || u.uid) !== 'ESCALANTE_PREF')
+                    .filter(u => {
+                      if (!quickAddSearch.trim()) return true;
+                      const q = quickAddSearch.toLowerCase();
+                      const name = (u.name || '').toLowerCase();
+                      const warName = (u.warName || '').toLowerCase();
+                      const rg = (u.rg || u.uid || '').toLowerCase();
+                      return name.includes(q) || warName.includes(q) || rg.includes(q);
+                    })
+                    .map(u => {
+                      const rg = u.rg || u.uid;
+                      const name = formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name);
+                      const isAlreadyWorking = safeArr(data.selections[rg]).includes(quickAddModal.dayStr);
+                      const isExpWorking = safeArr(data.expedienteDays?.[rg]).includes(quickAddModal.dayStr);
+                      const curCount = safeArr(data.selections[rg]).length;
+                      const req = getReqAmount(rg);
+
+                      return (
+                        <div
+                          key={rg}
+                          className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:bg-indigo-50/50 hover:border-indigo-200 transition-colors"
+                        >
+                          <div className="flex flex-col min-w-0 pr-2">
+                            <span className="text-xs font-black text-slate-800 truncate">{name}</span>
+                            <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-500">
+                              <span>RG: {rg}</span>
+                              <span>•</span>
+                              <span>{curCount}/{req || '?'} SV no mês</span>
+                              {isAlreadyWorking && (
+                                <span className="bg-red-100 text-red-700 px-1 rounded uppercase font-black">Já neste dia</span>
+                              )}
+                              {isExpWorking && (
+                                <span className="bg-indigo-100 text-indigo-700 px-1 rounded uppercase font-black">Expediente</span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleQuickAssignMilitary(rg, quickAddModal.dayStr, 'servico')}
+                              className="px-2.5 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-colors shadow-2xs cursor-pointer"
+                              title="Escalar como Serviço 24h"
+                            >
+                              + SV 24h
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleQuickAssignMilitary(rg, quickAddModal.dayStr, 'expediente')}
+                              className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-colors shadow-2xs cursor-pointer"
+                              title="Escalar como Expediente"
+                            >
+                              + EXP
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
         {removeMemberRg && (
           <motion.div
             initial={{ opacity: 0 }}
