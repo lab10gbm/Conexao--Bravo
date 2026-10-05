@@ -200,6 +200,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
   const addMenuRef = React.useRef<HTMLDivElement>(null);
   const [addRasMilitarSearch, setAddRasMilitarSearch] = useState('');
   const [showAddRasMenu, setShowAddRasMenu] = useState(false);
+  const [rasDuration, setRasDuration] = useState<12 | 24>(24);
   const addRasMenuRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1120,7 +1121,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     setAddRasMilitarSearch('');
     setShowAddRasMenu(false);
     try {
-      const qOpps = query(collection(db, 'ras_opportunities'), where('obm', '==', obmContext), where('date', '==', selectedDate));
+      const qOpps = query(collection(db, 'ras_opportunities'), where('obm', '==', obmContext), where('date', '==', selectedDate), where('duration', '==', rasDuration));
       const oppsSnap = await getDocs(qOpps);
       
       let rasId = '';
@@ -1128,7 +1129,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
         const oppRef = await addDoc(collection(db, 'ras_opportunities'), {
           obm: obmContext,
           date: selectedDate,
-          duration: 24,
+          duration: rasDuration,
           description: "RAS Adicionado pelo Escalante",
           functions: ["GERAL"],
           vacancies: 99,
@@ -1156,7 +1157,11 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
       
       const docRef = await addDoc(collection(db, 'ras_applications'), newApp);
       
-      setRasApplications(prev => [...prev, { id: docRef.id, ...newApp }]);
+      const appWithId = { id: docRef.id, ...newApp };
+      setRasApplications(prev => [...prev, appWithId]);
+      
+      // Auto-incluir na escala também
+      handleAddSingleRas(appWithId);
       
     } catch(err) {
       console.error(err);
@@ -1211,11 +1216,12 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
        } as any;
        setExtraMilitars(prev => [...prev, m]);
     }
-    setBaseRoster(prev => {
-       if (!prev.some(br => br.rg === m.rg)) {
-          return [...prev, m];
-       }
-       return prev;
+    setManuallyAddedRgs(prev => {
+      const curr = prev[selectedDate] || [];
+      if (!curr.includes(m.rg)) {
+         return { ...prev, [selectedDate]: [...curr, m.rg] };
+      }
+      return prev;
     });
   };
 
@@ -1640,7 +1646,17 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
             
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
-              <div className="relative w-full sm:w-64 z-20" ref={addRasMenuRef}>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <select
+                  value={rasDuration}
+                  onChange={(e) => setRasDuration(Number(e.target.value) as 12 | 24)}
+                  className="bg-white border border-amber-200 rounded px-2 py-1.5 text-xs text-amber-900 font-bold outline-none cursor-pointer"
+                  title="Horas do RAS"
+                >
+                  <option value={12}>12h</option>
+                  <option value={24}>24h</option>
+                </select>
+                <div className="relative w-full sm:w-48 z-20" ref={addRasMenuRef}>
                 <input
                   type="text"
                   placeholder="Adicionar militar ao RAS..."
@@ -1669,6 +1685,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
                     )}
                   </div>
                 )}
+              </div>
               </div>
 
               <div className="flex items-center gap-2">
