@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useMilitars } from "../contexts/MilitarContext";
 import { PermutaRequest, PermutaStatus } from "../types";
-import { collection, query, where, onSnapshot, updateDoc, doc, serverTimestamp, getDoc, setDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, updateDoc, doc, serverTimestamp, getDoc, setDoc, getDocs } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -12,7 +12,7 @@ import { RankInsignia } from "./RankInsignia";
 import { EscalaPrintView } from "./EscalaPrintView";
 import { RequestPermuta } from "./RequestPermuta";
 import { AfastamentosAlaModule } from "./AfastamentosAlaModule";
-import { Calendar as CalendarIcon, Users, ArrowRightLeft, ArrowRight, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, Check, X, Clock, Printer, Shuffle, Plus, Settings, Activity, TrendingDown, PieChart } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, ArrowRightLeft, ArrowRight, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, Check, X, Clock, Printer, Shuffle, Plus, Settings, Activity, TrendingDown, PieChart, BriefcaseBusiness, Download } from 'lucide-react';
 
 import { motion } from "framer-motion";
 import { cleanUndefined, getUserObmAccess, normalizeObm, getAlaForDate, cn, getAlaColor, getAlaName, formatMilitaryName, normalizeAlaField } from '../lib/utils';
@@ -174,6 +174,7 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
   const [loadingPermutas, setLoadingPermutas] = useState(false);
   const [manuallyAddedRgs, setManuallyAddedRgs] = useState<Record<string, string[]>>({});
   const [expedienteRgs, setExpedienteRgs] = useState<string[]>([]);
+  const [rasApplications, setRasApplications] = useState<any[]>([]);
   const [addMilitarSearch, setAddMilitarSearch] = useState('');
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [globalSearchResults, setGlobalSearchResults] = useState<any[]>([]);
@@ -1090,6 +1091,68 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     }
   };
 
+
+  const handleFetchRas = async () => {
+    try {
+      const qOpps = query(collection(db, 'ras_opportunities'), where('obm', '==', obmContext), where('date', '==', selectedDate));
+      const oppsSnap = await getDocs(qOpps);
+      if (oppsSnap.empty) {
+        alert("Nenhuma oportunidade de RAS encontrada para esta data e OBM.");
+        setRasApplications([]);
+        return;
+      }
+      
+      const oppIds = oppsSnap.docs.map(d => d.id);
+      const apps: any[] = [];
+      
+      for (let i = 0; i < oppIds.length; i += 10) {
+        const chunk = oppIds.slice(i, i + 10);
+        const qApps = query(collection(db, 'ras_applications'), where('rasId', 'in', chunk), where('status', 'in', ['selected', 'completed']));
+        const snap = await getDocs(qApps);
+        snap.docs.forEach(d => apps.push({ id: d.id, ...d.data() }));
+      }
+      
+      if (apps.length === 0) {
+        alert("Nenhum militar selecionado para RAS nesta data.");
+      }
+      setRasApplications(apps);
+    } catch(err) {
+      console.error(err);
+      alert("Erro ao buscar RAS.");
+    }
+  };
+
+  const handleAddSingleRas = (app: any) => {
+    let m = militars.find(m => m.rg === app.militarRg);
+    if (!m) {
+       m = extraMilitars.find(extra => extra.rg === app.militarRg);
+    }
+    if (!m) {
+       m = {
+         id: app.militarId,
+         rg: app.militarRg,
+         name: app.militarName,
+         warName: app.militarWarName || '',
+         rank: app.militarRank,
+         quadro: app.militarQuadro || '',
+         obm: obmContext
+       } as any;
+       setExtraMilitars(prev => [...prev, m]);
+    }
+    setBaseRoster(prev => {
+       if (!prev.some(br => br.rg === m.rg)) {
+          return [...prev, m];
+       }
+       return prev;
+    });
+  };
+
+  const handleAddAllRas = () => {
+    rasApplications.forEach(app => {
+       handleAddSingleRas(app);
+    });
+  };
+
   const handleGerarEscala = async () => {
     // Check if the scale is for the current day
     const today = format(new Date(), "yyyy-MM-dd");
@@ -1492,6 +1555,83 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
               </tbody>
             </table>
           </div>
+        </div>
+
+        
+        {/* SECTION 1.5: RAS_MODULE */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative z-30 mb-6">
+          <div className="bg-amber-50 rounded-t-2xl border-b border-amber-100 p-3 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h3 className="text-xs font-black text-amber-900 uppercase tracking-widest flex items-center gap-2 shrink-0">
+              <BriefcaseBusiness className="w-4 h-4 text-amber-600" />
+              RAS (Regime Adicional de Serviço)
+            </h3>
+            
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <button
+                onClick={handleFetchRas}
+                className="bg-amber-600 hover:bg-amber-500 text-white font-black uppercase tracking-widest text-[10px] px-3 py-1.5 rounded shadow-sm flex items-center gap-1 transition-colors"
+              >
+                <Download className="w-3 h-3" />
+                Buscar Militares
+              </button>
+              {rasApplications.length > 0 && (
+                <button
+                  onClick={handleAddAllRas}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-widest text-[10px] px-3 py-1.5 rounded shadow-sm flex items-center gap-1 transition-colors"
+                >
+                  <Check className="w-3 h-3" />
+                  Incluir Todos
+                </button>
+              )}
+            </div>
+          </div>
+          
+          {rasApplications.length > 0 && (
+            <div className="p-4 sm:p-6">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200">
+                    <th className="p-2 font-black text-slate-500 uppercase tracking-widest">Militar</th>
+                    <th className="p-2 font-black text-slate-500 uppercase tracking-widest text-center">Status</th>
+                    <th className="p-2 font-black text-slate-500 uppercase tracking-widest text-center w-32">Ação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rasApplications.map((app) => {
+                    const isInScale = baseRoster.some(br => br.rg === app.militarRg);
+                    return (
+                      <tr key={app.id} className="border-b border-slate-100 hover:bg-slate-50">
+                        <td className="p-2 font-bold text-slate-800">
+                          {app.militarRank} {app.militarWarName || app.militarName} <span className="text-slate-400 font-normal">({app.militarRg})</span>
+                        </td>
+                        <td className="p-2 text-center">
+                          {isInScale ? (
+                            <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest">
+                              Na Escala
+                            </span>
+                          ) : (
+                            <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest">
+                              Aguardando
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-2 text-center">
+                          {!isInScale && (
+                            <button
+                              onClick={() => handleAddSingleRas(app)}
+                              className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold px-2 py-1 rounded text-[10px] uppercase tracking-widest transition-colors w-full"
+                            >
+                              Incluir
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* SECTION 2: TAB_PERMUTA (Escala Espelho Base) */}
