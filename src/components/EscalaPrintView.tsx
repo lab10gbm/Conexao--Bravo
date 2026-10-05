@@ -205,110 +205,141 @@ export function EscalaPrintView({
         </div>
 
         {/* VIATURAS TABLE */}
-        {(!viaturasInfo || viaturasInfo.some((v: any) => (v.exibir ?? v.ativa))) && (
+        {(() => {
+          const vArr = viaturasInfo || [];
+          const vis = (prefix: string) => getVtrByPrefix(prefix) !== null;
+          const hasABT = vis('ABT');
+          const hasABSL = vis('ABSL');
+          const hasASE = vis('ASE');
+          const hasARC = vis('ARC');
+          const hasAR = vis('AR');
+          const hasL = vis('L-');
+          const hasBIA0 = getVtrByPrefix('BIA', 0) !== null;
+          const hasBIA1 = getVtrByPrefix('BIA', 1) !== null;
+          const showCol4 = hasARC || hasAR;
+          const showCol5 = hasL || hasBIA0 || hasBIA1;
+          const cols = [hasABT, hasABSL, hasASE, showCol4, showCol5].filter(Boolean).length;
+          if (viaturasInfo && cols === 0) return null;
+
+          const body = (prefix: string, idx: number, slots: any) => {
+            const v = getVtrByPrefix(prefix, idx);
+            return v && !v.ativa && (v.exibir ?? v.ativa) ? renderInativaMsg() : slots(v);
+          };
+          const sepHeader = (label: string, extra: string = '') => (
+            <div className={`border-y-2 border-black ${headerColorClass} font-bold text-center py-0.5 ${extra}`}>{label}</div>
+          );
+          const th = (label: string) => (
+            <th className="border-2 border-black py-1 px-1">{label}</th>
+          );
+
+          return (
         <table className="w-full border-collapse border-2 border-black text-left mb-2 table-fixed text-[11px]">
            <thead>
               <tr className={`${headerColorClass} font-bold border-b-2 border-black text-center text-xs`}>
-                 <th className="border-2 border-black py-1 px-1">{getActiveVtr('ABT')}</th>
-                 <th className="border-2 border-black py-1 px-1">{getActiveVtr('ABSL')}</th>
-                 <th className="border-2 border-black py-1 px-1">{getActiveVtr('ASE')}</th>
-                 <th className="border-2 border-black py-1 px-1">{getActiveVtr('ARC')}</th>
-                 <th className="border-2 border-black py-1 px-1">{getActiveVtr('L-')}</th>
+                 {hasABT && th(getActiveVtr('ABT'))}
+                 {hasABSL && th(getActiveVtr('ABSL'))}
+                 {hasASE && th(getActiveVtr('ASE'))}
+                 {showCol4 && th(hasARC ? getActiveVtr('ARC') : getActiveVtr('AR'))}
+                 {showCol5 && th(hasL ? getActiveVtr('L-') : getActiveVtr('BIA', hasBIA0 ? 0 : 1))}
               </tr>
            </thead>
-           
-            <tbody>
+           <tbody>
               <tr>
-                 {/* ABT */}
+                 {hasABT && (
                  <td className="border border-black p-0 align-top">
                     <div className="flex flex-col h-full min-h-[180px] p-2 justify-between">
-                       {(() => { const v = getVtrByPrefix('ABT'); return v && !v.ativa && (v.exibir ?? v.ativa) ? renderInativaMsg() : <>
+                       {body('ABT', 0, (v: any) => <>
                           {renderVtrSlot(v, 'cg', 'CHEFE ABT', 'CG')}
                           {renderVtrSlot(v, 'g1', 'AUXILIAR ABT', 'P1')}
                           {renderVtrSlot(v, 'g2', 'AUXILIAR ABT', 'P2')}
                           {renderVtrSlot(v, 'g3', 'AUXILIAR ABT', 'P3')}
                           {renderVtrSlot(v, 'g4', 'AUXILIAR ABT', 'P4')}
                           {renderVtrSlot(v, 'condutor', 'CONDUTOR ABT', 'Mot')}
-                       </>})()}
+                       </>)}
                     </div>
-                 </td>
-                 {/* ABSL */}
+                 </td>)}
+                 {hasABSL && (
                  <td className="border border-black p-0 align-top">
                     <div className="flex flex-col h-full min-h-[180px] p-2 justify-between">
-                       {(() => { const v = getVtrByPrefix('ABSL'); return v && !v.ativa && (v.exibir ?? v.ativa) ? renderInativaMsg() : <>
+                       {body('ABSL', 0, (v: any) => <>
                           {renderVtrSlot(v, 'cg', 'CHEFE ABSL', 'CG')}
                           {renderVtrSlot(v, 'g1', 'AUXILIAR ABSL', 'Guarnição')}
                           {renderVtrSlot(v, 'g2', 'AUXILIAR ABSL', 'Guarnição')}
                           {renderVtrSlot(v, 'g3', 'AUXILIAR ABSL', 'Guarnição')}
                           {renderVtrSlot(v, 'g4', 'AUXILIAR ABSL', 'Guarnição')}
                           {renderVtrSlot(v, 'condutor', 'CONDUTOR ABSL', 'Mot')}
-                       </>})()}
+                       </>)}
                     </div>
-                 </td>
-                 {/* ASE */}
+                 </td>)}
+                 {hasASE && (
                  <td className="border border-black p-0 align-top">
                     <div className="flex flex-col h-full min-h-[180px] p-2 justify-between">
-                       {(() => { const v = getVtrByPrefix('ASE'); return v && !v.ativa && (v.exibir ?? v.ativa) ? renderInativaMsg() : <>
+                       {body('ASE', 0, (v: any) => <>
                           {renderVtrSlot(v, 'g1', 'ENFERMEIRO', 'Enfermeiro(a)')}
                           {renderVtrSlot(v, 'g2', 'ENFERMEIRO', 'Enfermeiro(a)')}
                           {renderVtrSlot(v, 'g3', 'AUXILIAR ASE', 'Auxiliar')}
                           {renderVtrSlot(v, 'g4', 'AUXILIAR ASE', 'Auxiliar')}
                           {renderVtrSlot(v, 'cg', 'CHEFE ASE', 'CG')}
                           {renderVtrSlot(v, 'condutor', 'CONDUTOR ASE', 'Mot')}
-                       </>})()}
+                       </>)}
                     </div>
-                 </td>
-                 {/* ARC & AR */}
+                 </td>)}
+                 {showCol4 && (
                  <td className="border border-black p-0 align-top">
                     <div className="flex flex-col h-full min-h-[180px]">
+                       {hasARC && (
                        <div className="p-2 flex-1 flex flex-col justify-between">
-                       {(() => { const v = getVtrByPrefix('ARC'); return v && !v.ativa && (v.exibir ?? v.ativa) ? renderInativaMsg() : <>
+                       {body('ARC', 0, (v: any) => <>
                           {renderVtrSlot(v, 'cg', 'AUXILIAR/CHEFE ARC', 'Guarnição')}
                           {renderVtrSlot(v, 'g1', 'AUXILIAR/CHEFE ARC', 'Guarnição')}
                           {renderVtrSlot(v, 'g2', 'AUXILIAR/CHEFE ARC', 'Guarnição')}
                           {renderVtrSlot(v, 'condutor', 'CONDUTOR ARC', 'Mot')}
-                       </>})()}
-                       </div>
-                       <div className={`border-y-2 border-black ${headerColorClass} font-bold text-center py-0.5 mt-auto`}>{getActiveVtr('AR')}</div>
-                       <div className="p-2 flex flex-col justify-end">
-                       {(() => { const v = getVtrByPrefix('AR'); return v && !v.ativa && (v.exibir ?? v.ativa) ? renderInativaMsg() : <>
+                       </>)}
+                       </div>)}
+                       {hasAR && hasARC && sepHeader(getActiveVtr('AR'), 'mt-auto')}
+                       {hasAR && (
+                       <div className="p-2 flex-1 flex flex-col justify-end">
+                       {body('AR', 0, (v: any) => <>
                           {renderVtrSlot(v, 'condutor', 'CONDUTOR AR', 'Mot', true)}
-                       </>})()}
-                       </div>
+                       </>)}
+                       </div>)}
                     </div>
-                 </td>
-                 {/* L-09 & BIA */}
+                 </td>)}
+                 {showCol5 && (
                  <td className="border border-black p-0 align-top">
                     <div className="flex flex-col h-full min-h-[180px]">
+                       {hasL && (
                        <div className="p-2 flex-1 flex flex-col justify-center gap-1">
-                       {(() => { const v = getVtrByPrefix('L-'); return v && !v.ativa && (v.exibir ?? v.ativa) ? renderInativaMsg() : <>
+                       {body('L-', 0, (v: any) => <>
                           {renderVtrSlot(v, 'condutor', 'MESTRE L', 'MS', true)}
                           {renderVtrSlot(v, 'g1', 'MARINHEIRO', 'MN', true)}
                           {renderVtrSlot(v, 'g2', 'MARINHEIRO', 'MN')}
-                       </>})()}
-                       </div>
-                       <div className={`border-y-2 border-black ${headerColorClass} font-bold text-center py-0.5`}>{getActiveVtr('BIA', 0)}</div>
+                       </>)}
+                       </div>)}
+                       {hasBIA0 && hasL && sepHeader(getActiveVtr('BIA', 0))}
+                       {hasBIA0 && (
                        <div className="p-2 flex-1 flex flex-col justify-center gap-1">
-                       {(() => { const v = getVtrByPrefix('BIA', 0); return v && !v.ativa && (v.exibir ?? v.ativa) ? renderInativaMsg() : <>
+                       {body('BIA', 0, (v: any) => <>
                           {renderVtrSlot(v, 'condutor', 'MESTRE BIA', 'MS', true)}
                           {renderVtrSlot(v, 'g1', 'MARINHEIRO', 'MN', true)}
                           {renderVtrSlot(v, 'g2', 'MARINHEIRO', 'MN')}
-                       </>})()}
-                       </div>
-                       <div className={`border-y-2 border-black ${headerColorClass} font-bold text-center py-0.5`}>{getActiveVtr('BIA', 1)}</div>
+                       </>)}
+                       </div>)}
+                       {hasBIA1 && (hasL || hasBIA0) && sepHeader(getActiveVtr('BIA', 1))}
+                       {hasBIA1 && (
                        <div className="p-2 flex-1 flex flex-col justify-center gap-1">
-                       {(() => { const v = getVtrByPrefix('BIA', 1); return v && !v.ativa && (v.exibir ?? v.ativa) ? renderInativaMsg() : <>
+                       {body('BIA', 1, (v: any) => <>
                           {renderVtrSlot(v, 'condutor', 'MESTRE BIA', 'MS', true)}
                           {renderVtrSlot(v, 'g1', 'MARINHEIRO', 'MN')}
-                       </>})()}
-                       </div>
+                       </>)}
+                       </div>)}
                     </div>
-                 </td>
+                 </td>)}
               </tr>
-            </tbody>
-
+           </tbody>
         </table>
-        )}
+          );
+        })()}
 
         {/* ADMIN ROLES */}
         <div className="flex border-2 border-black mb-2 p-1 font-bold uppercase min-h-[90px] text-xs">
