@@ -1189,12 +1189,27 @@ export function ExpedienteScheduler({
   };
   
   const getExpQuota = (rg: string) => {
-      if (data.expQuotas && data.expQuotas[rg] !== undefined) {
-          return data.expQuotas[rg];
+      if (!rg) return 0;
+      const clean = String(rg).replace(/[^A-Z0-9]/g, '').replace(/^0+/, '');
+
+      let val = data.expQuotas?.[rg];
+      if (val === undefined || isNaN(val)) {
+          val = data.expQuotas?.[clean];
       }
+      if (val === undefined || isNaN(val)) {
+          const foundKey = Object.keys(data.expQuotas || {}).find(k => k.replace(/[^A-Z0-9]/g, '').replace(/^0+/, '') === clean);
+          if (foundKey && data.expQuotas?.[foundKey] !== undefined) val = data.expQuotas[foundKey];
+      }
+      if (typeof val === 'number' && !isNaN(val)) {
+          return val;
+      }
+
       const regime = getRegime(rg);
       const match = regime.match(/(\d+)\s*Exped/i);
-      return match ? parseInt(match[1], 10) : 0;
+      if (match) return parseInt(match[1], 10);
+      if (/readaptado/i.test(regime)) return 4;
+      if (/redu[çc][ãa]o/i.test(regime)) return 2;
+      return 0;
   };
 
   const handleCycleCellStatus = async (rg: string, dayStr: string) => {
@@ -1529,10 +1544,17 @@ export function ExpedienteScheduler({
       let newSels = [...userSels];
       let newExp = [...userExp];
       const req = getReqAmount(rg);
+      const expQuota = getExpQuota(rg);
+      const weekDaysList = [0, 1, 2, 3, 4, 5, 6].map(offset => format(addDays(dayMonday, offset), 'yyyy-MM-dd'));
+      const currentWeekExpCount = userExp.filter(d => weekDaysList.includes(d)).length;
 
       if (mode === 'cycle') {
           if (!isSel && !isExp) {
               // FOLGA -> EXPEDIENTE
+              if (expQuota > 0 && currentWeekExpCount >= expQuota && !isAdmin && !user.isEscalante) {
+                  alert(`Você já atingiu a cota semanal de ${expQuota} expedientes definida para seu regime/cadastro.`);
+                  return;
+              }
               newExp.push(dayStr);
           } else if (isExp) {
               // EXPEDIENTE -> se escala 24h estiver bloqueada para o militar, pula direto para FOLGA!
@@ -1550,6 +1572,10 @@ export function ExpedienteScheduler({
               newSels = newSels.filter(d => d !== dayStr);
           }
       } else if (mode === 'expediente') {
+          if (expQuota > 0 && currentWeekExpCount >= expQuota && !isExp && !isAdmin && !user.isEscalante) {
+              alert(`Você já selecionou todos os ${expQuota} expedientes permitidos para esta semana.`);
+              return;
+          }
           newSels = newSels.filter(d => d !== dayStr);
           if (!newExp.includes(dayStr)) {
               newExp.push(dayStr);
@@ -1561,7 +1587,7 @@ export function ExpedienteScheduler({
           }
           newExp = newExp.filter(d => d !== dayStr);
           if (!newSels.includes(dayStr)) {
-              newSels.push(dayStr);
+              newExp.push(dayStr);
           }
       } else if (mode === 'folga') {
           newSels = newSels.filter(d => d !== dayStr);
@@ -2637,12 +2663,23 @@ export function ExpedienteScheduler({
                       <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping" />
                       <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Deslize para configurar →</span>
                     </div>
-                    <table className="w-full text-left border-collapse min-w-[700px] sm:min-w-[800px]">
+                    <table className="w-full text-left border-collapse min-w-[850px] sm:min-w-[980px]">
                        <thead>
                           <tr className="border-b-2 border-slate-200 bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-widest">
                              <th className="py-3 px-4">Militar</th>
                              <th className="py-3 px-4 w-64 border-l-2 border-slate-200">Regime de Trabalho</th>
-                             <th className="py-3 px-4 w-24 border-l-2 border-slate-200 text-center">Dias/Mês</th>
+                             <th className="py-3 px-4 w-28 border-l-2 border-slate-200 text-center" title="Quantidade semanal de serviços expedientes">
+                                <div className="flex flex-col items-center">
+                                   <span>Expediente</span>
+                                   <span className="text-[8px] text-indigo-600 font-bold normal-case">(Serv/Exp)</span>
+                                </div>
+                             </th>
+                             <th className="py-3 px-4 w-28 border-l-2 border-slate-200 text-center" title="Quantidade mensal de Serviços 24h">
+                                <div className="flex flex-col items-center">
+                                   <span>Dias/Mês</span>
+                                   <span className="text-[8px] text-indigo-600 font-bold normal-case">(S. 24h)</span>
+                                </div>
+                             </th>
                              <th className="py-3 px-4 w-48 border-l-2 border-slate-200">Setor / Seção</th>
                              <th className="py-3 px-4 w-12 border-l-2 border-slate-200 text-center">Ações</th>
                           </tr>
@@ -2650,7 +2687,7 @@ export function ExpedienteScheduler({
                        <tbody>
                           {expedienteUsers.length === 0 && (
                               <tr>
-                                  <td colSpan={4} className="py-8 text-center text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                  <td colSpan={6} className="py-8 text-center text-xs font-bold text-slate-400 uppercase tracking-widest">
                                       Nenhum militar do expediente encontrado.
                                   </td>
                               </tr>
@@ -2658,6 +2695,7 @@ export function ExpedienteScheduler({
                           {expedienteUsers.filter(u => u.rg !== 'ESCALANTE_PREF').map((u) => {
                              const rg = u.rg || u.uid;
                              const reqAmount = getReqAmount(rg);
+                             const expQuotaAmount = data.expQuotas?.[rg] !== undefined ? data.expQuotas[rg] : getExpQuota(rg);
                              const sector = getSector(rg);
                              const currentRegime = getRegime(rg);
                              
@@ -2695,15 +2733,24 @@ export function ExpedienteScheduler({
                                                   else if (/readaptado|redu[çc][ãa]o/i.test(val)) autoReq = 0;
                                                   else if (val === "Outro") autoReq = reqAmount;
 
+                                                  let autoExp = 0;
+                                                  const matchExp = val.match(/(\d+)\s*Exped/i);
+                                                  if (matchExp) autoExp = parseInt(matchExp[1], 10);
+                                                  else if (/readaptado/i.test(val)) autoExp = 4;
+                                                  else if (/redu[çc][ãa]o/i.test(val)) autoExp = 2;
+                                                  else if (val === "Outro") autoExp = expQuotaAmount;
+
                                                   setData(prev => ({
                                                       ...prev,
                                                       regimes: { ...prev.regimes, [rg]: r },
-                                                      requirements: { ...prev.requirements, [rg]: autoReq }
+                                                      requirements: { ...prev.requirements, [rg]: autoReq },
+                                                      expQuotas: { ...(prev.expQuotas || {}), [rg]: autoExp }
                                                   }));
 
                                                   const newGlobal: any = {
                                                       regimes: { [rg]: r },
                                                       requirements: { [rg]: autoReq },
+                                                      expQuotas: { [rg]: autoExp },
                                                       userNames: { [rg]: formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name) }
                                                   };
 
@@ -2750,6 +2797,40 @@ export function ExpedienteScheduler({
                                          <input 
                                              type="number"
                                              min="0"
+                                             max="7"
+                                             defaultValue={expQuotaAmount}
+                                             key={`exp-${expQuotaAmount}`}
+                                             onKeyDown={(e) => {
+                                                 if (e.key === 'Enter') {
+                                                     (e.target as HTMLInputElement).blur();
+                                                 }
+                                             }}
+                                             onBlur={async (e) => {
+                                                const quota = parseInt(e.target.value);
+                                                const val = isNaN(quota) ? 0 : Math.max(0, Math.min(7, quota));
+                                                if (val === expQuotaAmount) return;
+                                                setData(prev => ({
+                                                    ...prev,
+                                                    expQuotas: { ...(prev.expQuotas || {}), [rg]: val }
+                                                }));
+                                                const newGlobal: any = {
+                                                    expQuotas: { [rg]: val },
+                                                    userNames: { [rg]: formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name) }
+                                                };
+                                                if (val <= 0) {
+                                                    updateDoc(globalDocRef, { [`expQuotas.${rg}`]: deleteField() }).catch(console.error);
+                                                    delete newGlobal.expQuotas;
+                                                }
+                                                await setDoc(globalDocRef, cleanUndefined(newGlobal), { merge: true });
+                                             }}
+                                             className="w-16 p-2 text-center text-sm border-2 border-indigo-200 rounded-md bg-white font-black text-indigo-900 hover:border-indigo-400 focus:border-indigo-500 outline-none transition-colors mx-auto block"
+                                             title="Quantidade semanal de serviços expedientes (EXP/Sem)"
+                                         />
+                                     </td>
+                                     <td className="py-3 px-4 border-l-2 border-slate-50 text-center">
+                                         <input 
+                                             type="number"
+                                             min="0"
                                              defaultValue={reqAmount}
                                              key={`req-${reqAmount}`}
                                              onKeyDown={(e) => {
@@ -2776,6 +2857,7 @@ export function ExpedienteScheduler({
                                                 await setDoc(monthDocRef, cleanUndefined({ requirements: { [rg]: req } }), { merge: true });
                                              }}
                                              className="w-16 p-2 text-center text-sm border-2 border-indigo-200 rounded-md bg-white font-black text-indigo-900 hover:border-indigo-400 focus:border-indigo-500 outline-none transition-colors mx-auto block"
+                                             title="Quantidade mensal de Serviços 24h (S. 24h)"
                                          />
                                      </td>
                                      <td className="py-3 px-4 border-l-2 border-slate-50">
@@ -2921,11 +3003,16 @@ export function ExpedienteScheduler({
                                                         <span className="text-red-600 font-bold text-[9px] normal-case bg-red-100 px-1.5 py-0.5 rounded">{(safeArr(data.selections[rg]).length)} dias</span>
                                                     </div>
                                                  ) : (
-                                                     <div className="flex flex-col items-center gap-1">
+                                                     <div className="flex flex-col items-center gap-0.5">
                                                          <span className="truncate max-w-[120px]">{formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name)}</span>
                                                          <span className={cn("text-[9px] normal-case px-1.5 py-0.5 rounded font-bold", (safeArr(data.selections[rg]).length) >= getReqAmount(rg) && getReqAmount(rg) > 0 ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700")}>
-                                                             {(safeArr(data.selections[rg]).length)} / {typeof data.requirements[rg] === 'number' && !isNaN(data.requirements[rg]) ? data.requirements[rg] : '?'}
+                                                             {(safeArr(data.selections[rg]).length)} / {getReqAmount(rg) || '?'} SV
                                                          </span>
+                                                         {getExpQuota(rg) > 0 && (
+                                                             <span className="text-[8px] font-black text-indigo-700 bg-indigo-50 border border-indigo-100 px-1 rounded">
+                                                                 {getExpQuota(rg)} EXP/sem
+                                                             </span>
+                                                         )}
                                                      </div>
                                                  )}
                                              </th>
@@ -3120,11 +3207,18 @@ export function ExpedienteScheduler({
                                              {isEscalantePref ? (
                                                 <span className="text-red-600 font-bold">{userSels.length} d</span>
                                              ) : (
-                                                 <span className={cn(
-                                                     userSels.length >= reqAmount && reqAmount > 0 ? "text-green-600" : "text-amber-600"
-                                                 )}>
-                                                     {userSels.length} / {reqAmount || '?'}
-                                                 </span>
+                                                 <div className="flex flex-col items-center gap-0.5">
+                                                     <span className={cn(
+                                                         userSels.length >= reqAmount && reqAmount > 0 ? "text-green-600 font-black" : "text-amber-600 font-black"
+                                                     )}>
+                                                         {userSels.length} / {reqAmount || '?'} SV
+                                                     </span>
+                                                     {getExpQuota(rg) > 0 && (
+                                                         <span className="text-[8px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-1 rounded">
+                                                             {getExpQuota(rg)} EXP/sem
+                                                         </span>
+                                                     )}
+                                                 </div>
                                              )}
                                          </td>
                                          {currentMonthDays.map(day => {
@@ -3873,6 +3967,7 @@ export function ExpedienteScheduler({
 
                         const userSels = safeArr(data.selections[activeRg]);
                         const userReq = getReqAmount(activeRg);
+                        const userExpQuota = getExpQuota(activeRg);
                         const isWeekLocked = isWeeklyLockedForUser(activeRg, selectedWeekMonday);
                         const isMonthOrdLocked = isOrdinarioLockedForUser(activeRg, weekMondayMonthKey);
                         const regimeText = getRegimeDisplay(activeRg);
@@ -3936,11 +4031,30 @@ export function ExpedienteScheduler({
                                         </div>
                                     </div>
 
-                                    {/* Cota no Mês */}
-                                    {userReq > 0 && (
-                                        <div className="flex flex-col gap-1 bg-white/10 p-2.5 rounded-lg border border-white/10 min-w-[140px]">
+                                    {/* Cota Expediente na Semana */}
+                                    {userExpQuota > 0 && (
+                                        <div className="flex flex-col gap-1 bg-white/10 p-2.5 rounded-lg border border-white/10 min-w-[130px]">
                                             <div className="flex justify-between items-center text-[10px] font-bold">
-                                                <span className="text-slate-300 uppercase tracking-wider">Cota Mês</span>
+                                                <span className="text-slate-300 uppercase tracking-wider">Cota Sem. (EXP)</span>
+                                                <span className="text-white font-black">{weekExpCount} / {userExpQuota} EXP</span>
+                                            </div>
+                                            <div className="w-full bg-black/40 rounded-full h-1.5 overflow-hidden">
+                                                <div 
+                                                    className={cn("h-full transition-all duration-300", weekExpCount >= userExpQuota ? "bg-emerald-400" : "bg-indigo-400")} 
+                                                    style={{ width: `${Math.min(100, (weekExpCount / userExpQuota) * 100)}%` }}
+                                                />
+                                            </div>
+                                            <span className="text-[9px] text-right font-black uppercase tracking-wider text-slate-400">
+                                                {weekExpCount >= userExpQuota ? "✓ Cota Atingida" : `Faltam ${userExpQuota - weekExpCount}`}
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {/* Cota S.24h no Mês */}
+                                    {userReq > 0 && (
+                                        <div className="flex flex-col gap-1 bg-white/10 p-2.5 rounded-lg border border-white/10 min-w-[130px]">
+                                            <div className="flex justify-between items-center text-[10px] font-bold">
+                                                <span className="text-slate-300 uppercase tracking-wider">Cota Mês (S.24h)</span>
                                                 <span className="text-white font-black">{userSels.length} / {userReq} SV</span>
                                             </div>
                                             <div className="w-full bg-black/40 rounded-full h-1.5 overflow-hidden">
@@ -5266,13 +5380,20 @@ export function ExpedienteScheduler({
                                  <span className="text-3xl font-black leading-none">{userSels.length}</span>
                                  {activeRg !== 'ESCALANTE_PREF' && <span className="text-sm font-bold opacity-80 leading-snug">/ {userReq}</span>}
                                  <span className="text-[9px] font-black uppercase tracking-widest opacity-70 ml-auto mb-1 border border-white/20 px-1.5 py-0.5 rounded">
-                                     {activeRg === 'ESCALANTE_PREF' ? 'Datas Preferenciais' : 'Serviços'}
+                                     {activeRg === 'ESCALANTE_PREF' ? 'Datas Preferenciais' : 'Serviços (24h)'}
                                  </span>
                              </div>
                              
                              {activeRg !== 'ESCALANTE_PREF' && (
                                  <div className="w-full bg-black/20 rounded-full h-1.5 mb-2.5">
                                      <div className="bg-green-400 h-1.5 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, progress)}%` }}></div>
+                                 </div>
+                             )}
+
+                             {activeRg && activeRg !== 'ESCALANTE_PREF' && getExpQuota(activeRg) > 0 && (
+                                 <div className="flex items-center justify-between text-[10px] font-bold bg-white/10 px-2.5 py-1 rounded mb-2.5 border border-white/10">
+                                     <span className="opacity-80">Cota Semanal Expediente:</span>
+                                     <span className="font-black text-indigo-200">{getExpQuota(activeRg)} EXP/sem</span>
                                  </div>
                              )}
                              
