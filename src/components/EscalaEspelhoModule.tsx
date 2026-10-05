@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useMilitars } from "../contexts/MilitarContext";
 import { PermutaRequest, PermutaStatus } from "../types";
-import { collection, query, where, onSnapshot, updateDoc, doc, serverTimestamp, getDoc, setDoc, getDocs } from "firebase/firestore";
+import { collection, query, where, onSnapshot, updateDoc, doc, serverTimestamp, getDoc, setDoc, getDocs, addDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -198,11 +198,17 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
     }
   }, [addMilitarSearch]);
   const addMenuRef = React.useRef<HTMLDivElement>(null);
+  const [addRasMilitarSearch, setAddRasMilitarSearch] = useState('');
+  const [showAddRasMenu, setShowAddRasMenu] = useState(false);
+  const addRasMenuRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
         setShowAddMenu(false);
+      }
+      if (addRasMenuRef.current && !addRasMenuRef.current.contains(e.target as Node)) {
+        setShowAddRasMenu(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -1092,6 +1098,72 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
   };
 
 
+
+  const addRasMenuOptions = useMemo(() => {
+    if (addRasMilitarSearch.length < 2) return [];
+    const s = addRasMilitarSearch.toLowerCase();
+    
+    const combinedPool = [...militars, ...globalSearchResults];
+    const uniquePool = Array.from(new Map(combinedPool.map(m => [m.rg, m])).values());
+
+    return uniquePool
+      .filter(m => {
+        return (m.name || '').toLowerCase().includes(s) || 
+               (m.warName || '').toLowerCase().includes(s) || 
+               (m.rg || '').toString().includes(addRasMilitarSearch);
+      })
+      .filter(m => !rasApplications.some(app => app.militarRg === m.rg))
+      .slice(0, 10);
+  }, [addRasMilitarSearch, militars, globalSearchResults, rasApplications]);
+
+  const handleAddMilitarToRas = async (m: any) => {
+    setAddRasMilitarSearch('');
+    setShowAddRasMenu(false);
+    try {
+      const qOpps = query(collection(db, 'ras_opportunities'), where('obm', '==', obmContext), where('date', '==', selectedDate));
+      const oppsSnap = await getDocs(qOpps);
+      
+      let rasId = '';
+      if (oppsSnap.empty) {
+        const oppRef = await addDoc(collection(db, 'ras_opportunities'), {
+          obm: obmContext,
+          date: selectedDate,
+          duration: 24,
+          description: "RAS Adicionado pelo Escalante",
+          functions: ["GERAL"],
+          vacancies: 99,
+          status: "closed", 
+          createdBy: "ESCALANTE",
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        });
+        rasId = oppRef.id;
+      } else {
+        rasId = oppsSnap.docs[0].id;
+      }
+      
+      const newApp = {
+        rasId: rasId,
+        militarId: m.id || m.rg,
+        militarRg: m.rg,
+        militarName: m.name,
+        militarWarName: m.warName || '',
+        militarQuadro: m.quadro || '',
+        militarRank: m.rank,
+        status: 'selected',
+        appliedAt: Date.now()
+      };
+      
+      const docRef = await addDoc(collection(db, 'ras_applications'), newApp);
+      
+      setRasApplications(prev => [...prev, { id: docRef.id, ...newApp }]);
+      
+    } catch(err) {
+      console.error(err);
+      alert("Erro ao adicionar militar ao RAS.");
+    }
+  };
+
   const handleFetchRas = async () => {
     try {
       const qOpps = query(collection(db, 'ras_opportunities'), where('obm', '==', obmContext), where('date', '==', selectedDate));
@@ -1566,23 +1638,57 @@ export function EscalaEspelhoModule({ obmContext, user }: EscalaEspelhoModulePro
               RAS (Regime Adicional de Serviço)
             </h3>
             
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <button
-                onClick={handleFetchRas}
-                className="bg-amber-600 hover:bg-amber-500 text-white font-black uppercase tracking-widest text-[10px] px-3 py-1.5 rounded shadow-sm flex items-center gap-1 transition-colors"
-              >
-                <Download className="w-3 h-3" />
-                Buscar Militares
-              </button>
-              {rasApplications.length > 0 && (
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
+              <div className="relative w-full sm:w-64 z-20" ref={addRasMenuRef}>
+                <input
+                  type="text"
+                  placeholder="Adicionar militar ao RAS..."
+                  value={addRasMilitarSearch}
+                  onChange={(e) => {
+                    setAddRasMilitarSearch(e.target.value);
+                    setShowAddRasMenu(true);
+                  }}
+                  onFocus={() => setShowAddRasMenu(true)}
+                  className="w-full text-xs bg-white border border-amber-200 rounded px-3 py-1.5 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 placeholder:text-slate-400 text-slate-800 font-bold"
+                />
+                {showAddRasMenu && addRasMilitarSearch.length >= 2 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-xl max-h-48 overflow-y-auto">
+                    {addRasMenuOptions.map((m) => (
+                        <button
+                          key={m.rg}
+                          onClick={() => handleAddMilitarToRas(m)}
+                          className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 border-b border-slate-100 last:border-0"
+                        >
+                          <div className="font-bold text-slate-800">{m.rank} {m.warName || m.name}</div>
+                          <div className="text-[10px] text-slate-500">{m.rg}</div>
+                        </button>
+                    ))}
+                    {addRasMenuOptions.length === 0 && (
+                       <div className="p-3 text-center text-slate-500 text-xs">Nenhum militar encontrado.</div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={handleAddAllRas}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-widest text-[10px] px-3 py-1.5 rounded shadow-sm flex items-center gap-1 transition-colors"
+                  onClick={handleFetchRas}
+                  className="bg-amber-600 hover:bg-amber-500 text-white font-black uppercase tracking-widest text-[10px] px-3 py-1.5 rounded shadow-sm flex items-center gap-1 transition-colors"
                 >
-                  <Check className="w-3 h-3" />
-                  Incluir Todos
+                  <Download className="w-3 h-3" />
+                  Buscar
                 </button>
-              )}
+                {rasApplications.length > 0 && (
+                  <button
+                    onClick={handleAddAllRas}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-widest text-[10px] px-3 py-1.5 rounded shadow-sm flex items-center gap-1 transition-colors"
+                  >
+                    <Check className="w-3 h-3" />
+                    Incluir Todos
+                  </button>
+                )}
+              </div>
             </div>
           </div>
           
