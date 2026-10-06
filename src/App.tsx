@@ -41,6 +41,7 @@ import {
   getAlaForDate,
   GLOBAL_REF_YEAR,
   normalizeObm,
+  normalizeRg,
 } from "./lib/utils";
 import { PlatformLogo } from "./components/PlatformLogo";
 import { RankInsignia } from "./components/RankInsignia";
@@ -345,23 +346,51 @@ export default function App() {
     };
   }, []);
 
-  // Proactive profile refresh to ensure data is never stale (Ala, rank etc)
+  // Proactive profile refresh to ensure data is never stale (Ala, rank, roles etc)
   useEffect(() => {
-    if (profile?.rg && !loading && authReady) {
-      // Set up real-time listener for the user's own profile without cache interference
-      const unsub = onSnapshot(doc(db, 'militaries', profile.rg), (pDoc) => {
-        if (pDoc.exists()) {
-          const memberData = pDoc.data();
-          const isNewDataBetter = true; // Always accept latest real-time data
-          
-          if (isNewDataBetter) {
+    if (profile?.rg) {
+      const safeRg = normalizeRg(profile.rg);
+      if (!safeRg) return;
+
+      // Immediate fetch from backend API to guarantee role sync
+      fetch(`/api/militar/${safeRg}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.militar) {
+            const m = data.militar;
+            setProfile(prev => {
+              if (!prev) return prev;
+              const updatedProfile = {
+                ...prev,
+                ...m,
+                ala: (safeRg === "54444") ? "EXP" : (m.ala || prev.ala),
+                nascimento: m.nascimento || m.birthDate || prev.nascimento || (prev as any).birthDate,
+                idFuncional: m.idFuncional || m.id_funcional || prev.idFuncional || (prev as any).id_funcional,
+                promotionDate: m.promotionDate || m.ultimaPromocao || prev.promotionDate || (prev as any).ultimaPromocao,
+                quadro: m.quadro || m.QUADRO || prev.quadro || (prev as any).QUADRO
+              };
+              if (JSON.stringify(updatedProfile) !== JSON.stringify(prev)) {
+                localStorage.setItem("militar_profile", JSON.stringify(updatedProfile));
+                return updatedProfile;
+              }
+              return prev;
+            });
+          }
+        })
+        .catch(() => {});
+
+      if (!loading && authReady && db) {
+        // Set up real-time listener for the user's own profile without cache interference
+        const unsub = onSnapshot(doc(db, 'militaries', safeRg), (pDoc) => {
+          if (pDoc.exists()) {
+            const memberData = pDoc.data();
             setProfile(prev => {
               if (!prev) return prev;
               const updatedProfile = {
                 ...prev,
                 ...memberData,
                 // Ensure aliases are mapped to expected internal names
-                ala: (memberData.rg === "54444" || prev.rg === "54444") ? "EXP" : (memberData.ala || prev.ala),
+                ala: (safeRg === "54444") ? "EXP" : (memberData.ala || prev.ala),
                 nascimento: memberData.nascimento || memberData.birthDate || prev.nascimento || (prev as any).birthDate,
                 idFuncional: memberData.idFuncional || memberData.id_funcional || prev.idFuncional || (prev as any).id_funcional,
                 promotionDate: memberData.promotionDate || memberData.ultimaPromocao || prev.promotionDate || (prev as any).ultimaPromocao,
@@ -380,11 +409,11 @@ export default function App() {
               return prev;
             });
           }
-        }
-      }, (err) => {
-        console.warn("[Auth] Failed to subscribe to profile updates:", err.message);
-      });
-      return () => unsub();
+        }, (err) => {
+          console.warn("[Auth] Failed to subscribe to profile updates:", err.message);
+        });
+        return () => unsub();
+      }
     }
   }, [profile?.rg, loading, authReady]);
 

@@ -71,12 +71,16 @@ export function MainLayout({
   }, []);
 
   const effectiveProfile = profile;
+  const hasAdminAccess = Boolean(
+    profile && (profile.isAdmin || (Array.isArray(profile.adminObms) && profile.adminObms.length > 0))
+  );
+  const hasEscalanteAccess = Boolean(
+    profile && (profile.isEscalante || (Array.isArray(profile.escalanteObms) && profile.escalanteObms.length > 0))
+  );
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-main)] text-[#1D1D1D] font-sans selection:bg-red-100 selection:text-red-900 flex flex-col">
-      {(profile.isAdmin ||
-        (profile.adminObms && profile.adminObms.length > 0)) &&
-        moderatorMode && (
+      {hasAdminAccess && moderatorMode && (
           <div className="bg-indigo-600 text-white px-3 py-2 border-b border-indigo-500 animate-in slide-in-from-top duration-300">
             <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -149,19 +153,19 @@ export function MainLayout({
             </div>
 
             <div className="flex items-center gap-1 sm:gap-2 ml-1 sm:ml-2">
-              {profile && profile.isEscalante && !profile.isAdmin && (
+              {hasEscalanteAccess && !hasAdminAccess && (
                 <button
                   onClick={() => setEscalanteModeActive(!escalanteModeActive)}
                   className={`p-1.5 sm:p-2 transition-colors rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-3 ${escalanteModeActive ? "bg-blue-500 text-white shadow-inner" : "text-white/50 hover:text-blue-400 hover:bg-white/5 border border-white/10"}`}
-                  title="Modo Escalante"
+                  title={escalanteModeActive ? "Desativar Modo Escalante" : "Ativar Modo Escalante"}
                 >
                   <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
                   <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest hidden sm:block">
-                    Escalante
+                    {escalanteModeActive ? "Escalante Ativo" : "Ativar Escalante"}
                   </span>
                 </button>
               )}
-              {profile && profile.isAdmin && (
+              {hasAdminAccess && (
                 <button
                   onClick={() => {
                     const nextMode = !moderatorMode;
@@ -169,11 +173,11 @@ export function MainLayout({
                     setAdminModeActive(nextMode);
                   }}
                   className={`p-1.5 sm:p-2 transition-colors rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-3 ${moderatorMode ? "bg-indigo-500 text-white shadow-inner" : "text-white/50 hover:text-indigo-400 hover:bg-white/5 border border-white/10"}`}
-                  title="Modo Moderador"
+                  title={moderatorMode ? "Desativar Modo Moderador" : "Ativar Modo Moderador"}
                 >
                   <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
                   <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest hidden sm:block">
-                    Moderador
+                    {moderatorMode ? "Moderador Ativo" : "Ativar Moderador"}
                   </span>
                 </button>
               )}
@@ -222,6 +226,13 @@ export function MainLayout({
                       <p className="text-[8px] sm:text-[9px] text-zinc-400 font-bold uppercase tracking-widest text-center mt-0.5">
                         {effectiveProfile?.rank} • {effectiveProfile?.ala || "EXP"}
                       </p>
+                      {hasAdminAccess && (
+                        <div className="mt-1 flex items-center justify-center gap-1">
+                          <span className="bg-indigo-500/20 text-indigo-300 text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded border border-indigo-500/30">
+                            {effectiveProfile?.isAdmin ? "Admin Global" : `Admin ${effectiveProfile?.adminObms?.join(', ') || 'OBM'}`}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <div className="p-1 sm:p-2">
                        <button

@@ -224,6 +224,30 @@ export function SystemRolesConfig() {
            console.warn('Failed writing to Firestore directly', err);
          }
        }
+
+       // Keep backend militaryCache and server in direct sync
+       try {
+         await fetch('/api/militar/update', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ rg: safeRg, data: cleanUndefined(updates) })
+         });
+       } catch (apiErr) {
+         console.warn('Failed updating militaryCache via API', apiErr);
+       }
+
+       // If the updated user is currently logged in, sync localStorage directly
+       try {
+         const saved = localStorage.getItem("militar_profile");
+         if (saved) {
+           const parsed = JSON.parse(saved);
+           if (normalizeRg(parsed.rg) === safeRg) {
+             const merged = { ...parsed, ...updates };
+             localStorage.setItem("militar_profile", JSON.stringify(merged));
+             window.dispatchEvent(new Event('storage'));
+           }
+         }
+       } catch (storageErr) {}
        
        setTimeout(() => {
           refreshMilitars(rg);

@@ -12,6 +12,7 @@ import { subDays, format, addDays } from "date-fns";
 import React, { useState, useEffect } from "react";
 import {
   Shield,
+  ShieldCheck,
   ChevronDown,
   Calendar,
   ArrowRightLeft,
@@ -588,14 +589,15 @@ export function Header({
                         <button
                           onClick={onToggleAdminMode}
                           className={cn(
-                            "text-[8px] sm:text-[10px] font-black px-2 py-1 rounded-lg sm:rounded-xl flex items-center gap-1.5 border transition-all shadow-sm active:scale-95 cursor-pointer shrink-0 mt-1 sm:mt-0",
+                            "text-[8px] sm:text-[10px] font-black px-2.5 py-1 rounded-lg sm:rounded-xl flex items-center gap-1.5 border transition-all shadow-sm active:scale-95 cursor-pointer shrink-0 mt-1 sm:mt-0",
                             adminModeActive
                               ? "bg-indigo-600 text-white border-indigo-700 shadow-indigo-100/50 hover:bg-indigo-700"
-                              : "bg-slate-100 text-slate-500 border-slate-300 hover:bg-slate-200",
+                              : "bg-slate-100 text-slate-700 border-slate-300 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-300",
                           )}
                           title="Habilitar/Desabilitar Modo Moderador"
                         >
-                          MODERADOR: {adminModeActive ? "ATIVO" : "INATIVO"}
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                          {adminModeActive ? "MODERADOR: ATIVO" : "ATIVAR MODERADOR"}
                         </button>
                       );
                     }
