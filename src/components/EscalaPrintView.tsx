@@ -14,6 +14,7 @@ export function EscalaPrintView({
   militars,
   selectedFunctions,
   viaturasInfo,
+  rasApplications,
   onClose
 }: any) {
   const [showVisualMode, setShowVisualMode] = useState(false);
@@ -257,9 +258,9 @@ export function EscalaPrintView({
      const displayLabel = v?.customNames?.[slot]?.trim() ? v.customNames[slot].trim().substring(0, 15) : fallbackLabel;
      
      return (
-       <div className={`flex gap-1 items-center min-h-[20px] ${invisible ? 'opacity-0' : ''}`}>
-         <span className="font-bold shrink-0">{displayLabel}:</span> 
-         <span className="truncate">{renderMilitar(m)}</span>
+       <div className={`flex gap-1 items-start min-h-[20px] ${invisible ? 'opacity-0' : ''}`}>
+         <span className="font-bold shrink-0 pt-[1px]">{displayLabel}:</span> 
+         <span className="leading-[1.1]">{renderMilitar(m)}</span>
        </div>
      );
   };
@@ -328,25 +329,41 @@ export function EscalaPrintView({
         </div>
 
         {/* HEADER */}
-        <div className="flex w-full mb-2 border-b border-black pb-2 mt-8 print:mt-0">
-           <div className="w-1/4 text-center border-r border-black pr-2 flex flex-col justify-end">
-              <span className="mb-8 font-bold text-sm">VISTO</span>
-              <span className="border-t border-black w-3/4 mx-auto pt-1 font-bold">Ch. SaD</span>
+        <div className="flex w-full mb-2 border-b border-black mt-8 print:mt-0">
+           {/* Left column */}
+           <div className="w-1/4 text-center border-r border-black pr-2 flex flex-col items-center pt-5 pb-2">
+              <span className="font-bold text-sm mb-6">VISTO</span>
+              
+              <div className="w-full flex flex-col items-center mb-6">
+                 <div className="w-3/4 border-b border-black mb-1"></div>
+                 <span className="font-bold text-xs">Ch. SaD</span>
+              </div>
+              
+              <div className="w-full flex flex-col items-center">
+                 <div className="w-3/4 border-b border-black mb-1"></div>
+                 <span className="font-bold text-xs">Escalante</span>
+              </div>
            </div>
-           <div className="w-3/4 text-center flex flex-col justify-center items-center font-bold pl-2 text-[12px]">
-              <span>CORPO DE BOMBEIROS MILITAR DO ESTADO DO RIO DE JANEIRO</span>
-              <span>COMANDO DE BOMBEIROS DA COSTA VERDE</span>
-              <span>DÉCIMO GRUPAMENTO DE BOMBEIRO MILITAR-ANGRA DOS REIS</span>
-              <div className="flex justify-between w-full mt-4 text-sm px-16">
+
+           {/* Right column */}
+           <div className="w-3/4 text-center flex flex-col justify-between pl-2">
+              <div className="font-bold text-[12px] flex flex-col justify-center items-center mt-2 mb-4">
+                 <span>CORPO DE BOMBEIROS MILITAR DO ESTADO DO RIO DE JANEIRO</span>
+                 <span>COMANDO DE BOMBEIROS DA COSTA VERDE</span>
+                 <span>DÉCIMO GRUPAMENTO DE BOMBEIRO MILITAR-ANGRA DOS REIS</span>
+              </div>
+              
+              <div className="flex justify-center gap-2 w-full text-sm font-bold px-16 mb-2">
                  <span>ESCALA DE SERVIÇO PARA O DIA:</span>
                  <span>{dateStr}</span>
               </div>
+
+              <div className="font-bold flex flex-col text-left uppercase text-xs border-t border-black w-full pt-2 pb-2 pl-4">
+                  <span>OFICIAL DE DIA E PRONTIDÃO:</span>
+                  <span>OFICIAL DA NÁUTICA:</span>
+                  <span>OFICIAL MÉDICO:</span>
+              </div>
            </div>
-        </div>
-        <div className="font-bold flex flex-col mb-2 uppercase text-xs">
-            <span>OFICIAL DE DIA E PRONTIDÃO:</span>
-            <span>OFICIAL DA NÁUTICA:</span>
-            <span>OFICIAL MÉDICO:</span>
         </div>
 
         {/* VIATURAS TABLE */}
@@ -737,15 +754,25 @@ export function EscalaPrintView({
            <thead>
               <tr className={`${headerColorClass} font-bold border-b-2 border-black`}>
                  <th className="border-r border-black p-1 text-center uppercase" colSpan={3}>CHAMADA GERAL</th>
-                 <th className="p-1 text-center w-[20%] uppercase">PROG</th>
+                 <th className="p-1 text-center w-[20%] uppercase">RAS</th>
               </tr>
            </thead>
            <tbody>
-              {Array.from({ length: Math.max(Math.ceil(activeMembersList.length / 3), 9) }).map((_, i) => {
-                 const colLen = Math.max(Math.ceil(activeMembersList.length / 3), 9);
+              {Array.from({ length: Math.max(Math.ceil(activeMembersList.length / 3), 9, (rasApplications?.length || 0)) }).map((_, i) => {
+                 const totalRows = Math.max(Math.ceil(activeMembersList.length / 3), 9, (rasApplications?.length || 0));
+                 const cLen = totalRows;
+                 
                  const m1 = activeMembersList[i] || null;
-                 const m2 = activeMembersList[i + colLen] || null;
-                 const m3 = activeMembersList[i + colLen * 2] || null;
+                 const m2 = activeMembersList[i + cLen] || null;
+                 const m3 = activeMembersList[i + cLen * 2] || null;
+
+                 const rasApp = rasApplications && rasApplications[i] ? {
+                    rg: rasApplications[i].militarRg,
+                    name: rasApplications[i].militarName,
+                    warName: rasApplications[i].militarWarName,
+                    rank: rasApplications[i].militarRank,
+                 } : null;
+
                  return (
                     <tr key={i}>
                        <td className="border-r border-b border-black p-0.5 px-2 truncate">
@@ -757,8 +784,8 @@ export function EscalaPrintView({
                        <td className="border-r border-b border-black p-0.5 px-2 truncate">
                           {m3 ? <div className="flex gap-1 items-center min-h-[20px]"><span className="shrink-0">{m3.rg} -</span> <span className="truncate">{renderMilitar(m3.militar)}</span></div> : ''}
                        </td>
-                       <td className="border-b border-black p-0.5 text-center font-bold text-[9px] truncate">
-                           {i + 1} {sentinelas[i] ? `- ${renderMilitar(sentinelas[i])}` : ''}
+                       <td className="border-b border-black p-0.5 text-left pl-2 font-bold text-[9px] truncate">
+                           {i + 1} {rasApp ? `- ${renderMilitar(rasApp)}` : ''}
                         </td>
                     </tr>
                  );

@@ -351,24 +351,25 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                }
 
                if (savedViaturas && Array.isArray(savedViaturas) && savedViaturas.length > 0) {
-                   const mergedSaved = savedViaturas.map((saved: any) => {
-                       const base = baseVtrs.find((b: any) => b.id === saved.id || b.vtr === saved.vtr) || {};
-                       return { 
-                           ...base, 
-                           ...saved,
-                           ativa: saved.ativa !== undefined ? saved.ativa : (base.ativa !== undefined ? base.ativa : true),
-                           exibir: saved.exibir !== undefined ? saved.exibir : (base.exibir !== undefined ? base.exibir : true),
-                           espaco: saved.espaco || base.espaco || (base.maritima || base.vtr?.startsWith('L-') || base.vtr?.startsWith('BIA') ? '1/3' : (base.vtr?.startsWith('AR') || base.vtr?.startsWith('ARC') ? '1/2' : '1')),
-                           condutor: saved.condutor !== undefined ? saved.condutor : base.condutor,
-                           g1: saved.g1 !== undefined ? saved.g1 : base.g1,
-                           g2: saved.g2 !== undefined ? saved.g2 : base.g2,
-                           g3: saved.g3 !== undefined ? saved.g3 : base.g3,
-                           g4: saved.g4 !== undefined ? saved.g4 : base.g4,
-                           cg: saved.cg !== undefined ? saved.cg : base.cg
-                       };
+                   const mergedBase = baseVtrs.map((base: any) => {
+                       const saved = savedViaturas.find((s: any) => s.id === base.id || s.vtr === base.vtr);
+                       if (saved) {
+                           return { 
+                               ...base, 
+                               ativa: saved.ativa !== undefined ? saved.ativa : base.ativa,
+                               exibir: saved.exibir !== undefined ? saved.exibir : base.exibir,
+                               condutor: saved.condutor !== undefined ? saved.condutor : base.condutor,
+                               g1: saved.g1 !== undefined ? saved.g1 : base.g1,
+                               g2: saved.g2 !== undefined ? saved.g2 : base.g2,
+                               g3: saved.g3 !== undefined ? saved.g3 : base.g3,
+                               g4: saved.g4 !== undefined ? saved.g4 : base.g4,
+                               cg: saved.cg !== undefined ? saved.cg : base.cg,
+                           };
+                       }
+                       return base;
                    });
-                   const remainingBase = baseVtrs.filter((b: any) => !savedViaturas!.some((s: any) => s.id === b.id || s.vtr === b.vtr));
-                   setViaturasInfo([...mergedSaved, ...remainingBase]);
+                   const extras = savedViaturas.filter((s: any) => !baseVtrs.some((b: any) => b.id === s.id || b.vtr === s.vtr));
+                   setViaturasInfo([...mergedBase, ...extras]);
                } else {
                    setViaturasInfo(baseVtrs);
                }
@@ -495,7 +496,8 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
             .filter((a: any) => a.status === 'selected' || a.status === 'completed');
           appsMap[opp.id] = apps;
           const merged = Object.values(appsMap).flat();
-          setRasApplications(merged);
+          const uniqueMerged = Array.from(new Map(merged.map((app: any) => [app.militarRg, app])).values());
+          setRasApplications(uniqueMerged);
         });
         appUnsubscribers.push(unsubApp);
       });
@@ -1261,7 +1263,10 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
       const docRef = await addDoc(collection(db, 'ras_applications'), newApp);
       
       const appWithId = { id: docRef.id, ...newApp };
-      setRasApplications(prev => [...prev, appWithId]);
+      setRasApplications(prev => {
+        if (prev.some(p => p.militarRg === appWithId.militarRg)) return prev;
+        return [...prev, appWithId];
+      });
       
       // Auto-incluir na escala também
       handleAddSingleRas(appWithId);
@@ -1295,7 +1300,8 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
       if (apps.length === 0) {
         alert("Nenhum militar selecionado para RAS nesta data.");
       }
-      setRasApplications(apps);
+      const uniqueApps = Array.from(new Map(apps.map((app: any) => [app.militarRg, app])).values());
+      setRasApplications(uniqueApps);
     } catch(err) {
       console.error(err);
       alert("Erro ao buscar RAS.");
@@ -2878,6 +2884,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           militars={militars}
           selectedFunctions={selectedFunctions}
           viaturasInfo={viaturasInfo}
+          rasApplications={rasApplications}
           onClose={() => setShowPrintView(false)}
         />
       )}
