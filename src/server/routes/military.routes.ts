@@ -290,8 +290,9 @@ app.get('/api/militar/:rg', async (req, res) => {
       
       if (safeRg === '54444') {
         if (!member) {
-          member = { rg: '54444', name: 'ADMINISTRADOR', warName: 'ADMINISTRADOR', rank: 'MAJOR', ala: '1', obm: 'CBA' };
+          member = { rg: '54444', name: 'BERNARDO', warName: 'BERNARDO', rank: 'SOLDADO', ala: 'EXP', obm: '10º GBM' };
         }
+        member.ala = 'EXP';
         member.isAdmin = true;
         member.isEscalante = true;
         militaryCache.set('54444', member);

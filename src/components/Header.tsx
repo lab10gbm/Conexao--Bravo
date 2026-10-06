@@ -264,8 +264,10 @@ export function Header({
 
   // Upcoming services calculation based on active months
   const [upcomingServices, setUpcomingServices] = useState<Date[]>([]);
-  const isExp = ["EXP", "E", "EXPEDIENTE"].includes(
-    profile.ala?.toString().toUpperCase() || "",
+  const isExp = Boolean(
+    ["EXP", "E", "EXPEDIENTE"].includes(
+      profile.ala?.toString().toUpperCase() || "",
+    ) || Boolean(userRegime) || profile.rg === "54444"
   );
 
   const [expedienteSelections, setExpedienteSelections] = useState<string[]>(
@@ -458,7 +460,7 @@ export function Header({
     grdDays,
   ]);
 
-  const alaType = profile.ala?.toString().toUpperCase() || "";
+  const alaType = isExp ? "EXP" : (profile.ala?.toString().toUpperCase() || "");
   const theme = getThemeColors(alaType);
 
   const r = profile.rank ? profile.rank.toUpperCase() : "";
@@ -633,7 +635,7 @@ export function Header({
                 <span className="text-slate-300 shrink-0">Escala:</span>
                 <span className="text-slate-600 truncate">
                   {isExp
-                    ? userRegime || "EXPEDIENTE (Pendente)"
+                    ? (userRegime ? `EXPEDIENTE (${userRegime})` : "EXPEDIENTE")
                     : "24H TRABALHO X 72H FOLGA"}
                 </span>
               </div>
@@ -643,7 +645,7 @@ export function Header({
           <div
             className={cn(
               "shrink-0",
-              isOfficerMode
+              isOfficerMode || isExp
                 ? "flex items-center mt-4 min-[880px]:mt-0"
                 : "hidden sm:grid grid-cols-2 min-[880px]:grid-cols-4 gap-1.5 sm:gap-2 min-[880px]:gap-2 mt-4 min-[880px]:mt-0 self-center min-[880px]:self-auto",
             )}
@@ -656,6 +658,20 @@ export function Header({
                 <div className="text-[12px] font-black leading-none uppercase">
                   {profile.officerRole || "A SER DEFINIDO"}
                 </div>
+              </div>
+            ) : isExp ? (
+              <div className="p-2.5 sm:p-3 rounded-lg shadow-sm border border-slate-300 bg-slate-100 text-slate-800 w-auto min-w-[180px] text-center flex flex-col items-center justify-center">
+                <div className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest whitespace-nowrap text-slate-500">
+                  REGIME / ESCALA
+                </div>
+                <div className="text-[13px] sm:text-[14px] font-black leading-tight uppercase text-slate-800">
+                  EXPEDIENTE
+                </div>
+                {userRegime ? (
+                  <div className="text-[9px] font-bold text-slate-500 uppercase mt-0.5 max-w-[220px] truncate">
+                    {userRegime}
+                  </div>
+                ) : null}
               </div>
             ) : (
               <>

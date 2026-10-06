@@ -510,7 +510,7 @@ async function startServer() {
         name: 'BERNARDO',
         warName: 'BERNARDO',
         rank: 'SOLDADO',
-        ala: '1',
+        ala: 'EXP',
         obm: '10º GBM',
         isAdmin: true,
         isEscalante: true,
@@ -521,6 +521,7 @@ async function startServer() {
       adminProfile.obm = '10º GBM'; // Force correct OBM formatting
       adminProfile.isAdmin = true;
       adminProfile.isEscalante = true;
+      adminProfile.ala = 'EXP'; // Soldado Bernardo belongs strictly to Expediente
       militaryCache.set('54444', adminProfile);
     }
     let adminPromoSuccess = false;
@@ -1317,7 +1318,7 @@ function startKeepAliveRobot(port: number) {
       isOutsourced: !!userData.isOutsourced,
       name: userData.name || "Usuário",
       rank: userData.isOutsourced ? "CIVIL" : (userData.rank || ""),
-      ala: userData.ala || "1",
+      ala: safeRg === '54444' ? 'EXP' : (userData.ala || 'EXP'),
       isAdmin: !!claims.admin,
       isEscalante: !!claims.escalante,
       isRefeitorioAdmin: !!userData.isRefeitorioAdmin,

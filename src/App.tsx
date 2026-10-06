@@ -183,7 +183,11 @@ export default function App() {
     const stored = localStorage.getItem("militar_profile");
     if (stored) {
       try {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        if (parsed && (parsed.rg === "54444" || parsed.rg === 54444)) {
+          parsed.ala = "EXP";
+        }
+        return parsed;
       } catch (e) {
         return null;
       }
@@ -357,6 +361,7 @@ export default function App() {
                 ...prev,
                 ...memberData,
                 // Ensure aliases are mapped to expected internal names
+                ala: (memberData.rg === "54444" || prev.rg === "54444") ? "EXP" : (memberData.ala || prev.ala),
                 nascimento: memberData.nascimento || memberData.birthDate || prev.nascimento || (prev as any).birthDate,
                 idFuncional: memberData.idFuncional || memberData.id_funcional || prev.idFuncional || (prev as any).id_funcional,
                 promotionDate: memberData.promotionDate || memberData.ultimaPromocao || prev.promotionDate || (prev as any).ultimaPromocao,

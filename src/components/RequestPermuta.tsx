@@ -146,7 +146,7 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
     if (date && user.rg && isOpen) {
       const selectedDateObj = new Date(date + 'T00:00:00');
       const alaOnDate = getAlaForDate(selectedDateObj);
-      const isExpediente = typeof user.ala === 'string' && (user.ala.toUpperCase() === 'EXP' || user.ala.toUpperCase() === 'EXPEDIENTE' || user.ala.toUpperCase() === 'ESCALANTE');
+      const isExpediente = (typeof user.ala === 'string' && (user.ala.toUpperCase() === 'EXP' || user.ala.toUpperCase() === 'EXPEDIENTE' || user.ala.toUpperCase() === 'ESCALANTE')) || user.rg === '54444';
       
       const isLeaving = !isExpediente && alaOnDate.toString() === user.ala?.toString();
 
