@@ -708,17 +708,36 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   const findOfficerMilitary = (officerStr: string) => {
     if (!officerStr) return null;
     const clean = officerStr.trim().toUpperCase();
-    return militars.find(m => {
+    
+    // 1. Tenta correspondência exata primeiro (incluindo o posto)
+    let match = militars.find(m => {
       const fullWar = `${parseRank(m.rank)} ${m.warName || ''}`.trim().toUpperCase();
       const fullName = `${parseRank(m.rank)} ${m.name || ''}`.trim().toUpperCase();
+      const firstPartName = `${parseRank(m.rank)} ${(m.name || '').split(' ')[0]}`.trim().toUpperCase();
+      
       return (
         (m.rg && clean.includes(m.rg)) ||
         clean === fullWar ||
         clean === fullName ||
-        (m.warName && clean.endsWith(m.warName.toUpperCase())) ||
+        clean === firstPartName
+      );
+    });
+
+    if (match) return match;
+
+    // 2. Se não achou exato, busca parcial garantindo que o posto também está na string
+    // Isso evita que "CAP MARCOS AUGUSTO" dê match em "1º SGT AUGUSTO"
+    match = militars.find(m => {
+      const rank = parseRank(m.rank).toUpperCase();
+      if (!rank || !clean.includes(rank)) return false;
+
+      return (
+        (m.warName && clean.includes(m.warName.toUpperCase())) ||
         (m.name && clean.includes(m.name.toUpperCase()))
       );
     });
+
+    return match || null;
   };
 
   // Oficiais disponíveis para Serviço & GRD
