@@ -130,12 +130,13 @@ export function calculateDeadline(targetDate: Date): Date {
  * Calculates which ala is on duty on a specific date.
  */
 export function getAlaForDate(date: Date): number {
+  if (!date || isNaN(date.getTime())) return 1;
   const baseDate = new Date(GLOBAL_REF_YEAR, 0, 1);
   const diffInTime = date.getTime() - baseDate.getTime();
   const diffInDays = Math.floor(diffInTime / (1000 * 3600 * 24));
   
   const ala = (((diffInDays + (GLOBAL_START_ALA - 1)) % 4) + 4) % 4 + 1;
-  return ala;
+  return isNaN(ala) ? 1 : ala;
 }
 
 export function getOppositeAla(ala: number): number {

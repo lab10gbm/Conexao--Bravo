@@ -32,7 +32,9 @@ import {
   Library,
   Layers,
   Sparkles,
-  CheckCircle2
+  CheckCircle2,
+  Stethoscope,
+  Folder
 } from 'lucide-react';
 import { useAppConfig } from '../contexts/ConfigContext';
 import { cleanUndefined } from "../lib/utils";
@@ -88,6 +90,16 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     defaultGroups: ['EXP', 'ADMIN', 'ESCALANTE', 'OFICIAIS']
   },
   {
+    id: 'servico-de-oficiais',
+    name: 'Serviço de Oficiais (Pasta)',
+    description: 'Pasta unificada na Home: Serviços e GRD, Núcleo Náutico e Oficiais Médicos',
+    section: 'operacional',
+    sectionLabel: 'Operacional',
+    icon: Folder,
+    color: 'bg-indigo-800 shadow-indigo-300',
+    defaultGroups: ['OFICIAIS', 'ADMIN', 'ESCALANTE']
+  },
+  {
     id: 'servicos-grd',
     name: 'Serviços e GRD (Oficiais)',
     description: 'Escala de Oficiais, Oficial de Dia e Sobreaviso',
@@ -105,6 +117,16 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     sectionLabel: 'Operacional',
     icon: Anchor,
     color: 'bg-cyan-600 shadow-cyan-200',
+    defaultGroups: ['OFICIAIS', 'ADMIN', 'ESCALANTE']
+  },
+  {
+    id: 'oficiais-medicos',
+    name: 'Oficiais Médicos',
+    description: 'Serviços e Escala Médica Hospitalar e Operacional',
+    section: 'operacional',
+    sectionLabel: 'Operacional',
+    icon: Stethoscope,
+    color: 'bg-rose-700 shadow-rose-200',
     defaultGroups: ['OFICIAIS', 'ADMIN', 'ESCALANTE']
   },
   {

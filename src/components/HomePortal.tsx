@@ -30,7 +30,12 @@ import {
   Megaphone,
   ChevronDown,
   BriefcaseBusiness,
-  Anchor
+  Anchor,
+  Stethoscope,
+  Folder,
+  FolderKanban,
+  X,
+  ExternalLink
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { db } from '../lib/firebase';
@@ -54,11 +59,27 @@ interface ModuleIconProps {
   comingSoon?: boolean;
   alertText?: string;
   inDevelopment?: boolean;
+  isFolder?: boolean;
+  subModules?: any[];
   onMoveLeft?: (e: React.MouseEvent) => void;
   onMoveRight?: (e: React.MouseEvent) => void;
 }
 
-const ModuleIcon: React.FC<ModuleIconProps> = ({ label, icon: Icon, color, onClick, description, disabled, comingSoon, alertText, inDevelopment, onMoveLeft, onMoveRight }) => {
+const ModuleIcon: React.FC<ModuleIconProps> = ({ 
+  label, 
+  icon: Icon, 
+  color, 
+  onClick, 
+  description, 
+  disabled, 
+  comingSoon, 
+  alertText, 
+  inDevelopment, 
+  isFolder,
+  subModules,
+  onMoveLeft, 
+  onMoveRight 
+}) => {
   return (
     <motion.button
       whileHover={disabled ? {} : { y: -5, scale: 1.02 }}
@@ -66,7 +87,8 @@ const ModuleIcon: React.FC<ModuleIconProps> = ({ label, icon: Icon, color, onCli
       onClick={disabled ? undefined : onClick}
       className={cn(
         "bg-white border-2 border-slate-100 rounded-3xl sm:rounded-[2rem] p-3 sm:p-6 flex flex-col items-center justify-center gap-2 sm:gap-4 shadow-sm transition-all text-center group relative overflow-hidden",
-        disabled ? "opacity-50 grayscale cursor-not-allowed" : "hover:shadow-xl hover:border-indigo-100"
+        disabled ? "opacity-50 grayscale cursor-not-allowed" : "hover:shadow-xl hover:border-indigo-100",
+        isFolder && "border-indigo-100/80 bg-gradient-to-b from-white to-indigo-50/20 hover:border-indigo-300"
       )}
     >
       {(onMoveLeft || onMoveRight) && (
@@ -83,6 +105,13 @@ const ModuleIcon: React.FC<ModuleIconProps> = ({ label, icon: Icon, color, onCli
           >
              <ChevronRight className="w-4 h-4" />
           </div>
+        </div>
+      )}
+
+      {isFolder && (
+        <div className="absolute top-2 sm:top-3 right-2 sm:right-3 bg-indigo-100/90 text-indigo-700 border border-indigo-200 text-[7px] sm:text-[8px] font-black py-0.5 px-2 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-2xs z-10">
+          <Folder className="w-2.5 h-2.5" />
+          <span>3 Apps</span>
         </div>
       )}
 
@@ -111,12 +140,31 @@ const ModuleIcon: React.FC<ModuleIconProps> = ({ label, icon: Icon, color, onCli
         </div>
       )}
 
-      <div className={cn(
-        `w-10 h-10 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl ${color} flex items-center justify-center text-white shadow-lg transition-transform`,
-        !disabled && "group-hover:rotate-6"
-      )}>
-        <Icon className="w-5 h-5 sm:w-8 sm:h-8" />
-      </div>
+      {isFolder ? (
+        <div className="w-10 h-10 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-gradient-to-br from-indigo-700 via-indigo-900 to-slate-900 p-1 sm:p-2 flex items-center justify-center text-white shadow-xl transition-all group-hover:scale-105 border border-indigo-400/40">
+          <div className="grid grid-cols-2 gap-1 w-full h-full">
+            <div className="bg-indigo-600 rounded flex items-center justify-center shadow-xs">
+              <ShieldCheck className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-white" />
+            </div>
+            <div className="bg-cyan-600 rounded flex items-center justify-center shadow-xs">
+              <Anchor className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-white" />
+            </div>
+            <div className="bg-rose-600 rounded flex items-center justify-center shadow-xs">
+              <Stethoscope className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-white" />
+            </div>
+            <div className="bg-slate-800/90 rounded flex items-center justify-center shadow-xs">
+              <Folder className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-amber-300" />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className={cn(
+          `w-10 h-10 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl ${color} flex items-center justify-center text-white shadow-lg transition-transform`,
+          !disabled && "group-hover:rotate-6"
+        )}>
+          <Icon className="w-5 h-5 sm:w-8 sm:h-8" />
+        </div>
+      )}
       <div>
         <h3 className="font-black text-slate-800 uppercase tracking-tighter text-[11px] sm:text-sm leading-tight">{label}</h3>
         {description && (
@@ -144,7 +192,21 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
   const [isEditMode, setIsEditMode] = useState(false);
   const [operacionalOrder, setOperacionalOrder] = useState<string[]>(() => {
      const saved = localStorage.getItem('operacionalModuleOrder');
-     return saved ? JSON.parse(saved) : [];
+     if (!saved) return [];
+     try {
+       const parsed = JSON.parse(saved);
+       if (Array.isArray(parsed) && !parsed.includes('servico-de-oficiais')) {
+         const oldIdx = parsed.findIndex(id => id === 'servicos-grd' || id === 'nucleo-nautico' || id === 'oficiais-medicos');
+         if (oldIdx !== -1) {
+           const updated = parsed.filter(id => id !== 'servicos-grd' && id !== 'nucleo-nautico' && id !== 'oficiais-medicos');
+           updated.splice(oldIdx, 0, 'servico-de-oficiais');
+           return updated;
+         }
+       }
+       return parsed;
+     } catch {
+       return [];
+     }
   });
   const [informativoOrder, setInformativoOrder] = useState<string[]>(() => {
      const saved = localStorage.getItem('informativoModuleOrder');
@@ -251,6 +313,19 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
     }
     
     if (isOfficerUser && moduleId === 'grd') return false;
+
+    if (moduleId === 'servico-de-oficiais') {
+      if (visibilityConfig && visibilityConfig[moduleId] !== undefined) {
+        const allowedGroups = visibilityConfig[moduleId];
+        if (allowedGroups.length === 0) return false;
+        const localRgStr = user.rg?.toString().trim();
+        if (localRgStr && allowedGroups.some(g => g === `RG:${localRgStr}`)) return true;
+        return allowedGroups.some(g => userGroups.includes(g));
+      }
+      return isVisible('servicos-grd', ['OFICIAIS', 'ADMIN', 'ESCALANTE']) || 
+             isVisible('nucleo-nautico', ['OFICIAIS', 'ADMIN', 'ESCALANTE']) || 
+             isVisible('oficiais-medicos', ['OFICIAIS', 'ADMIN', 'ESCALANTE']);
+    }
     
     let allowedGroups = defaultVisibilityGroups;
     if (visibilityConfig && visibilityConfig[moduleId] !== undefined) {
@@ -295,20 +370,42 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       defaultGroups: ['EXP', 'ADMIN', 'ESCALANTE', 'OFICIAIS']
     },
     {
-      id: 'servicos-grd',
-      label: 'Serviços e GRD',
-      description: 'Escala de Oficiais',
-      icon: ShieldCheck,
-      color: 'bg-indigo-700 shadow-indigo-200',
-      defaultGroups: ['OFICIAIS', 'ADMIN', 'ESCALANTE']
-    },
-    {
-      id: 'nucleo-nautico',
-      label: 'Núcleo Náutico',
-      description: 'Serviços e GRD',
-      icon: Anchor,
-      color: 'bg-cyan-600 shadow-cyan-200',
-      defaultGroups: ['OFICIAIS', 'ADMIN', 'ESCALANTE']
+      id: 'servico-de-oficiais',
+      label: 'Serviço de Oficiais',
+      description: 'GRD, Náutico & Médicos',
+      icon: Folder,
+      color: 'bg-indigo-800 shadow-indigo-300',
+      isFolder: true,
+      defaultGroups: ['OFICIAIS', 'ADMIN', 'ESCALANTE'],
+      subModules: [
+        {
+          id: 'servicos-grd',
+          label: 'Serviços e GRD',
+          description: 'Escala de Oficiais e Oficial de Dia',
+          icon: ShieldCheck,
+          color: 'bg-indigo-700 shadow-indigo-200',
+          badge: 'Geral & Sobreaviso',
+          defaultGroups: ['OFICIAIS', 'ADMIN', 'ESCALANTE']
+        },
+        {
+          id: 'nucleo-nautico',
+          label: 'Núcleo Náutico',
+          description: 'Serviços Especializados e GRD Marítima',
+          icon: Anchor,
+          color: 'bg-cyan-600 shadow-cyan-200',
+          badge: 'Operações Náuticas',
+          defaultGroups: ['OFICIAIS', 'ADMIN', 'ESCALANTE']
+        },
+        {
+          id: 'oficiais-medicos',
+          label: 'Oficiais Médicos',
+          description: 'Serviços e Escala Médica Hospitalar',
+          icon: Stethoscope,
+          color: 'bg-rose-700 shadow-rose-200',
+          badge: 'Corpo de Saúde',
+          defaultGroups: ['OFICIAIS', 'ADMIN', 'ESCALANTE']
+        }
+      ]
     },
     {
       id: 'ras',
@@ -578,6 +675,8 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
                   description={mod.description}
                   icon={mod.icon}
                   color={mod.color}
+                  isFolder={(mod as any).isFolder}
+                  subModules={(mod as any).subModules}
                   disabled={(mod as any).disabled}
                   comingSoon={(mod as any).comingSoon}
                   inDevelopment={(mod as any).inDevelopment}

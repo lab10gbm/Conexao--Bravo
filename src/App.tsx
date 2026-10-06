@@ -85,6 +85,11 @@ const EscalanteDashboard = React.lazy(() =>
     default: m.EscalanteDashboard,
   })),
 );
+const OficiaisDashboard = React.lazy(() =>
+  import("./components/OficiaisDashboard").then((m) => ({
+    default: m.OficiaisDashboard,
+  })),
+);
 const EstudoTecnicoGuarnicoesModule = React.lazy(() => import("./components/EstudoTecnicoGuarnicoesModule").then(m => ({ default: m.EstudoTecnicoGuarnicoesModule })));
 const GestaoEfetivoModeracaoModule = React.lazy(() => import("./components/GestaoEfetivoModeracaoModule").then((m) => ({ default: m.GestaoEfetivoModeracaoModule })));
 const GestaoSadDashboard = React.lazy(() => import("./components/GestaoSadDashboard").then((m) => ({ default: m.GestaoSadDashboard })));
@@ -122,6 +127,11 @@ const OfficerGrdModule = React.lazy(() =>
 const NucleoNauticoGrdModule = React.lazy(() =>
   import("./components/NucleoNauticoGrdModule").then((m) => ({
     default: m.NucleoNauticoGrdModule,
+  })),
+);
+const OfficerMedicosModule = React.lazy(() =>
+  import("./components/OfficerMedicosModule").then((m) => ({
+    default: m.OfficerMedicosModule,
   })),
 );
 const OfficerConfigModule = React.lazy(() =>
@@ -356,8 +366,8 @@ export default function App() {
       fetch(`/api/militar/${safeRg}`)
         .then(res => res.json())
         .then(data => {
-          if (data.success && data.militar) {
-            const m = data.militar;
+          const m = data?.member || data?.militar;
+          if (data?.success && m) {
             setProfile(prev => {
               if (!prev) return prev;
               const updatedProfile = {
@@ -742,6 +752,44 @@ export default function App() {
                 }
               />
               <Route
+                path="/servico-de-oficiais"
+                element={
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.05 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <OficiaisDashboard
+                      user={effectiveProfile!}
+                      obmContext={obmContext}
+                      setObmContext={setObmContext}
+                      availableObms={availableObms}
+                      onBack={() => navigate("/")}
+                    />
+                  </motion.div>
+                }
+              />
+              <Route
+                path="/servicos-oficiais"
+                element={
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.05 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <OficiaisDashboard
+                      user={effectiveProfile!}
+                      obmContext={obmContext}
+                      setObmContext={setObmContext}
+                      availableObms={availableObms}
+                      onBack={() => navigate("/")}
+                    />
+                  </motion.div>
+                }
+              />
+              <Route
                 path="/servicos-grd"
                 element={
                   <motion.div
@@ -750,23 +798,14 @@ export default function App() {
                     exit={{ opacity: 0, scale: 1.05 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <div className="flex flex-col gap-6">
-                      <div className="mb-4 pt-12">
-                        <button
-                          onClick={() => navigate("/")}
-                          className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors uppercase font-black text-[10px] tracking-[0.2em] group mt-6"
-                        >
-                          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                          Voltar ao Portal Principal
-                        </button>
-                      </div>
-                      <OfficerGrdModule
-                        user={effectiveProfile!}
-                        obmContext={obmContext}
-                        setObmContext={setObmContext}
-                        availableObms={availableObms}
-                      />
-                    </div>
+                    <OficiaisDashboard
+                      user={effectiveProfile!}
+                      obmContext={obmContext}
+                      setObmContext={setObmContext}
+                      availableObms={availableObms}
+                      onBack={() => navigate("/")}
+                      initialApp="servicos-grd"
+                    />
                   </motion.div>
                 }
               />
@@ -779,23 +818,34 @@ export default function App() {
                     exit={{ opacity: 0, scale: 1.05 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <div className="flex flex-col gap-6">
-                      <div className="mb-4 pt-12">
-                        <button
-                          onClick={() => navigate("/")}
-                          className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors uppercase font-black text-[10px] tracking-[0.2em] group mt-6"
-                        >
-                          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                          Voltar ao Portal Principal
-                        </button>
-                      </div>
-                      <NucleoNauticoGrdModule
-                        user={effectiveProfile!}
-                        obmContext={obmContext}
-                        setObmContext={setObmContext}
-                        availableObms={availableObms}
-                      />
-                    </div>
+                    <OficiaisDashboard
+                      user={effectiveProfile!}
+                      obmContext={obmContext}
+                      setObmContext={setObmContext}
+                      availableObms={availableObms}
+                      onBack={() => navigate("/")}
+                      initialApp="nucleo-nautico"
+                    />
+                  </motion.div>
+                }
+              />
+              <Route
+                path="/oficiais-medicos"
+                element={
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.05 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <OficiaisDashboard
+                      user={effectiveProfile!}
+                      obmContext={obmContext}
+                      setObmContext={setObmContext}
+                      availableObms={availableObms}
+                      onBack={() => navigate("/")}
+                      initialApp="oficiais-medicos"
+                    />
                   </motion.div>
                 }
               />

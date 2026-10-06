@@ -7,12 +7,12 @@ import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 
-import { parseRank } from "../lib/rankUtils";
+import { parseRank, sortOfficersBySeniority, COLS_OFICIAIS, isOfficer } from "../lib/rankUtils";
 import { RankInsignia } from "./RankInsignia";
 import { EscalaPrintView } from "./EscalaPrintView";
 import { RequestPermuta } from "./RequestPermuta";
 import { AfastamentosAlaModule } from "./AfastamentosAlaModule";
-import { Calendar as CalendarIcon, Users, ArrowRightLeft, ArrowRight, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, Check, X, Clock, Printer, Shuffle, Plus, Settings, Activity, TrendingDown, PieChart, BriefcaseBusiness, Download, RotateCcw } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, ArrowRightLeft, ArrowRight, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, Check, X, Clock, Printer, Shuffle, Plus, Settings, Activity, TrendingDown, PieChart, BriefcaseBusiness, Download, RotateCcw, ExternalLink, Edit3, Award, Star, UserCheck, Anchor, Stethoscope, HeartPulse } from 'lucide-react';
 
 import { motion } from "framer-motion";
 import { cleanUndefined, getUserObmAccess, normalizeObm, getAlaForDate, cn, getAlaColor, getAlaName, formatMilitaryName, normalizeAlaField } from '../lib/utils';
@@ -166,13 +166,45 @@ const DEFAULT_VIATURAS: any[] = [
 
 export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEspelhoModuleProps) {
   const navigate = useNavigate();
-  const [selectedDate, setSelectedDate] = useState<string>(
-    initialDate || format(new Date(), "yyyy-MM-dd"),
-  );
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    if (initialDate && typeof initialDate === 'string') {
+      try {
+        let clean = initialDate.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(clean)) {
+          const [d, m, y] = clean.split('/');
+          return `${y}-${m}-${d}`;
+        }
+        if (clean.includes('T')) return clean.split('T')[0];
+        const d = new Date(clean);
+        if (!isNaN(d.getTime())) return format(d, 'yyyy-MM-dd');
+      } catch {}
+    }
+    return format(new Date(), "yyyy-MM-dd");
+  });
 
   useEffect(() => {
-    if (initialDate) {
-      setSelectedDate(initialDate);
+    if (initialDate && typeof initialDate === 'string') {
+      try {
+        let clean = initialDate.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+          setSelectedDate(clean);
+          return;
+        }
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(clean)) {
+          const [d, m, y] = clean.split('/');
+          setSelectedDate(`${y}-${m}-${d}`);
+          return;
+        }
+        if (clean.includes('T')) {
+          setSelectedDate(clean.split('T')[0]);
+          return;
+        }
+        const d = new Date(clean);
+        if (!isNaN(d.getTime())) {
+          setSelectedDate(format(d, 'yyyy-MM-dd'));
+        }
+      } catch {}
     }
   }, [initialDate]);
   const { militars, loading: militarsLoading } = useMilitars();
@@ -569,7 +601,295 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     }
   };
 
-  const targetDateObj = parseISO(selectedDate);
+  // INTEGRAÇÃO DE ESCALAS DE OFICIAIS (Serviço & GRD, Núcleo Náutico, Oficiais Médicos)
+  const [officerScaleDays, setOfficerScaleDays] = useState<Record<string, Record<string, string>>>({});
+  const [nauticoScaleDays, setNauticoScaleDays] = useState<Record<string, Record<string, string>>>({});
+  const [medicoScaleDays, setMedicoScaleDays] = useState<Record<string, Record<string, string>>>({});
+
+  const [loadingOfficerScale, setLoadingOfficerScale] = useState(false);
+  const [loadingNauticoScale, setLoadingNauticoScale] = useState(false);
+  const [loadingMedicoScale, setLoadingMedicoScale] = useState(false);
+
+  // Editing state for Serviço & GRD
+  const [isEditingOficialDia, setIsEditingOficialDia] = useState(false);
+  const [selectedOfficerInput, setSelectedOfficerInput] = useState('');
+  const [savingOficialDia, setSavingOficialDia] = useState(false);
+
+  // Editing state for Núcleo Náutico
+  const [isEditingNautico, setIsEditingNautico] = useState(false);
+  const [selectedNauticoInput, setSelectedNauticoInput] = useState('');
+  const [savingNautico, setSavingNautico] = useState(false);
+
+  // Editing state for Oficiais Médicos
+  const [isEditingMedico, setIsEditingMedico] = useState(false);
+  const [selectedMedicoInput, setSelectedMedicoInput] = useState('');
+  const [savingMedico, setSavingMedico] = useState(false);
+
+  // Real-time listeners para as 3 escalas em Firestore: officer_scales, nautico_scales, medico_scales
+  useEffect(() => {
+    if (!db) return;
+    const rawObm = obmContext || "10º GBM";
+    const normalizedObm = rawObm === 'GLOBAL' ? '10º_GBM' : rawObm.replace(/\//g, '_').replace(/\s/g, '_');
+    
+    // 1. officer_scales (Serviço & GRD)
+    setLoadingOfficerScale(true);
+    const unsubOfficer = onSnapshot(doc(db, 'officer_scales', normalizedObm), (snap) => {
+      if (snap.exists()) {
+        setOfficerScaleDays(snap.data().days || {});
+      } else if (normalizedObm !== '10º_GBM') {
+        getDoc(doc(db, 'officer_scales', '10º_GBM')).then(fallbackSnap => {
+          if (fallbackSnap.exists()) {
+            setOfficerScaleDays(fallbackSnap.data().days || {});
+          } else {
+            setOfficerScaleDays({});
+          }
+        }).catch(() => setOfficerScaleDays({}));
+      } else {
+        setOfficerScaleDays({});
+      }
+      setLoadingOfficerScale(false);
+    }, (err) => {
+      console.warn("[EscalaEspelho] Erro ao carregar escala de oficiais:", err);
+      setLoadingOfficerScale(false);
+    });
+
+    // 2. nautico_scales (Núcleo Náutico)
+    setLoadingNauticoScale(true);
+    const unsubNautico = onSnapshot(doc(db, 'nautico_scales', normalizedObm), (snap) => {
+      if (snap.exists()) {
+        setNauticoScaleDays(snap.data().days || {});
+      } else if (normalizedObm !== '10º_GBM') {
+        getDoc(doc(db, 'nautico_scales', '10º_GBM')).then(fallbackSnap => {
+          if (fallbackSnap.exists()) {
+            setNauticoScaleDays(fallbackSnap.data().days || {});
+          } else {
+            setNauticoScaleDays({});
+          }
+        }).catch(() => setNauticoScaleDays({}));
+      } else {
+        setNauticoScaleDays({});
+      }
+      setLoadingNauticoScale(false);
+    }, (err) => {
+      console.warn("[EscalaEspelho] Erro ao carregar escala náutica:", err);
+      setLoadingNauticoScale(false);
+    });
+
+    // 3. medico_scales (Oficiais Médicos)
+    setLoadingMedicoScale(true);
+    const unsubMedico = onSnapshot(doc(db, 'medico_scales', normalizedObm), (snap) => {
+      if (snap.exists()) {
+        setMedicoScaleDays(snap.data().days || {});
+      } else if (normalizedObm !== '10º_GBM') {
+        getDoc(doc(db, 'medico_scales', '10º_GBM')).then(fallbackSnap => {
+          if (fallbackSnap.exists()) {
+            setMedicoScaleDays(fallbackSnap.data().days || {});
+          } else {
+            setMedicoScaleDays({});
+          }
+        }).catch(() => setMedicoScaleDays({}));
+      } else {
+        setMedicoScaleDays({});
+      }
+      setLoadingMedicoScale(false);
+    }, (err) => {
+      console.warn("[EscalaEspelho] Erro ao carregar escala médica:", err);
+      setLoadingMedicoScale(false);
+    });
+
+    return () => {
+      unsubOfficer();
+      unsubNautico();
+      unsubMedico();
+    };
+  }, [obmContext]);
+
+  // Helper para buscar militar completo por texto/nome
+  const findOfficerMilitary = (officerStr: string) => {
+    if (!officerStr) return null;
+    const clean = officerStr.trim().toUpperCase();
+    return militars.find(m => {
+      const fullWar = `${parseRank(m.rank)} ${m.warName || ''}`.trim().toUpperCase();
+      const fullName = `${parseRank(m.rank)} ${m.name || ''}`.trim().toUpperCase();
+      return (
+        (m.rg && clean.includes(m.rg)) ||
+        clean === fullWar ||
+        clean === fullName ||
+        (m.warName && clean.endsWith(m.warName.toUpperCase())) ||
+        (m.name && clean.includes(m.name.toUpperCase()))
+      );
+    });
+  };
+
+  // Oficiais disponíveis para Serviço & GRD
+  const availableOfficers = useMemo(() => {
+    return militars.filter(m => {
+      const r = parseRank(m.rank);
+      if (!COLS_OFICIAIS.includes(r)) return false;
+      const role = (m.officerRole || '').toUpperCase();
+      if (role.includes('MÉDICO') || role.includes('MEDICO') || role.includes('ADMINISTRATIVO')) return false;
+      return true;
+    }).sort(sortOfficersBySeniority);
+  }, [militars]);
+
+  // Oficiais disponíveis para Núcleo Náutico
+  const availableNauticoOfficers = useMemo(() => {
+    const list = militars.filter(m => {
+      const r = parseRank(m.rank);
+      if (!COLS_OFICIAIS.includes(r)) return false;
+      const role = (m.officerRole || (m as any).role || '').toUpperCase();
+      const name = (m.name || '').toUpperCase();
+      return role.includes('NÁUTIC') || role.includes('NAUTIC') || role.includes('EMBARCA') || role.includes('PILOTO') || name.includes('NAUTIC');
+    });
+    if (list.length > 0) return list.sort(sortOfficersBySeniority);
+    return militars.filter(m => {
+      const r = parseRank(m.rank);
+      return COLS_OFICIAIS.includes(r);
+    }).sort(sortOfficersBySeniority);
+  }, [militars]);
+
+  // Oficiais disponíveis para Médicos
+  const availableMedicalOfficers = useMemo(() => {
+    const list = militars.filter(m => {
+      const r = parseRank(m.rank);
+      if (!COLS_OFICIAIS.includes(r)) return false;
+      const role = (m.officerRole || (m as any).role || '').toUpperCase();
+      const quadro = (m.quadro || '').toUpperCase();
+      const name = (m.name || '').toUpperCase();
+      return role.includes('MEDIC') || role.includes('MÉDIC') || quadro.includes('QOS') || quadro.includes('MED') || name.includes('MEDIC');
+    });
+    if (list.length > 0) return list.sort(sortOfficersBySeniority);
+    return militars.filter(m => {
+      const r = parseRank(m.rank);
+      return COLS_OFICIAIS.includes(r);
+    }).sort(sortOfficersBySeniority);
+  }, [militars]);
+
+  // 1. Dados de Serviço & GRD
+  const currentOfficerDay = officerScaleDays[selectedDate] || {};
+  const oficialDiaValue = currentOfficerDay.oficialDia || '';
+  const sobreavisoValue = currentOfficerDay.sobreaviso || '';
+  const matchedOficialDia = useMemo(() => findOfficerMilitary(oficialDiaValue), [oficialDiaValue, militars]);
+
+  // 2. Dados de Núcleo Náutico
+  const currentNauticoDay = nauticoScaleDays[selectedDate] || {};
+  const nauticoOficialValue = currentNauticoDay.oficialDia || '';
+  const nauticoSobreavisoValue = currentNauticoDay.sobreaviso || '';
+  const matchedNauticoOficial = useMemo(() => findOfficerMilitary(nauticoOficialValue), [nauticoOficialValue, militars]);
+
+  // 3. Dados de Oficiais Médicos
+  const currentMedicoDay = medicoScaleDays[selectedDate] || {};
+  const medicoOficialValue = currentMedicoDay.oficialDia || '';
+  const medicoSobreavisoValue = currentMedicoDay.sobreaviso || '';
+  const matchedMedicoOficial = useMemo(() => findOfficerMilitary(medicoOficialValue), [medicoOficialValue, militars]);
+
+  // Handler para salvar Oficial de Dia (Serviço & GRD)
+  const handleSaveOficialDia = async (officerName: string) => {
+    if (!db || !selectedDate) return;
+    setSavingOficialDia(true);
+    try {
+      const rawObm = obmContext || "10º GBM";
+      const normalizedObm = rawObm === 'GLOBAL' ? '10º_GBM' : rawObm.replace(/\//g, '_').replace(/\s/g, '_');
+      await setDoc(doc(db, 'officer_scales', normalizedObm), cleanUndefined({
+        days: {
+          [selectedDate]: {
+            oficialDia: officerName
+          }
+        }
+      }), { merge: true });
+      setOfficerScaleDays(prev => ({
+        ...prev,
+        [selectedDate]: {
+          ...(prev[selectedDate] || {}),
+          oficialDia: officerName
+        }
+      }));
+      setIsEditingOficialDia(false);
+    } catch (err) {
+      console.error("Erro ao salvar oficial de dia:", err);
+    } finally {
+      setSavingOficialDia(false);
+    }
+  };
+
+  // Handler para salvar Oficial do Núcleo Náutico
+  const handleSaveNauticoOficial = async (officerName: string) => {
+    if (!db || !selectedDate) return;
+    setSavingNautico(true);
+    try {
+      const rawObm = obmContext || "10º GBM";
+      const normalizedObm = rawObm === 'GLOBAL' ? '10º_GBM' : rawObm.replace(/\//g, '_').replace(/\s/g, '_');
+      await setDoc(doc(db, 'nautico_scales', normalizedObm), cleanUndefined({
+        days: {
+          [selectedDate]: {
+            oficialDia: officerName
+          }
+        }
+      }), { merge: true });
+      setNauticoScaleDays(prev => ({
+        ...prev,
+        [selectedDate]: {
+          ...(prev[selectedDate] || {}),
+          oficialDia: officerName
+        }
+      }));
+      setIsEditingNautico(false);
+    } catch (err) {
+      console.error("Erro ao salvar oficial náutico:", err);
+    } finally {
+      setSavingNautico(false);
+    }
+  };
+
+  // Handler para salvar Oficial Médico
+  const handleSaveMedicoOficial = async (officerName: string) => {
+    if (!db || !selectedDate) return;
+    setSavingMedico(true);
+    try {
+      const rawObm = obmContext || "10º GBM";
+      const normalizedObm = rawObm === 'GLOBAL' ? '10º_GBM' : rawObm.replace(/\//g, '_').replace(/\s/g, '_');
+      await setDoc(doc(db, 'medico_scales', normalizedObm), cleanUndefined({
+        days: {
+          [selectedDate]: {
+            oficialDia: officerName
+          }
+        }
+      }), { merge: true });
+      setMedicoScaleDays(prev => ({
+        ...prev,
+        [selectedDate]: {
+          ...(prev[selectedDate] || {}),
+          oficialDia: officerName
+        }
+      }));
+      setIsEditingMedico(false);
+    } catch (err) {
+      console.error("Erro ao salvar oficial médico:", err);
+    } finally {
+      setSavingMedico(false);
+    }
+  };
+
+  const targetDateObj = useMemo(() => {
+    if (!selectedDate || typeof selectedDate !== 'string') return new Date();
+    try {
+      let dateToParse = selectedDate.trim();
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateToParse)) {
+        const [d, m, y] = dateToParse.split('/');
+        dateToParse = `${y}-${m}-${d}`;
+      } else if (dateToParse.includes('T')) {
+        dateToParse = dateToParse.split('T')[0];
+      }
+      const parsed = parseISO(dateToParse);
+      if (!parsed || isNaN(parsed.getTime())) {
+        const fallback = new Date(selectedDate);
+        return isNaN(fallback.getTime()) ? new Date() : fallback;
+      }
+      return parsed;
+    } catch {
+      return new Date();
+    }
+  }, [selectedDate]);
   const identifiedAla = getAlaForDate(targetDateObj);
   const identifiedAlaStr = identifiedAla.toString();
 
@@ -1497,6 +1817,496 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
       </div>
 
       <div className="p-4 sm:p-6 space-y-6">
+        {/* SEÇÃO CONEXÃO DE ESCALAS DE OFICIAIS: SERVIÇO & GRD, NÚCLEO NÁUTICO, OFICIAIS MÉDICOS */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative">
+          <div className="bg-slate-900 rounded-t-2xl border-b border-slate-800 p-4 px-5 flex flex-wrap items-center justify-between gap-3 text-white">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500/20 to-indigo-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400 shadow-inner">
+                <Shield className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-xs sm:text-sm font-black uppercase tracking-widest text-white">
+                    Oficiais de Dia & Serviços Operacionais (24h)
+                  </h3>
+                  <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[8px] font-black uppercase px-2 py-0.5 rounded tracking-widest flex items-center gap-1">
+                    <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" />
+                    Sincronizado
+                  </span>
+                  {(loadingOfficerScale || loadingNauticoScale || loadingMedicoScale) && (
+                    <span className="text-[9px] font-bold text-amber-400 animate-pulse uppercase tracking-widest">
+                      Atualizando...
+                    </span>
+                  )}
+                </div>
+                <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                  Conexão integrada: Serviço & GRD • Núcleo Náutico • Oficiais Médicos para o plantão de {(() => {
+                    try {
+                      return targetDateObj && !isNaN(targetDateObj.getTime())
+                        ? format(targetDateObj, "dd/MM/yyyy")
+                        : (selectedDate || "--/--/----");
+                    } catch {
+                      return selectedDate || "--/--/----";
+                    }
+                  })()}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest font-mono">
+                OBM: <strong className="text-white">{obmContext || "10º GBM"}</strong>
+              </span>
+            </div>
+          </div>
+
+          <div className="p-4 sm:p-5">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* CARD 1: SERVIÇO & GRD (OFICIAL DE DIA) */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between overflow-hidden shadow-xs hover:border-amber-300 transition-colors">
+                <div className="p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                      <Shield className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-800">
+                        Oficial de Dia
+                      </h4>
+                      <span className="text-[8px] font-black uppercase tracking-widest text-amber-800">
+                        Serviço & GRD (CMT OP)
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => navigate('/servicos-grd')}
+                    className="p-1.5 hover:bg-white rounded-lg text-slate-500 hover:text-amber-700 transition-colors text-[9px] font-black uppercase flex items-center gap-1 border border-transparent hover:border-amber-200"
+                    title="Acessar módulo de Serviços & GRD"
+                  >
+                    <ExternalLink className="w-3 h-3 text-amber-600" />
+                    <span className="hidden sm:inline">Módulo</span>
+                  </button>
+                </div>
+
+                <div className="p-3.5 flex-1 flex flex-col justify-between gap-3">
+                  {isEditingOficialDia ? (
+                    <div className="bg-white border border-amber-200 rounded-lg p-3 flex flex-col gap-2.5 shadow-sm">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-slate-700">
+                        Definir Oficial de Dia
+                      </span>
+                      <select
+                        value={selectedOfficerInput}
+                        onChange={(e) => setSelectedOfficerInput(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-md p-1.5 text-xs font-bold uppercase text-slate-800 outline-none focus:border-amber-500"
+                      >
+                        <option value="">-- Selecione um Oficial --</option>
+                        {availableOfficers.map((mil) => {
+                          const optName = `${parseRank(mil.rank)} ${mil.warName || (mil.name || '').split(' ')[0]}`;
+                          return (
+                            <option key={mil.rg} value={optName}>
+                              {optName} (RG: {mil.rg})
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <input
+                        type="text"
+                        placeholder="Ou digite o nome..."
+                        value={selectedOfficerInput}
+                        onChange={(e) => setSelectedOfficerInput(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-md p-1.5 text-xs font-bold uppercase text-slate-800 outline-none focus:border-amber-500"
+                      />
+                      <div className="flex justify-end gap-1.5 pt-1">
+                        {oficialDiaValue && (
+                          <button
+                            onClick={() => handleSaveOficialDia('')}
+                            disabled={savingOficialDia}
+                            className="px-2 py-1 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded text-[9px] font-black uppercase"
+                          >
+                            Remover
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setIsEditingOficialDia(false)}
+                          disabled={savingOficialDia}
+                          className="px-2 py-1 bg-slate-200 text-slate-700 rounded text-[9px] font-black uppercase"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={() => handleSaveOficialDia(selectedOfficerInput)}
+                          disabled={savingOficialDia || !selectedOfficerInput.trim()}
+                          className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[9px] font-black uppercase shadow-xs disabled:opacity-50"
+                        >
+                          {savingOficialDia ? "Salvando..." : "Salvar"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : oficialDiaValue ? (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-start gap-2.5">
+                        <div className="w-10 h-10 rounded-xl bg-slate-900 border border-amber-400/30 flex items-center justify-center text-white shrink-0 shadow-xs">
+                          {matchedOficialDia?.rank ? (
+                            <RankInsignia rankStr={matchedOficialDia.rank} />
+                          ) : (
+                            <Award className="w-5 h-5 text-amber-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h5 className="text-xs font-black text-slate-900 uppercase truncate">
+                            {matchedOficialDia ? `${parseRank(matchedOficialDia.rank)} ${matchedOficialDia.warName || matchedOficialDia.name}` : oficialDiaValue}
+                          </h5>
+                          {matchedOficialDia?.name && (
+                            <p className="text-[9px] font-bold text-slate-500 uppercase truncate">
+                              {matchedOficialDia.name}
+                            </p>
+                          )}
+                          <div className="flex flex-wrap items-center gap-1.5 text-[9px] font-mono text-slate-500 mt-0.5">
+                            {matchedOficialDia?.rg && <span>RG: <strong>{matchedOficialDia.rg}</strong></span>}
+                            {matchedOficialDia?.cel && <span>Tel: <strong>{matchedOficialDia.cel}</strong></span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      {sobreavisoValue && (
+                        <div className="bg-amber-50/80 border border-amber-200/60 rounded-md p-1.5 px-2 text-[9px] font-bold text-amber-900 uppercase flex items-center justify-between">
+                          <span>Sobreaviso 2 / GRD 2:</span>
+                          <strong className="truncate max-w-[150px]">{sobreavisoValue}</strong>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-end gap-1.5 pt-1">
+                        <button
+                          onClick={() => {
+                            setIsEditingOficialDia(true);
+                            setSelectedOfficerInput(oficialDiaValue || '');
+                          }}
+                          className="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg flex items-center gap-1 transition-colors"
+                        >
+                          <Edit3 className="w-3 h-3 text-slate-500" /> Alterar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-lg border border-dashed border-slate-300 text-center flex flex-col items-center justify-center gap-1.5 py-4">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        Nenhum Oficial de Dia Escalado
+                      </span>
+                      <button
+                        onClick={() => {
+                          setIsEditingOficialDia(true);
+                          setSelectedOfficerInput('');
+                        }}
+                        className="mt-1 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-black uppercase text-[9px] tracking-wider rounded-lg flex items-center gap-1 shadow-xs transition-colors"
+                      >
+                        <Plus className="w-3 h-3" /> Definir Oficial
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* CARD 2: NÚCLEO NÁUTICO */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between overflow-hidden shadow-xs hover:border-cyan-300 transition-colors">
+                <div className="p-3.5 bg-gradient-to-r from-cyan-50 to-blue-50 border-b border-cyan-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-cyan-600 text-white flex items-center justify-center shadow-xs">
+                      <Anchor className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-800">
+                        Oficial Náutico
+                      </h4>
+                      <span className="text-[8px] font-black uppercase tracking-widest text-cyan-800">
+                        Núcleo Náutico (Embarcação)
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => navigate('/nucleo-nautico')}
+                    className="p-1.5 hover:bg-white rounded-lg text-slate-500 hover:text-cyan-700 transition-colors text-[9px] font-black uppercase flex items-center gap-1 border border-transparent hover:border-cyan-200"
+                    title="Acessar módulo Núcleo Náutico"
+                  >
+                    <ExternalLink className="w-3 h-3 text-cyan-600" />
+                    <span className="hidden sm:inline">Módulo</span>
+                  </button>
+                </div>
+
+                <div className="p-3.5 flex-1 flex flex-col justify-between gap-3">
+                  {isEditingNautico ? (
+                    <div className="bg-white border border-cyan-200 rounded-lg p-3 flex flex-col gap-2.5 shadow-sm">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-slate-700">
+                        Definir Oficial Náutico
+                      </span>
+                      <select
+                        value={selectedNauticoInput}
+                        onChange={(e) => setSelectedNauticoInput(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-md p-1.5 text-xs font-bold uppercase text-slate-800 outline-none focus:border-cyan-500"
+                      >
+                        <option value="">-- Selecione um Oficial --</option>
+                        {availableNauticoOfficers.map((mil) => {
+                          const optName = `${parseRank(mil.rank)} ${mil.warName || (mil.name || '').split(' ')[0]}`;
+                          return (
+                            <option key={mil.rg} value={optName}>
+                              {optName} (RG: {mil.rg})
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <input
+                        type="text"
+                        placeholder="Ou digite o nome..."
+                        value={selectedNauticoInput}
+                        onChange={(e) => setSelectedNauticoInput(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-md p-1.5 text-xs font-bold uppercase text-slate-800 outline-none focus:border-cyan-500"
+                      />
+                      <div className="flex justify-end gap-1.5 pt-1">
+                        {nauticoOficialValue && (
+                          <button
+                            onClick={() => handleSaveNauticoOficial('')}
+                            disabled={savingNautico}
+                            className="px-2 py-1 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded text-[9px] font-black uppercase"
+                          >
+                            Remover
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setIsEditingNautico(false)}
+                          disabled={savingNautico}
+                          className="px-2 py-1 bg-slate-200 text-slate-700 rounded text-[9px] font-black uppercase"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={() => handleSaveNauticoOficial(selectedNauticoInput)}
+                          disabled={savingNautico || !selectedNauticoInput.trim()}
+                          className="px-3 py-1 bg-cyan-600 hover:bg-cyan-700 text-white rounded text-[9px] font-black uppercase shadow-xs disabled:opacity-50"
+                        >
+                          {savingNautico ? "Salvando..." : "Salvar"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : nauticoOficialValue ? (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-start gap-2.5">
+                        <div className="w-10 h-10 rounded-xl bg-slate-900 border border-cyan-400/30 flex items-center justify-center text-white shrink-0 shadow-xs">
+                          {matchedNauticoOficial?.rank ? (
+                            <RankInsignia rankStr={matchedNauticoOficial.rank} />
+                          ) : (
+                            <Anchor className="w-5 h-5 text-cyan-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h5 className="text-xs font-black text-slate-900 uppercase truncate">
+                            {matchedNauticoOficial ? `${parseRank(matchedNauticoOficial.rank)} ${matchedNauticoOficial.warName || matchedNauticoOficial.name}` : nauticoOficialValue}
+                          </h5>
+                          {matchedNauticoOficial?.name && (
+                            <p className="text-[9px] font-bold text-slate-500 uppercase truncate">
+                              {matchedNauticoOficial.name}
+                            </p>
+                          )}
+                          <div className="flex flex-wrap items-center gap-1.5 text-[9px] font-mono text-slate-500 mt-0.5">
+                            {matchedNauticoOficial?.rg && <span>RG: <strong>{matchedNauticoOficial.rg}</strong></span>}
+                            {matchedNauticoOficial?.cel && <span>Tel: <strong>{matchedNauticoOficial.cel}</strong></span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      {nauticoSobreavisoValue && (
+                        <div className="bg-cyan-50/80 border border-cyan-200/60 rounded-md p-1.5 px-2 text-[9px] font-bold text-cyan-900 uppercase flex items-center justify-between">
+                          <span>Apoio / Sobreaviso:</span>
+                          <strong className="truncate max-w-[150px]">{nauticoSobreavisoValue}</strong>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-end gap-1.5 pt-1">
+                        <button
+                          onClick={() => {
+                            setIsEditingNautico(true);
+                            setSelectedNauticoInput(nauticoOficialValue || '');
+                          }}
+                          className="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg flex items-center gap-1 transition-colors"
+                        >
+                          <Edit3 className="w-3 h-3 text-slate-500" /> Alterar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-lg border border-dashed border-slate-300 text-center flex flex-col items-center justify-center gap-1.5 py-4">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        Nenhum Oficial Náutico Escalado
+                      </span>
+                      <button
+                        onClick={() => {
+                          setIsEditingNautico(true);
+                          setSelectedNauticoInput('');
+                        }}
+                        className="mt-1 px-3 py-1 bg-cyan-600 hover:bg-cyan-700 text-white font-black uppercase text-[9px] tracking-wider rounded-lg flex items-center gap-1 shadow-xs transition-colors"
+                      >
+                        <Plus className="w-3 h-3" /> Definir Oficial
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* CARD 3: OFICIAIS MÉDICOS */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col justify-between overflow-hidden shadow-xs hover:border-rose-300 transition-colors">
+                <div className="p-3.5 bg-gradient-to-r from-rose-50 to-pink-50 border-b border-rose-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-rose-600 text-white flex items-center justify-center shadow-xs">
+                      <Stethoscope className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-800">
+                        Oficial Médico
+                      </h4>
+                      <span className="text-[8px] font-black uppercase tracking-widest text-rose-800">
+                        Oficiais Médicos (Saúde)
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => navigate('/oficiais-medicos')}
+                    className="p-1.5 hover:bg-white rounded-lg text-slate-500 hover:text-rose-700 transition-colors text-[9px] font-black uppercase flex items-center gap-1 border border-transparent hover:border-rose-200"
+                    title="Acessar módulo Oficiais Médicos"
+                  >
+                    <ExternalLink className="w-3 h-3 text-rose-600" />
+                    <span className="hidden sm:inline">Módulo</span>
+                  </button>
+                </div>
+
+                <div className="p-3.5 flex-1 flex flex-col justify-between gap-3">
+                  {isEditingMedico ? (
+                    <div className="bg-white border border-rose-200 rounded-lg p-3 flex flex-col gap-2.5 shadow-sm">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-slate-700">
+                        Definir Oficial Médico
+                      </span>
+                      <select
+                        value={selectedMedicoInput}
+                        onChange={(e) => setSelectedMedicoInput(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-md p-1.5 text-xs font-bold uppercase text-slate-800 outline-none focus:border-rose-500"
+                      >
+                        <option value="">-- Selecione um Médico --</option>
+                        {availableMedicalOfficers.map((mil) => {
+                          const optName = `${parseRank(mil.rank)} ${mil.warName || (mil.name || '').split(' ')[0]}`;
+                          return (
+                            <option key={mil.rg} value={optName}>
+                              {optName} (RG: {mil.rg})
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <input
+                        type="text"
+                        placeholder="Ou digite o nome..."
+                        value={selectedMedicoInput}
+                        onChange={(e) => setSelectedMedicoInput(e.target.value)}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-md p-1.5 text-xs font-bold uppercase text-slate-800 outline-none focus:border-rose-500"
+                      />
+                      <div className="flex justify-end gap-1.5 pt-1">
+                        {medicoOficialValue && (
+                          <button
+                            onClick={() => handleSaveMedicoOficial('')}
+                            disabled={savingMedico}
+                            className="px-2 py-1 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded text-[9px] font-black uppercase"
+                          >
+                            Remover
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setIsEditingMedico(false)}
+                          disabled={savingMedico}
+                          className="px-2 py-1 bg-slate-200 text-slate-700 rounded text-[9px] font-black uppercase"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={() => handleSaveMedicoOficial(selectedMedicoInput)}
+                          disabled={savingMedico || !selectedMedicoInput.trim()}
+                          className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[9px] font-black uppercase shadow-xs disabled:opacity-50"
+                        >
+                          {savingMedico ? "Salvando..." : "Salvar"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : medicoOficialValue ? (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-start gap-2.5">
+                        <div className="w-10 h-10 rounded-xl bg-slate-900 border border-rose-400/30 flex items-center justify-center text-white shrink-0 shadow-xs">
+                          {matchedMedicoOficial?.rank ? (
+                            <RankInsignia rankStr={matchedMedicoOficial.rank} />
+                          ) : (
+                            <Stethoscope className="w-5 h-5 text-rose-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h5 className="text-xs font-black text-slate-900 uppercase truncate">
+                            {matchedMedicoOficial ? `${parseRank(matchedMedicoOficial.rank)} ${matchedMedicoOficial.warName || matchedMedicoOficial.name}` : medicoOficialValue}
+                          </h5>
+                          {matchedMedicoOficial?.name && (
+                            <p className="text-[9px] font-bold text-slate-500 uppercase truncate">
+                              {matchedMedicoOficial.name}
+                            </p>
+                          )}
+                          <div className="flex flex-wrap items-center gap-1.5 text-[9px] font-mono text-slate-500 mt-0.5">
+                            {matchedMedicoOficial?.rg && <span>RG: <strong>{matchedMedicoOficial.rg}</strong></span>}
+                            {matchedMedicoOficial?.cel && <span>Tel: <strong>{matchedMedicoOficial.cel}</strong></span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      {medicoSobreavisoValue && (
+                        <div className="bg-rose-50/80 border border-rose-200/60 rounded-md p-1.5 px-2 text-[9px] font-bold text-rose-900 uppercase flex items-center justify-between">
+                          <span>Sobreaviso Médico:</span>
+                          <strong className="truncate max-w-[150px]">{medicoSobreavisoValue}</strong>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-end gap-1.5 pt-1">
+                        <button
+                          onClick={() => {
+                            setIsEditingMedico(true);
+                            setSelectedMedicoInput(medicoOficialValue || '');
+                          }}
+                          className="px-2.5 py-1 text-[9px] font-black uppercase tracking-wider bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg flex items-center gap-1 transition-colors"
+                        >
+                          <Edit3 className="w-3 h-3 text-slate-500" /> Alterar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-lg border border-dashed border-slate-300 text-center flex flex-col items-center justify-center gap-1.5 py-4">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        Nenhum Oficial Médico Escalado
+                      </span>
+                      <button
+                        onClick={() => {
+                          setIsEditingMedico(true);
+                          setSelectedMedicoInput('');
+                        }}
+                        className="mt-1 px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white font-black uppercase text-[9px] tracking-wider rounded-lg flex items-center gap-1 shadow-xs transition-colors"
+                      >
+                        <Plus className="w-3 h-3" /> Definir Oficial
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+              <span className="flex items-center gap-1 text-emerald-700 font-black">
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                Os 3 Oficiais são automaticamente integrados ao rodapé oficial de impressão (Gerar Escala 24h).
+              </span>
+              <span className="font-mono">
+                Atualização em tempo real via Nuvem
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* SECTION 1: IMPORT_PERMUTA (Permutas Deferidas) */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative z-50">
           <div className="bg-emerald-50 rounded-t-2xl border-b border-emerald-100 p-3 px-4 flex items-center justify-between">
@@ -2885,6 +3695,9 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           selectedFunctions={selectedFunctions}
           viaturasInfo={viaturasInfo}
           rasApplications={rasApplications}
+          oficialDia={oficialDiaValue}
+          oficialNautica={nauticoOficialValue}
+          oficialMedico={medicoOficialValue}
           onClose={() => setShowPrintView(false)}
         />
       )}

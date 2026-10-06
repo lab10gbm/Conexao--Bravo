@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Printer, X, Image as ImageIcon } from 'lucide-react';
@@ -15,6 +15,9 @@ export function EscalaPrintView({
   selectedFunctions,
   viaturasInfo,
   rasApplications,
+  oficialDia,
+  oficialNautica,
+  oficialMedico,
   onClose
 }: any) {
   const [showVisualMode, setShowVisualMode] = useState(false);
@@ -287,8 +290,25 @@ export function EscalaPrintView({
   const toqueFogo = getByFunc('TOQUE DE FOGO');
   const sentinelas = getByFunc('SENTINELA');
 
-  const dateStr = selectedDate ? format(new Date(`${selectedDate}T12:00:00`), "dd 'DE' MMMM 'DE' yyyy", { locale: ptBR }).toUpperCase() : '';
-  const shortDateStr = selectedDate ? format(new Date(`${selectedDate}T12:00:00`), "dd/MM/yyyy") : '';
+  const safeDateObj = useMemo(() => {
+    if (!selectedDate || typeof selectedDate !== 'string') return new Date();
+    try {
+      let clean = selectedDate.trim();
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(clean)) {
+        const [d, m, y] = clean.split('/');
+        clean = `${y}-${m}-${d}`;
+      } else if (clean.includes('T')) {
+        clean = clean.split('T')[0];
+      }
+      const d = new Date(`${clean}T12:00:00`);
+      return isNaN(d.getTime()) ? new Date() : d;
+    } catch {
+      return new Date();
+    }
+  }, [selectedDate]);
+
+  const dateStr = selectedDate ? format(safeDateObj, "dd 'DE' MMMM 'DE' yyyy", { locale: ptBR }).toUpperCase() : '';
+  const shortDateStr = selectedDate ? format(safeDateObj, "dd/MM/yyyy") : '';
 
   const renderInativaMsg = () => (
      <div className="flex flex-col items-center justify-center text-center font-bold text-slate-500 px-1 py-1 leading-tight opacity-60">
@@ -359,9 +379,9 @@ export function EscalaPrintView({
               </div>
 
               <div className="font-bold flex flex-col text-left uppercase text-xs border-t border-black w-full pt-2 pb-2 pl-4">
-                  <span>OFICIAL DE DIA E PRONTIDÃO:</span>
-                  <span>OFICIAL DA NÁUTICA:</span>
-                  <span>OFICIAL MÉDICO:</span>
+                  <span>OFICIAL DE DIA E PRONTIDÃO: {oficialDia ? <span className="ml-1 font-black underline">{oficialDia}</span> : ''}</span>
+                  <span>OFICIAL DA NÁUTICA: {oficialNautica ? <span className="ml-1 font-black underline">{oficialNautica}</span> : ''}</span>
+                  <span>OFICIAL MÉDICO: {oficialMedico ? <span className="ml-1 font-black underline">{oficialMedico}</span> : ''}</span>
               </div>
            </div>
         </div>
