@@ -168,7 +168,7 @@ export function ControleCategoriasModal({ isOpen, onClose, obmContext, initialCa
     if (!db) return;
     setSaving(true);
     try {
-      const docRef = doc(db, "obm_settings", obmContext);
+      const docRef = doc(db, "obm_settings", obmContext.replace(/\//g, '_').replace(/\s/g, '_'));
       await setDoc(docRef, cleanUndefined({ categorias_funcoes: categories }), { merge: true });
       onClose();
     } catch (err) {

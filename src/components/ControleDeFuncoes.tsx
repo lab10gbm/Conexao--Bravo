@@ -75,7 +75,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
 
   useEffect(() => {
     if (!db || !obmContext) return;
-    const docRef = doc(db, "obm_settings", obmContext);
+    const docRef = doc(db, "obm_settings", obmContext.replace(/\//g, '_').replace(/\s/g, '_'));
     const unsub = onSnapshot(docRef, (snap) => {
       if (snap.exists() && snap.data()?.categorias_funcoes) {
         // We migrate the on-the-fly to ensure activeProperty exists for viewing

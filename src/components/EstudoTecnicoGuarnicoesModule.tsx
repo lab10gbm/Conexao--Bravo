@@ -41,7 +41,7 @@ export function EstudoTecnicoGuarnicoesModule({ obmContext }: { obmContext: stri
     }
     const loadSettings = async () => {
       try {
-        const docRef = doc(db, "obm_settings", obmContext);
+        const docRef = doc(db, "obm_settings", obmContext.replace(/\//g, '_').replace(/\s/g, '_'));
         const snap = await getDoc(docRef);
         if (snap.exists()) {
           const data = snap.data();
@@ -101,8 +101,12 @@ export function EstudoTecnicoGuarnicoesModule({ obmContext }: { obmContext: stri
        if (prefix === 'ARC') return 'AUXILIAR/CHEFE ARC';
        return 'CHEFE GUA';
     }
-    
-    return isMar ? 'AUXILIAR MARITIMO' : 'AUXILIAR GUA';
+    if (isMar) return 'AUXILIAR MARITIMO';
+    if (prefix === 'ABT') return 'AUXILIAR ABT';
+    if (prefix === 'ABSL') return 'AUXILIAR ABSL';
+    if (prefix === 'AR') return 'AUXILIAR AR';
+    if (prefix === 'ASE') return 'AUXILIAR ASE';
+    return 'AUXILIAR GUA';
   };
   const getSlotDisplayName = (v: any, slot: string) => {
     if (v.vtr) {

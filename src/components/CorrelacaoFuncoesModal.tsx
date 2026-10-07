@@ -78,7 +78,7 @@ export function CorrelacaoFuncoesModal({
       setLoading(true);
 
       try {
-        const docRef = doc(db, "obm_settings", obmContext);
+        const docRef = doc(db, "obm_settings", obmContext.replace(/\//g, '_').replace(/\s/g, '_'));
         const snapshot = await getDoc(docRef);
 
         let loadedCorr = snapshot.exists()
@@ -134,7 +134,7 @@ export function CorrelacaoFuncoesModal({
   const handleSave = async () => {
     setSaving(true);
     try {
-      const docRef = doc(db, "obm_settings", obmContext);
+      const docRef = doc(db, "obm_settings", obmContext.replace(/\//g, '_').replace(/\s/g, '_'));
       await setDoc(
         docRef,
         cleanUndefined({

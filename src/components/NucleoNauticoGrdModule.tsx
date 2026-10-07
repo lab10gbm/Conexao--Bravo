@@ -60,11 +60,23 @@ export function NucleoNauticoGrdModule({ user, obmContext, setObmContext, availa
   const [selectedRgsSobreaviso, setSelectedRgsSobreaviso] = useState<string[]>([]);
   const [configTab, setConfigTab] = useState<'oficialDia' | 'sobreaviso'>('oficialDia');
   const [showConfig, setShowConfig] = useState(false);
+  const [poolConfig, setPoolConfig] = useState<string[] | null>(null);
 
   const isGlobal = obmContext === 'GLOBAL';
-  // Normalize OBM for doc ID
-  const obmId = isGlobal ? 'GLOBAL' : obmContext.replace(/\//g, '_').replace(/\s/g, '_');
+  const obmId = isGlobal ? 'GLOBAL' : (obmContext || '10º GBM').replace(/\//g, '_').replace(/\s/g, '_');
   const docId = obmId;
+
+  useEffect(() => {
+    if (isGlobal) return;
+    const unsub = onSnapshot(doc(db, 'officer_pool_config', docId), (snap) => {
+      if (snap.exists() && snap.data().nucleoNautico !== undefined) {
+        setPoolConfig(snap.data().nucleoNautico);
+      } else {
+        setPoolConfig(null);
+      }
+    });
+    return () => unsub();
+  }, [docId, isGlobal]);
 
   useEffect(() => {
     setLoading(true);
@@ -303,29 +315,11 @@ export function NucleoNauticoGrdModule({ user, obmContext, setObmContext, availa
   };
 
   const availableOfficers = useMemo(() => {
-    return militars.filter(m => {
-       const rawMObm = m.obm ? m.obm : '10º GBM'; // Treat empty as 10º GBM
-       const mObm = rawMObm.replace(/º/g, '°').trim().toUpperCase();
-       const ctxObm = (obmContext || '').replace(/º/g, '°').trim().toUpperCase();
-       
-       if (ctxObm && ctxObm !== 'GLOBAL' && mObm !== ctxObm) return false;
-
-       const r = parseRank(m.rank);
-       if (!COLS_OFICIAIS.includes(r)) return false;
-
-       const role = (m.officerRole || '').toUpperCase();
-       if (role.includes('MÉDICO') || role.includes('MEDICO')) return false;
-       if (role.includes('ADMINISTRATIVO')) return false;
-       if (role.includes('COMBATENTE')) return true;
-
-       const q = (m.quadro || '').toUpperCase();
-       if (q.includes('QOS')) return false;
-       if (q.includes('QOA')) return false;
-       if (q.includes('QOC')) return true;
-
-       return false;
-    }).sort(sortOfficersBySeniority);
-  }, [militars]);
+    if (!poolConfig) return [];
+    return militars
+      .filter(m => poolConfig.includes(m.rg || ''))
+      .sort(sortOfficersBySeniority);
+  }, [militars, poolConfig]);
 
   const updateOfficerDay = async (dateStr: string, field: string, value: string) => {
     // Optimistic UI Update
@@ -645,50 +639,27 @@ export function NucleoNauticoGrdModule({ user, obmContext, setObmContext, availa
                                      </div>
                                     </button>
                                  )}
-                                 {militars
+                                 {availableOfficers
                                   .filter(m => {
-                                    if (!m.name) return false;
-                                    const rawMObm = m.obm ? m.obm : '10º GBM'; // Treat empty as 10º GBM
-                                    const mObm = rawMObm.replace(/º/g, '°').trim().toUpperCase();
-                                    const cObm = (targetFilterObm || '').replace(/º/g, '°').trim().toUpperCase();
-                                    if (cObm && cObm !== 'GLOBAL' && mObm !== cObm) return false;
-                                    
+                                    if (!searchTerm) return true;
                                     const sl = searchTerm.toLowerCase();
-                                    const match = (m.name || '').toLowerCase().includes(sl) || (m.rg || '').includes(searchTerm);
-                                    
-                                    const r = parseRank(m.rank);
-                                    const isOff = COLS_OFICIAIS.includes(r);
-                                    let isCombatente = true;
-                                    if (isOff) {
-                                       const role = (m.officerRole || '').toUpperCase();
-                                       if (role.includes('MÉDICO') || role.includes('MEDICO') || role.includes('ADMINISTRATIVO')) {
-                                          isCombatente = false;
-                                       } else if (role.includes('COMBATENTE')) {
-                                          isCombatente = true;
-                                       } else {
-                                          const q = (m.quadro || '').toUpperCase();
-                                          if (q.includes('QOS') || q.includes('QOA')) isCombatente = false;
-                                          else if (q.includes('QOC')) isCombatente = true;
-                                          else isCombatente = false;
-                                       }
-                                    }
-                                    
-                                    return match && (isOff ? isCombatente : (searchTerm.length > 3));
+                                    return (m.name || '').toLowerCase().includes(sl) || 
+                                           (m.warName || '').toLowerCase().includes(sl) || 
+                                           (m.rg || '').includes(searchTerm);
                                   })
-                                  .sort(sortAllBySeniority)
                                   .slice(0, 15)
                                   .map(mil => (
                                     <button
                                       key={mil.rg}
                                       onClick={() => {
-                                        updateOfficerDay(dateStr, field, `${mil.rank} ${mil.warName || (mil.name || '').split(' ')[0]}`);
+                                        updateOfficerDay(dateStr, field, `${parseRank(mil.rank)} ${mil.warName || (mil.name || '').split(' ')[0]}`);
                                         setActiveSearchDay(null);
                                       }}
                                       className="w-full text-left p-2 hover:bg-slate-50 rounded-lg transition-all flex items-center gap-2 group"
                                     >
                                       <div className="flex-1 min-w-0">
                                         <p className="text-[10px] font-black text-slate-700 truncate leading-tight uppercase">
-                                          {mil.rank} {mil.name}
+                                          {parseRank(mil.rank)} {mil.name}
                                         </p>
                                         <p className="text-[8px] font-bold text-slate-400 font-mono">RG: {mil.rg}</p>
                                       </div>

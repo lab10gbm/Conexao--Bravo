@@ -57,11 +57,24 @@ export function OfficerMedicosModule({ user, obmContext, setObmContext, availabl
   const [selectedRgsSobreaviso, setSelectedRgsSobreaviso] = useState<string[]>([]);
   const [configTab, setConfigTab] = useState<'oficialDia' | 'sobreaviso'>('oficialDia');
   const [showConfig, setShowConfig] = useState(false);
+  const [poolConfig, setPoolConfig] = useState<string[] | null>(null);
 
   const isGlobal = obmContext === 'GLOBAL';
   // Normalize OBM for doc ID
-  const obmId = isGlobal ? 'GLOBAL' : obmContext.replace(/\//g, '_').replace(/\s/g, '_');
+  const obmId = isGlobal ? 'GLOBAL' : (obmContext || '10º GBM').replace(/\//g, '_').replace(/\s/g, '_');
   const docId = obmId;
+
+  useEffect(() => {
+    if (isGlobal) return;
+    const unsub = onSnapshot(doc(db, 'officer_pool_config', docId), (snap) => {
+      if (snap.exists() && snap.data().oficiaisMedicos !== undefined) {
+        setPoolConfig(snap.data().oficiaisMedicos);
+      } else {
+        setPoolConfig(null);
+      }
+    });
+    return () => unsub();
+  }, [docId, isGlobal]);
 
   useEffect(() => {
     setLoading(true);
@@ -305,42 +318,11 @@ export function OfficerMedicosModule({ user, obmContext, setObmContext, availabl
   };
 
   const availableOfficers = useMemo(() => {
-    const list = militars.filter(m => {
-       const rawMObm = m.obm ? m.obm : '10º GBM';
-       const mObm = rawMObm.replace(/º/g, '°').trim().toUpperCase();
-       const ctxObm = (obmContext || '').replace(/º/g, '°').trim().toUpperCase();
-       
-       if (ctxObm && ctxObm !== 'GLOBAL' && mObm !== ctxObm) return false;
-
-       const r = parseRank(m.rank);
-       if (!COLS_OFICIAIS.includes(r)) return false;
-
-       const role = (m.officerRole || (m as any).role || '').toUpperCase();
-       const quadro = (m.quadro || '').toUpperCase();
-       const name = (m.name || '').toUpperCase();
-
-       // Prioritize Medical Officers (QOS / OFICIAL MÉDICO)
-       if (role.includes('MEDIC') || role.includes('MÉDIC') || quadro.includes('QOS') || quadro.includes('MED') || name.includes('MEDIC')) {
-         return true;
-       }
-
-       return false;
-    });
-
-    if (list.length > 0) {
-      return list.sort(sortOfficersBySeniority);
-    }
-
-    // Fallback: all officers of the OBM so user can pick any officer
-    return militars.filter(m => {
-       const rawMObm = m.obm ? m.obm : '10º GBM';
-       const mObm = rawMObm.replace(/º/g, '°').trim().toUpperCase();
-       const ctxObm = (obmContext || '').replace(/º/g, '°').trim().toUpperCase();
-       if (ctxObm && ctxObm !== 'GLOBAL' && mObm !== ctxObm) return false;
-       const r = parseRank(m.rank);
-       return COLS_OFICIAIS.includes(r);
-    }).sort(sortOfficersBySeniority);
-  }, [militars, obmContext]);
+    if (!poolConfig) return [];
+    return militars
+      .filter(m => poolConfig.includes(m.rg || ''))
+      .sort(sortOfficersBySeniority);
+  }, [militars, poolConfig]);
 
   const updateOfficerDay = async (dateStr: string, field: string, value: string) => {
     setOfficerData(prev => ({

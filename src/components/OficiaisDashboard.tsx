@@ -9,11 +9,13 @@ import {
   ChevronRight, 
   CheckCircle2, 
   Shield,
-  Clock
+  Clock,
+  Settings
 } from 'lucide-react';
 import { OfficerGrdModule } from './OfficerGrdModule';
 import { NucleoNauticoGrdModule } from './NucleoNauticoGrdModule';
 import { OfficerMedicosModule } from './OfficerMedicosModule';
+import { OficiaisConfigModule } from './OficiaisConfigModule';
 import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
 
@@ -59,6 +61,17 @@ const OFICIAIS_APPS = [
     color: 'bg-rose-700 shadow-rose-200',
     borderColor: 'hover:border-rose-300',
     accentText: 'text-rose-700'
+  },
+  {
+    id: 'config-efetivo',
+    label: 'Configuração de Efetivo',
+    subtitle: 'Ajustes Gerais',
+    description: 'Determine quais militares aparecerão disponíveis nas escalas de Oficiais.',
+    badge: 'Administrativo',
+    icon: Settings,
+    color: 'bg-slate-700 shadow-slate-200',
+    borderColor: 'hover:border-slate-300',
+    accentText: 'text-slate-700'
   }
 ];
 
@@ -205,6 +218,37 @@ export function OficiaisDashboard({
           obmContext={obmContext}
           setObmContext={setObmContext}
           availableObms={availableObms}
+        />
+      </div>
+    );
+  }
+
+  // Sub-view 4: Configuração de Efetivo
+  if (activeApp === 'config-efetivo') {
+    return (
+      <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-slate-700 text-white flex items-center justify-center shadow-md">
+              <Settings className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                Configuração de Efetivo{' '}
+                <span className="text-xs font-bold bg-slate-100 text-slate-700 px-2 py-1 rounded uppercase tracking-widest ml-2">
+                  {obmContext || '10º GBM'}
+                </span>
+              </h2>
+              <p className="text-sm font-medium text-slate-500 mt-0.5">
+                Determine quais militares oficiais aparecerão em cada módulo de escala.
+              </p>
+            </div>
+          </div>
+          {renderHeaderActions(() => setActiveApp(null))}
+        </div>
+
+        <OficiaisConfigModule
+          obmContext={obmContext}
         />
       </div>
     );

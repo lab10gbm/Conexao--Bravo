@@ -1,10 +1,12 @@
-import React, { useState, useMemo } from 'react';
-import { format } from 'date-fns';
+import React, { useState, useMemo, useEffect } from 'react';
+import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Printer, X, Image as ImageIcon } from 'lucide-react';
+import { Printer, X, Image as ImageIcon, PenTool, Save } from 'lucide-react';
 import { RankInsignia } from './RankInsignia';
 import { parseRank } from '../lib/rankUtils';
 import { formatMilitaryName } from '../lib/utils';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export function EscalaPrintView({
   selectedDate,
@@ -18,9 +20,37 @@ export function EscalaPrintView({
   oficialDia,
   oficialNautica,
   oficialMedico,
+  user,
+  afastamentos,
+  obmContext,
+  onRegister,
   onClose
 }: any) {
   const [showVisualMode, setShowVisualMode] = useState(false);
+  const [isSigned, setIsSigned] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [grdRgs, setGrdRgs] = useState<string[]>([]);
+
+  useEffect(() => {
+    const fetchGrd = async () => {
+      if (!selectedDate || !obmContext) return;
+      try {
+        const dateObj = parseISO(selectedDate);
+        const monthKey = format(dateObj, 'yyyy-MM');
+        const obmId = (obmContext || '10º GBM').replace(/\//g, '_').replace(/\s/g, '_');
+        const docRef = doc(db, 'grd_configs', `${obmId}_${monthKey}`);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          const rgs = data.days?.[selectedDate] || [];
+          setGrdRgs(rgs);
+        }
+      } catch (err) {
+        console.error("Erro ao buscar GRD:", err);
+      }
+    };
+    fetchGrd();
+  }, [selectedDate, obmContext]);
 
   // Helper to get active viaturas dynamically
   const getActiveVtr = (prefix: string, index: number = 0) => {
@@ -340,6 +370,16 @@ export function EscalaPrintView({
            <button onClick={() => setShowVisualMode(!showVisualMode)} className="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-300">
              <ImageIcon className="w-4 h-4" /> {showVisualMode ? 'Modo Texto' : 'Modo Visual'}
            </button>
+           <button onClick={() => setIsSigned(true)} disabled={isSigned} className="bg-amber-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-amber-400">
+             <PenTool className="w-4 h-4" /> {isSigned ? 'Assinado' : 'Assinar'}
+           </button>
+           <button onClick={async () => {
+             setIsRegistering(true);
+             if (onRegister) await onRegister({ isSigned });
+             setIsRegistering(false);
+           }} disabled={isRegistering} className="bg-emerald-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-emerald-500">
+             <Save className="w-4 h-4" /> Registrar
+           </button>
            <button onClick={() => window.print()} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-indigo-500">
              <Printer className="w-4 h-4" /> Imprimir
            </button>
@@ -362,6 +402,12 @@ export function EscalaPrintView({
               <div className="w-full flex flex-col items-center">
                  <div className="w-3/4 border-b border-black mb-1"></div>
                  <span className="font-bold text-xs">Escalante</span>
+                 {isSigned && user && (
+                   <span className="text-[9px] mt-1 font-bold uppercase leading-tight">
+                     {parseRank(user.rank)} {user.warName || user.name}<br/>
+                     RG: {user.rg}
+                   </span>
+                 )}
               </div>
            </div>
 
@@ -812,6 +858,68 @@ export function EscalaPrintView({
               })}
            </tbody>
         </table>
+
+        {/* AFASTAMENTOS E GRD */}
+        {(() => {
+           const activeAfastamentos = (afastamentos || []).filter((a: any) => {
+              return selectedDate >= a.inicio && selectedDate <= a.retorno;
+           });
+           
+           const afastadosList = activeAfastamentos.map((a: any) => {
+              const mil = (militars || []).find((m: any) => m.rg === a.rg);
+              if (!mil) return null;
+              const typeStr = a.tipoAfastamento || 'Afastamento';
+              return `${parseRank(mil.rank)} ${mil.warName || (mil.name || '').split(' ')[0]} (${typeStr})`;
+           }).filter(Boolean);
+
+           const grdMilitarsList = (grdRgs || []).map((rg: string) => {
+              const mil = (militars || []).find((m: any) => m.rg === rg);
+              if (!mil) return null;
+              return `${parseRank(mil.rank)} ${mil.warName || (mil.name || '').split(' ')[0]}`;
+           }).filter(Boolean);
+
+           const obmName = (obmContext || '10º GBM').split('-')[0].trim();
+
+           return (
+              <div className="border-2 border-black border-t-0 flex flex-col mb-4">
+                 {/* AFASTAMENTOS HEADER */}
+                 <div className={`${headerColorClass} font-bold border-b-2 border-black text-center p-1 text-[10px] uppercase tracking-wider`}>
+                    AFASTAMENTOS
+                 </div>
+                 
+                 {/* AFASTAMENTOS LIST */}
+                 <div className="p-1.5 px-3 border-b-2 border-black text-[10px] min-h-[30px] font-bold">
+                    {afastadosList.length > 0 ? (
+                       <div className="grid grid-cols-3 sm:grid-cols-4 gap-x-4 gap-y-1">
+                          {afastadosList.map((str: any, idx: number) => <span key={idx}>{str}</span>)}
+                       </div>
+                    ) : (
+                       <div className="text-center font-normal text-slate-500 italic">Nenhum afastamento.</div>
+                    )}
+                 </div>
+
+                 {/* GRD */}
+                 <div className="flex w-full min-h-[40px] items-stretch">
+                    <div className="w-[20%] border-r-2 border-black flex items-center justify-center font-black text-[11px] uppercase bg-slate-50 p-2 text-center shrink-0">
+                       GRD - {obmName}
+                    </div>
+                    <div className="w-[80%] p-2 px-4 flex-1">
+                       {grdMilitarsList.length > 0 ? (
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[10px] font-bold uppercase">
+                             {grdMilitarsList.map((str: any, idx: number) => (
+                                <div key={idx} className="flex gap-1 items-start">
+                                   <span className="shrink-0">{idx + 1}-</span> <span className="leading-[1.1]">{str}</span>
+                                </div>
+                             ))}
+                          </div>
+                       ) : (
+                          <div className="text-slate-500 italic font-normal h-full flex items-center text-[10px]">Sem GRD no dia.</div>
+                       )}
+                    </div>
+                 </div>
+              </div>
+           );
+        })()}
 
       </div>
     </div>

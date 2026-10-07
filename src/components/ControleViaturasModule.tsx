@@ -119,7 +119,7 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
       return;
     }
 
-    const docRef = doc(db, "obm_settings", obmContext);
+    const docRef = doc(db, "obm_settings", obmContext.replace(/\//g, '_').replace(/\s/g, '_'));
     
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -165,7 +165,7 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
     setSaving(true);
     try {
       if (db) {
-        const docRef = doc(db, "obm_settings", obmContext);
+        const docRef = doc(db, "obm_settings", obmContext.replace(/\//g, '_').replace(/\s/g, '_'));
         const snap = await getDoc(docRef);
         const payload = cleanUndefined({ viaturas_config: viaturas });
         if (snap.exists()) {
@@ -195,7 +195,7 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
         viaturas_custom_default_date: nowIso
       });
       if (db) {
-        const docRef = doc(db, "obm_settings", obmContext);
+        const docRef = doc(db, "obm_settings", obmContext.replace(/\//g, '_').replace(/\s/g, '_'));
         const snap = await getDoc(docRef);
         if (snap.exists()) {
           await updateDoc(docRef, payload);

@@ -307,7 +307,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     if (!obmContext || obmContext === 'GLOBAL') return;
     const loadSettings = async () => {
       try {
-        const docRef = doc(db, "obm_settings", obmContext);
+        const docRef = doc(db, "obm_settings", obmContext.replace(/\//g, '_').replace(/\s/g, '_'));
         const snap = await getDoc(docRef);
         if (snap.exists()) {
           const data = snap.data();
@@ -369,7 +369,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
            }
            
            if (isMounted) {
-               const settingsRef = doc(db, "obm_settings", obmContext);
+               const settingsRef = doc(db, "obm_settings", obmContext.replace(/\//g, '_').replace(/\s/g, '_'));
                const settingsSnap = await getDoc(settingsRef);
                let baseVtrs = DEFAULT_VIATURAS;
                
@@ -609,6 +609,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   const [loadingOfficerScale, setLoadingOfficerScale] = useState(false);
   const [loadingNauticoScale, setLoadingNauticoScale] = useState(false);
   const [loadingMedicoScale, setLoadingMedicoScale] = useState(false);
+  const [poolConfig, setPoolConfig] = useState<Record<string, string[]> | null>(null);
 
   // Editing state for Serviço & GRD
   const [isEditingOficialDia, setIsEditingOficialDia] = useState(false);
@@ -630,6 +631,23 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     if (!db) return;
     const rawObm = obmContext || "10º GBM";
     const normalizedObm = rawObm === 'GLOBAL' ? '10º_GBM' : rawObm.replace(/\//g, '_').replace(/\s/g, '_');
+    
+    // Pool config listener
+    const unsubPool = onSnapshot(doc(db, 'officer_pool_config', normalizedObm), (snap) => {
+      if (snap.exists()) {
+        setPoolConfig(snap.data() as Record<string, string[]>);
+      } else if (normalizedObm !== '10º_GBM') {
+        getDoc(doc(db, 'officer_pool_config', '10º_GBM')).then(fallbackSnap => {
+          if (fallbackSnap.exists()) {
+            setPoolConfig(fallbackSnap.data() as Record<string, string[]>);
+          } else {
+            setPoolConfig(null);
+          }
+        }).catch(() => setPoolConfig(null));
+      } else {
+        setPoolConfig(null);
+      }
+    });
     
     // 1. officer_scales (Serviço & GRD)
     setLoadingOfficerScale(true);
@@ -698,6 +716,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     });
 
     return () => {
+      unsubPool();
       unsubOfficer();
       unsubNautico();
       unsubMedico();
@@ -742,47 +761,21 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
   // Oficiais disponíveis para Serviço & GRD
   const availableOfficers = useMemo(() => {
-    return militars.filter(m => {
-      const r = parseRank(m.rank);
-      if (!COLS_OFICIAIS.includes(r)) return false;
-      const role = (m.officerRole || '').toUpperCase();
-      if (role.includes('MÉDICO') || role.includes('MEDICO') || role.includes('ADMINISTRATIVO')) return false;
-      return true;
-    }).sort(sortOfficersBySeniority);
-  }, [militars]);
+    if (!poolConfig || !poolConfig.servicosGrd) return [];
+    return militars.filter(m => poolConfig.servicosGrd.includes(m.rg || '')).sort(sortOfficersBySeniority);
+  }, [militars, poolConfig]);
 
   // Oficiais disponíveis para Núcleo Náutico
   const availableNauticoOfficers = useMemo(() => {
-    const list = militars.filter(m => {
-      const r = parseRank(m.rank);
-      if (!COLS_OFICIAIS.includes(r)) return false;
-      const role = (m.officerRole || (m as any).role || '').toUpperCase();
-      const name = (m.name || '').toUpperCase();
-      return role.includes('NÁUTIC') || role.includes('NAUTIC') || role.includes('EMBARCA') || role.includes('PILOTO') || name.includes('NAUTIC');
-    });
-    if (list.length > 0) return list.sort(sortOfficersBySeniority);
-    return militars.filter(m => {
-      const r = parseRank(m.rank);
-      return COLS_OFICIAIS.includes(r);
-    }).sort(sortOfficersBySeniority);
-  }, [militars]);
+    if (!poolConfig || !poolConfig.nucleoNautico) return [];
+    return militars.filter(m => poolConfig.nucleoNautico.includes(m.rg || '')).sort(sortOfficersBySeniority);
+  }, [militars, poolConfig]);
 
   // Oficiais disponíveis para Médicos
   const availableMedicalOfficers = useMemo(() => {
-    const list = militars.filter(m => {
-      const r = parseRank(m.rank);
-      if (!COLS_OFICIAIS.includes(r)) return false;
-      const role = (m.officerRole || (m as any).role || '').toUpperCase();
-      const quadro = (m.quadro || '').toUpperCase();
-      const name = (m.name || '').toUpperCase();
-      return role.includes('MEDIC') || role.includes('MÉDIC') || quadro.includes('QOS') || quadro.includes('MED') || name.includes('MEDIC');
-    });
-    if (list.length > 0) return list.sort(sortOfficersBySeniority);
-    return militars.filter(m => {
-      const r = parseRank(m.rank);
-      return COLS_OFICIAIS.includes(r);
-    }).sort(sortOfficersBySeniority);
-  }, [militars]);
+    if (!poolConfig || !poolConfig.oficiaisMedicos) return [];
+    return militars.filter(m => poolConfig.oficiaisMedicos.includes(m.rg || '')).sort(sortOfficersBySeniority);
+  }, [militars, poolConfig]);
 
   // 1. Dados de Serviço & GRD
   const currentOfficerDay = officerScaleDays[selectedDate] || {};
@@ -1172,6 +1165,10 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     }
     // Auxiliares (g1, g2, g3, g4)
     if (maritima) return vtrName.startsWith('BIA') ? 'MARINHEIRO BIA' : 'MARINHEIRO L';
+    if (isVtrType(vtrName, 'ABSL')) return 'AUXILIAR ABSL';
+    if (isVtrType(vtrName, 'ABT')) return 'AUXILIAR ABT';
+    if (isVtrType(vtrName, 'ASE')) return 'AUXILIAR ASE';
+    if (isVtrType(vtrName, 'AR')) return 'AUXILIAR AR';
     return 'AUXILIAR GUA';
   };
 
@@ -1734,6 +1731,35 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
       .filter(m => !baseRoster.some(br => br.rg === m.rg))
       .slice(0, 10);
   }, [addMilitarSearch, militars, globalSearchResults, baseRoster]);
+
+  const handleRegisterEscala = async (signatureData: any) => {
+    try {
+      const docId = `${(obmContext || '10º GBM').replace(/\//g, '_').replace(/\s/g, '_')}_${selectedDate}`;
+      
+      const payload = {
+        obm: obmContext || '10º GBM',
+        date: selectedDate,
+        registeredAt: new Date().toISOString(),
+        registeredBy: {
+          rg: user?.rg || '',
+          name: user?.name || '',
+          rank: user?.rank || ''
+        },
+        signatureData,
+        selectedFunctions,
+        viaturasInfo,
+        oficialDia: oficialDiaValue,
+        oficialNautica: nauticoOficialValue,
+        oficialMedico: medicoOficialValue
+      };
+
+      await setDoc(doc(db, "registro_escalas_24h", docId), cleanUndefined(payload));
+      alert("Escala registrada e assinada com sucesso!");
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao registrar escala: " + (err as Error).message);
+    }
+  };
 
   return (
     <div className="flex flex-col bg-slate-50 relative">
@@ -3669,7 +3695,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                                const newPref = { ...predefinicoes, [militar.rg || '']: newVal };
                                setPredefinicoes(newPref);
                                try {
-                                 await updateDoc(doc(db, "obm_settings", obmContext), cleanUndefined({
+                                 await updateDoc(doc(db, "obm_settings", obmContext.replace(/\//g, '_').replace(/\s/g, '_')), cleanUndefined({
                                     escala_preferencias: newPref
                                  }));
                                } catch(e) {
@@ -3708,6 +3734,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           selectedDate={selectedDate}
           identifiedAla={identifiedAla}
           obmContext={obmContext}
+          afastamentos={afastamentos}
           baseRoster={baseRoster}
           permutasOut={permutasOut}
           militars={militars}
@@ -3717,6 +3744,8 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           oficialDia={oficialDiaValue}
           oficialNautica={nauticoOficialValue}
           oficialMedico={medicoOficialValue}
+          user={user}
+          onRegister={handleRegisterEscala}
           onClose={() => setShowPrintView(false)}
         />
       )}

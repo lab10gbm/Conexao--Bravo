@@ -13,6 +13,7 @@ import { RasManagerModule } from './RasManagerModule';
 import { ControleViaturasModule } from './ControleViaturasModule';
 import { EfetivoPanel } from './EfetivoPanel';
 import { GestaoEfetivoModeracaoModule } from './GestaoEfetivoModeracaoModule';
+import { RegistroEscalasModule } from './RegistroEscalasModule';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -37,6 +38,7 @@ const ESCALANTE_APPS = [
   { id: 'permutas_mobile', label: 'Permutas Mobile', description: 'Triagem Rápida', icon: Smartphone, color: 'bg-pink-600 shadow-pink-200' },
   { id: 'ras', label: 'Controle de RAS', description: 'Regime Adicional de Serviço', icon: BriefcaseBusiness, color: 'bg-amber-500 shadow-amber-200' },
   { id: 'efetivo', label: 'Efetivo Geral', description: 'Relacionamento', icon: UserCheck, color: 'bg-violet-600 shadow-violet-200' },
+  { id: 'registro', label: 'Registro', description: 'Livro de Escalas', icon: LayoutGrid, color: 'bg-stone-600 shadow-stone-200' },
   { id: 'relatorios', label: 'Relatórios', description: 'Estatísticas', icon: LayoutGrid, color: 'bg-rose-600 shadow-rose-200', disabled: true },
 ];
 
@@ -337,6 +339,20 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col min-h-[600px] overflow-hidden relative px-6 pb-6">
            <EfetivoPanel user={user} obmContext={obmContext} onBack={() => setActiveApp(null)} />
         </div>
+      </div>
+    );
+  }
+
+  if (activeApp === 'registro') {
+    return (
+      <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <button onClick={() => setActiveApp(null)} className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-bold transition-colors">
+            <ArrowLeft className="w-5 h-5" /> Voltar ao Painel
+          </button>
+          {renderHeaderActions()}
+        </div>
+        <RegistroEscalasModule obmContext={obmContext} />
       </div>
     );
   }
