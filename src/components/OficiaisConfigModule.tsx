@@ -4,7 +4,7 @@ import { db } from '../lib/firebase';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { Settings, ShieldCheck, Anchor, Stethoscope, Search, Check, Users } from 'lucide-react';
 import { parseRank, COLS_OFICIAIS, sortOfficersBySeniority } from '../lib/rankUtils';
-import { UserProfile } from '../types/User';
+import { UserProfile } from '../types';
 import { format } from 'date-fns';
 
 interface OficiaisConfigModuleProps {

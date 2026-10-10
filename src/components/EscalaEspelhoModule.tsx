@@ -1,21 +1,23 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useMilitars } from "../contexts/MilitarContext";
 import { PermutaRequest, PermutaStatus } from "../types";
-import { collection, query, where, onSnapshot, updateDoc, doc, serverTimestamp, getDoc, setDoc, getDocs, addDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, updateDoc, doc, serverTimestamp, getDoc, setDoc, getDocs, addDoc, deleteDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, addDays, subDays, startOfToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 
-import { parseRank, sortOfficersBySeniority, COLS_OFICIAIS, isOfficer } from "../lib/rankUtils";
+import { parseRank, sortOfficersBySeniority, COLS_OFICIAIS, isOfficer, sortAllBySeniority } from "../lib/rankUtils";
 import { RankInsignia } from "./RankInsignia";
 import { EscalaPrintView } from "./EscalaPrintView";
 import { RequestPermuta } from "./RequestPermuta";
 import { AfastamentosAlaModule } from "./AfastamentosAlaModule";
-import { Calendar as CalendarIcon, Users, ArrowRightLeft, ArrowRight, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, Check, X, Clock, Printer, Shuffle, Plus, Settings, Activity, TrendingDown, PieChart, BriefcaseBusiness, Download, RotateCcw, ExternalLink, Edit3, Award, Star, UserCheck, Anchor, Stethoscope, HeartPulse } from 'lucide-react';
+import { ExpedienteDiaModule } from "./ExpedienteDiaModule";
+import { EscalanteDashboardCalendar } from "./EscalanteDashboardCalendar";
+import { Calendar as CalendarIcon, Users, ArrowRightLeft, ArrowRight, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, ChevronLeft, ChevronRight, Check, X, Clock, Printer, Shuffle, Plus, Settings, Activity, TrendingDown, PieChart, BriefcaseBusiness, Download, RotateCcw, ExternalLink, Edit3, Award, Star, UserCheck, Anchor, Stethoscope, HeartPulse, Sparkles, Trash2 } from 'lucide-react';
 
 import { motion } from "framer-motion";
-import { cleanUndefined, getUserObmAccess, normalizeObm, getAlaForDate, cn, getAlaColor, getAlaName, formatMilitaryName, normalizeAlaField } from '../lib/utils';
+import { cleanUndefined, getUserObmAccess, normalizeObm, getAlaForDate, cn, getAlaColor, getAlaName, formatMilitaryName, normalizeAlaField, normalizeRg } from '../lib/utils';
 
 
 const normalizeFnName = (s: string) => {
@@ -33,6 +35,7 @@ function FuncoesMultiSelect({
   allowedOptions?: string[];
 }) {
   const [open, setOpen] = useState(false);
+  const [openUp, setOpenUp] = useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
 
@@ -61,11 +64,20 @@ function FuncoesMultiSelect({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const handleToggle = () => {
+    if (!open && ref.current) {
+      const rect = ref.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      setOpenUp(spaceBelow < 280 && rect.top > 250);
+    }
+    setOpen((prev) => !prev);
+  };
+
   return (
     <div className="relative" ref={ref}>
       <button
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={handleToggle}
         className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 outline-none text-[9px] font-black uppercase tracking-wider text-slate-700 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 flex items-center justify-between min-w-[140px]"
       >
         <span className="truncate pr-2">
@@ -74,7 +86,10 @@ function FuncoesMultiSelect({
         <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 min-w-[200px] bg-white border border-slate-200 rounded shadow-lg z-50 flex flex-col max-h-[300px]">
+        <div className={cn(
+          "absolute left-0 min-w-[200px] bg-white border border-slate-200 rounded shadow-lg z-50 flex flex-col max-h-[300px]",
+          openUp ? "bottom-full mb-1" : "top-full mt-1"
+        )}>
           <div className="p-2 border-b border-slate-100 sticky top-0 bg-slate-50/90 backdrop-blur z-10 shrink-0">
             <input 
               type="text" 
@@ -213,8 +228,17 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   const [isPermutaModalOpen, setIsPermutaModalOpen] = useState(false);
   const [loadingPermutas, setLoadingPermutas] = useState(false);
   const [manuallyAddedRgs, setManuallyAddedRgs] = useState<Record<string, string[]>>({});
+  const [manuallyRemovedRgs, setManuallyRemovedRgs] = useState<Record<string, string[]>>({});
   const [expedienteRgs, setExpedienteRgs] = useState<string[]>([]);
+  const [expediente24hRgs, setExpediente24hRgs] = useState<string[]>([]);
+  const [expedienteMilitars, setExpedienteMilitars] = useState<any[]>([]);
   const [rasApplications, setRasApplications] = useState<any[]>([]);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+
+  const visibleRasApplications = useMemo(() => {
+    const removedRgs = manuallyRemovedRgs[selectedDate] || [];
+    return rasApplications.filter(app => !removedRgs.includes(app.militarRg));
+  }, [rasApplications, manuallyRemovedRgs, selectedDate]);
   const [addMilitarSearch, setAddMilitarSearch] = useState('');
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [globalSearchResults, setGlobalSearchResults] = useState<any[]>([]);
@@ -259,33 +283,102 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   useEffect(() => {
     if (!selectedDate || !obmContext || obmContext === 'GLOBAL') {
         setExpedienteRgs([]);
+        setExpedienteMilitars([]);
+        setExpediente24hRgs([]);
         return;
     }
-    const normalizedObm = obmContext.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+    const cleanObm = normalizeObm(obmContext || '10º GBM');
+    const normalizedObm = cleanObm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
     const monthKey = selectedDate.substring(0, 7); // yyyy-MM
     
     const docRef = doc(db, `expediente_${normalizedObm}`, monthKey);
+    const globalDocRef = doc(db, 'config', `expediente_global_${normalizedObm}`);
+
+    let globalNames: Record<string, string> = {};
+    let globalSectors: Record<string, string> = {};
+    const unsubGlobal = onSnapshot(globalDocRef, (gSnap) => {
+      if (gSnap.exists()) {
+        const gData = gSnap.data();
+        globalNames = gData.userNames || {};
+        globalSectors = gData.sectors || {};
+      }
+    });
+
     const unsub = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
          const data = docSnap.data();
-         const sels = data.selections || {};
-         const rgsInDay: string[] = [];
-         
-         Object.keys(sels).forEach(rg => {
-            if (rg === 'ESCALANTE_PREF') return;
-            const days = sels[rg] || [];
-            if (days.includes(selectedDate)) {
-               rgsInDay.push(rg);
+         const expDaysObj = data.expedienteDays || {};
+         const selsObj = data.selections || {};
+         const monthNames = data.userNames || {};
+
+         const dayExpRgs: string[] = [];
+         const daySelsRgs: string[] = [];
+         const allExpDutyRgs = new Set<string>();
+
+         Object.entries(expDaysObj).forEach(([rg, days]: [string, any]) => {
+            if (rg === 'ESCALANTE_PREF' || !rg) return;
+            if (Array.isArray(days) && days.includes(selectedDate)) {
+               dayExpRgs.push(rg);
+               allExpDutyRgs.add(rg);
             }
          });
-         setExpedienteRgs(rgsInDay);
+
+         Object.entries(selsObj).forEach(([rg, days]: [string, any]) => {
+            if (rg === 'ESCALANTE_PREF' || !rg) return;
+            if (Array.isArray(days) && days.includes(selectedDate)) {
+               daySelsRgs.push(rg);
+               allExpDutyRgs.add(rg);
+            }
+         });
+
+         const activeList = Array.from(allExpDutyRgs).filter(rg => {
+            const cleanTargetRg = normalizeRg(rg);
+            const isAfastado = (afastamentos || []).some((a: any) => {
+               return normalizeRg(a.rg) === cleanTargetRg && selectedDate >= a.inicio && selectedDate <= a.retorno;
+            });
+            return !isAfastado;
+         });
+
+         const result = activeList.map(rg => {
+            const cleanTargetRg = normalizeRg(rg);
+            const mil = (militars || []).find((m: any) => normalizeRg(m.rg) === cleanTargetRg || m.uid === rg);
+            const isExp = dayExpRgs.includes(rg);
+            const is24h = !isExp && daySelsRgs.includes(rg);
+            const name = mil?.name || globalNames[rg] || monthNames[rg] || rg;
+            const warName = mil?.warName || '';
+            const rank = mil?.rank || '';
+            const quadro = mil?.quadro || '';
+            const sector = globalSectors[rg] || ((mil as any)?.setor) || (data.sectors && data.sectors[rg]) || 'Expediente Geral';
+
+            return {
+               rg: mil?.rg || rg,
+               name,
+               warName,
+               rank,
+               quadro,
+               sector,
+               militar: mil || { rg: mil?.rg || rg, name, warName, rank, quadro, setor: sector },
+               is24h,
+               isExp
+            };
+         });
+
+         result.sort(sortAllBySeniority);
+         setExpedienteMilitars(result);
+         setExpedienteRgs(Array.from(allExpDutyRgs));
+         setExpediente24hRgs(daySelsRgs);
       } else {
          setExpedienteRgs([]);
+         setExpedienteMilitars([]);
+         setExpediente24hRgs([]);
       }
     });
     
-    return () => unsub();
-  }, [selectedDate, obmContext]);
+    return () => {
+      unsub();
+      unsubGlobal();
+    };
+  }, [selectedDate, obmContext, militars, afastamentos]);
 
   const [selectedFunctions, setSelectedFunctions] = useState<
     Record<string, string[]>
@@ -363,6 +456,9 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                if (data.manuallyAddedRgs) {
                    setManuallyAddedRgs(prev => ({...prev, [selectedDate]: data.manuallyAddedRgs}));
                }
+               if (data.manuallyRemovedRgs) {
+                   setManuallyRemovedRgs(prev => ({...prev, [selectedDate]: data.manuallyRemovedRgs}));
+               }
                if (data.viaturasInfo) {
                    savedViaturas = data.viaturasInfo;
                }
@@ -432,7 +528,8 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           await setDoc(docRef, {
              selectedFunctions,
              viaturasInfo,
-             manuallyAddedRgs: manuallyAddedRgs[selectedDate] || []
+             manuallyAddedRgs: manuallyAddedRgs[selectedDate] || [],
+             manuallyRemovedRgs: manuallyRemovedRgs[selectedDate] || []
           });
           
           setSavingState('saved');
@@ -444,7 +541,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     }, 1000);
     
     return () => clearTimeout(timeout);
-  }, [selectedFunctions, viaturasInfo, manuallyAddedRgs, selectedDate, obmContext]);
+  }, [selectedFunctions, viaturasInfo, manuallyAddedRgs, manuallyRemovedRgs, selectedDate, obmContext]);
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -905,13 +1002,43 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   const identifiedAla = getAlaForDate(targetDateObj);
   const identifiedAlaStr = identifiedAla.toString();
 
+  // Navegação rápida: lista dos próximos dias com cálculo automático de alas
+  const upcomingDays = useMemo(() => {
+    try {
+      const today = startOfToday();
+      const list = [];
+      for (let i = 0; i <= 7; i++) {
+        const d = addDays(today, i);
+        const iso = format(d, 'yyyy-MM-dd');
+        const alaNum = getAlaForDate(d);
+        let label = '';
+        if (i === 0) label = 'Hoje';
+        else if (i === 1) label = 'Amanhã';
+        else label = format(d, 'EEE', { locale: ptBR }).replace('.', '').toUpperCase();
+
+        list.push({
+          date: d,
+          iso,
+          label,
+          dayNumber: format(d, 'dd/MM'),
+          alaNum,
+          isSelected: iso === selectedDate,
+        });
+      }
+      return list;
+    } catch {
+      return [];
+    }
+  }, [selectedDate]);
+
   // Base Roster for the identified Ala
   const baseRoster = useMemo(() => {
     const manualRgs = manuallyAddedRgs[selectedDate] || [];
-    const rasRgs = rasApplications.map((a: any) => a.militarRg);
+    const removedRgs = manuallyRemovedRgs[selectedDate] || [];
+    const rasRgs = visibleRasApplications.map((a: any) => a.militarRg);
 
-    // Make sure all militars in rasApplications exist in the pool even if from another OBM or external search
-    const rasPoolMilitars = rasApplications.map((app: any) => ({
+    // Make sure all militars in visibleRasApplications exist in the pool even if from another OBM or external search
+    const rasPoolMilitars = visibleRasApplications.map((app: any) => ({
       id: app.militarId || app.militarRg,
       rg: app.militarRg,
       name: app.militarName,
@@ -933,17 +1060,19 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         
         const isActive = !m.situacao || !['TRANSFERIDO', 'INATIVO', 'EXCLUÍDO', 'EXCLUIDO', 'DESLIGADO'].some(status => m.situacao.trim().toUpperCase().includes(status));
 
+        if (removedRgs.includes(m.rg || '')) return false;
+
         const isAla = isInCtx && normalizeAlaField(m.ala) === identifiedAlaStr;
         const isManual = manualRgs.includes(m.rg || '');
-        const isExpediente = isInCtx && expedienteRgs.includes(m.rg || '');
+        const isExpediente24h = isInCtx && expediente24hRgs.includes(m.rg || '');
         const isRas = rasRgs.includes(m.rg || '');
         
         if (!isActive && !isManual && !isRas) return false;
-        if (!isAla && !isManual && !isExpediente && !isRas) return false;
+        if (!isAla && !isManual && !isExpediente24h && !isRas) return false;
         
         // Verifica se há afastamento para o militar na data selecionada
         const hasAfastamento = afastamentos.some((a) => {
-          if (a.rg === m.rg) {
+          if (normalizeRg(a.rg) === normalizeRg(m.rg)) {
              return selectedDate >= a.inicio && selectedDate <= a.retorno;
           }
           return false;
@@ -962,7 +1091,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         const rgB = parseInt((b.rg || "").replace(/\D/g, "") || "0");
         return rgA - rgB;
       });
-  }, [militars, extraMilitars, identifiedAlaStr, afastamentos, selectedDate, manuallyAddedRgs, expedienteRgs, rasApplications, obmContext]);
+  }, [militars, extraMilitars, identifiedAlaStr, afastamentos, selectedDate, manuallyAddedRgs, manuallyRemovedRgs, expedienteRgs, expediente24hRgs, visibleRasApplications, obmContext]);
 
   // Map to easily find if a militar is swapping out
   const permutasOut = useMemo(() => {
@@ -1554,13 +1683,18 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                (m.warName || '').toLowerCase().includes(s) || 
                (m.rg || '').toString().includes(addRasMilitarSearch);
       })
-      .filter(m => !rasApplications.some(app => app.militarRg === m.rg))
+      .filter(m => !visibleRasApplications.some(app => app.militarRg === m.rg))
       .slice(0, 10);
-  }, [addRasMilitarSearch, militars, globalSearchResults, rasApplications]);
+  }, [addRasMilitarSearch, militars, globalSearchResults, visibleRasApplications]);
 
   const handleAddMilitarToRas = async (m: any) => {
     setAddRasMilitarSearch('');
     setShowAddRasMenu(false);
+    // Se estava marcado como removido manualmente para esta data, desmarcar
+    setManuallyRemovedRgs(prev => {
+      const curr = prev[selectedDate] || [];
+      return { ...prev, [selectedDate]: curr.filter(rg => rg !== m.rg) };
+    });
     try {
       const qOpps = query(collection(db, 'ras_opportunities'), where('obm', '==', obmContext), where('date', '==', selectedDate), where('duration', '==', rasDuration));
       const oppsSnap = await getDocs(qOpps);
@@ -1645,6 +1779,12 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   };
 
   const handleAddSingleRas = (app: any) => {
+    // Se estava marcado como removido, desmarcar para permitir reinclusão
+    setManuallyRemovedRgs(prev => {
+      const curr = prev[selectedDate] || [];
+      return { ...prev, [selectedDate]: curr.filter(rg => rg !== app.militarRg) };
+    });
+
     let m = militars.find(m => m.rg === app.militarRg);
     if (!m) {
        m = extraMilitars.find(extra => extra.rg === app.militarRg);
@@ -1670,8 +1810,80 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     });
   };
 
+  const handleRemoveRasMilitar = async (app: any) => {
+    const militarRg = app.militarRg;
+    if (!militarRg) return;
+    const militarName = app.militarWarName || app.militarName || militarRg;
+    const rank = app.militarRank || '';
+
+    // 1. Ação imediata no estado local para resposta instantânea na interface
+    // Marca em manuallyRemovedRgs para essa data
+    setManuallyRemovedRgs(prev => {
+      const curr = prev[selectedDate] || [];
+      if (!curr.includes(militarRg)) {
+        return {
+          ...prev,
+          [selectedDate]: [...curr, militarRg]
+        };
+      }
+      return prev;
+    });
+
+    // Remove de adições manuais para a data selecionada
+    setManuallyAddedRgs(prev => {
+      const curr = prev[selectedDate] || [];
+      return {
+        ...prev,
+        [selectedDate]: curr.filter(rg => rg !== militarRg)
+      };
+    });
+
+    // Remove da relação de aplicações de RAS no estado
+    setRasApplications(prev => prev.filter(a => a.id !== app.id && a.militarRg !== militarRg));
+
+    // Limpa funções atribuídas a este militar
+    setSelectedFunctions(prev => {
+      const next = { ...prev };
+      delete next[militarRg];
+      return next;
+    });
+
+    // Remove de extraMilitars caso tenha sido injetado dinamicamente
+    setExtraMilitars(prev => prev.filter(m => m.rg !== militarRg));
+
+    // Exibe aviso visual imediato de sucesso
+    setActionNotice(`${rank ? rank + ' ' : ''}${militarName} excluído do RAS e da escala.`);
+    setTimeout(() => {
+      setActionNotice(null);
+    }, 3000);
+
+    // 2. Exclusão assíncrona no Firestore
+    try {
+      if (app.id) {
+        await deleteDoc(doc(db, 'ras_applications', app.id)).catch(err => {
+          console.warn("Aviso ao excluir doc direto em ras_applications:", err);
+        });
+      }
+      try {
+        const qApps = query(collection(db, 'ras_applications'), where('militarRg', '==', militarRg));
+        const snapApps = await getDocs(qApps);
+        snapApps.docs.forEach(async (d) => {
+          try {
+            await deleteDoc(d.ref);
+          } catch (e) {
+            console.warn("Aviso ao excluir doc em ras_applications:", e);
+          }
+        });
+      } catch (err) {
+        console.warn("Aviso ao buscar ras_applications para exclusão:", err);
+      }
+    } catch (err) {
+      console.warn("Erro ao excluir militar do RAS no Firestore:", err);
+    }
+  };
+
   const handleAddAllRas = () => {
-    rasApplications.forEach(app => {
+    visibleRasApplications.forEach(app => {
        handleAddSingleRas(app);
     });
   };
@@ -1750,7 +1962,15 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         viaturasInfo,
         oficialDia: oficialDiaValue,
         oficialNautica: nauticoOficialValue,
-        oficialMedico: medicoOficialValue
+        oficialMedico: medicoOficialValue,
+        expedienteMilitars: (expedienteMilitars || []).map(m => ({
+          rg: m.rg,
+          name: m.name,
+          warName: m.warName,
+          rank: m.rank,
+          quadro: m.quadro,
+          is24h: m.is24h
+        }))
       };
 
       await setDoc(doc(db, "registro_escalas_24h", docId), cleanUndefined(payload));
@@ -1764,104 +1984,304 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   return (
     <div className="flex flex-col bg-slate-50 relative">
       {/* Top Control Bar */}
-      <div className="bg-white border-b-2 border-slate-200 p-4 shrink-0 flex flex-col sm:flex-row items-center justify-between gap-4 z-10 shadow-sm relative">
-        <div className="flex items-center gap-4">
-          <div className="bg-indigo-50 border-2 border-indigo-100 rounded-xl p-2 px-4 shadow-sm relative overflow-hidden group hover:border-indigo-300 transition-colors">
-            <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest block mb-1">
-              Data da Escala
-            </span>
-            <div className="flex items-center gap-2">
-              <CalendarIcon className="w-4 h-4 text-indigo-600" />
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-transparent border-none outline-none text-sm font-black text-indigo-900 tracking-wider cursor-pointer"
-              />
+      <div className="bg-white border-b-2 border-slate-200 p-3 sm:p-4 shrink-0 flex flex-col gap-3 z-10 shadow-sm relative">
+        {/* Linha Principal: Data & Navegação + Feixe do Escalante + Ações Operacionais */}
+        <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 sm:gap-4">
+          
+          {/* LADO ESQUERDO: Seletor de Data Oficial + Setas Navegadoras */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="bg-white border-2 border-indigo-100 hover:border-indigo-300 rounded-xl p-1.5 px-3 shadow-xs flex items-center gap-2.5 transition-colors">
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                <CalendarIcon className="w-4 h-4" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest leading-none">
+                  Data da Escala
+                </span>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="bg-transparent border-none outline-none text-xs sm:text-sm font-black text-slate-900 tracking-wider cursor-pointer mt-0.5"
+                />
+              </div>
+            </div>
+
+            {/* Setas de navegação rápida dia anterior / próximo */}
+            <div className="flex items-center bg-slate-100 rounded-xl p-1 border border-slate-200 shrink-0">
+              <button
+                onClick={() => {
+                  try {
+                    const prev = subDays(parseISO(selectedDate), 1);
+                    setSelectedDate(format(prev, "yyyy-MM-dd"));
+                  } catch {}
+                }}
+                className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white transition-colors cursor-pointer"
+                title="Dia anterior (-1d)"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => {
+                  try {
+                    const next = addDays(parseISO(selectedDate), 1);
+                    setSelectedDate(format(next, "yyyy-MM-dd"));
+                  } catch {}
+                }}
+                className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white transition-colors cursor-pointer"
+                title="Próximo dia (+1d)"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
-          <div
-            className={cn(
-              "rounded-xl p-2 px-6 border-2 shadow-sm flex flex-col items-center justify-center transition-colors",
-              getAlaColor(identifiedAla),
-              "border-transparent text-slate-900",
+          {/* CENTRO: O FEIXE DO ESCALANTE (ALA EM SERVIÇO, MILITARES NA ALA BASE E PERMUTAS SOLICITADAS) */}
+          <div className="flex items-center flex-wrap sm:flex-nowrap bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-2 px-3 sm:px-4 border border-slate-800 shadow-md divide-x divide-slate-800/80 gap-3 sm:gap-4 shrink-0 overflow-x-auto no-scrollbar">
+            
+            {/* Segmento 1: Ala de Serviço com Insígnia e Cor */}
+            <div className="flex items-center gap-2.5 pr-1 sm:pr-3 shrink-0">
+              <div
+                className={cn(
+                  "w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs shadow-md shrink-0 transition-transform",
+                  identifiedAla === 1 && "bg-emerald-500 text-slate-950 shadow-emerald-500/30 ring-2 ring-emerald-400/40",
+                  identifiedAla === 2 && "bg-rose-500 text-white shadow-rose-500/30 ring-2 ring-rose-400/40",
+                  identifiedAla === 3 && "bg-sky-500 text-slate-950 shadow-sky-500/30 ring-2 ring-sky-400/40",
+                  identifiedAla === 4 && "bg-amber-400 text-slate-950 shadow-amber-400/30 ring-2 ring-amber-300/40",
+                  typeof identifiedAla !== "number" && "bg-slate-700 text-white"
+                )}
+              >
+                <Shield className="w-5 h-5 fill-current/20" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none">
+                  Ala em Serviço
+                </span>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-sm font-black tracking-tight text-white uppercase font-mono">
+                    {getAlaName(identifiedAla)}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-[8px] font-black uppercase px-2 py-0.5 rounded tracking-widest font-mono",
+                      identifiedAla === 1 && "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30",
+                      identifiedAla === 2 && "bg-rose-500/20 text-rose-300 border border-rose-500/30",
+                      identifiedAla === 3 && "bg-sky-500/20 text-sky-300 border border-sky-500/30",
+                      identifiedAla === 4 && "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                    )}
+                  >
+                    {identifiedAla === 1
+                      ? "VERDE"
+                      : identifiedAla === 2
+                      ? "VERMELHA"
+                      : identifiedAla === 3
+                      ? "AZUL"
+                      : identifiedAla === 4
+                      ? "AMARELA"
+                      : ""}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Segmento 2: Militares na Ala Base */}
+            <div className="flex items-center gap-2.5 pl-3 sm:pl-4 pr-1 sm:pr-3 shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-sky-500/15 border border-sky-400/30 flex items-center justify-center text-sky-300 shrink-0">
+                <Users className="w-4 h-4" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none">
+                  Militares na Ala Base
+                </span>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-sm font-black tracking-tight text-sky-300 font-mono">
+                    {baseRoster.length}
+                  </span>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase">
+                    efetivo
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Segmento 3: Quantidade de Permutas Solicitadas */}
+            <div className="flex items-center gap-2.5 pl-3 sm:pl-4 shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center text-emerald-300 shrink-0">
+                <ArrowRightLeft className="w-4 h-4" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none">
+                  Permutas Solicitadas
+                </span>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-sm font-black tracking-tight text-emerald-400 font-mono">
+                    {permutas.length}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-[8px] font-black uppercase px-2 py-0.5 rounded tracking-widest font-mono",
+                      permutas.length > 0
+                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                        : "bg-slate-800 text-slate-400 border border-slate-700"
+                    )}
+                  >
+                    {permutas.length === 1 ? "1 ativa" : `${permutas.length} ativas`}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Status Nuvem */}
+            {savingState === "saving" && (
+              <div className="flex items-center gap-1.5 pl-3 sm:pl-4 text-amber-400 shrink-0">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                <span className="text-[9px] font-bold uppercase tracking-widest">Salvando...</span>
+              </div>
             )}
-          >
-            <span className="text-[10px] font-black uppercase tracking-widest opacity-70">
-              Identificação Automática
-            </span>
-            <span className="text-xl font-black tracking-tighter">
-              {getAlaName(identifiedAla)}
-            </span>
+            {savingState === "saved" && (
+              <div className="flex items-center gap-1.5 pl-3 sm:pl-4 text-emerald-400 shrink-0">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400">Salvo ✓</span>
+              </div>
+            )}
           </div>
-          
-          <div className="flex flex-col items-start ml-2">
-            {savingState === 'saving' && (
-              <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200 animate-pulse">
-                Salvando alterações...
-              </span>
-            )}
-            {savingState === 'saved' && (
-              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
-                Salvo na nuvem ✓
-              </span>
-            )}
+
+          {/* LADO DIREITO: Barra de Ações Operacionais Harmoniosa */}
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0 self-end xl:self-center">
+            
+            {/* Botão Gerar Permuta */}
+            <button
+              onClick={() => setIsPermutaModalOpen(true)}
+              className="h-10 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-wider text-[11px] shadow-sm hover:shadow flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
+              title="Abrir solicitação e gestão de permutas"
+            >
+              <ArrowRightLeft className="w-4 h-4" />
+              <span>Gerar Permuta</span>
+            </button>
+
+            {/* Botão Sortear Funções + Configurações (Cluster Integrado) */}
+            <div className="flex items-center rounded-xl shadow-sm border border-amber-500/40 overflow-hidden shrink-0">
+              <button
+                onClick={handleSortear}
+                className="h-10 px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-black uppercase tracking-wider text-[11px] flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
+                title="Sortear funções operacionais automaticamente"
+              >
+                <Shuffle className="w-4 h-4" />
+                <span>Sortear Funções</span>
+              </button>
+              <button
+                onClick={() => setIsPreferenciasModalOpen(true)}
+                className="h-10 px-2.5 bg-orange-600 hover:bg-orange-500 text-white border-l border-orange-400/40 flex items-center justify-center transition-colors cursor-pointer"
+                title="Pré-definições e Configurações de Sorteio"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Botão Limpar */}
+            <button
+              onClick={() => setSelectedFunctions({})}
+              className="h-10 px-3 py-2 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-200 font-black uppercase tracking-wider text-[11px] shadow-2xs transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
+              title="Limpar todas as funções selecionadas na escala"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-rose-500" />
+              <span>Limpar</span>
+            </button>
+
+            {/* Botão Principal: Gerar Escala */}
+            <button
+              onClick={handleGerarEscala}
+              className="h-10 px-4 sm:px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-slate-900 hover:from-indigo-500 hover:via-indigo-600 hover:to-slate-800 text-white font-black uppercase tracking-widest text-[11px] shadow-md hover:shadow-lg flex items-center gap-2.5 transition-all active:scale-95 ring-2 ring-indigo-500/20 cursor-pointer"
+              title="Gerar e Imprimir Escala de Serviço 24h"
+            >
+              <Printer className="w-4 h-4 text-indigo-200" />
+              <span>Gerar Escala</span>
+            </button>
           </div>
+
         </div>
 
-        <div className="flex items-center gap-6">
-          <div className="flex text-[10px] font-black uppercase tracking-widest text-slate-400 gap-6">
-            <div className="flex flex-col items-end">
-              <span>Militars na Ala Base</span>
-              <span className="text-sm text-slate-800">{baseRoster.length}</span>
-            </div>
-            <div className="flex flex-col items-end">
-              <span>Permutas Deferidas</span>
-              <span className="text-sm text-emerald-600">{permutas.length}</span>
-            </div>
+        {/* Linha 2: Faixa de Navegação Rápida com os Próximos Dias e Badges de Alas */}
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-2 border-t border-slate-100">
+          <div className="flex items-center gap-1.5 text-slate-400 shrink-0 pr-1">
+            <Clock className="w-3.5 h-3.5 text-indigo-500" />
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+              Próximos Dias:
+            </span>
           </div>
-          <button
-            onClick={() => setIsPermutaModalOpen(true)}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-widest text-[10px] px-4 py-2.5 rounded-lg shadow-sm flex items-center gap-2 transition-colors"
-          >
-            <ArrowRightLeft className="w-4 h-4" />
-            Gerar Permuta
-          </button>
-          <button
-            onClick={() => {
-              setSelectedFunctions({});
-            }}
-            className="bg-red-500 hover:bg-red-400 text-white font-black uppercase tracking-widest text-[10px] px-4 py-2.5 rounded-lg shadow-sm flex items-center gap-2 transition-colors"
-          >
-            <X className="w-4 h-4" />
-            Limpar
-          </button>
-          <button
-            onClick={() => setIsPreferenciasModalOpen(true)}
-            className="bg-slate-800 hover:bg-slate-700 text-white font-black uppercase tracking-widest text-[10px] px-3 py-2.5 rounded-lg shadow-sm flex items-center justify-center transition-colors"
-            title="Pré-definições de Sorteio"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
-          <button
-            onClick={handleSortear}
-            className="bg-orange-500 hover:bg-orange-400 text-white font-black uppercase tracking-widest text-[10px] px-4 py-2.5 rounded-lg shadow-sm flex items-center gap-2 transition-colors"
-          >
-            <Shuffle className="w-4 h-4" />
-            Sortear Funções
-          </button>
-          <button
-            onClick={handleGerarEscala}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest text-[10px] px-4 py-2.5 rounded-lg shadow-sm flex items-center gap-2 transition-colors"
-          >
-            <Printer className="w-4 h-4" />
-            Gerar Escala
-          </button>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            {upcomingDays.map((item) => {
+              const isSelected = item.iso === selectedDate;
+              return (
+                <button
+                  key={item.iso}
+                  onClick={() => setSelectedDate(item.iso)}
+                  className={cn(
+                    "px-2.5 py-1.5 rounded-xl text-left flex items-center gap-2 border transition-all cursor-pointer active:scale-95 shrink-0",
+                    isSelected
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-sm ring-2 ring-indigo-400/40"
+                      : "bg-slate-50 hover:bg-indigo-50/50 text-slate-700 border-slate-200/90 hover:border-indigo-200"
+                  )}
+                  title={`Ir para ${item.label} (${item.dayNumber}) - Ala ${item.alaNum}`}
+                >
+                  <div className="flex flex-col leading-none">
+                    <span
+                      className={cn(
+                        "text-[9px] font-black uppercase tracking-wider",
+                        isSelected ? "text-indigo-200" : "text-slate-400"
+                      )}
+                    >
+                      {item.label}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-xs font-black font-mono mt-0.5",
+                        isSelected ? "text-white" : "text-slate-800"
+                      )}
+                    >
+                      {item.dayNumber}
+                    </span>
+                  </div>
+
+                  {/* Mini Badge de Ala */}
+                  <span
+                    className={cn(
+                      "text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider font-mono shrink-0 shadow-2xs",
+                      item.alaNum === 1 && "bg-emerald-500 text-slate-950 font-bold",
+                      item.alaNum === 2 && "bg-rose-500 text-white font-bold",
+                      item.alaNum === 3 && "bg-sky-500 text-slate-950 font-bold",
+                      item.alaNum === 4 && "bg-amber-400 text-slate-950 font-bold"
+                    )}
+                  >
+                    A{item.alaNum}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       <div className="p-4 sm:p-6 space-y-6">
+        {/* DASHBOARD MENSAL DO ESCALANTE COM INTELIGÊNCIA OPERACIONAL */}
+        <EscalanteDashboardCalendar
+          selectedDate={selectedDate}
+          onSelectDate={(newDate) => setSelectedDate(newDate)}
+          obmContext={obmContext}
+          militars={militars}
+          afastamentos={afastamentos}
+          permutas={permutas}
+          baseRoster={baseRoster}
+          expedienteMilitars={expedienteMilitars}
+          dynamicRequirements={dynamicRequirements}
+          selectedFunctions={selectedFunctions}
+          oficialDiaValue={oficialDiaValue}
+          nauticoOficialValue={nauticoOficialValue}
+          medicoOficialValue={medicoOficialValue}
+          estudoTecnico={estudoTecnico}
+        />
+
         {/* SEÇÃO CONEXÃO DE ESCALAS DE OFICIAIS: SERVIÇO & GRD, NÚCLEO NÁUTICO, OFICIAIS MÉDICOS */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative">
           <div className="bg-slate-900 rounded-t-2xl border-b border-slate-800 p-4 px-5 flex flex-wrap items-center justify-between gap-3 text-white">
@@ -2374,8 +2794,8 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
               </span>
             )}
           </div>
-          <div className=" pb-48 no-scrollbar relative min-h-[150px]">
-            <table className="w-full table-fixed border-collapse border-2 shadow-xl text-[10px] uppercase font-bold min-w-[500px] border-[#1e293b]">
+          <div className="overflow-x-auto no-scrollbar relative">
+            <table className="w-full table-fixed border-collapse border-2 shadow-sm text-[10px] uppercase font-bold min-w-[500px] border-[#1e293b]">
               <colgroup>
                 <col className="w-[30px]" />
                 <col className="w-[160px]" />
@@ -2587,10 +3007,10 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                 {permutas.filter(p => !p.isLookingForSubstitute || (p.requesterRg && p.substituteRg)).length === 0 && (
                   <tr>
                     <td
-                      colSpan={7}
-                      className="p-8 text-center text-slate-400 font-black text-xs uppercase tracking-widest bg-slate-50"
+                      colSpan={8}
+                      className="p-5 text-center text-slate-400 font-bold text-xs uppercase tracking-wider bg-slate-50/70"
                     >
-                      NENHUMA PERMUTA CADASTRADA PARA ESTA DATA
+                      Nenhuma permuta cadastrada para esta data
                     </td>
                   </tr>
                 )}
@@ -2660,7 +3080,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                   <Download className="w-3 h-3" />
                   Buscar
                 </button>
-                {rasApplications.length > 0 && (
+                {visibleRasApplications.length > 0 && (
                   <button
                     onClick={handleAddAllRas}
                     className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-widest text-[10px] px-3 py-1.5 rounded shadow-sm flex items-center gap-1 transition-colors"
@@ -2673,44 +3093,60 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
             </div>
           </div>
           
-          {rasApplications.length > 0 && (
+          {visibleRasApplications.length > 0 && (
             <div className="p-4 sm:p-6">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-200">
                     <th className="p-2 font-black text-slate-500 uppercase tracking-widest">Militar</th>
                     <th className="p-2 font-black text-slate-500 uppercase tracking-widest text-center">Status</th>
-                    <th className="p-2 font-black text-slate-500 uppercase tracking-widest text-center w-32">Ação</th>
+                    <th className="p-2 font-black text-slate-500 uppercase tracking-widest text-center w-36">Ação</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rasApplications.map((app) => {
+                  {visibleRasApplications.map((app) => {
                     const isInScale = baseRoster.some(br => br.rg === app.militarRg);
                     return (
-                      <tr key={app.id} className="border-b border-slate-100 hover:bg-slate-50">
+                      <tr key={app.id || app.militarRg} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                         <td className="p-2 font-bold text-slate-800">
                           {app.militarRank} {app.militarWarName || app.militarName} <span className="text-slate-400 font-normal">({app.militarRg})</span>
                         </td>
                         <td className="p-2 text-center">
                           {isInScale ? (
-                            <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest">
+                            <span className="bg-emerald-100 text-emerald-700 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest inline-flex items-center gap-1">
+                              <Check className="w-3 h-3 text-emerald-600 stroke-[3]" />
                               Na Escala
                             </span>
                           ) : (
-                            <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest">
+                            <span className="bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest">
                               Aguardando
                             </span>
                           )}
                         </td>
                         <td className="p-2 text-center">
-                          {!isInScale && (
+                          <div className="flex items-center justify-center gap-1.5">
+                            {!isInScale && (
+                              <button
+                                type="button"
+                                onClick={() => handleAddSingleRas(app)}
+                                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold px-2 py-1 rounded text-[10px] uppercase tracking-widest transition-colors flex-1"
+                              >
+                                Incluir
+                              </button>
+                            )}
                             <button
-                              onClick={() => handleAddSingleRas(app)}
-                              className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold px-2 py-1 rounded text-[10px] uppercase tracking-widest transition-colors w-full"
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveRasMilitar(app);
+                              }}
+                              className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-200 cursor-pointer"
+                              title="Excluir militar do RAS e da listagem de efetivo"
+                              aria-label={`Excluir ${app.militarWarName || app.militarName || app.militarRg} do RAS e da escala`}
                             >
-                              Incluir
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
-                          )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -2876,29 +3312,53 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                                 EXPEDIENTE
                               </span>
                             )}
-                            {rasApplications.some(a => a.militarRg === rg) && (
+                            {visibleRasApplications.some(a => a.militarRg === rg) && (
                               <span className="mt-1 text-[8px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded w-max uppercase tracking-widest flex items-center gap-1 shadow-xs">
                                 <BriefcaseBusiness className="w-2.5 h-2.5 text-amber-600" />
-                                RAS {rasApplications.find(a => a.militarRg === rg)?.oppDuration ? `(${rasApplications.find(a => a.militarRg === rg)?.oppDuration}h)` : ''}
+                                RAS {visibleRasApplications.find(a => a.militarRg === rg)?.oppDuration ? `(${visibleRasApplications.find(a => a.militarRg === rg)?.oppDuration}h)` : ''}
                               </span>
                             )}
                           </div>
                         </div>
-                        {manuallyAddedRgs[selectedDate]?.includes(rg) && (
+                        {(manuallyAddedRgs[selectedDate]?.includes(rg) || visibleRasApplications.some(a => a.militarRg === rg)) && (
                           <button
-                            onClick={() => {
-                              setManuallyAddedRgs(prev => {
-                                const curr = prev[selectedDate] || [];
-                                return {
-                                  ...prev,
-                                  [selectedDate]: curr.filter(r => r !== rg)
-                                };
-                              });
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const rasApp = visibleRasApplications.find(a => a.militarRg === rg) || rasApplications.find(a => a.militarRg === rg);
+                              if (rasApp) {
+                                handleRemoveRasMilitar(rasApp);
+                              } else {
+                                setManuallyAddedRgs(prev => {
+                                  const curr = prev[selectedDate] || [];
+                                  return {
+                                    ...prev,
+                                    [selectedDate]: curr.filter(r => r !== rg)
+                                  };
+                                });
+                                setManuallyRemovedRgs(prev => {
+                                  const curr = prev[selectedDate] || [];
+                                  if (!curr.includes(rg)) {
+                                    return {
+                                      ...prev,
+                                      [selectedDate]: [...curr, rg]
+                                    };
+                                  }
+                                  return prev;
+                                });
+                                setSelectedFunctions(prev => {
+                                  const next = { ...prev };
+                                  delete next[rg];
+                                  return next;
+                                });
+                                setActionNotice(`${militar.rank ? militar.rank + ' ' : ''}${militar.warName || militar.name || rg} removido da escala.`);
+                                setTimeout(() => setActionNotice(null), 3000);
+                              }
                             }}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded shadow-sm opacity-0 group-hover:opacity-100 transition-all"
-                            title="Remover Adição Manual"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded shadow-sm opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                            title={visibleRasApplications.some(a => a.militarRg === rg) ? "Excluir militar do RAS e da escala" : "Remover Adição Manual"}
                           >
-                            <X className="w-3 h-3" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </td>
@@ -2989,7 +3449,15 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         </div>
 
         {/* SECTION 2.5: AFASTAMENTOS DA ALA */}
-        <AfastamentosAlaModule obmContext={obmContext} type="atuais" filterAla={identifiedAlaStr} />
+        <AfastamentosAlaModule obmContext={obmContext} type="atuais" filterAla={identifiedAlaStr} targetDate={selectedDate} />
+
+        {/* SECTION 2.6: MILITARES DE EXPEDIENTE NO DIA */}
+        <ExpedienteDiaModule
+          obmContext={obmContext}
+          selectedDate={selectedDate}
+          expedienteMilitars={expedienteMilitars}
+          militars={militars}
+        />
 
         {/* SECTION 3: QUANT_MILITARES1 */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative z-20">
@@ -3741,6 +4209,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           selectedFunctions={selectedFunctions}
           viaturasInfo={viaturasInfo}
           rasApplications={rasApplications}
+          expedienteMilitars={expedienteMilitars}
           oficialDia={oficialDiaValue}
           oficialNautica={nauticoOficialValue}
           oficialMedico={medicoOficialValue}
@@ -3756,6 +4225,13 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         obmContext={obmContext}
         initialDate={selectedDate ? new Date(selectedDate + "T00:00:00") : null}
       />
+
+      {actionNotice && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 border border-slate-700">
+          <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
+          <span>{actionNotice}</span>
+        </div>
+      )}
     </div>
   );
 }

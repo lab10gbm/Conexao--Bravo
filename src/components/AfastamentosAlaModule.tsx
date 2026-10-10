@@ -1,4 +1,4 @@
-import { getLocalIsoDateString } from '../lib/utils';
+import { getLocalIsoDateString, normalizeAlaField } from '../lib/utils';
 import React, { useState, useEffect } from 'react';
 import { useMilitars } from '../contexts/MilitarContext';
 import { db } from '../lib/firebase';
@@ -116,25 +116,32 @@ interface AfastamentosAlaModuleProps {
   obmContext: string;
   type: 'atuais' | 'anual';
   filterAla?: string;
+  targetDate?: string;
 }
 
 const SITUACOES = ['FERIAS', 'LICENÇA', 'CURSO', 'NÚPCIAS', 'LUTO', 'DISPENSA', 'OUTROS'];
 
-export function AfastamentosAlaModule({ obmContext, type, filterAla }: AfastamentosAlaModuleProps) {
+export function AfastamentosAlaModule({ obmContext, type, filterAla, targetDate }: AfastamentosAlaModuleProps) {
   const { militars } = useMilitars();
   const [afastamentos, setAfastamentos] = useState<Afastamento[]>([]);
   const [loading, setLoading] = useState(true);
 
   // New entry state
-  const [newInicio, setNewInicio] = useState('');
+  const [newInicio, setNewInicio] = useState(targetDate || '');
   const [newRetorno, setNewRetorno] = useState('');
-  const [newAla, setNewAla] = useState('1');
+  const [newAla, setNewAla] = useState(() => (filterAla ? normalizeAlaField(filterAla) || '1' : '1'));
   const [newRg, setNewRg] = useState('');
   const [newSituacao, setNewSituacao] = useState('FERIAS');
   const [newObs, setNewObs] = useState('');
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<Afastamento>>({});
+
+  useEffect(() => {
+    if (filterAla) {
+      setNewAla(normalizeAlaField(filterAla) || '1');
+    }
+  }, [filterAla]);
 
   useEffect(() => {
     if (!obmContext) return;
@@ -167,16 +174,17 @@ export function AfastamentosAlaModule({ obmContext, type, filterAla }: Afastamen
       const newRef = doc(collection(db, 'afastamentos_alas'));
       await setDoc(newRef, {
         rg: normalizeRg(newRg),
-        ala: newAla,
+        ala: normalizeAlaField(newAla) || newAla,
         inicio: newInicio,
         retorno: newRetorno,
         situacao: newSituacao,
+        tipoAfastamento: newSituacao,
         obs: newObs,
         obm: normalizeObm(obmContext),
         createdAt: new Date().toISOString()
       });
       
-      setNewInicio('');
+      setNewInicio(targetDate || '');
       setNewRetorno('');
       setNewRg('');
       setNewObs('');
@@ -209,7 +217,14 @@ export function AfastamentosAlaModule({ obmContext, type, filterAla }: Afastamen
   const saveEdit = async () => {
     if (!editingId) return;
     try {
-      await setDoc(doc(db, 'afastamentos_alas', editingId), editData, { merge: true });
+      const updatedAla = editData.ala ? (normalizeAlaField(editData.ala) || editData.ala) : undefined;
+      const updatedSituacao = editData.situacao || 'FERIAS';
+      await setDoc(doc(db, 'afastamentos_alas', editingId), {
+        ...editData,
+        ala: updatedAla,
+        situacao: updatedSituacao,
+        tipoAfastamento: updatedSituacao,
+      }, { merge: true });
       setEditingId(null);
       setEditData({});
     } catch (e) {
@@ -217,15 +232,17 @@ export function AfastamentosAlaModule({ obmContext, type, filterAla }: Afastamen
     }
   };
 
-  // Categorizar e ordenar
-  const now = getLocalIsoDateString(); // YYYY-MM-DD
+  // Categorizar e ordenar com referência na data selecionada
+  const now = targetDate || getLocalIsoDateString(); // YYYY-MM-DD
   
   const passados: Afastamento[] = [];
   const atuais: Afastamento[] = [];
   const proximos: Afastamento[] = [];
 
   afastamentos.forEach(a => {
-    if (filterAla && a.ala !== filterAla) return; // Filtra por ala se fornecido
+    const militar = militars.find(m => normalizeRg(m.rg) === normalizeRg(a.rg));
+    const militarAla = normalizeAlaField(a.ala || militar?.ala);
+    if (filterAla && militarAla && militarAla !== normalizeAlaField(filterAla)) return;
     
     if (now > a.retorno) {
       passados.push(a);
@@ -386,7 +403,11 @@ export function AfastamentosAlaModule({ obmContext, type, filterAla }: Afastamen
           <Calendar className={cn("w-6 h-6", type === 'atuais' ? "text-rose-600" : "text-emerald-600")} />
           <div>
             <h3 className={cn("text-sm font-black uppercase tracking-widest", type === 'atuais' ? "text-rose-700" : "text-emerald-700")}>
-              {type === 'atuais' ? 'Afastamentos e Férias (Atuais)' : 'Cadastro Anual de Afastamentos / Férias'}
+              {type === 'atuais' ? (
+                targetDate 
+                  ? `Afastamentos e Férias (Atuais - ${targetDate.split('-').reverse().join('/')})`
+                  : 'Afastamentos e Férias (Atuais)'
+              ) : 'Cadastro Anual de Afastamentos / Férias'}
             </h3>
           </div>
         </div>
@@ -410,7 +431,7 @@ export function AfastamentosAlaModule({ obmContext, type, filterAla }: Afastamen
             {loading ? (
               <tr><td colSpan={7} className="p-4 text-center text-slate-400 font-bold uppercase tracking-widest animate-pulse"><Loader2 className="w-4 h-4 mx-auto animate-spin" /></td></tr>
             ) : filtered.length === 0 && type !== 'anual' ? (
-              <tr><td colSpan={7} className="p-4 text-center text-slate-400 font-bold uppercase tracking-widest">Nenhum militar afastado</td></tr>
+              <tr><td colSpan={7} className="p-4 text-center text-slate-400 font-bold uppercase tracking-widest">Nenhum militar afastado nesta data{filterAla ? ` na ${filterAla}ª Ala` : ''}</td></tr>
             ) : type === 'anual' ? (
               <>
                 {renderGroup(atuais, 'Em Andamento', 'bg-emerald-100 text-emerald-700')}

@@ -1,11 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Printer, X, Image as ImageIcon, PenTool, Save } from 'lucide-react';
+import { Printer, X, Image as ImageIcon, PenTool, Save, Columns, LayoutList, Shield } from 'lucide-react';
 import { RankInsignia } from './RankInsignia';
-import { parseRank } from '../lib/rankUtils';
-import { formatMilitaryName } from '../lib/utils';
-import { doc, getDoc } from 'firebase/firestore';
+import { LogoDecimoGbm } from './LogoDecimoGbm';
+import { LogoCbaSete } from './LogoCbaSete';
+import { LogoManagerModal } from './LogoManagerModal';
+import { parseRank, sortAllBySeniority } from '../lib/rankUtils';
+import { formatMilitaryName, normalizeObm, normalizeRg, normalizeAlaField } from '../lib/utils';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export function EscalaPrintView({
@@ -17,6 +20,7 @@ export function EscalaPrintView({
   selectedFunctions,
   viaturasInfo,
   rasApplications,
+  expedienteMilitars: initialExpedienteMilitars,
   oficialDia,
   oficialNautica,
   oficialMedico,
@@ -27,9 +31,130 @@ export function EscalaPrintView({
   onClose
 }: any) {
   const [showVisualMode, setShowVisualMode] = useState(false);
+  const [showLogoModal, setShowLogoModal] = useState(false);
   const [isSigned, setIsSigned] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [grdRgs, setGrdRgs] = useState<string[]>([]);
+  const [expedienteLayout, setExpedienteLayout] = useState<'coluna' | 'secao'>(() => {
+    try {
+      const saved = localStorage.getItem('escala_expediente_layout');
+      return saved === 'secao' ? 'secao' : 'coluna';
+    } catch {
+      return 'coluna';
+    }
+  });
+
+  const toggleExpedienteLayout = () => {
+    setExpedienteLayout(prev => {
+      const next = prev === 'coluna' ? 'secao' : 'coluna';
+      try {
+        localStorage.setItem('escala_expediente_layout', next);
+      } catch {}
+      return next;
+    });
+  };
+
+  const [expedienteMilitars, setExpedienteMilitars] = useState<any[]>(
+    Array.isArray(initialExpedienteMilitars) ? initialExpedienteMilitars : []
+  );
+
+  useEffect(() => {
+    if (Array.isArray(initialExpedienteMilitars) && initialExpedienteMilitars.length > 0) {
+      setExpedienteMilitars(initialExpedienteMilitars);
+    }
+  }, [initialExpedienteMilitars]);
+
+  // Real-time listener for expediente scale sync
+  useEffect(() => {
+    if (!selectedDate || !obmContext || obmContext === 'GLOBAL') return;
+    try {
+      const cleanObm = normalizeObm(obmContext || '10º GBM');
+      const normalizedObm = cleanObm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+      const monthKey = selectedDate.substring(0, 7);
+      const docRef = doc(db, `expediente_${normalizedObm}`, monthKey);
+      const globalDocRef = doc(db, 'config', `expediente_global_${normalizedObm}`);
+
+      let globalNames: Record<string, string> = {};
+      const unsubGlobal = onSnapshot(globalDocRef, (gSnap) => {
+        if (gSnap.exists()) {
+          globalNames = gSnap.data().userNames || {};
+        }
+      });
+
+      const unsub = onSnapshot(docRef, (docSnap) => {
+        if (!docSnap.exists()) {
+          if (!initialExpedienteMilitars || initialExpedienteMilitars.length === 0) {
+            setExpedienteMilitars([]);
+          }
+          return;
+        }
+        const data = docSnap.data();
+        const expDaysObj = data.expedienteDays || {};
+        const selsObj = data.selections || {};
+        const monthNames = data.userNames || {};
+
+        const dayExpRgs: string[] = [];
+        const daySelsRgs: string[] = [];
+        const allExpDutyRgs = new Set<string>();
+
+        Object.entries(expDaysObj).forEach(([rg, days]: [string, any]) => {
+          if (rg === 'ESCALANTE_PREF' || !rg) return;
+          if (Array.isArray(days) && days.includes(selectedDate)) {
+            dayExpRgs.push(rg);
+            allExpDutyRgs.add(rg);
+          }
+        });
+
+        Object.entries(selsObj).forEach(([rg, days]: [string, any]) => {
+          if (rg === 'ESCALANTE_PREF' || !rg) return;
+          if (Array.isArray(days) && days.includes(selectedDate)) {
+            daySelsRgs.push(rg);
+            allExpDutyRgs.add(rg);
+          }
+        });
+
+        const activeList = Array.from(allExpDutyRgs).filter(rg => {
+          const cleanTargetRg = normalizeRg(rg);
+          const isAfastado = (afastamentos || []).some((a: any) => {
+            return normalizeRg(a.rg) === cleanTargetRg && selectedDate >= a.inicio && selectedDate <= a.retorno;
+          });
+          return !isAfastado;
+        });
+
+        const result = activeList.map(rg => {
+          const cleanTargetRg = normalizeRg(rg);
+          const mil = (militars || []).find((m: any) => normalizeRg(m.rg) === cleanTargetRg || m.uid === rg);
+          const isExp = dayExpRgs.includes(rg);
+          const is24h = !isExp && daySelsRgs.includes(rg);
+          const name = mil?.name || globalNames[rg] || monthNames[rg] || rg;
+          const warName = mil?.warName || '';
+          const rank = mil?.rank || '';
+          const quadro = mil?.quadro || '';
+
+          return {
+            rg: mil?.rg || rg,
+            name,
+            warName,
+            rank,
+            quadro,
+            militar: mil || { rg: mil?.rg || rg, name, warName, rank, quadro },
+            is24h,
+            isExp
+          };
+        });
+
+        result.sort(sortAllBySeniority);
+        setExpedienteMilitars(result);
+      });
+
+      return () => {
+        unsub();
+        unsubGlobal();
+      };
+    } catch (err) {
+      console.error("Erro sincronizando expediente na escala:", err);
+    }
+  }, [selectedDate, obmContext, militars, afastamentos]);
 
   useEffect(() => {
     const fetchGrd = async () => {
@@ -367,8 +492,33 @@ export function EscalaPrintView({
         
         {/* Actions - hidden in print */}
         <div className="absolute top-4 right-4 flex items-center gap-2 print:hidden">
+           <button
+             onClick={() => setShowLogoModal(true)}
+             className="bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-3 py-2 rounded-lg font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+             title="Carregar ou alterar as fotos/logos do 10º GBM e CBA VII"
+           >
+             <Shield className="w-4 h-4 text-amber-700" />
+             <span>Brasões (Fotos)</span>
+           </button>
            <button onClick={() => setShowVisualMode(!showVisualMode)} className="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-300">
              <ImageIcon className="w-4 h-4" /> {showVisualMode ? 'Modo Texto' : 'Modo Visual'}
+           </button>
+           <button
+             onClick={toggleExpedienteLayout}
+             className="bg-indigo-50 text-indigo-900 border border-indigo-200 px-3.5 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-indigo-100 transition-colors cursor-pointer shadow-2xs"
+             title="Alternar entre Expediente em Coluna na Chamada Geral ou Seção dedicada abaixo da tabela"
+           >
+             {expedienteLayout === 'coluna' ? (
+               <>
+                 <LayoutList className="w-4 h-4 text-indigo-700" />
+                 <span>Expediente: Coluna</span>
+               </>
+             ) : (
+               <>
+                 <Columns className="w-4 h-4 text-indigo-700" />
+                 <span>Expediente: Seção</span>
+               </>
+             )}
            </button>
            <button onClick={() => setIsSigned(true)} disabled={isSigned} className="bg-amber-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-amber-400">
              <PenTool className="w-4 h-4" /> {isSigned ? 'Assinado' : 'Assinar'}
@@ -413,10 +563,31 @@ export function EscalaPrintView({
 
            {/* Right column */}
            <div className="w-3/4 text-center flex flex-col justify-between pl-2">
-              <div className="font-bold text-[12px] flex flex-col justify-center items-center mt-2 mb-4">
-                 <span>CORPO DE BOMBEIROS MILITAR DO ESTADO DO RIO DE JANEIRO</span>
-                 <span>COMANDO DE BOMBEIROS DA COSTA VERDE</span>
-                 <span>DÉCIMO GRUPAMENTO DE BOMBEIRO MILITAR-ANGRA DOS REIS</span>
+              <div className="flex items-center justify-center gap-3 sm:gap-5 print:gap-4 w-full mt-1 mb-2 px-1">
+                 {/* Lado esquerdo: Décimo GBM */}
+                 <div
+                   onClick={() => setShowLogoModal(true)}
+                   className="w-20 h-24 sm:w-24 sm:h-28 print:w-[86px] print:h-[102px] flex items-center justify-center shrink-0 cursor-pointer relative group rounded-sm hover:outline hover:outline-1 hover:outline-red-400 transition-transform hover:scale-102"
+                   title="10º GBM - Clique para carregar ou alterar esta imagem"
+                 >
+                    <LogoDecimoGbm className="w-full h-full object-contain max-h-[92px] sm:max-h-[105px] print:max-h-[96px]" allowUpload={true} />
+                 </div>
+
+                 {/* Centro: Título Oficial */}
+                 <div className="font-bold text-[11px] sm:text-[12px] flex flex-col justify-center items-center text-center px-1 shrink-0 leading-tight sm:leading-normal">
+                    <span>CORPO DE BOMBEIROS MILITAR DO ESTADO DO RIO DE JANEIRO</span>
+                    <span>COMANDO DE BOMBEIROS DA COSTA VERDE</span>
+                    <span>DÉCIMO GRUPAMENTO DE BOMBEIRO MILITAR-ANGRA DOS REIS</span>
+                 </div>
+
+                 {/* Lado direito: CBA7 */}
+                 <div
+                   onClick={() => setShowLogoModal(true)}
+                   className="w-20 h-24 sm:w-24 sm:h-28 print:w-[86px] print:h-[102px] flex items-center justify-center shrink-0 cursor-pointer relative group rounded-sm hover:outline hover:outline-1 hover:outline-emerald-400 transition-transform hover:scale-102"
+                   title="CBA VII - Clique para carregar ou alterar esta imagem"
+                 >
+                    <LogoCbaSete className="w-full h-full object-contain max-h-[92px] sm:max-h-[105px] print:max-h-[96px]" allowUpload={true} />
+                 </div>
               </div>
               
               <div className="flex justify-center gap-2 w-full text-sm font-bold px-16 mb-2">
@@ -817,63 +988,153 @@ export function EscalaPrintView({
 
         {/* CHAMADA GERAL */}
         <table className="w-full border-collapse border-2 border-black text-left table-fixed text-[10px]">
+           {expedienteLayout === 'coluna' ? (
+              <colgroup>
+                 <col className="w-[21%]" />
+                 <col className="w-[21%]" />
+                 <col className="w-[21%]" />
+                 <col className="w-[19%]" />
+                 <col className="w-[18%]" />
+              </colgroup>
+           ) : (
+              <colgroup>
+                 <col className="w-[26.6%]" />
+                 <col className="w-[26.6%]" />
+                 <col className="w-[26.6%]" />
+                 <col className="w-[20.2%]" />
+              </colgroup>
+           )}
            <thead>
               <tr className={`${headerColorClass} font-bold border-b-2 border-black`}>
                  <th className="border-r border-black p-1 text-center uppercase" colSpan={3}>CHAMADA GERAL</th>
-                 <th className="p-1 text-center w-[20%] uppercase">RAS</th>
+                 {expedienteLayout === 'coluna' && (
+                    <th className="border-r border-black p-1 text-center uppercase" colSpan={1}>EXPEDIENTE</th>
+                 )}
+                 <th className={`p-1 text-center uppercase ${expedienteLayout === 'coluna' ? '' : 'w-[20%]'}`} colSpan={1}>RAS</th>
               </tr>
            </thead>
            <tbody>
-              {Array.from({ length: Math.max(Math.ceil(activeMembersList.length / 3), 9, (rasApplications?.length || 0)) }).map((_, i) => {
-                 const totalRows = Math.max(Math.ceil(activeMembersList.length / 3), 9, (rasApplications?.length || 0));
-                 const cLen = totalRows;
-                 
-                 const m1 = activeMembersList[i] || null;
-                 const m2 = activeMembersList[i + cLen] || null;
-                 const m3 = activeMembersList[i + cLen * 2] || null;
-
-                 const rasApp = rasApplications && rasApplications[i] ? {
-                    rg: rasApplications[i].militarRg,
-                    name: rasApplications[i].militarName,
-                    warName: rasApplications[i].militarWarName,
-                    rank: rasApplications[i].militarRank,
-                 } : null;
-
-                 return (
-                    <tr key={i}>
-                       <td className="border-r border-b border-black p-0.5 px-2 truncate">
-                          {m1 ? <div className="flex gap-1 items-center min-h-[20px]"><span className="shrink-0">{m1.rg} -</span> <span className="truncate">{renderMilitar(m1.militar)}</span></div> : ''}
-                       </td>
-                       <td className="border-r border-b border-black p-0.5 px-2 truncate">
-                          {m2 ? <div className="flex gap-1 items-center min-h-[20px]"><span className="shrink-0">{m2.rg} -</span> <span className="truncate">{renderMilitar(m2.militar)}</span></div> : ''}
-                       </td>
-                       <td className="border-r border-b border-black p-0.5 px-2 truncate">
-                          {m3 ? <div className="flex gap-1 items-center min-h-[20px]"><span className="shrink-0">{m3.rg} -</span> <span className="truncate">{renderMilitar(m3.militar)}</span></div> : ''}
-                       </td>
-                       <td className="border-b border-black p-0.5 text-left pl-2 font-bold text-[9px] truncate">
-                           {i + 1} {rasApp ? `- ${renderMilitar(rasApp)}` : ''}
-                        </td>
-                    </tr>
+              {(() => {
+                 const totalRows = Math.max(
+                    Math.ceil(activeMembersList.length / 3),
+                    9,
+                    (rasApplications?.length || 0),
+                    expedienteLayout === 'coluna' ? (expedienteMilitars?.length || 0) : 0
                  );
-              })}
+                 const cLen = Math.max(Math.ceil(activeMembersList.length / 3), 1);
+
+                 return Array.from({ length: totalRows }).map((_, i) => {
+                    const m1 = i < cLen ? (activeMembersList[i] || null) : null;
+                    const m2 = i < cLen ? (activeMembersList[i + cLen] || null) : null;
+                    const m3 = i < cLen ? (activeMembersList[i + cLen * 2] || null) : null;
+
+                    const expMil = (expedienteMilitars && expedienteMilitars[i]) || null;
+
+                    const rasApp = rasApplications && rasApplications[i] ? {
+                       rg: rasApplications[i].militarRg,
+                       name: rasApplications[i].militarName,
+                       warName: rasApplications[i].militarWarName,
+                       rank: rasApplications[i].militarRank,
+                    } : null;
+
+                    return (
+                       <tr key={i}>
+                          <td className="border-r border-b border-black p-0.5 px-2 truncate">
+                             {m1 ? <div className="flex gap-1 items-center min-h-[20px]"><span className="shrink-0">{m1.rg} -</span> <span className="truncate">{renderMilitar(m1.militar)}</span></div> : ''}
+                          </td>
+                          <td className="border-r border-b border-black p-0.5 px-2 truncate">
+                             {m2 ? <div className="flex gap-1 items-center min-h-[20px]"><span className="shrink-0">{m2.rg} -</span> <span className="truncate">{renderMilitar(m2.militar)}</span></div> : ''}
+                          </td>
+                          <td className="border-r border-b border-black p-0.5 px-2 truncate">
+                             {m3 ? <div className="flex gap-1 items-center min-h-[20px]"><span className="shrink-0">{m3.rg} -</span> <span className="truncate">{renderMilitar(m3.militar)}</span></div> : ''}
+                          </td>
+                          {expedienteLayout === 'coluna' && (
+                             <td className="border-r border-b border-black p-0.5 px-2 truncate">
+                                {expMil ? (
+                                   <div className="flex gap-1 items-center min-h-[20px]">
+                                      <span className="shrink-0">{expMil.rg} -</span>
+                                      <span className="truncate">{renderMilitar(expMil.militar || expMil)}</span>
+                                      {expMil.is24h && (
+                                         <span className="text-[7.5px] font-black text-rose-700 bg-rose-50 border border-rose-200 px-1 rounded ml-1 shrink-0">
+                                            24H
+                                         </span>
+                                      )}
+                                   </div>
+                                ) : ''}
+                             </td>
+                          )}
+                          <td className="border-b border-black p-0.5 text-left pl-2 font-bold text-[9px] truncate">
+                             {i + 1} {rasApp ? `- ${renderMilitar(rasApp)}` : ''}
+                          </td>
+                       </tr>
+                    );
+                 });
+              })()}
            </tbody>
         </table>
+
+        {/* EXPEDIENTE DE SERVIÇO (SEÇÃO ESTILO AFASTAMENTOS) */}
+        {expedienteLayout === 'secao' && (
+           <div className="border-2 border-black border-t-0 flex flex-col">
+              {/* EXPEDIENTE HEADER */}
+              <div className={`${headerColorClass} font-bold border-b-2 border-black text-center p-1 text-[10px] uppercase tracking-wider`}>
+                 MILITARES DE EXPEDIENTE NO DIA
+              </div>
+              
+              {/* EXPEDIENTE LIST */}
+              <div className="p-1.5 px-3 border-b-2 border-black text-[10px] min-h-[30px] font-bold">
+                 {expedienteMilitars.length > 0 ? (
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-x-4 gap-y-1">
+                       {expedienteMilitars.map((m: any, idx: number) => {
+                          const sectorName = m.sector || m.militar?.setor;
+                          return (
+                             <div key={idx} className="flex items-center gap-1.5 truncate">
+                                <span className="font-mono text-slate-700 shrink-0">{m.rg} -</span>
+                                <span className="truncate">{renderMilitar(m.militar || m)}</span>
+                                {sectorName && (
+                                   <span className="text-[7.5px] font-bold text-slate-600 bg-slate-100 border border-slate-300 px-1 rounded ml-0.5 shrink-0 uppercase">
+                                      {sectorName}
+                                   </span>
+                                )}
+                                {m.is24h && (
+                                   <span className="text-[7.5px] font-black text-rose-700 bg-rose-50 border border-rose-200 px-1 rounded ml-1 shrink-0">
+                                      24H
+                                   </span>
+                                )}
+                             </div>
+                          );
+                       })}
+                    </div>
+                 ) : (
+                    <div className="text-center font-normal text-slate-500 italic">Nenhum militar de expediente escalado neste dia.</div>
+                 )}
+              </div>
+           </div>
+        )}
 
         {/* AFASTAMENTOS E GRD */}
         {(() => {
            const activeAfastamentos = (afastamentos || []).filter((a: any) => {
-              return selectedDate >= a.inicio && selectedDate <= a.retorno;
+              if (selectedDate < a.inicio || selectedDate > a.retorno) return false;
+              const mil = (militars || []).find((m: any) => normalizeRg(m.rg) === normalizeRg(a.rg));
+              if (identifiedAla) {
+                 const effectiveAla = normalizeAlaField(a.ala || mil?.ala);
+                 if (effectiveAla && effectiveAla !== normalizeAlaField(identifiedAla)) {
+                    return false;
+                 }
+              }
+              return true;
            });
            
            const afastadosList = activeAfastamentos.map((a: any) => {
-              const mil = (militars || []).find((m: any) => m.rg === a.rg);
+              const mil = (militars || []).find((m: any) => normalizeRg(m.rg) === normalizeRg(a.rg));
               if (!mil) return null;
-              const typeStr = a.tipoAfastamento || 'Afastamento';
+              const typeStr = a.situacao || a.tipoAfastamento || 'Afastamento';
               return `${parseRank(mil.rank)} ${mil.warName || (mil.name || '').split(' ')[0]} (${typeStr})`;
            }).filter(Boolean);
 
            const grdMilitarsList = (grdRgs || []).map((rg: string) => {
-              const mil = (militars || []).find((m: any) => m.rg === rg);
+              const mil = (militars || []).find((m: any) => normalizeRg(m.rg) === normalizeRg(rg));
               if (!mil) return null;
               return `${parseRank(mil.rank)} ${mil.warName || (mil.name || '').split(' ')[0]}`;
            }).filter(Boolean);
@@ -922,6 +1183,9 @@ export function EscalaPrintView({
         })()}
 
       </div>
+
+      {/* Modal de Gerenciamento e Upload de Brasões */}
+      <LogoManagerModal isOpen={showLogoModal} onClose={() => setShowLogoModal(false)} />
     </div>
   );
 }
