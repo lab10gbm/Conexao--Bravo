@@ -1889,6 +1889,9 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   };
 
   const handleGerarEscala = async () => {
+    // Abrir a visualização de impressão e geração imediatamente
+    setShowPrintView(true);
+
     // Check if the scale is for the current day
     const today = format(new Date(), "yyyy-MM-dd");
     if (selectedDate === today) {
@@ -1921,8 +1924,6 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         console.error("Erro ao sincronizar com Painel do Comunicante:", e);
       }
     }
-    
-    setShowPrintView(true);
   };
 
   const addMenuOptions = useMemo(() => {

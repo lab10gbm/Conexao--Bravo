@@ -1,13 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Printer, X, Image as ImageIcon, PenTool, Save, Columns, LayoutList, Shield } from 'lucide-react';
+import { Printer, X, Image as ImageIcon, PenTool, Save, Columns, LayoutList, Shield, ExternalLink } from 'lucide-react';
 import { RankInsignia } from './RankInsignia';
 import { LogoDecimoGbm } from './LogoDecimoGbm';
 import { LogoCbaSete } from './LogoCbaSete';
 import { LogoManagerModal } from './LogoManagerModal';
 import { parseRank, sortAllBySeniority } from '../lib/rankUtils';
-import { formatMilitaryName, normalizeObm, normalizeRg, normalizeAlaField } from '../lib/utils';
+import { formatMilitaryName, normalizeObm, normalizeRg, normalizeAlaField, cn, getAlaForDate } from '../lib/utils';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
@@ -35,6 +35,7 @@ export function EscalaPrintView({
   const [isSigned, setIsSigned] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [grdRgs, setGrdRgs] = useState<string[]>([]);
+  const [printFallbackUrl, setPrintFallbackUrl] = useState<string | null>(null);
   const [expedienteLayout, setExpedienteLayout] = useState<'coluna' | 'secao'>(() => {
     try {
       const saved = localStorage.getItem('escala_expediente_layout');
@@ -185,20 +186,107 @@ export function EscalaPrintView({
      return `${prefix}-???`; 
   };
 
-  // Determine color class based on Ala
-  const getPrintColor = (ala: number | string) => {
-    const alaStr = ala?.toString().toUpperCase();
-    if (alaStr === 'EXP') return 'bg-slate-200';
-    const alaNum = typeof ala === 'string' ? parseInt(ala) : ala;
-    switch (alaNum) {
-      case 1: return 'bg-emerald-200';
-      case 2: return 'bg-rose-200';
-      case 3: return 'bg-blue-200';
-      case 4: return 'bg-amber-200';
-      default: return 'bg-gray-200';
+  // Identificação robusta e cores temáticas oficiais da Ala (para tela e impressões/PDF)
+  const alaTheme = useMemo(() => {
+    let alaNum: number | null = null;
+    if (identifiedAla !== undefined && identifiedAla !== null && identifiedAla !== '') {
+      if (typeof identifiedAla === 'number' && identifiedAla >= 1 && identifiedAla <= 4) {
+        alaNum = identifiedAla;
+      } else {
+        const str = String(identifiedAla).trim().toUpperCase();
+        if (str.includes('VERDE') || str === '1' || str === 'ALA 1') alaNum = 1;
+        else if (str.includes('VERMELH') || str === '2' || str === 'ALA 2') alaNum = 2;
+        else if (str.includes('AZUL') || str === '3' || str === 'ALA 3') alaNum = 3;
+        else if (str.includes('AMAREL') || str === '4' || str === 'ALA 4') alaNum = 4;
+        else {
+          const digits = str.replace(/\D/g, '');
+          if (digits) {
+            const parsed = parseInt(digits, 10);
+            if (parsed >= 1 && parsed <= 4) alaNum = parsed;
+          }
+        }
+      }
     }
-  };
-  const headerColorClass = getPrintColor(identifiedAla);
+
+    if (!alaNum && selectedDate) {
+      try {
+        let clean = selectedDate.trim();
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(clean)) {
+          const [d, m, y] = clean.split('/');
+          clean = `${y}-${m}-${d}`;
+        } else if (clean.includes('T')) {
+          clean = clean.split('T')[0];
+        }
+        const d = new Date(`${clean}T12:00:00`);
+        if (!isNaN(d.getTime())) {
+          alaNum = getAlaForDate(d);
+        }
+      } catch {}
+    }
+
+    if (!alaNum) alaNum = 1;
+
+    switch (alaNum) {
+      case 1:
+        return {
+          num: 1,
+          name: 'ALA 1',
+          label: 'VERDE',
+          bgClass: 'bg-emerald-200',
+          bgHex: '#a7f3d0',       // Verde Esmeralda suave
+          borderHex: '#6ee7b7',
+          textHex: '#000000',
+        };
+      case 2:
+        return {
+          num: 2,
+          name: 'ALA 2',
+          label: 'VERMELHA',
+          bgClass: 'bg-rose-200',
+          bgHex: '#fecdd3',       // Vermelho / Rosa suave
+          borderHex: '#fda4af',
+          textHex: '#000000',
+        };
+      case 3:
+        return {
+          num: 3,
+          name: 'ALA 3',
+          label: 'AZUL',
+          bgClass: 'bg-blue-200',
+          bgHex: '#bfdbfe',       // Azul suave
+          borderHex: '#93c5fd',
+          textHex: '#000000',
+        };
+      case 4:
+        return {
+          num: 4,
+          name: 'ALA 4',
+          label: 'AMARELA',
+          bgClass: 'bg-amber-200',
+          bgHex: '#fde68a',       // Amarelo suave idêntico ao modelo
+          borderHex: '#fcd34d',
+          textHex: '#000000',
+        };
+      default:
+        return {
+          num: 1,
+          name: 'ALA 1',
+          label: 'VERDE',
+          bgClass: 'bg-slate-200',
+          bgHex: '#e2e8f0',
+          borderHex: '#cbd5e1',
+          textHex: '#000000',
+        };
+    }
+  }, [identifiedAla, selectedDate]);
+
+  const headerColorClass = alaTheme.bgClass;
+  const headerBgStyle = useMemo(() => ({
+    backgroundColor: alaTheme.bgHex,
+    color: '#000000',
+    WebkitPrintColorAdjust: 'exact' as const,
+    printColorAdjust: 'exact' as const,
+  }), [alaTheme.bgHex]);
   
   // Normalize function names for robust matching
   const normalize = (s: string) => {
@@ -241,7 +329,7 @@ export function EscalaPrintView({
         </div>
       );
     }
-    return `${militar.rank} ${militar.warName || militar.name.split(' ')[0]}`;
+    return `${militar.rank || ''} ${militar.warName || (militar.name ? militar.name.split(' ')[0] : militar.rg || '')}`;
   };
 
   
@@ -476,8 +564,12 @@ export function EscalaPrintView({
   const activeMembersList = baseRoster.map((m: any) => {
       const rg = m.rg || '';
       const isSwapped = permutasOut.has(rg);
-      const actualMilitar = isSwapped ? (militars.find((x: any) => x.rg === permutasOut.get(rg).substituteRg) || m) : m;
-      return { rg: actualMilitar.rg, militar: actualMilitar, label: `${actualMilitar.rank} ${actualMilitar.warName || actualMilitar.name.split(' ')[0]}` };
+      const actualMilitar = isSwapped ? (militars.find((x: any) => x.rg === permutasOut.get(rg)?.substituteRg) || m) : m;
+      return {
+        rg: actualMilitar?.rg || rg,
+        militar: actualMilitar || m,
+        label: `${actualMilitar?.rank || ''} ${actualMilitar?.warName || (actualMilitar?.name ? actualMilitar.name.split(' ')[0] : actualMilitar?.rg || '')}`
+      };
   });
 
   const permutasAtivas = Array.from(permutasOut.values()).map((p: any) => {
@@ -486,13 +578,242 @@ export function EscalaPrintView({
      return { req, sub, text: `Sai: ${req?.rank} ${req?.warName || req?.name} - Entra: ${sub?.rank} ${sub?.warName || sub?.name}` };
   });
 
+  // Gerador de documento HTML isolado com cores da ala preservadas para impressão e PDF
+  const generatePrintHtml = () => {
+    try {
+      const sheetEl = document.getElementById("escala-print-sheet");
+      if (!sheetEl) return null;
+
+      // Coleta todas as regras CSS processadas da página
+      let collectedCss = '';
+      try {
+        for (const sheet of Array.from(document.styleSheets)) {
+          try {
+            if (sheet.cssRules) {
+              for (const rule of Array.from(sheet.cssRules)) {
+                collectedCss += rule.cssText + '\n';
+              }
+            }
+          } catch {}
+        }
+      } catch {}
+
+      // Converte links de folhas de estilo para URLs absolutas para funcionamento garantido em Blob/about:blank
+      const linkTags = Array.from(document.querySelectorAll("link[rel='stylesheet']"))
+        .map(node => {
+          const href = (node as HTMLLinkElement).href;
+          return `<link rel="stylesheet" href="${href}" />`;
+        })
+        .join("\n");
+
+      // Clonar e limpar controles interativos exclusivos da tela
+      const clone = sheetEl.cloneNode(true) as HTMLElement;
+      const actionsEl = clone.querySelector(".print\\:hidden, [class*='print:hidden']");
+      if (actionsEl) actionsEl.remove();
+
+      // Forçar atributos inline de cor exata e print-color-adjust em todos os cabeçalhos de ala
+      const alaElements = clone.querySelectorAll(".escala-ala-header, ." + alaTheme.bgClass);
+      alaElements.forEach((el) => {
+        const htmlEl = el as HTMLElement;
+        htmlEl.style.backgroundColor = alaTheme.bgHex;
+        htmlEl.style.color = '#000000';
+        htmlEl.style.setProperty('-webkit-print-color-adjust', 'exact', 'important');
+        htmlEl.style.setProperty('print-color-adjust', 'exact', 'important');
+      });
+
+      return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Escala de Serviço 24h - ${dateStr || shortDateStr}</title>
+  ${linkTags}
+  <style>
+    ${collectedCss}
+  </style>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 8mm 6mm;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    html, body {
+      background: white !important;
+      color: black !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    .print\\:hidden, [class*="print:hidden"] {
+      display: none !important;
+    }
+    /* Estilos definitivos para impressão das cores oficiais da Ala */
+    .escala-ala-header {
+      background-color: ${alaTheme.bgHex} !important;
+      color: #000000 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    .bg-emerald-200 {
+      background-color: #a7f3d0 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    .bg-rose-200 {
+      background-color: #fecdd3 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    .bg-blue-200, .bg-sky-200 {
+      background-color: #bfdbfe !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    .bg-amber-200, .bg-yellow-200 {
+      background-color: #fde68a !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    .bg-slate-200 {
+      background-color: #e2e8f0 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    .bg-slate-50 {
+      background-color: #f8fafc !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    .bg-white {
+      background-color: #ffffff !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+  </style>
+</head>
+<body class="bg-white text-black p-2">
+  <div class="max-w-[1200px] mx-auto bg-white relative text-black font-sans text-[11px] leading-tight flex flex-col">
+    ${clone.innerHTML}
+  </div>
+  <script>
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        window.focus();
+        window.print();
+      }, 350);
+    });
+  </script>
+</body>
+</html>`;
+    } catch (e) {
+      console.warn("Erro ao gerar HTML de impressão:", e);
+      return null;
+    }
+  };
+
+  // Pré-gera o link "Abrir para Imprimir" para estar sempre disponível com as cores da Ala
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const html = generatePrintHtml();
+      if (html) {
+        try {
+          const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+          const url = URL.createObjectURL(blob);
+          setPrintFallbackUrl(url);
+        } catch (e) {
+          console.warn("Blob generation error:", e);
+        }
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [selectedDate, identifiedAla, baseRoster, viaturasInfo, expedienteLayout, isSigned, showVisualMode, alaTheme]);
+
+  const handlePrintEscala = () => {
+    const fullHtml = generatePrintHtml();
+
+    // 1. Atualiza Blob URL para o link manual "Abrir para Imprimir"
+    if (fullHtml) {
+      try {
+        const blob = new Blob([fullHtml], { type: "text/html;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        setPrintFallbackUrl(url);
+      } catch (e) {
+        console.warn("Blob generation error:", e);
+      }
+    }
+
+    // 2. Tentar abrir diretamente em nova janela (desbloqueia print nativo do navegador em alta fidelidade de cores)
+    let winOpened = false;
+    if (fullHtml) {
+      try {
+        const printWin = window.open("", "_blank");
+        if (printWin) {
+          printWin.document.open();
+          printWin.document.write(fullHtml);
+          printWin.document.close();
+          winOpened = true;
+        }
+      } catch (err) {
+        console.warn("window.open falhou:", err);
+      }
+    }
+
+    // 3. Se janela não pôde ser aberta (ex: restrição do sandbox do iframe), acionar print da janela atual
+    if (!winOpened) {
+      try {
+        window.print();
+      } catch (e) {
+        console.warn("window.print() direto não pôde ser executado:", e);
+      }
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-slate-800/80 z-[200] overflow-y-auto print:absolute print:inset-0 print:bg-white print:z-[9999] print:block">
-      <div className="max-w-[1200px] mx-auto bg-white min-h-screen my-8 print:my-0 shadow-2xl print:shadow-none print:w-full print:max-w-none relative p-8 print:p-0 text-black font-sans text-[11px] leading-tight flex flex-col">
+      <div id="escala-print-sheet" className="max-w-[1200px] mx-auto bg-white min-h-screen my-8 print:my-0 shadow-2xl print:shadow-none print:w-full print:max-w-none relative p-8 print:p-0 text-black font-sans text-[11px] leading-tight flex flex-col">
+        {/* Estilo embutido para garantir preservação exata da cor da Ala na impressão direta */}
+        <style>{`
+          @media print {
+            *, *::before, *::after {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
+            }
+            #escala-print-sheet {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
+            }
+            .escala-ala-header {
+              background-color: ${alaTheme.bgHex} !important;
+              color: #000000 !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
+            }
+          }
+        `}</style>
         
         {/* Actions - hidden in print */}
-        <div className="absolute top-4 right-4 flex items-center gap-2 print:hidden">
+        <div className="absolute top-4 right-4 flex items-center gap-2 print:hidden flex-wrap justify-end">
            <button
+             type="button"
              onClick={() => setShowLogoModal(true)}
              className="bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-3 py-2 rounded-lg font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
              title="Carregar ou alterar as fotos/logos do 10º GBM e CBA VII"
@@ -500,10 +821,11 @@ export function EscalaPrintView({
              <Shield className="w-4 h-4 text-amber-700" />
              <span>Brasões (Fotos)</span>
            </button>
-           <button onClick={() => setShowVisualMode(!showVisualMode)} className="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-300">
+           <button type="button" onClick={() => setShowVisualMode(!showVisualMode)} className="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-300 cursor-pointer">
              <ImageIcon className="w-4 h-4" /> {showVisualMode ? 'Modo Texto' : 'Modo Visual'}
            </button>
            <button
+             type="button"
              onClick={toggleExpedienteLayout}
              className="bg-indigo-50 text-indigo-900 border border-indigo-200 px-3.5 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-indigo-100 transition-colors cursor-pointer shadow-2xs"
              title="Alternar entre Expediente em Coluna na Chamada Geral ou Seção dedicada abaixo da tabela"
@@ -520,20 +842,36 @@ export function EscalaPrintView({
                </>
              )}
            </button>
-           <button onClick={() => setIsSigned(true)} disabled={isSigned} className="bg-amber-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-amber-400">
+           <button type="button" onClick={() => setIsSigned(true)} disabled={isSigned} className="bg-amber-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-amber-400 cursor-pointer">
              <PenTool className="w-4 h-4" /> {isSigned ? 'Assinado' : 'Assinar'}
            </button>
-           <button onClick={async () => {
+           <button type="button" onClick={async () => {
              setIsRegistering(true);
              if (onRegister) await onRegister({ isSigned });
              setIsRegistering(false);
-           }} disabled={isRegistering} className="bg-emerald-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-emerald-500">
+           }} disabled={isRegistering} className="bg-emerald-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-emerald-500 cursor-pointer">
              <Save className="w-4 h-4" /> Registrar
            </button>
-           <button onClick={() => window.print()} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-indigo-500">
+           <button
+             type="button"
+             onClick={handlePrintEscala}
+             className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95"
+             title="Imprimir ou Salvar Escala de Serviço em PDF"
+           >
              <Printer className="w-4 h-4" /> Imprimir
            </button>
-           <button onClick={onClose} className="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-300">
+           {printFallbackUrl && (
+             <a
+               href={printFallbackUrl}
+               target="_blank"
+               rel="noopener noreferrer"
+               className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg font-bold flex items-center gap-1.5 transition-colors cursor-pointer text-xs shadow-sm"
+               title="Clique para abrir a escala em nova aba e imprimir/salvar em PDF"
+             >
+               <ExternalLink className="w-3.5 h-3.5" /> Abrir para Imprimir
+             </a>
+           )}
+           <button type="button" onClick={onClose} className="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-300 cursor-pointer">
              <X className="w-4 h-4" /> Fechar
            </button>
         </div>
@@ -768,7 +1106,7 @@ export function EscalaPrintView({
           return (
             <table className="w-full border-collapse border-2 border-black text-left mb-2 table-fixed text-[11px]">
                <thead>
-                  <tr className={`${headerColorClass} font-bold border-b-2 border-black text-center text-xs`}>
+                  <tr className={cn(headerColorClass, "font-bold border-b-2 border-black text-center text-xs escala-ala-header")} style={headerBgStyle}>
                      {columns.map((col, idx) => {
                         let headerTitle = '';
                         if (col.type === 'pair') headerTitle = col.top.vtr;
@@ -776,7 +1114,7 @@ export function EscalaPrintView({
                         else headerTitle = col.vtr.vtr;
 
                         return (
-                           <th key={idx} className="border-2 border-black py-1 px-1">
+                           <th key={idx} className="border-2 border-black py-1 px-1 escala-ala-header" style={headerBgStyle}>
                               {headerTitle}
                            </th>
                         );
@@ -799,7 +1137,7 @@ export function EscalaPrintView({
                                     </div>
 
                                     {/* Separador com o nome da viatura inferior */}
-                                    <div className={`border-y-2 border-black ${headerColorClass} font-bold text-center py-0.5 shrink-0`}>
+                                    <div className={cn("border-y-2 border-black", headerColorClass, "font-bold text-center py-0.5 shrink-0 escala-ala-header")} style={headerBgStyle}>
                                        {col.bottom.vtr}
                                     </div>
 
@@ -821,7 +1159,7 @@ export function EscalaPrintView({
                                        return (
                                           <React.Fragment key={itemVtr.id || itemIdx}>
                                              {itemIdx > 0 && (
-                                                <div className={`border-y-2 border-black ${headerColorClass} font-bold text-center py-0.5 shrink-0`}>
+                                                <div className={cn("border-y-2 border-black", headerColorClass, "font-bold text-center py-0.5 shrink-0 escala-ala-header")} style={headerBgStyle}>
                                                    {itemVtr.vtr}
                                                 </div>
                                              )}
@@ -881,10 +1219,10 @@ export function EscalaPrintView({
               <col className="w-[20%]" />
            </colgroup>
            <thead>
-              <tr className={`${headerColorClass} font-bold border-b-2 border-black`}>
-                 <th className="border-r border-black p-1 uppercase text-left pl-2" colSpan={2}>SENTINELAS: <span className="ml-8">GUARDA NORTE</span></th>
-                 <th className="border-r border-black p-1 uppercase text-left pl-2" colSpan={2}>SENTINELAS:</th>
-                 <th className="p-1 uppercase border-black border-l-2 text-center" colSpan={1}>COMUNICANTE 1:</th>
+              <tr className={cn(headerColorClass, "font-bold border-b-2 border-black escala-ala-header")} style={headerBgStyle}>
+                 <th className="border-r border-black p-1 uppercase text-left pl-2 escala-ala-header" style={headerBgStyle} colSpan={2}>SENTINELAS: <span className="ml-8">GUARDA NORTE</span></th>
+                 <th className="border-r border-black p-1 uppercase text-left pl-2 escala-ala-header" style={headerBgStyle} colSpan={2}>SENTINELAS:</th>
+                 <th className="p-1 uppercase border-black border-l-2 text-center escala-ala-header" style={headerBgStyle} colSpan={1}>COMUNICANTE 1:</th>
               </tr>
            </thead>
            <tbody className="text-left font-bold uppercase">
@@ -936,7 +1274,7 @@ export function EscalaPrintView({
                    </div>
                  </td>
                  <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">9 às 10:30 / 15 às 16:30</td>
-                 <td className={`border-y-2 border-l-2 border-black p-1 ${headerColorClass} font-bold text-center`}>COMUNICANTE 2:</td>
+                 <td className={cn("border-y-2 border-l-2 border-black p-1", headerColorClass, "font-bold text-center escala-ala-header")} style={headerBgStyle}>COMUNICANTE 2:</td>
               </tr>
               <tr>
                  <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
@@ -955,15 +1293,15 @@ export function EscalaPrintView({
                  <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">10:30 às 12/16:30 às 18</td>
                  <td className="border-l-2 border-black p-1 font-normal text-center border-b truncate"><div className="flex justify-center">{renderMilitar(comunicantes[1])}</div></td>
               </tr>
-              <tr className={`${headerColorClass} font-bold border-t-2 border-black`}>
-                 <td className="border-r border-black p-1 text-center uppercase" colSpan={1}>AUX. RANCHO:</td>
-                 <td className="border-r border-black p-1 font-normal bg-white text-center truncate" colSpan={1}>
+              <tr className={cn(headerColorClass, "font-bold border-t-2 border-black escala-ala-header")} style={headerBgStyle}>
+                 <td className="border-r border-black p-1 text-center uppercase escala-ala-header" style={headerBgStyle} colSpan={1}>AUX. RANCHO:</td>
+                 <td className="border-r border-black p-1 font-normal bg-white text-center truncate" style={{ backgroundColor: '#ffffff', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }} colSpan={1}>
                    <div className="flex items-center justify-center gap-2">
                      {auxRancho.map((m: any, i: number) => <React.Fragment key={i}>{i > 0 && <span>/</span>}{renderMilitar(m)}</React.Fragment>)}
                    </div>
                  </td>
-                 <td className="border-r border-black p-1 text-center uppercase" colSpan={1}>Toque de Fogo:</td>
-                 <td className="border-black p-1 font-normal bg-white text-center truncate" colSpan={2}>
+                 <td className="border-r border-black p-1 text-center uppercase escala-ala-header" style={headerBgStyle} colSpan={1}>Toque de Fogo:</td>
+                 <td className="border-black p-1 font-normal bg-white text-center truncate" style={{ backgroundColor: '#ffffff', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }} colSpan={2}>
                    <div className="flex items-center justify-center gap-2">
                      {toqueFogo.map((m: any, i: number) => <React.Fragment key={i}>{i > 0 && <span>/</span>}{renderMilitar(m)}</React.Fragment>)}
                    </div>
@@ -974,7 +1312,7 @@ export function EscalaPrintView({
 
         {/* PERMUTAS AUTORIZADAS */}
         <div className="border-2 border-black mb-2 flex flex-col min-h-[60px]">
-           <div className={`${headerColorClass} border-b border-black font-bold uppercase text-center p-1`}>
+           <div className={cn(headerColorClass, "border-b border-black font-bold uppercase text-center p-1 escala-ala-header")} style={headerBgStyle}>
               PERMUTAS AUTORIZADAS:
            </div>
            <div className="p-2 flex flex-wrap gap-4">
@@ -1005,12 +1343,12 @@ export function EscalaPrintView({
               </colgroup>
            )}
            <thead>
-              <tr className={`${headerColorClass} font-bold border-b-2 border-black`}>
-                 <th className="border-r border-black p-1 text-center uppercase" colSpan={3}>CHAMADA GERAL</th>
+              <tr className={cn(headerColorClass, "font-bold border-b-2 border-black escala-ala-header")} style={headerBgStyle}>
+                 <th className="border-r border-black p-1 text-center uppercase escala-ala-header" style={headerBgStyle} colSpan={3}>CHAMADA GERAL</th>
                  {expedienteLayout === 'coluna' && (
-                    <th className="border-r border-black p-1 text-center uppercase" colSpan={1}>EXPEDIENTE</th>
+                    <th className="border-r border-black p-1 text-center uppercase escala-ala-header" style={headerBgStyle} colSpan={1}>EXPEDIENTE</th>
                  )}
-                 <th className={`p-1 text-center uppercase ${expedienteLayout === 'coluna' ? '' : 'w-[20%]'}`} colSpan={1}>RAS</th>
+                 <th className={cn("p-1 text-center uppercase escala-ala-header", expedienteLayout === 'coluna' ? '' : 'w-[20%]')} style={headerBgStyle} colSpan={1}>RAS</th>
               </tr>
            </thead>
            <tbody>
@@ -1077,7 +1415,7 @@ export function EscalaPrintView({
         {expedienteLayout === 'secao' && (
            <div className="border-2 border-black border-t-0 flex flex-col">
               {/* EXPEDIENTE HEADER */}
-              <div className={`${headerColorClass} font-bold border-b-2 border-black text-center p-1 text-[10px] uppercase tracking-wider`}>
+              <div className={cn(headerColorClass, "font-bold border-b-2 border-black text-center p-1 text-[10px] uppercase tracking-wider escala-ala-header")} style={headerBgStyle}>
                  MILITARES DE EXPEDIENTE NO DIA
               </div>
               
@@ -1144,7 +1482,7 @@ export function EscalaPrintView({
            return (
               <div className="border-2 border-black border-t-0 flex flex-col mb-4">
                  {/* AFASTAMENTOS HEADER */}
-                 <div className={`${headerColorClass} font-bold border-b-2 border-black text-center p-1 text-[10px] uppercase tracking-wider`}>
+                 <div className={cn(headerColorClass, "font-bold border-b-2 border-black text-center p-1 text-[10px] uppercase tracking-wider escala-ala-header")} style={headerBgStyle}>
                     AFASTAMENTOS
                  </div>
                  
