@@ -101,7 +101,7 @@ export function VacationModule({
 
   // Filter States
   const [reportSearch, setReportSearch] = useState("");
-  const [showHiddenAsseguradas, setShowHiddenAsseguradas] = useState(false);
+  const [showHiddenAsseguradas, setShowHiddenAsseguradas] = useState(true);
   const [expandedYears, setExpandedYears] = useState<Record<string, boolean>>(
     {},
   );
@@ -603,7 +603,6 @@ export function VacationModule({
     groupedVacations,
   } = React.useMemo(() => {
     let sYear = new Date().getFullYear();
-    const eYear = new Date().getFullYear();
 
     // Calcula o startYear baseado no menor anoRef
     const extractYear = (val: string) => {
@@ -616,6 +615,7 @@ export function VacationModule({
     if (validYears.length > 0) {
       sYear = Math.min(...validYears);
     }
+    const eYear = Math.max(new Date().getFullYear() + 1, ...(validYears.length > 0 ? validYears : [new Date().getFullYear()]));
 
     // Stats
     const statsByYear: Record<

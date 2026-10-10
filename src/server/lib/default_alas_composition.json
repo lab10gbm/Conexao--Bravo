@@ -1,0 +1,2414 @@
+{
+  "12708": {
+    "rg": "12708",
+    "name": "MARCOS VERISSIMO DA SILVA",
+    "warName": "VERISSIMO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q00/90"
+  },
+  "12764": {
+    "rg": "12764",
+    "name": "GILBERTO BATISTA DE SOUZA",
+    "warName": "GILBERTO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q02/90"
+  },
+  "13273": {
+    "rg": "13273",
+    "name": "HUMBERTO MOREIRA DA SILVA",
+    "warName": "MOREIRA",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q00/90"
+  },
+  "13877": {
+    "rg": "13877",
+    "name": "DOUGLAS SANDES GONCALVES",
+    "warName": "DE SANDES",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q02/90"
+  },
+  "14742": {
+    "rg": "14742",
+    "name": "ANDRE LUIS PEREIRA KAIZER",
+    "warName": "KAIZER",
+    "rank": "CAPITÃO",
+    "ala": "OFICIAIS",
+    "obm": "1/10",
+    "quadro": "QOA/91"
+  },
+  "14848": {
+    "rg": "14848",
+    "name": "MAURO DA SILVA LOPES",
+    "warName": "M LOPES",
+    "rank": "3º SARGENTO",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q00/90"
+  },
+  "15601": {
+    "rg": "15601",
+    "name": "RICARDO JOSÉ DA SILVA",
+    "warName": "RICARDO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q00/91"
+  },
+  "15759": {
+    "rg": "15759",
+    "name": "MARCELO TITO DA SILVA",
+    "warName": "TITO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q00/91"
+  },
+  "16106": {
+    "rg": "16106",
+    "name": "JOAO TADEU FRANCA DA CONCEICAO",
+    "warName": "TADEU",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q00/91"
+  },
+  "16190": {
+    "rg": "16190",
+    "name": "RINALDO AGUIAR SOARES",
+    "warName": "RINALDO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q00/91"
+  },
+  "16193": {
+    "rg": "16193",
+    "name": "JULIO CESAR RAMOS",
+    "warName": "JULIO RAMOS",
+    "rank": "1º TENENTE",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": "QOA/91"
+  },
+  "16199": {
+    "rg": "16199",
+    "name": "SERGIO RAYMUNDO NEVES CARDOSO",
+    "warName": "NEVES",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q00/91"
+  },
+  "16201": {
+    "rg": "16201",
+    "name": "ANGELITO FORTUNATO DA CUNHA",
+    "warName": "FORTUNATO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q00/91"
+  },
+  "16525": {
+    "rg": "16525",
+    "name": "GILSON VIEIRA DA SILVA",
+    "warName": "GILSON",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q02/91"
+  },
+  "18051": {
+    "rg": "18051",
+    "name": "MAX WILSON PEREIRA DA CUNHA",
+    "warName": "MAX",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q02/94"
+  },
+  "18326": {
+    "rg": "18326",
+    "name": "CARLOS ALBERTO DA SILVA CORREA",
+    "warName": "ALBERTO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q02/94"
+  },
+  "18779": {
+    "rg": "18779",
+    "name": "LUIS HENRIQUE DE MACEDO SOUZA",
+    "warName": "LUIS SOUZA",
+    "rank": "SUBTENENTE",
+    "ala": "2",
+    "obm": "10º GBM",
+    "quadro": "Q00/98"
+  },
+  "18895": {
+    "rg": "18895",
+    "name": "WASHINGTON LUIZ BEZERRA DA COSTA",
+    "warName": "BEZERRA",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q00/95"
+  },
+  "19187": {
+    "rg": "19187",
+    "name": "PAULO ROGERIO GONCALVES ESCARANI",
+    "warName": "ESCARANI",
+    "rank": "TENENTE CORONEL",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": "QOC/96"
+  },
+  "20031": {
+    "rg": "20031",
+    "name": "PAULO AUGUSTO DE LEMOS",
+    "warName": " PAULO AUGUSTO",
+    "rank": "SUBTEN",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q00/97"
+  },
+  "20593": {
+    "rg": "20593",
+    "name": "IVAMAR PEREIRA ROSA",
+    "warName": "IVAMAR",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q05/97"
+  },
+  "20644": {
+    "rg": "20644",
+    "name": "ANTONIO CARLOS BOLZAN",
+    "warName": "BOLZAN",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q00/97"
+  },
+  "20734": {
+    "rg": "20734",
+    "name": "EDSON MARCOS E SILVA MENEZES",
+    "warName": "MENEZES",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q05/97"
+  },
+  "20846": {
+    "rg": "20846",
+    "name": "CARLOS HENRIQUE MOREIRA MACHADO",
+    "warName": "HENRIQUE MOREIRA",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q02/97"
+  },
+  "20856": {
+    "rg": "20856",
+    "name": "EDVALDO LUIS CHRISTANI FRANÇA",
+    "warName": "CHRISTANI",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q05/97"
+  },
+  "20918": {
+    "rg": "20918",
+    "name": "ALEXANDRE SOUZA DA SILVA",
+    "warName": "ALEXANDRE",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q00/97"
+  },
+  "20936": {
+    "rg": "20936",
+    "name": "SUBTENENTE LUCIANO",
+    "warName": "LUCIANO",
+    "rank": "SUBTENENTE",
+    "ala": "4",
+    "obm": "10º GBM",
+    "quadro": "Q00/97"
+  },
+  "20945": {
+    "rg": "20945",
+    "name": "EDMAR ELEMAR OLIVEIRA DOS SANTOS",
+    "warName": "EDMAR",
+    "rank": "SUBTENENTE",
+    "ala": "EXP",
+    "obm": "10º GBM",
+    "quadro": "Q00/97"
+  },
+  "20954": {
+    "rg": "20954",
+    "name": "ALEXANDRE DA CONCEIÇÃO GUERRA",
+    "warName": "GUERRA",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q00/97"
+  },
+  "20955": {
+    "rg": "20955",
+    "name": "SUBTENENTE ALEX",
+    "warName": "ALEX",
+    "rank": "SUBTENENTE",
+    "ala": "3",
+    "obm": "10º GBM",
+    "quadro": "Q01/97"
+  },
+  "20960": {
+    "rg": "20960",
+    "name": "SUBTENENTE GONCALVES",
+    "warName": "GONCALVES",
+    "rank": "SUBTENENTE",
+    "ala": "4",
+    "obm": "10º GBM",
+    "quadro": "Q02/97"
+  },
+  "20962": {
+    "rg": "20962",
+    "name": "PAULO CESAR DE JESUS",
+    "warName": "JESUS",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q00/97"
+  },
+  "20964": {
+    "rg": "20964",
+    "name": "MARCELO SANT ANA DE SOUZA",
+    "warName": "SANT ANA",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q09/97"
+  },
+  "20965": {
+    "rg": "20965",
+    "name": "ELIESER ARCENIO ONORIO",
+    "warName": "ELIESER",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q00/97"
+  },
+  "20967": {
+    "rg": "20967",
+    "name": "ANTONIO CARLOS DE ARAUJO PONTES",
+    "warName": "ANTONIO CARLOS",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q08/97"
+  },
+  "20968": {
+    "rg": "20968",
+    "name": "IVELTON ARAUJO DE LIMA",
+    "warName": "DE LIMA",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q00/97"
+  },
+  "20970": {
+    "rg": "20970",
+    "name": "MARCELO CORREA LADISLAU",
+    "warName": "LADISLAU",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q05/97"
+  },
+  "21266": {
+    "rg": "21266",
+    "name": "ALEX MAIA",
+    "warName": "ALEX MAIA",
+    "rank": "SUBTENENTE",
+    "ala": "1",
+    "obm": "10º GBM",
+    "quadro": "Q10/97"
+  },
+  "21268": {
+    "rg": "21268",
+    "name": "ROGERIO FERREIRA BREVES DA LUZ",
+    "warName": "BREVES",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q10/97"
+  },
+  "21272": {
+    "rg": "21272",
+    "name": "MARCIEL BATISTA DE PONTES",
+    "warName": "MARCIEL",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q00/97"
+  },
+  "21273": {
+    "rg": "21273",
+    "name": "CARLOS MARQUES CARDOSO",
+    "warName": "CARDOSO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/97"
+  },
+  "21274": {
+    "rg": "21274",
+    "name": "COSME JOSE MEIRELES DE SOUZA",
+    "warName": "MEIRELES",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q10/97"
+  },
+  "21283": {
+    "rg": "21283",
+    "name": "MARCIO PILLAR MACEDO",
+    "warName": "PILLAR",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q08/97"
+  },
+  "21511": {
+    "rg": "21511",
+    "name": "ANDERSON SILVA COELHO",
+    "warName": "ANDERSON",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q09/97"
+  },
+  "21573": {
+    "rg": "21573",
+    "name": "MARCOS DONATO ALVES",
+    "warName": "DONATO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q02/97"
+  },
+  "21834": {
+    "rg": "21834",
+    "name": "GENESIO PINTO TEIXEIRA",
+    "warName": "GENESIO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q02/97"
+  },
+  "21870": {
+    "rg": "21870",
+    "name": "WANILTON DE PAIVA VALLE",
+    "warName": "WANILTON",
+    "rank": "SUBTENENTE",
+    "ala": "EXP",
+    "obm": "10º GBM",
+    "quadro": "Q00/97"
+  },
+  "22031": {
+    "rg": "22031",
+    "name": "FELIPE EDUARDO GOMES RODRIGUES",
+    "warName": "RODRIGUES",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q00/97"
+  },
+  "22283": {
+    "rg": "22283",
+    "name": "CLAUDINEI SILVA DE OLIVEIRA",
+    "warName": "CLAUDINEI",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q00/97"
+  },
+  "22325": {
+    "rg": "22325",
+    "name": "MARCOS VITORIANO DA SILVA",
+    "warName": "MARCOS",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q00/97"
+  },
+  "22326": {
+    "rg": "22326",
+    "name": "RICARDO VICENTE DA CONCEIÇÃO",
+    "warName": "VICENTE",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q00/97"
+  },
+  "22327": {
+    "rg": "22327",
+    "name": "LÚCIO LOPES",
+    "warName": "LUCIO LOPES",
+    "rank": "1º SARGENTO",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q00/97"
+  },
+  "22330": {
+    "rg": "22330",
+    "name": "FABIANO DOS SANTOS PROCOPIO",
+    "warName": "PROCOPIO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q01/97"
+  },
+  "22332": {
+    "rg": "22332",
+    "name": "VALDIELI JOSE DE OLIVEIRA JUNIOR",
+    "warName": "O JUNIOR",
+    "rank": "SUBTENENTE",
+    "ala": "1",
+    "obm": "10º GBM",
+    "quadro": "Q05/97"
+  },
+  "22333": {
+    "rg": "22333",
+    "name": "SUBTENENTE COUTO",
+    "warName": "COUTO",
+    "rank": "SUBTENENTE",
+    "ala": "EXP",
+    "obm": "10º GBM",
+    "quadro": "Q00/97"
+  },
+  "22335": {
+    "rg": "22335",
+    "name": "JONAS DE OLIVEIRA FURTADO JUNIOR",
+    "warName": "FURTADO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q01/97"
+  },
+  "22336": {
+    "rg": "22336",
+    "name": "ADAILTON DIAS PEREIRA",
+    "warName": "DIAS",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q00/97"
+  },
+  "22339": {
+    "rg": "22339",
+    "name": "ANTONIO MARCOS DE ALMEIDA",
+    "warName": "ALMEIDA",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q00/97"
+  },
+  "22343": {
+    "rg": "22343",
+    "name": "ADEILTON BARROS FONTELLA",
+    "warName": "FONTELLA",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q02/97"
+  },
+  "22352": {
+    "rg": "22352",
+    "name": "ROBSON DE OLIVEIRA CASSIANO",
+    "warName": "CASSIANO",
+    "rank": "SUBTENENTE",
+    "ala": "EXP",
+    "obm": "10º GBM",
+    "quadro": "Q00/97"
+  },
+  "22439": {
+    "rg": "22439",
+    "name": "WILLIAM ODILON DA SILVA",
+    "warName": "ODILON",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q00/97"
+  },
+  "22500": {
+    "rg": "22500",
+    "name": "JOSE RENATO TEIXEIRA DE LIMA",
+    "warName": "DE LIMA",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q00/97"
+  },
+  "22523": {
+    "rg": "22523",
+    "name": "ALFREDO DA SILVA AMBROZIONI",
+    "warName": "AMBROZIONI",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/97"
+  },
+  "22548": {
+    "rg": "22548",
+    "name": "CARLOS DE CARVALHO FERNANDES",
+    "warName": "CARLOS FERNANDES",
+    "rank": "SUBTEN",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q10/97"
+  },
+  "22567": {
+    "rg": "22567",
+    "name": "WELLINGTON ABREU DE SOUZA",
+    "warName": "W ABREU",
+    "rank": "SUBTENENTE",
+    "ala": "EXP",
+    "obm": "10º GBM",
+    "quadro": "Q10/97"
+  },
+  "23458": {
+    "rg": "23458",
+    "name": "MARCUS ROMERO SENAS",
+    "warName": "SENAS",
+    "rank": "SUBTENENTE",
+    "ala": "2",
+    "obm": "10º GBM",
+    "quadro": "Q08/98"
+  },
+  "23475": {
+    "rg": "23475",
+    "name": "VITOR CARLOS BARRETO",
+    "warName": "VITOR",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q00/98"
+  },
+  "23518": {
+    "rg": "23518",
+    "name": "SUBTENENTE MAGALHAES",
+    "warName": "MAGALHAES",
+    "rank": "SUBTENENTE",
+    "ala": "3",
+    "obm": "10º GBM",
+    "quadro": "Q07/98"
+  },
+  "23609": {
+    "rg": "23609",
+    "name": "LEONARDO FERNANDES MIRANDA",
+    "warName": "MIRANDA",
+    "rank": "SUBTENENTE",
+    "ala": "EXP",
+    "obm": "10º GBM",
+    "quadro": "Q00/98"
+  },
+  "23686": {
+    "rg": "23686",
+    "name": "ROBERTO CADRINA VIEIRA MACIEL",
+    "warName": "MACIEL",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q00/98"
+  },
+  "23718": {
+    "rg": "23718",
+    "name": "JOSEIAS ANTONIO RAMOS",
+    "warName": "RAMOS",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q01/98"
+  },
+  "23721": {
+    "rg": "23721",
+    "name": "ROBERTO MARCELO FERNANDES",
+    "warName": "FERNANDES",
+    "rank": "SUBTENENTE",
+    "ala": "1",
+    "obm": "10º GBM",
+    "quadro": "Q00/98"
+  },
+  "23754": {
+    "rg": "23754",
+    "name": "FLAVIO DE OLIVEIRA ANDRÉ",
+    "warName": "FLAVIO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q01/98"
+  },
+  "23971": {
+    "rg": "23971",
+    "name": "ALEXANDRE ALVES CARVALHO",
+    "warName": "CARVALHO",
+    "rank": "1º SARGENTO",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q00/98"
+  },
+  "24117": {
+    "rg": "24117",
+    "name": "JEFTE DE LIRA FURTADO",
+    "warName": "LIRA",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q02/98"
+  },
+  "24137": {
+    "rg": "24137",
+    "name": "MARCELO CAVALCANTE DE AZEVEDO",
+    "warName": "AZEVEDO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q02/98"
+  },
+  "24172": {
+    "rg": "24172",
+    "name": "LUIS ALBERTO SANTOS DE PAULA",
+    "warName": "DE PAULA",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/98"
+  },
+  "24336": {
+    "rg": "24336",
+    "name": "LUCIANO MELO DA SILVA",
+    "warName": "LUCIANO MELO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q00/98"
+  },
+  "24403": {
+    "rg": "24403",
+    "name": "EVANILDO LEOPOLDO DA SILVA",
+    "warName": "LEOPOLDO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q02/98"
+  },
+  "24464": {
+    "rg": "24464",
+    "name": "RENATO COUTINHO DOS SANTOS",
+    "warName": "COUTINHO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/98"
+  },
+  "24504": {
+    "rg": "24504",
+    "name": "MARCUS COSTA BAPTISTA",
+    "warName": "BAPTISTA",
+    "rank": "3º SARGENTO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/98"
+  },
+  "24565": {
+    "rg": "24565",
+    "name": "MARCELO PEREIRA PIRES",
+    "warName": "PIRES",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/98"
+  },
+  "25639": {
+    "rg": "25639",
+    "name": "JOSILDO DE OLIVEIRA FARIAS",
+    "warName": "FARIAS",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q02/99"
+  },
+  "25946": {
+    "rg": "25946",
+    "name": "MARCIO LOPES DOS SANTOS",
+    "warName": "MARCIO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q00/99"
+  },
+  "26029": {
+    "rg": "26029",
+    "name": "SUBTENENTE ALEXSANDRO",
+    "warName": "ALEXSANDRO",
+    "rank": "SUBTENENTE",
+    "ala": "3",
+    "obm": "10º GBM",
+    "quadro": "Q02/99"
+  },
+  "26345": {
+    "rg": "26345",
+    "name": "FLAVIO COELHO DOS SANTOS",
+    "warName": "FLAVIO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q02/00"
+  },
+  "27324": {
+    "rg": "27324",
+    "name": "JOSÉ ROBERTO FERREIRA DA COSTA",
+    "warName": "ROBERTO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q00/00"
+  },
+  "27394": {
+    "rg": "27394",
+    "name": "LEANDRO MONTEIRO DA SILVA",
+    "warName": "MONTEIRO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q00/00"
+  },
+  "27513": {
+    "rg": "27513",
+    "name": "WALLACE MORORO DE ARAUJO",
+    "warName": "WALLACE",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q00/00"
+  },
+  "27776": {
+    "rg": "27776",
+    "name": "ROBERTO DE SOUZA SILVA",
+    "warName": "ROBERTO SILVA",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q09/00"
+  },
+  "27843": {
+    "rg": "27843",
+    "name": "OZIEL FERREIRA MARTINS",
+    "warName": "OZIEL",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q00/00"
+  },
+  "27857": {
+    "rg": "27857",
+    "name": "WEBERTON DA PAZ SILVA",
+    "warName": "PAZ",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q00/00"
+  },
+  "27859": {
+    "rg": "27859",
+    "name": "RENATO RIBEIRO MIRANDA",
+    "warName": "RENATO RIBEIRO",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q00/00"
+  },
+  "27871": {
+    "rg": "27871",
+    "name": "SEBASTIÃO CLEBER BRANDÃO NEVES",
+    "warName": "CLEBER",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q00/00"
+  },
+  "27899": {
+    "rg": "27899",
+    "name": "SUBTENENTE S OLIVEIRA",
+    "warName": "S OLIVEIRA",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q00/00"
+  },
+  "27943": {
+    "rg": "27943",
+    "name": "DIRNEIA FERREIRA SILVA DE CASTRO",
+    "warName": "DIRNEIA",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q00/00"
+  },
+  "28019": {
+    "rg": "28019",
+    "name": "CARLA DE OLIVEIRA CLAUDINO SANTOS",
+    "warName": "CARLA",
+    "rank": "SUBTENENTE",
+    "ala": "EXP",
+    "obm": "10º GBM",
+    "quadro": "Q00/00"
+  },
+  "30833": {
+    "rg": "30833",
+    "name": "",
+    "warName": "AGNALDO",
+    "rank": "1º SARGENTO",
+    "ala": "2",
+    "obm": "10º GBM",
+    "quadro": null
+  },
+  "31255": {
+    "rg": "31255",
+    "name": "HENRIQUE DE CASSIA E LIMA",
+    "warName": "HENRIQUE LIMA",
+    "rank": "MAJOR",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": "QOC/02"
+  },
+  "31434": {
+    "rg": "31434",
+    "name": "RAMON DO NASCIMENTO RANGEL",
+    "warName": "RAMON",
+    "rank": "1º SARGENTO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q08/02"
+  },
+  "31586": {
+    "rg": "31586",
+    "name": "DANIEL LIMA MOREIRA",
+    "warName": "LIMA",
+    "rank": "1º SARGENTO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/02"
+  },
+  "31590": {
+    "rg": "31590",
+    "name": "ROMULO PINHEIRO FONTENELE",
+    "warName": "FONTENELE",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/02"
+  },
+  "31597": {
+    "rg": "31597",
+    "name": "ANDRE DOS SANTOS CARDOSO",
+    "warName": "CARDOSO",
+    "rank": "1º SARGENTO",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q01/02"
+  },
+  "31600": {
+    "rg": "31600",
+    "name": "ANDERSON DE LIMA OLIVEIRA",
+    "warName": "A OLIVEIRA",
+    "rank": "SUBTENENTE",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/02"
+  },
+  "31602": {
+    "rg": "31602",
+    "name": "ELIELSON FERREIRA LUCAS",
+    "warName": "LUCAS",
+    "rank": "SUBTENENTE",
+    "ala": "EXP",
+    "obm": "10º GBM",
+    "quadro": "Q01/02"
+  },
+  "31607": {
+    "rg": "31607",
+    "name": "1º SARGENTO ROSARIO",
+    "warName": "ROSARIO",
+    "rank": "1º SARGENTO",
+    "ala": "4",
+    "obm": "10º GBM",
+    "quadro": "Q08/02"
+  },
+  "31610": {
+    "rg": "31610",
+    "name": "1º SARGENTO S JUNIOR",
+    "warName": "S JUNIOR",
+    "rank": "1º SARGENTO",
+    "ala": "3",
+    "obm": "10º GBM",
+    "quadro": "Q08/02"
+  },
+  "31626": {
+    "rg": "31626",
+    "name": "RODRIGO DE OLIVEIRA RODRIGUES",
+    "warName": "R DE OLIVEIRA",
+    "rank": "1º SARGENTO",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q10/02"
+  },
+  "31627": {
+    "rg": "31627",
+    "name": "CHARLES RAMOS MAIA NEVES",
+    "warName": "CHARLES MAIA",
+    "rank": "1º SARGENTO",
+    "ala": "2",
+    "obm": "10º GBM",
+    "quadro": "Q08/02"
+  },
+  "31666": {
+    "rg": "31666",
+    "name": "",
+    "warName": "",
+    "rank": "1º SGT",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": null
+  },
+  "31674": {
+    "rg": "31674",
+    "name": "PRISCILLA MOZZER DE SOUZA SENAS",
+    "warName": "PRISCILLA SOUZA",
+    "rank": "1º SARGENTO",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q08/02"
+  },
+  "31676": {
+    "rg": "31676",
+    "name": "DIEGO CAVALCANTI DE ANDRADE",
+    "warName": "DIEGO ANDRADE",
+    "rank": "1º SARGENTO",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q02/02"
+  },
+  "31691": {
+    "rg": "31691",
+    "name": "JOSILDO SOUSA DOS SANTOS",
+    "warName": "JOSILDO",
+    "rank": "1º SARGENTO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q02/02"
+  },
+  "31701": {
+    "rg": "31701",
+    "name": "ROBERTO FERREIRA DOS SANTOS",
+    "warName": "DOS SANTOS",
+    "rank": "1º SARGENTO",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q02/02"
+  },
+  "31798": {
+    "rg": "31798",
+    "name": "JOICY DE SOUZA ARAUJO CHAGAS",
+    "warName": "JOICY ARAUJO",
+    "rank": "1º SARGENTO",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q02/02"
+  },
+  "31850": {
+    "rg": "31850",
+    "name": "CARLA CRISTINA GUIMARÃES DA SILVA",
+    "warName": "CARLA CRISTINA",
+    "rank": "1º SARGENTO",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q02/02"
+  },
+  "31981": {
+    "rg": "31981",
+    "name": "CLAUDINEI DA SILVA CLAUDINO",
+    "warName": "CLAUDINEI",
+    "rank": "1º SARGENTO",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q02/02"
+  },
+  "31992": {
+    "rg": "31992",
+    "name": "EDIMILSON DO AMARAL BARROS",
+    "warName": "AMARAL",
+    "rank": "1º SARGENTO",
+    "ala": "EXP",
+    "obm": "10º GBM",
+    "quadro": "Q03/02"
+  },
+  "32025": {
+    "rg": "32025",
+    "name": "EDUARDO IORIO CORDEIRO",
+    "warName": "IORIO",
+    "rank": "1º SARGENTO",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q03/02"
+  },
+  "32046": {
+    "rg": "32046",
+    "name": "JOSE AUGUSTO GOUVEA RIBEIRO",
+    "warName": "AUGUSTO",
+    "rank": "1º SARGENTO",
+    "ala": "EXP",
+    "obm": "10º GBM",
+    "quadro": "Q03/02"
+  },
+  "32102": {
+    "rg": "32102",
+    "name": "1º SARGENTO LUIS",
+    "warName": "LUIS",
+    "rank": "1º SARGENTO",
+    "ala": "3",
+    "obm": "10º GBM",
+    "quadro": "Q08/02"
+  },
+  "32104": {
+    "rg": "32104",
+    "name": "ROBISON VIEIRA FREITAS DOS SANTOS",
+    "warName": "ROBISON",
+    "rank": "1º SARGENTO",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q08/02"
+  },
+  "32238": {
+    "rg": "32238",
+    "name": "Leonardo Lucca",
+    "warName": "LUCCA",
+    "rank": "TENENTE CORONEL",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": null
+  },
+  "32325": {
+    "rg": "32325",
+    "name": "Davi Christ Fassano",
+    "warName": "DAVI FASSANO",
+    "rank": "TENENTE CORONEL",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": null
+  },
+  "32486": {
+    "rg": "32486",
+    "name": "Willer Brilhante de Albuquerque Filho",
+    "warName": "BRILHANTE",
+    "rank": "TENENTE CORONEL",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": null
+  },
+  "34044": {
+    "rg": "34044",
+    "name": "HERBERT RODRIGUES PINHEIRO",
+    "warName": "HERBERT",
+    "rank": "MAJOR",
+    "ala": "OFICIAIS",
+    "obm": "4/10",
+    "quadro": "QOC/03"
+  },
+  "41482": {
+    "rg": "41482",
+    "name": "Kazuhiro Kajishima",
+    "warName": "KAZUHIRO",
+    "rank": "MAJOR",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": null
+  },
+  "42374": {
+    "rg": "42374",
+    "name": "2º SARGENTO SCRIVANO",
+    "warName": "SCRIVANO",
+    "rank": "2º SARGENTO",
+    "ala": "4",
+    "obm": "10º GBM",
+    "quadro": null
+  },
+  "42851": {
+    "rg": "42851",
+    "name": "",
+    "warName": "GOUVEIA",
+    "rank": "3º SARGENTO",
+    "ala": "1",
+    "obm": "10º GBM",
+    "quadro": null
+  },
+  "42998": {
+    "rg": "42998",
+    "name": "2º SARGENTO CLEBER",
+    "warName": "CLEBER",
+    "rank": "2º SARGENTO",
+    "ala": "3",
+    "obm": "10º GBM",
+    "quadro": null
+  },
+  "43224": {
+    "rg": "43224",
+    "name": "CESAR ESTEVES DA SILVA",
+    "warName": "ESTEVES",
+    "rank": "2º SARGENTO",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q02/08"
+  },
+  "43270": {
+    "rg": "43270",
+    "name": "ROBSON DOS SANTOS LEITÃO",
+    "warName": "SANTOS",
+    "rank": "2º SARGENTO",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q02/08"
+  },
+  "43386": {
+    "rg": "43386",
+    "name": "RODRIGO ANEZIO SANTOS LIMA",
+    "warName": "RODRIGO ANEZIO",
+    "rank": "3º SARGENTO",
+    "ala": "1",
+    "obm": "10º GBM",
+    "quadro": "Q02/08"
+  },
+  "43399": {
+    "rg": "43399",
+    "name": "MARCIO SILVA SARDINHA",
+    "warName": "MARCIO SARDINHA",
+    "rank": "2º SARGENTO",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q02/08"
+  },
+  "43408": {
+    "rg": "43408",
+    "name": "CLEITON NASCENTE DE OLIVEIRA",
+    "warName": "NASCENTE",
+    "rank": "2º SARGENTO",
+    "ala": "EXP",
+    "obm": "10º GBM",
+    "quadro": "Q02/08"
+  },
+  "43427": {
+    "rg": "43427",
+    "name": "2º SARGENTO THIAGO AZEVEDO",
+    "warName": "THIAGO AZEVEDO",
+    "rank": "2º SARGENTO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q02/08"
+  },
+  "43519": {
+    "rg": "43519",
+    "name": "WILLIAN VIEIRA LADISLAU",
+    "warName": "LADISLAU",
+    "rank": "2º SARGENTO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q02/08"
+  },
+  "43560": {
+    "rg": "43560",
+    "name": "LUCIO SILVA DE SOUZA",
+    "warName": "LUCIO SOUZA",
+    "rank": "2º SARGENTO",
+    "ala": "EXP",
+    "obm": "10º GBM",
+    "quadro": "Q08/08"
+  },
+  "43581": {
+    "rg": "43581",
+    "name": "VICTOR DE ARAGÃO",
+    "warName": "VICTOR",
+    "rank": "2º SARGENTO",
+    "ala": "1",
+    "obm": "10º GBM",
+    "quadro": "Q02/08"
+  },
+  "43590": {
+    "rg": "43590",
+    "name": "JULIO CESAR DO AMARAL",
+    "warName": "AMARAL",
+    "rank": "2º SARGENTO",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q02/08"
+  },
+  "43998": {
+    "rg": "43998",
+    "name": "SERGIO HENRIQUE REIS DA SILVA",
+    "warName": "REIS",
+    "rank": "2º SARGENTO",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q00/08"
+  },
+  "44098": {
+    "rg": "44098",
+    "name": "WELLINGTON ROBERTO NOGUEIRA DE SANT ANNA",
+    "warName": "W ROBERTO",
+    "rank": "2º SARGENTO",
+    "ala": "2",
+    "obm": "10º GBM",
+    "quadro": "Q00/08"
+  },
+  "44278": {
+    "rg": "44278",
+    "name": "CHARLES PIRES MAIA",
+    "warName": "MAIA",
+    "rank": "2º SARGENTO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q00/08"
+  },
+  "44306": {
+    "rg": "44306",
+    "name": "MARCELO PIRES RODRIGUES",
+    "warName": "PIRES",
+    "rank": "3º SARGENTO",
+    "ala": "1",
+    "obm": "10º GBM",
+    "quadro": "Q00/08"
+  },
+  "44590": {
+    "rg": "44590",
+    "name": "Rodrigo da Costa Reis Carvalho",
+    "warName": "RODRIGO CARVALHO",
+    "rank": "CAPITÃO",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": null
+  },
+  "44785": {
+    "rg": "44785",
+    "name": "RODRIGO REMIGIO DA SILVA KIVISTO",
+    "warName": "REMIGIO",
+    "rank": "2º SARGENTO",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q10/08"
+  },
+  "44789": {
+    "rg": "44789",
+    "name": "ANDERSON NASCIMENTO DE ASSUNCAO",
+    "warName": "NASCIMENTO",
+    "rank": "2º SARGENTO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/08"
+  },
+  "44916": {
+    "rg": "44916",
+    "name": "FERNANDO MACHADO DA SILVA",
+    "warName": "F MACHADO",
+    "rank": "2º SARGENTO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/09"
+  },
+  "46300": {
+    "rg": "46300",
+    "name": "MARCOS BERNARDO DO NASCIMENTO",
+    "warName": "BERNARDO",
+    "rank": "3º SARGENTO",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q00/10"
+  },
+  "47129": {
+    "rg": "47129",
+    "name": "RAFAEL MACIEL WANDERLEY",
+    "warName": "MACIEL",
+    "rank": "CAPITÃO",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": "QOC/11"
+  },
+  "47136": {
+    "rg": "47136",
+    "name": "PATRIK CAMPOS DE SOUZA",
+    "warName": "PATRIK",
+    "rank": "CAPITÃO",
+    "ala": "OFICIAIS",
+    "obm": "2/10",
+    "quadro": "QOC/11"
+  },
+  "48079": {
+    "rg": "48079",
+    "name": "IVAN DURAO DUTRA DE OLIVEIRA",
+    "warName": "DURAO",
+    "rank": "CAPITÃO",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": "QOC/12"
+  },
+  "48098": {
+    "rg": "48098",
+    "name": "",
+    "warName": "CARDOSO ",
+    "rank": "CAPITÃO",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": null
+  },
+  "48316": {
+    "rg": "48316",
+    "name": "",
+    "warName": "",
+    "rank": "3º SGT",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": null
+  },
+  "49075": {
+    "rg": "49075",
+    "name": "DOUGLAS MAICON GUIMARÃES GABI",
+    "warName": "GUIMARAES",
+    "rank": "3º SARGENTO",
+    "ala": "EXP",
+    "obm": "10º GBM",
+    "quadro": "Q02/13"
+  },
+  "49148": {
+    "rg": "49148",
+    "name": "",
+    "warName": "NUNES ",
+    "rank": "CAPITÃO",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": null
+  },
+  "49154": {
+    "rg": "49154",
+    "name": "",
+    "warName": "JEFFERSON ",
+    "rank": "CAPITÃO",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": null
+  },
+  "49155": {
+    "rg": "49155",
+    "name": "",
+    "warName": "RAFAEL CALDAS ",
+    "rank": "CAPITÃO",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": null
+  },
+  "49163": {
+    "rg": "49163",
+    "name": "MARCOS OLIVEIRA AUGUSTO",
+    "warName": "MARCOS AUGUSTO",
+    "rank": "CAPITÃO",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": "QOC/14"
+  },
+  "49628": {
+    "rg": "49628",
+    "name": "CABO TEIXEIRA",
+    "warName": "TEIXEIRA",
+    "rank": "CABO",
+    "ala": "4",
+    "obm": "10º GBM",
+    "quadro": "Q00/14"
+  },
+  "49704": {
+    "rg": "49704",
+    "name": "CARLOS DIEGO DOS SANTOS",
+    "warName": "CARLOS SANTOS",
+    "rank": "CABO",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q00/14"
+  },
+  "49905": {
+    "rg": "49905",
+    "name": "Edson Paes Pereira",
+    "warName": "EDSON PAES",
+    "rank": "CAPITÃO",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": null
+  },
+  "53015": {
+    "rg": "53015",
+    "name": "JANSEN MALEK DE SOUZA",
+    "warName": "MALEK",
+    "rank": "CABO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q10/15"
+  },
+  "53032": {
+    "rg": "53032",
+    "name": "WALLACE TAVARES DA CRUZ DAMASCENO",
+    "warName": "DAMASCENO",
+    "rank": "CABO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/15"
+  },
+  "53124": {
+    "rg": "53124",
+    "name": "FELIPE VIEIRA DOS SANTOS",
+    "warName": "F SANTOS",
+    "rank": "CABO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/15"
+  },
+  "53157": {
+    "rg": "53157",
+    "name": "ANDERSON DE SOUZA NUNES",
+    "warName": "SOUZA NUNES",
+    "rank": "CABO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/15"
+  },
+  "53322": {
+    "rg": "53322",
+    "name": "LUCAS CASSERES RAMOS MINDAS",
+    "warName": "CASSERES",
+    "rank": "CAPITÃO",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": "QOC/16"
+  },
+  "53345": {
+    "rg": "53345",
+    "name": "",
+    "warName": "ASSINO ",
+    "rank": "CAPITÃO",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": null
+  },
+  "53352": {
+    "rg": "53352",
+    "name": "JHONATAS QUINTANILHA CARVALHO ROCHA",
+    "warName": "QUINTANILHA",
+    "rank": "CAPITÃO",
+    "ala": "OFICIAIS",
+    "obm": "3/10",
+    "quadro": "QOC/16"
+  },
+  "53392": {
+    "rg": "53392",
+    "name": "",
+    "warName": "GUSTAVO BOTELHO ",
+    "rank": "1º TENENTE",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": null
+  },
+  "53402": {
+    "rg": "53402",
+    "name": "EMANUEL MACHADO LAZARO DOS REIS",
+    "warName": "MACHADO",
+    "rank": "CAPITÃO",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": "QOC/17"
+  },
+  "53542": {
+    "rg": "53542",
+    "name": "MARCO AURELIO FERREIRA BARBOSA",
+    "warName": "BARBOSA",
+    "rank": "CABO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/19"
+  },
+  "53547": {
+    "rg": "53547",
+    "name": "PABLO FALCASSA GONÇALVES",
+    "warName": "FALCASSA",
+    "rank": "CABO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/19"
+  },
+  "53580": {
+    "rg": "53580",
+    "name": "VITOR SCHNEIDER SALES",
+    "warName": "SCHNEIDER",
+    "rank": "CABO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/19"
+  },
+  "53586": {
+    "rg": "53586",
+    "name": "GEORGE LOUIS DOS SANTOS",
+    "warName": "GEORGE",
+    "rank": "CABO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/19"
+  },
+  "53593": {
+    "rg": "53593",
+    "name": "HUDSON LUIZ BARBOSA MELLO DA COSTA",
+    "warName": "MELLO",
+    "rank": "CABO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/19"
+  },
+  "53597": {
+    "rg": "53597",
+    "name": "RAFAEL OLIVEIRA DE PAULA",
+    "warName": "DE PAULA",
+    "rank": "CABO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/19"
+  },
+  "53601": {
+    "rg": "53601",
+    "name": "LUIZ ALBERTO OLIVEIRA DE SOUZA",
+    "warName": "LUIZ SOUZA",
+    "rank": "CABO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/19"
+  },
+  "53637": {
+    "rg": "53637",
+    "name": "HUGO ALVES MULLER",
+    "warName": "MULLER",
+    "rank": "CABO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q10/19"
+  },
+  "53723": {
+    "rg": "53723",
+    "name": "",
+    "warName": "GUILHERME MARTINS ",
+    "rank": "2º TENENTE",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": null
+  },
+  "53737": {
+    "rg": "53737",
+    "name": "ELIEL SIMOES MARTINS FRAGA",
+    "warName": "SIMOES",
+    "rank": "SOLDADO",
+    "ala": "3",
+    "obm": "10º GBM",
+    "quadro": "Q02/21"
+  },
+  "53743": {
+    "rg": "53743",
+    "name": "RODRIGO LIMA DA CUNHA",
+    "warName": "CUNHA",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q02/21"
+  },
+  "53753": {
+    "rg": "53753",
+    "name": "ALAN DE MENEZES DE SIQUEIRA",
+    "warName": "SIQUEIRA",
+    "rank": "SOLDADO",
+    "ala": "2",
+    "obm": "10º GBM",
+    "quadro": "Q00/21"
+  },
+  "53754": {
+    "rg": "53754",
+    "name": "SOLDADO STEINER",
+    "warName": "STEINER",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q00/21"
+  },
+  "53759": {
+    "rg": "53759",
+    "name": "SOLDADO RIBEIRO",
+    "warName": "RIBEIRO",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q00/21"
+  },
+  "53772": {
+    "rg": "53772",
+    "name": "DANIEL DE ALBUQUERQUE RIBEIRO",
+    "warName": "ALBUQUERQUE",
+    "rank": "SOLDADO",
+    "ala": "2",
+    "obm": "10º GBM",
+    "quadro": "Q00/21"
+  },
+  "53781": {
+    "rg": "53781",
+    "name": "LUIZ ALBERTO COSTA FERREIRA",
+    "warName": "FERREIRA",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q00/21"
+  },
+  "53783": {
+    "rg": "53783",
+    "name": "DIEGO CASTRO VALDIEIRO",
+    "warName": "VALDIEIRO",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q00/21"
+  },
+  "53786": {
+    "rg": "53786",
+    "name": "SOLDADO KROWN",
+    "warName": "KROWN",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q00/21"
+  },
+  "53792": {
+    "rg": "53792",
+    "name": "LUIZ FERNANDO BRITO DA SILVA",
+    "warName": "FERNANDO BRITO",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q00/21"
+  },
+  "53796": {
+    "rg": "53796",
+    "name": "CELIO MIOTTO FILHO",
+    "warName": "MIOTTO",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q00/21"
+  },
+  "53808": {
+    "rg": "53808",
+    "name": "PAULO HENRIQUE ANDRADE DE MATOS",
+    "warName": "MATOS",
+    "rank": "SOLDADO",
+    "ala": "2",
+    "obm": "10º GBM",
+    "quadro": "Q00/21"
+  },
+  "53819": {
+    "rg": "53819",
+    "name": "SOLDADO GRANJA",
+    "warName": "GRANJA",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q00/21"
+  },
+  "53830": {
+    "rg": "53830",
+    "name": "EDELWEISS FERREIRA DE LUCENA",
+    "warName": "LUCENA",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q00/21"
+  },
+  "54028": {
+    "rg": "54028",
+    "name": "SOLDADO JOSEPH",
+    "warName": "JOSEPH",
+    "rank": "SOLDADO",
+    "ala": "4",
+    "obm": "10º GBM",
+    "quadro": "Q07/24"
+  },
+  "54168": {
+    "rg": "54168",
+    "name": "MATHEUS MAIA RAMOS",
+    "warName": "MAIA",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q02/24"
+  },
+  "54208": {
+    "rg": "54208",
+    "name": "GABRIEL DE SÁ MONSORES",
+    "warName": "MONSORES",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q02/24"
+  },
+  "54211": {
+    "rg": "54211",
+    "name": "SOLDADO SALES",
+    "warName": "SALES",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q02/24"
+  },
+  "54220": {
+    "rg": "54220",
+    "name": "ALUISIO DOS REIS COSTA JUNIOR",
+    "warName": "COSTA JUNIOR",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "1/10",
+    "quadro": "Q02/24"
+  },
+  "54236": {
+    "rg": "54236",
+    "name": "GABRIEL DA SILVA ABREU",
+    "warName": "ABREU",
+    "rank": "SOLDADO",
+    "ala": "2",
+    "obm": "10º GBM",
+    "quadro": "Q02/24"
+  },
+  "54237": {
+    "rg": "54237",
+    "name": "ROBSON ANTONIO DE CASTRO JUNIOR",
+    "warName": "CASTRO",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q02/24"
+  },
+  "54309": {
+    "rg": "54309",
+    "name": "SOLDADO L SOBRAL",
+    "warName": "L SOBRAL",
+    "rank": "SOLDADO",
+    "ala": "3",
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54313": {
+    "rg": "54313",
+    "name": "LUCAS SANTOS DE SOUZA",
+    "warName": "LUCAS SANTOS",
+    "rank": "SOLDADO",
+    "ala": "1",
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54315": {
+    "rg": "54315",
+    "name": "SOLDADO MACHADO",
+    "warName": "MACHADO",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54316": {
+    "rg": "54316",
+    "name": "SOLDADO JULIO CESAR",
+    "warName": "JULIO CESAR",
+    "rank": "SOLDADO",
+    "ala": "3",
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54319": {
+    "rg": "54319",
+    "name": "RICARDO BRUNO PEREIRA DOS SANTOS",
+    "warName": "SANTOS",
+    "rank": "SOLDADO",
+    "ala": "1",
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54320": {
+    "rg": "54320",
+    "name": "SOLDADO VICTOR HUGO",
+    "warName": "VICTOR HUGO",
+    "rank": "SOLDADO",
+    "ala": "4",
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54323": {
+    "rg": "54323",
+    "name": "SOLDADO VALENTIM",
+    "warName": "VALENTIM",
+    "rank": "SOLDADO",
+    "ala": "3",
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54324": {
+    "rg": "54324",
+    "name": "DIEGO TAVARES FERREIRA DA CONCEIÇÃO",
+    "warName": "DIEGO TAVARES",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q08/24"
+  },
+  "54325": {
+    "rg": "54325",
+    "name": "SOLDADO L RODRIGUES",
+    "warName": "L RODRIGUES",
+    "rank": "SOLDADO",
+    "ala": "3",
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54326": {
+    "rg": "54326",
+    "name": "SOLDADO TAVARES",
+    "warName": "TAVARES",
+    "rank": "SOLDADO",
+    "ala": "3",
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54338": {
+    "rg": "54338",
+    "name": "JOÃO PEDRO MORAES ROSA DE LIMA",
+    "warName": "DE LIMA",
+    "rank": "SOLDADO",
+    "ala": "2",
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54342": {
+    "rg": "54342",
+    "name": "LUDMILA DE MELO BISPO",
+    "warName": "LUDMILA",
+    "rank": "SOLDADO",
+    "ala": "EXP",
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54358": {
+    "rg": "54358",
+    "name": "DENISON SOARES GAMA DOS SANTOS",
+    "warName": "GAMA",
+    "rank": "SOLDADO",
+    "ala": "1",
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54360": {
+    "rg": "54360",
+    "name": "IAN DIERI BITTENCOURT BARRETO DA SILVA",
+    "warName": "DIERI",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q08/24"
+  },
+  "54361": {
+    "rg": "54361",
+    "name": "ANDRE ARAUJO DE MEIRELES",
+    "warName": "MEIRELES",
+    "rank": "SOLDADO",
+    "ala": "2",
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54364": {
+    "rg": "54364",
+    "name": "SOLDADO THIAGO CARVALHO",
+    "warName": "THIAGO CARVALHO",
+    "rank": "SOLDADO",
+    "ala": "3",
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54380": {
+    "rg": "54380",
+    "name": "LUCAS FERREIRA DO CARMO",
+    "warName": "L FERREIRA",
+    "rank": "SOLDADO",
+    "ala": "1",
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54381": {
+    "rg": "54381",
+    "name": "SOLDADO PATRICK",
+    "warName": "PATRICK",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54382": {
+    "rg": "54382",
+    "name": "MATEUS BARBOSA FARZATT",
+    "warName": "FARZATT",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q08/24"
+  },
+  "54383": {
+    "rg": "54383",
+    "name": "LUCAS EDUARDO RODRIGUES DE SOUZA",
+    "warName": "LUCAS EDUARDO",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q08/24"
+  },
+  "54399": {
+    "rg": "54399",
+    "name": "ANTÔNIO MARCOS OLIVEIRA PEQUENO",
+    "warName": "MARCOS OLIVEIRA",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54407": {
+    "rg": "54407",
+    "name": "GABRIEL CATROLI VANDERLEI SILVA",
+    "warName": "CATROLI",
+    "rank": "SOLDADO",
+    "ala": "1",
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54409": {
+    "rg": "54409",
+    "name": "SOLDADO RENAN GOMES",
+    "warName": "RENAN GOMES",
+    "rank": "SOLDADO",
+    "ala": "4",
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54416": {
+    "rg": "54416",
+    "name": "VICTOR LUIS SIQUEIRA DOS SANTOS",
+    "warName": "VICTOR LUIS",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "2/10",
+    "quadro": "Q08/24"
+  },
+  "54421": {
+    "rg": "54421",
+    "name": "ALAN PEREIRA NASCIMENTO",
+    "warName": "ALAN PEREIRA",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54428": {
+    "rg": "54428",
+    "name": "ANDRÉ DE OLIVEIRA CLAUDINO",
+    "warName": "CLAUDINO",
+    "rank": "SOLDADO",
+    "ala": "1",
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54429": {
+    "rg": "54429",
+    "name": "SOLDADO MOISES",
+    "warName": "MOISES",
+    "rank": "SOLDADO",
+    "ala": "4",
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54444": {
+    "rg": "54444",
+    "name": "LUCAS ADRIANO SANTOS BERNARDO",
+    "warName": "BERNARDO",
+    "rank": "SOLDADO",
+    "ala": "EXP",
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54516": {
+    "rg": "54516",
+    "name": "SAULO DE ALMEIDA FERNANDES",
+    "warName": "FERNANDES",
+    "rank": "SOLDADO",
+    "ala": "4",
+    "obm": "10º GBM",
+    "quadro": "Q03/24"
+  },
+  "54563": {
+    "rg": "54563",
+    "name": "FELIX SILVA DE JESUS",
+    "warName": "FELIX",
+    "rank": "SOLDADO",
+    "ala": "EXP",
+    "obm": "10º GBM",
+    "quadro": "Q03/24"
+  },
+  "54755": {
+    "rg": "54755",
+    "name": "JOÃO FELIPE FARIA DOS SANTOS",
+    "warName": "DOS SANTOS",
+    "rank": "SOLDADO",
+    "ala": "2",
+    "obm": "10º GBM",
+    "quadro": "Q08/24"
+  },
+  "54866": {
+    "rg": "54866",
+    "name": "ALEX SANDRO BISPO DA SILVA JUNIOR",
+    "warName": "ALEX BISPO",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q02/25"
+  },
+  "54925": {
+    "rg": "54925",
+    "name": "LUCAS FELIPE OLIVEIRA DE LIMA",
+    "warName": "LUCAS LIMA",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q02/25"
+  },
+  "54946": {
+    "rg": "54946",
+    "name": "GUSTAVO LEMOS PAIVA DA SILVA",
+    "warName": "LEMOS",
+    "rank": "SOLDADO",
+    "ala": "2",
+    "obm": "10º GBM",
+    "quadro": "Q07/25"
+  },
+  "54956": {
+    "rg": "54956",
+    "name": "SOLDADO ARTHUR",
+    "warName": "ARTHUR",
+    "rank": "SOLDADO",
+    "ala": "4",
+    "obm": "10º GBM",
+    "quadro": "Q08/25"
+  },
+  "54989": {
+    "rg": "54989",
+    "name": "LUCAS DE FRANÇA FARIAS",
+    "warName": "FARIAS",
+    "rank": "SOLDADO",
+    "ala": "2",
+    "obm": "10º GBM",
+    "quadro": "Q08/25"
+  },
+  "54991": {
+    "rg": "54991",
+    "name": "SOLDADO MIERS",
+    "warName": "MIERS",
+    "rank": "SOLDADO",
+    "ala": "3",
+    "obm": "10º GBM",
+    "quadro": "Q08/25"
+  },
+  "55036": {
+    "rg": "55036",
+    "name": "PAULO VICTOR DOS REIS SILVA",
+    "warName": "DOS REIS",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "Q08/25"
+  },
+  "55040": {
+    "rg": "55040",
+    "name": "LEONARDO PEREIRA CANDIDO",
+    "warName": "PEREIRA",
+    "rank": "SOLDADO",
+    "ala": "2",
+    "obm": "10º GBM",
+    "quadro": "Q08/25"
+  },
+  "61109": {
+    "rg": "61109",
+    "name": "SOLDADO MATHEUS SANTOS",
+    "warName": "MATHEUS SANTOS",
+    "rank": "SOLDADO",
+    "ala": "4",
+    "obm": "10º GBM",
+    "quadro": "Q02/25"
+  },
+  "61168": {
+    "rg": "61168",
+    "name": "CARLOS HENRIQUE DE OLIVEIRA",
+    "warName": "HENRIQUE",
+    "rank": "SOLDADO",
+    "ala": "1",
+    "obm": "10º GBM",
+    "quadro": "Q02/25"
+  },
+  "61173": {
+    "rg": "61173",
+    "name": "MARCOS VERISSIMO RAEDER DA SILVA",
+    "warName": "RAEDER",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q02/25"
+  },
+  "61205": {
+    "rg": "61205",
+    "name": "IAGO WANDERMUREM GOMES DE FARIA",
+    "warName": "WANDERMUREM",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q02/25"
+  },
+  "61207": {
+    "rg": "61207",
+    "name": "PATRICK RENATO ALVES DE SOUZA",
+    "warName": "R ALVES",
+    "rank": "SOLDADO",
+    "ala": "2",
+    "obm": "10º GBM",
+    "quadro": "Q02/25"
+  },
+  "61302": {
+    "rg": "61302",
+    "name": "SOLDADO OLIVEIRA",
+    "warName": "OLIVEIRA",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q02/25"
+  },
+  "61385": {
+    "rg": "61385",
+    "name": "SOLDADO F LOPES",
+    "warName": "F LOPES",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q02/25"
+  },
+  "61417": {
+    "rg": "61417",
+    "name": "ISRAEL IVAN DOS SANTOS AZEREDO",
+    "warName": "AZEREDO",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "Q02/25"
+  },
+  "61427": {
+    "rg": "61427",
+    "name": "SOLDADO ELIAS",
+    "warName": "ELIAS",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q02/25"
+  },
+  "61433": {
+    "rg": "61433",
+    "name": "JOSUE VICTOR RAIMUNDO RAMOS",
+    "warName": "JOSUE",
+    "rank": "SOLDADO",
+    "ala": "1",
+    "obm": "10º GBM",
+    "quadro": "Q08/25"
+  },
+  "61434": {
+    "rg": "61434",
+    "name": "SOLDADO CAIQUE",
+    "warName": "CAIQUE",
+    "rank": "SOLDADO",
+    "ala": "4",
+    "obm": "10º GBM",
+    "quadro": "Q08/25"
+  },
+  "61471": {
+    "rg": "61471",
+    "name": "SOLDADO FERRAZ",
+    "warName": "FERRAZ",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q02/25"
+  },
+  "2200838": {
+    "rg": "2200838",
+    "name": "JOÃO VITOR MARTINS DA SILVA",
+    "warName": "VITOR MARTINS",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "TEMP/00/22"
+  },
+  "2200839": {
+    "rg": "2200839",
+    "name": "SOLDADO EMMANUEL FERREIRA",
+    "warName": "EMMANUEL FERREIRA",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "TEMP/00/22"
+  },
+  "2200842": {
+    "rg": "2200842",
+    "name": "YAN OLIVEIRA GUEDES DE LIMA",
+    "warName": "YAN GUEDES",
+    "rank": "SOLDADO",
+    "ala": "2",
+    "obm": "10º GBM",
+    "quadro": "TEMP/00/22"
+  },
+  "2200843": {
+    "rg": "2200843",
+    "name": "SAMUEL DA SILVA FELIPI",
+    "warName": "SILVA FELIPI",
+    "rank": "SOLDADO",
+    "ala": "EXP",
+    "obm": "3/10",
+    "quadro": "TEMP/00/22"
+  },
+  "2200844": {
+    "rg": "2200844",
+    "name": "MATEUS DOS ANJOS CHAVES",
+    "warName": "CHAVES",
+    "rank": "SOLDADO",
+    "ala": "2",
+    "obm": "10º GBM",
+    "quadro": "TEMP/00/22"
+  },
+  "2200847": {
+    "rg": "2200847",
+    "name": "NATHAN MEDEIROS DA SILVA",
+    "warName": "MEDEIROS",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "TEMP/00/22"
+  },
+  "2200848": {
+    "rg": "2200848",
+    "name": "SOLDADO GABRIEL",
+    "warName": "GABRIEL",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "TEMP/00/22"
+  },
+  "2200853": {
+    "rg": "2200853",
+    "name": "CHRIS ANDRE MATTOS MATIAS",
+    "warName": "CHRIS",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "4/10",
+    "quadro": "TEMP/00/22"
+  },
+  "2200861": {
+    "rg": "2200861",
+    "name": "THALIS ADSON LOURENÇO RAMOS DE SOUZA",
+    "warName": "THALIS",
+    "rank": "SOLDADO",
+    "ala": "4",
+    "obm": "10º GBM",
+    "quadro": "TEMP/00/22"
+  },
+  "2201002": {
+    "rg": "2201002",
+    "name": "ALISSON DE LIMA RABELO",
+    "warName": "ALISSON",
+    "rank": "SOLDADO",
+    "ala": "4",
+    "obm": "10º GBM",
+    "quadro": "TEMP/00/22"
+  },
+  "2201178": {
+    "rg": "2201178",
+    "name": "FELIPE MENEZES DA CONCEIÇÃO",
+    "warName": "FELIPE MENEZES",
+    "rank": "SOLDADO",
+    "ala": "1",
+    "obm": "10º GBM",
+    "quadro": "TEMP/00/22"
+  },
+  "2201179": {
+    "rg": "2201179",
+    "name": "SOLDADO NATÁLIA TAVARES",
+    "warName": "NATÁLIA TAVARES",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "TEMP/00/22"
+  },
+  "2201183": {
+    "rg": "2201183",
+    "name": "NÍCOLAS BOMFIM FEITOZA",
+    "warName": "BOMFIM FEITOZA",
+    "rank": "SOLDADO",
+    "ala": "1",
+    "obm": "10º GBM",
+    "quadro": "TEMP/00/22"
+  },
+  "2201184": {
+    "rg": "2201184",
+    "name": "VICTOR NOGUEIRA BRAGA",
+    "warName": "VICTOR BRAGA",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "TEMP/00/22"
+  },
+  "2201187": {
+    "rg": "2201187",
+    "name": "ISRAEL DE SOUZA DA SILVA",
+    "warName": "DE SOUZA",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "3/10",
+    "quadro": "TEMP/00/22"
+  },
+  "2201188": {
+    "rg": "2201188",
+    "name": "SOLDADO YAGO VICTOR",
+    "warName": "YAGO VICTOR",
+    "rank": "SOLDADO",
+    "ala": "4",
+    "obm": "10º GBM",
+    "quadro": "TEMP/00/22"
+  }
+}

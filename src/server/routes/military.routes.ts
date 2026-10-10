@@ -1,6 +1,8 @@
 import { verifyFirebaseSession } from "./auth";
 import express from 'express';
-import { collection, getDocs, getDoc, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, getDoc, doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import fs from 'fs';
+import path from 'path';
 
 export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
   app.get('/api/militar/version', (req, res) => {
@@ -69,6 +71,43 @@ export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
       count: filtered.length,
       militaries: filtered.slice(0, 50)
     });
+  });
+
+  // Obter informações do padrão salvo das alas
+  app.get('/api/militar/default-alas-info', async (req, res) => {
+    try {
+      const { clientDb } = getDeps();
+      let info: any = null;
+
+      if (clientDb) {
+        try {
+          const snap = await getDoc(doc(clientDb, 'config', 'default_alas_composition'));
+          if (snap.exists()) {
+            info = snap.data();
+          }
+        } catch (e) {}
+      }
+
+      if (!info) {
+        const hardcodedPath = path.join(process.cwd(), 'src/server/lib/default_alas_composition.json');
+        if (fs.existsSync(hardcodedPath)) {
+          const fileData = JSON.parse(fs.readFileSync(hardcodedPath, 'utf8'));
+          info = {
+            updatedAt: fs.statSync(hardcodedPath).mtime.toISOString(),
+            totalMilitaries: Object.keys(fileData).length
+          };
+        }
+      }
+
+      return res.json({
+        success: true,
+        hasDefault: !!info,
+        updatedAt: info?.updatedAt || null,
+        totalMilitaries: info?.totalMilitaries || (info?.formation ? Object.keys(info.formation).length : 0)
+      });
+    } catch (e: any) {
+      return res.status(500).json({ success: false, error: e.message });
+    }
   });
 
   app.get('/api/militar', verifyFirebaseSession, async (req: any, res) => {
@@ -506,6 +545,288 @@ app.post('/api/militar/emprestar', async (req, res) => {
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  // Transferência de militar entre unidades (DBMs/GBMs no CBA VII)
+  app.post('/api/militar/transfer', async (req, res) => {
+    const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, normalizeObm, cacheEvents, incrementCacheVersion } = getDeps();
+    const { rg, targetObm, targetAla, originObm, reason, author } = req.body;
+
+    if (!rg || !targetObm) {
+      return res.status(400).json({ success: false, error: 'RG e OBM de destino são obrigatórios' });
+    }
+
+    const safeRg = normalizeRg(rg);
+    const normalizedTargetObm = normalizeObm(targetObm);
+    const normalizedTargetAla = targetAla !== undefined && targetAla !== null ? targetAla.toString().trim() : null;
+
+    try {
+      const existing = militaryCache.get(safeRg) || {};
+      const fromObm = originObm || existing.obm || '10º GBM';
+
+      const updatePayload: any = {
+        obm: normalizedTargetObm,
+        situacao: 'Ativo',
+        updatedAt: new Date()
+      };
+      if (normalizedTargetAla !== null) {
+        updatePayload.ala = normalizedTargetAla;
+      }
+
+      // 1. Atualizar no Firestore
+      if (clientDb) {
+        try {
+          await setDoc(doc(clientDb, 'militaries', safeRg), updatePayload, { merge: true });
+          await setDoc(doc(collection(clientDb, 'historico_transferencias')), {
+            rg: safeRg,
+            militarName: existing.name || existing.warName || '',
+            fromObm,
+            toObm: normalizedTargetObm,
+            toAla: normalizedTargetAla,
+            reason: reason || 'Transferência solicitada pelo escalante',
+            author: author || 'Escalante',
+            timestamp: new Date().toISOString()
+          });
+        } catch (e: any) {
+          console.warn('[Transfer] Erro ao gravar no Firestore Client:', e.message);
+        }
+      } else if (db && isDbHealthy) {
+        try {
+          await db.collection('militaries').doc(safeRg).set(updatePayload, { merge: true });
+          await db.collection('historico_transferencias').add({
+            rg: safeRg,
+            militarName: existing.name || existing.warName || '',
+            fromObm,
+            toObm: normalizedTargetObm,
+            toAla: normalizedTargetAla,
+            reason: reason || 'Transferência solicitada pelo escalante',
+            author: author || 'Escalante',
+            timestamp: new Date().toISOString()
+          });
+        } catch (e: any) {
+          console.warn('[Transfer] Erro ao gravar no Firestore Admin:', e.message);
+        }
+      }
+
+      // 2. Atualizar em memória no cache do servidor
+      const updatedMilitar = {
+        ...existing,
+        ...updatePayload,
+        obm: normalizedTargetObm,
+        ala: normalizedTargetAla !== null ? normalizedTargetAla : existing.ala,
+        situacao: 'Ativo'
+      };
+      militaryCache.set(safeRg, updatedMilitar);
+
+      // 3. Atualizar no arquivo de formação padrão se existir
+      try {
+        const hardcodedPath = path.join(process.cwd(), 'src/server/lib/default_alas_composition.json');
+        if (fs.existsSync(hardcodedPath)) {
+          const fileData = JSON.parse(fs.readFileSync(hardcodedPath, 'utf8'));
+          if (fileData[safeRg]) {
+            fileData[safeRg].obm = normalizedTargetObm;
+            if (normalizedTargetAla !== null) fileData[safeRg].ala = normalizedTargetAla;
+            fs.writeFileSync(hardcodedPath, JSON.stringify(fileData, null, 2), 'utf8');
+          }
+        }
+      } catch (e) {}
+
+      const newVersion = incrementCacheVersion ? incrementCacheVersion() : Date.now();
+      if (cacheEvents) cacheEvents.emit('update', newVersion);
+
+      console.log(`[Transfer] Militar ${safeRg} transferido de ${fromObm} para ${normalizedTargetObm} (Ala: ${normalizedTargetAla})`);
+      return res.json({
+        success: true,
+        message: `Militar ${safeRg} transferido com sucesso para ${normalizedTargetObm}!`,
+        militar: updatedMilitar
+      });
+    } catch (err: any) {
+      console.error('[Transfer] Erro na transferência:', err);
+      return res.status(500).json({ success: false, error: err.message || 'Erro ao transferir militar' });
+    }
+  });
+
+  // Salvar a formação atual das alas como padrão oficial permanente
+  app.post('/api/militar/save-default-alas', async (req, res) => {
+    try {
+      const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, cacheEvents, incrementCacheVersion } = getDeps();
+      
+      const requestedFormation = req.body?.formation;
+      const formationMap: Record<string, any> = {};
+
+      if (requestedFormation && typeof requestedFormation === 'object') {
+        for (const [rg, item] of Object.entries(requestedFormation as Record<string, any>)) {
+          const safeRg = normalizeRg(rg);
+          if (!safeRg) continue;
+          formationMap[safeRg] = {
+            rg: safeRg,
+            name: item.name || '',
+            warName: item.warName || item.name || '',
+            rank: item.rank || '',
+            ala: (item.ala || '').toString().trim() || null,
+            obm: item.obm || null,
+            quadro: item.quadro || null
+          };
+        }
+      } else {
+        // Obter formação a partir do cache atual de militares
+        const allCached = Array.from(militaryCache.values());
+        for (const m of allCached as any[]) {
+          const safeRg = normalizeRg(m.rg);
+          if (!safeRg) continue;
+          formationMap[safeRg] = {
+            rg: safeRg,
+            name: m.name || m.nome || '',
+            warName: m.warName || m.name || '',
+            rank: m.rank || m.postoGrad || '',
+            ala: (m.ala || '').toString().trim() || null,
+            obm: m.obm || null,
+            quadro: m.quadro || null
+          };
+        }
+      }
+
+      const totalCount = Object.keys(formationMap).length;
+      const nowIso = new Date().toISOString();
+      const payload = {
+        updatedAt: nowIso,
+        totalMilitaries: totalCount,
+        formation: formationMap
+      };
+
+      // 1. Salvar no arquivo físico hardcoded no servidor para resiliência máxima
+      const hardcodedPath = path.join(process.cwd(), 'src/server/lib/default_alas_composition.json');
+      try {
+        fs.writeFileSync(hardcodedPath, JSON.stringify(formationMap, null, 2), 'utf8');
+        console.log(`[Alas Padrão] Arquivo hardcoded atualizado com ${totalCount} militares.`);
+      } catch (fileErr: any) {
+        console.warn('[Alas Padrão] Aviso ao gravar arquivo no disco:', fileErr.message);
+      }
+
+      // 2. Salvar no Firestore na coleção config
+      if (clientDb) {
+        try {
+          await setDoc(doc(clientDb, 'config', 'default_alas_composition'), payload, { merge: true });
+        } catch (dbErr: any) {
+          console.warn('[Alas Padrão] Erro ao gravar config no Firestore:', dbErr.message);
+        }
+      } else if (db && isDbHealthy) {
+        try {
+          await db.collection('config').doc('default_alas_composition').set(payload, { merge: true });
+        } catch (dbErr: any) {
+          console.warn('[Alas Padrão] Erro ao gravar config no Firestore Admin:', dbErr.message);
+        }
+      }
+
+      // 3. Atualizar cada militar no cache e disparar sincronização com Firestore
+      for (const [rg, m] of Object.entries(formationMap)) {
+        const existing = militaryCache.get(rg) || {};
+        militaryCache.set(rg, { ...existing, ala: m.ala });
+      }
+
+      // 4. Gravar em lote (batches) no Firestore nas entidades individuais de militares
+      if (clientDb) {
+        try {
+          const entries = Object.entries(formationMap);
+          for (let i = 0; i < entries.length; i += 400) {
+            const batch = writeBatch(clientDb);
+            const chunk = entries.slice(i, i + 400);
+            for (const [rg, m] of chunk) {
+              batch.set(doc(clientDb, 'militaries', rg), { ala: m.ala, updatedAt: new Date() }, { merge: true });
+            }
+            await batch.commit();
+          }
+        } catch (errB: any) {
+          console.warn('[Alas Padrão] Aviso ao gravar lote no Firestore Client:', errB.message);
+        }
+      }
+
+      const newVersion = incrementCacheVersion ? incrementCacheVersion() : Date.now();
+      if (cacheEvents) cacheEvents.emit('update', newVersion);
+
+      return res.json({
+        success: true,
+        count: totalCount,
+        updatedAt: nowIso,
+        message: 'Composição das alas registrada com sucesso como padrão oficial no banco e servidor!'
+      });
+    } catch (e: any) {
+      console.error('[Alas Padrão] Erro fatal ao salvar padrão:', e);
+      return res.status(500).json({ success: false, error: e.message || 'Erro ao salvar padrão' });
+    }
+  });
+
+  // Restaurar a formação oficial das alas a partir do padrão gravado
+  app.post('/api/militar/restore-default-alas', async (req, res) => {
+    try {
+      const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, cacheEvents, incrementCacheVersion } = getDeps();
+      
+      let formationMap: Record<string, any> | null = null;
+      let updatedAt = '';
+
+      // 1. Tentar ler do Firestore
+      if (clientDb) {
+        try {
+          const snap = await getDoc(doc(clientDb, 'config', 'default_alas_composition'));
+          if (snap.exists()) {
+            const data = snap.data();
+            formationMap = data?.formation || null;
+            updatedAt = data?.updatedAt || '';
+          }
+        } catch (e) {}
+      }
+
+      // 2. Fallback para arquivo hardcoded
+      if (!formationMap || Object.keys(formationMap).length === 0) {
+        const hardcodedPath = path.join(process.cwd(), 'src/server/lib/default_alas_composition.json');
+        if (fs.existsSync(hardcodedPath)) {
+          formationMap = JSON.parse(fs.readFileSync(hardcodedPath, 'utf8'));
+        }
+      }
+
+      if (!formationMap || Object.keys(formationMap).length === 0) {
+        return res.status(404).json({ success: false, error: 'Nenhuma formação padrão foi encontrada para restaurar.' });
+      }
+
+      // 3. Aplicar no cache em memória
+      for (const [rg, m] of Object.entries(formationMap)) {
+        const safeRg = normalizeRg(rg);
+        const existing = militaryCache.get(safeRg) || {};
+        militaryCache.set(safeRg, { ...existing, ala: m.ala });
+      }
+
+      // 4. Aplicar em lote no Firestore
+      if (clientDb) {
+        try {
+          const entries = Object.entries(formationMap);
+          for (let i = 0; i < entries.length; i += 400) {
+            const batch = writeBatch(clientDb);
+            const chunk = entries.slice(i, i + 400);
+            for (const [rg, m] of chunk) {
+              const safeRg = normalizeRg(rg);
+              batch.set(doc(clientDb, 'militaries', safeRg), { ala: m.ala, updatedAt: new Date() }, { merge: true });
+            }
+            await batch.commit();
+          }
+        } catch (errB: any) {
+          console.warn('[Alas Padrão] Erro ao restaurar lote no Firestore:', errB.message);
+        }
+      }
+
+      const newVersion = incrementCacheVersion ? incrementCacheVersion() : Date.now();
+      if (cacheEvents) cacheEvents.emit('update', newVersion);
+
+      return res.json({
+        success: true,
+        count: Object.keys(formationMap).length,
+        restoredAt: new Date().toISOString(),
+        originalSavedAt: updatedAt,
+        message: 'Formação padrão oficial restaurada com sucesso para todas as alas!'
+      });
+    } catch (e: any) {
+      console.error('[Alas Padrão] Erro ao restaurar padrão:', e);
+      return res.status(500).json({ success: false, error: e.message || 'Erro ao restaurar padrão' });
     }
   });
 

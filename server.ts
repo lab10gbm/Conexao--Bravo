@@ -95,6 +95,15 @@ async function syncMilitariesFromSheetInternal() {
     const records = parse(response.data, { columns: true, skip_empty_lines: true, from_line: 3 }) as any[];
     console.log(`[Sync] Downloaded ${records.length} raw rows from spreadsheet.`);
 
+    // Carregar mapa oficial padrão de alas para garantir que a formação aprovada nunca seja sobrescrita por planilhas
+    let defaultAlasMap: Record<string, any> = {};
+    const defaultAlasPath = path.join(process.cwd(), 'src/server/lib/default_alas_composition.json');
+    if (fs.existsSync(defaultAlasPath)) {
+      try {
+        defaultAlasMap = JSON.parse(fs.readFileSync(defaultAlasPath, 'utf8'));
+      } catch (e) {}
+    }
+
     // Inject requested militaries for 10º GBM Ala 3 and Ala 4
     const injectedMilitaries = [
       // Ala 3
@@ -158,12 +167,18 @@ async function syncMilitariesFromSheetInternal() {
           if (!safeRg || safeRg === 'RG') continue;
           const docRef = db.collection('militaries').doc(safeRg);
           
+          const prevMem1 = militaryCache.get(safeRg) || {};
+          const defaultEntry1 = defaultAlasMap[safeRg];
+          const preservedAla1 = (defaultEntry1 && defaultEntry1.ala)
+            ? defaultEntry1.ala
+            : (prevMem1.ala || row['ALA'] || row['Ala'] || row['Ala/Horário'] || null);
+
           const data: any = {
             rg: safeRg,
             name: row['NOME'] || row['Nome'] || null,
             warName: row['N.Guerra'] || row['N.Guerra'] || null,
             rank: row['Posto/Grad'] || row['POSTO/GRAD'] || null,
-            ala: row['ALA'] || row['Ala'] || row['Ala/Horário'] || null,
+            ala: preservedAla1,
             obm: row['OBM'] ? normalizeObm(row['OBM']) : null,
             email: row['E-mail'] || row['EMAIL'] || null,
             cel: row['Cel'] || row['Celular'] || null,
@@ -189,7 +204,6 @@ async function syncMilitariesFromSheetInternal() {
           }
 
           batch.set(docRef, data, { merge: true });
-          const prevMem1 = militaryCache.get(safeRg) || {};
           const mergedMem1 = { ...prevMem1, ...data };
           if (prevMem1.hasCustomPassword !== undefined) mergedMem1.hasCustomPassword = prevMem1.hasCustomPassword;
           if (prevMem1.customPassword) mergedMem1.customPassword = prevMem1.customPassword;
@@ -218,12 +232,18 @@ async function syncMilitariesFromSheetInternal() {
         if (!safeRg || safeRg === 'RG') continue;
         const docRef = doc(clientDb, 'militaries', safeRg);
         
+        const prevMem2 = militaryCache.get(safeRg) || {};
+        const defaultEntry2 = defaultAlasMap[safeRg];
+        const preservedAla2 = (defaultEntry2 && defaultEntry2.ala)
+          ? defaultEntry2.ala
+          : (prevMem2.ala || row['ALA'] || row['Ala'] || row['Ala/Horário'] || null);
+
         const data: any = {
           rg: safeRg,
           name: row['NOME'] || row['Nome'] || null,
           warName: row['N.Guerra'] || row['N.Guerra'] || null,
           rank: row['Posto/Grad'] || row['POSTO/GRAD'] || null,
-          ala: row['ALA'] || row['Ala'] || row['Ala/Horário'] || null,
+          ala: preservedAla2,
           obm: row['OBM'] ? normalizeObm(row['OBM']) : null,
           email: row['E-mail'] || row['EMAIL'] || null,
           cel: row['Cel'] || row['Celular'] || null,
@@ -249,7 +269,6 @@ async function syncMilitariesFromSheetInternal() {
         }
 
         batch.set(docRef, data, { merge: true });
-        const prevMem2 = militaryCache.get(safeRg) || {};
         const mergedMem2 = { ...prevMem2, ...data };
         if (prevMem2.hasCustomPassword !== undefined) mergedMem2.hasCustomPassword = prevMem2.hasCustomPassword;
         if (prevMem2.customPassword) mergedMem2.customPassword = prevMem2.customPassword;
@@ -607,6 +626,27 @@ async function startServer() {
       }
       console.log('[Cache] Injected requested militaries into memory.');
     } catch (e) {}
+
+    // Garantir aplicação da formação padrão hardcoded de alas na inicialização
+    try {
+      const defaultAlasPath = path.join(process.cwd(), 'src/server/lib/default_alas_composition.json');
+      if (fs.existsSync(defaultAlasPath)) {
+        const defaultAlasMap = JSON.parse(fs.readFileSync(defaultAlasPath, 'utf8'));
+        let countApplied = 0;
+        for (const [rg, item] of Object.entries(defaultAlasMap as any)) {
+          const safeRg = normalizeRg(rg);
+          const cached = militaryCache.get(safeRg);
+          if (cached && (item as any).ala) {
+            cached.ala = (item as any).ala;
+            militaryCache.set(safeRg, cached);
+            countApplied++;
+          }
+        }
+        console.log(`[Cache] Formação oficial padrão das alas consolidada para ${countApplied} militares.`);
+      }
+    } catch (e: any) {
+      console.warn('[Cache] Erro ao consolidar alas padrão:', e.message);
+    }
 
     // Preload SMTP configuration from Firestore
     try {

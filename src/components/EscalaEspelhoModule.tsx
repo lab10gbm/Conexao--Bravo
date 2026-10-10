@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useMilitars } from "../contexts/MilitarContext";
 import { PermutaRequest, PermutaStatus } from "../types";
 import { collection, query, where, onSnapshot, updateDoc, doc, serverTimestamp, getDoc, setDoc, getDocs, addDoc, deleteDoc } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { db, auth } from "../lib/firebase";
 import { format, parseISO, addDays, subDays, startOfToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
@@ -14,7 +14,7 @@ import { RequestPermuta } from "./RequestPermuta";
 import { AfastamentosAlaModule } from "./AfastamentosAlaModule";
 import { ExpedienteDiaModule } from "./ExpedienteDiaModule";
 import { EscalanteDashboardCalendar } from "./EscalanteDashboardCalendar";
-import { Calendar as CalendarIcon, Users, ArrowRightLeft, ArrowRight, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, ChevronLeft, ChevronRight, Check, X, Clock, Printer, Shuffle, Plus, Settings, Activity, TrendingDown, PieChart, BriefcaseBusiness, Download, RotateCcw, ExternalLink, Edit3, Award, Star, UserCheck, Anchor, Stethoscope, HeartPulse, Sparkles, Trash2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, ArrowRightLeft, ArrowRight, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, ChevronLeft, ChevronRight, Check, X, Clock, Printer, Shuffle, Plus, Settings, Activity, TrendingDown, PieChart, BriefcaseBusiness, Download, RotateCcw, ExternalLink, Edit3, Award, Star, UserCheck, Anchor, Stethoscope, HeartPulse, Sparkles, Trash2, Building2, ArrowLeftRight, UserPlus, Loader2, AlertTriangle, Search } from 'lucide-react';
 
 import { motion } from "framer-motion";
 import { cleanUndefined, getUserObmAccess, normalizeObm, getAlaForDate, cn, getAlaColor, getAlaName, formatMilitaryName, normalizeAlaField, normalizeRg } from '../lib/utils';
@@ -222,7 +222,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
       } catch {}
     }
   }, [initialDate]);
-  const { militars, loading: militarsLoading } = useMilitars();
+  const { militars, loading: militarsLoading, refreshMilitars, updateMilitarLocal } = useMilitars();
   const [permutas, setPermutas] = useState<PermutaRequest[]>([]);
   const [afastamentos, setAfastamentos] = useState<any[]>([]);
   const [isPermutaModalOpen, setIsPermutaModalOpen] = useState(false);
@@ -234,6 +234,14 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   const [expedienteMilitars, setExpedienteMilitars] = useState<any[]>([]);
   const [rasApplications, setRasApplications] = useState<any[]>([]);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+
+  // Estados para Transferência / Recebimento de Militar de outra unidade no CBA VII
+  const [pendingTransferMilitar, setPendingTransferMilitar] = useState<any | null>(null);
+  const [isTransferringMilitar, setIsTransferringMilitar] = useState(false);
+  const [showTransferSearchModal, setShowTransferSearchModal] = useState(false);
+  const [transferModalSearch, setTransferModalSearch] = useState('');
+  const [transferModalSelectedMilitar, setTransferModalSelectedMilitar] = useState<any | null>(null);
+  const [transferModalTargetAla, setTransferModalTargetAla] = useState('1');
 
   const visibleRasApplications = useMemo(() => {
     const removedRgs = manuallyRemovedRgs[selectedDate] || [];
@@ -1054,11 +1062,11 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     
     return uniquePool
       .filter((m) => {
-        const rawObm = m.obm ? m.obm.trim().toUpperCase() : "10º GBM";
-        const ctx = (obmContext || "").trim().toUpperCase();
+        const rawObm = normalizeObm(m.obm || "10º GBM");
+        const ctx = normalizeObm(obmContext || "10º GBM");
         const isInCtx = ctx === "GLOBAL" || rawObm === ctx;
         
-        const isActive = !m.situacao || !['TRANSFERIDO', 'INATIVO', 'EXCLUÍDO', 'EXCLUIDO', 'DESLIGADO'].some(status => m.situacao.trim().toUpperCase().includes(status));
+        const isExcluded = ['INATIVO', 'EXCLUÍDO', 'EXCLUIDO', 'DESLIGADO'].some(status => (m.situacao || '').trim().toUpperCase().includes(status));
 
         if (removedRgs.includes(m.rg || '')) return false;
 
@@ -1067,7 +1075,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         const isExpediente24h = isInCtx && expediente24hRgs.includes(m.rg || '');
         const isRas = rasRgs.includes(m.rg || '');
         
-        if (!isActive && !isManual && !isRas) return false;
+        if (isExcluded && !isManual && !isRas) return false;
         if (!isAla && !isManual && !isExpediente24h && !isRas) return false;
         
         // Verifica se há afastamento para o militar na data selecionada
@@ -1942,8 +1950,108 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                (m.rg || '').toString().includes(addMilitarSearch);
       })
       .filter(m => !baseRoster.some(br => br.rg === m.rg))
-      .slice(0, 10);
+      .slice(0, 15);
   }, [addMilitarSearch, militars, globalSearchResults, baseRoster]);
+
+  const handleCandidateSelect = (m: any) => {
+    const mObm = normalizeObm(m.obm || '10º GBM');
+    const currentObm = normalizeObm(obmContext || '10º GBM');
+    const isOtherUnit = mObm !== currentObm && currentObm !== 'GLOBAL';
+
+    if (isOtherUnit) {
+      // Abre o aviso/modal de transferência de unidade
+      setPendingTransferMilitar(m);
+      setShowAddMenu(false);
+    } else {
+      // Adiciona diretamente à escala
+      if (!militars.some(local => local.rg === m.rg) && !extraMilitars.some(extra => extra.rg === m.rg)) {
+        setExtraMilitars(prev => [...prev, m]);
+      }
+      setManuallyAddedRgs(prev => {
+        const curr = prev[selectedDate] || [];
+        return {
+          ...prev,
+          [selectedDate]: [...curr, m.rg || '']
+        };
+      });
+      setAddMilitarSearch('');
+      setShowAddMenu(false);
+      setActionNotice(`${parseRank(m.rank)} ${m.warName || m.name} adicionado à escala.`);
+      setTimeout(() => setActionNotice(null), 3000);
+    }
+  };
+
+  const executeMilitarTransfer = async (m: any, targetObm: string, permanentTransfer: boolean, targetAlaOption?: string) => {
+    if (!m) return;
+    setIsTransferringMilitar(true);
+    try {
+      const assignedAla = targetAlaOption || identifiedAlaStr || '1';
+
+      if (permanentTransfer) {
+        const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+        const res = await fetch('/api/militar/transfer', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            rg: m.rg,
+            targetObm,
+            targetAla: assignedAla,
+            originObm: m.obm || '10º GBM',
+            reason: `Transferência confirmada no Espelho da Escala de ${targetObm}`
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'Falha ao registrar transferência no servidor');
+        }
+
+        // Atualização em memória no contexto do cliente
+        updateMilitarLocal(m.rg, {
+          obm: targetObm,
+          ala: assignedAla,
+          situacao: 'Ativo'
+        });
+        refreshMilitars();
+      }
+
+      // Adiciona militar à escala do dia
+      const militarWithTargetObm = {
+        ...m,
+        obm: targetObm,
+        ala: assignedAla
+      };
+
+      setExtraMilitars(prev => [...prev.filter(x => x.rg !== m.rg), militarWithTargetObm]);
+      setManuallyAddedRgs(prev => {
+        const curr = prev[selectedDate] || [];
+        return {
+          ...prev,
+          [selectedDate]: [...curr.filter(r => r !== m.rg), m.rg || '']
+        };
+      });
+
+      setActionNotice(
+        permanentTransfer
+          ? `Militar ${parseRank(m.rank)} ${m.warName || m.name} transferido definitivamente para o ${targetObm} (Ala ${assignedAla}) e escalado com sucesso!`
+          : `Militar ${parseRank(m.rank)} ${m.warName || m.name} adicionado à escala de ${selectedDate} como reforço.`
+      );
+      setTimeout(() => setActionNotice(null), 4500);
+
+      setPendingTransferMilitar(null);
+      setShowTransferSearchModal(false);
+      setTransferModalSelectedMilitar(null);
+      setTransferModalSearch('');
+      setAddMilitarSearch('');
+    } catch (err: any) {
+      alert("Erro ao realizar transferência: " + (err.message || 'Erro de conexão'));
+    } finally {
+      setIsTransferringMilitar(false);
+    }
+  };
 
   const handleRegisterEscala = async (signatureData: any) => {
     try {
@@ -3166,11 +3274,29 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
               Tab Permuta (Construção da Escala)
             </h3>
             
-            <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full sm:w-auto">
+              {/* Botão de Transferência Direta / Receber Militar do CBA VII */}
+              {normalizeObm(obmContext) !== 'GLOBAL' && (
+                <button
+                  onClick={() => {
+                    setShowTransferSearchModal(true);
+                    setTransferModalSearch('');
+                    setTransferModalSelectedMilitar(null);
+                    setTransferModalTargetAla(identifiedAlaStr || '1');
+                  }}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-colors shadow-xs shrink-0 cursor-pointer"
+                  title={`Receber e transferir militar de qualquer unidade do CBA VII para o ${obmContext}`}
+                >
+                  <ArrowLeftRight className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">Transferir para {obmContext}</span>
+                  <span className="md:hidden">Transferir</span>
+                </button>
+              )}
+
               <div className="relative w-full sm:w-64 z-20" ref={addMenuRef}>
                 <input
                   type="text"
-                  placeholder="Buscar militar..."
+                  placeholder="Buscar militar de qualquer unidade..."
                   value={addMilitarSearch}
                   onChange={(e) => {
                     setAddMilitarSearch(e.target.value);
@@ -3180,33 +3306,38 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                   className="w-full text-xs bg-white border border-indigo-200 rounded px-3 py-1.5 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 placeholder:text-slate-400 text-slate-800 font-bold"
                 />
                 {showAddMenu && addMilitarSearch.length >= 2 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-xl max-h-48 overflow-y-auto">
-                    {addMenuOptions.map((m) => (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-xl max-h-56 overflow-y-auto">
+                    {addMenuOptions.map((m) => {
+                      const mObm = normalizeObm(m.obm || '10º GBM');
+                      const currentObm = normalizeObm(obmContext || '10º GBM');
+                      const isOtherUnit = mObm !== currentObm && currentObm !== 'GLOBAL';
+
+                      return (
                         <button
                           key={m.rg}
-                          onClick={() => {
-                            if (!militars.some(local => local.rg === m.rg) && !extraMilitars.some(extra => extra.rg === m.rg)) {
-                                setExtraMilitars(prev => [...prev, m]);
-                            }
-                            setManuallyAddedRgs(prev => {
-                              const curr = prev[selectedDate] || [];
-                              return {
-                                ...prev,
-                                [selectedDate]: [...curr, m.rg || '']
-                              };
-                            });
-                            setAddMilitarSearch('');
-                            setShowAddMenu(false);
-                          }}
-                          className="w-full text-left px-3 py-2 text-[10px] font-bold text-slate-700 hover:bg-indigo-50 border-b border-slate-100 last:border-0 flex flex-col"
+                          onClick={() => handleCandidateSelect(m)}
+                          className={cn(
+                            "w-full text-left px-3 py-2 text-[10px] font-bold border-b border-slate-100 last:border-0 flex flex-col transition-colors cursor-pointer",
+                            isOtherUnit ? "bg-amber-50/70 hover:bg-amber-100 text-amber-950" : "text-slate-700 hover:bg-indigo-50"
+                          )}
                         >
                           <div className="flex items-center justify-between">
-                            <span className="uppercase">{parseRank(m.rank)} {m.warName}</span>
-                            <span className="text-[8px] font-black uppercase text-slate-400 bg-slate-100 px-1 py-0.5 rounded">{m.obm?.split(' ')[0] || 'S/Q'}</span>
+                            <span className="uppercase">{parseRank(m.rank)} {m.warName || m.name}</span>
+                            <span className={cn(
+                              "text-[8px] font-black uppercase px-1.5 py-0.5 rounded",
+                              isOtherUnit 
+                                ? "bg-amber-200 text-amber-900 border border-amber-300" 
+                                : "text-slate-400 bg-slate-100"
+                            )}>
+                              {isOtherUnit ? `${m.obm || '10º GBM'} (Transferir)` : (m.obm?.split(' ')[0] || 'S/Q')}
+                            </span>
                           </div>
-                          <span className="text-[9px] text-slate-400 font-medium">RG: {m.rg}</span>
+                          <span className="text-[9px] text-slate-400 font-medium">
+                            RG: {m.rg} • {m.ala ? `Ala ${m.ala}` : 'Sem Ala'}
+                          </span>
                         </button>
-                    ))}
+                      );
+                    })}
                     {addMenuOptions.length === 0 && (
                         <div className="px-3 py-2 text-[10px] font-medium text-slate-500 text-center">
                           Nenhum militar encontrado
@@ -4226,6 +4357,226 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         obmContext={obmContext}
         initialDate={selectedDate ? new Date(selectedDate + "T00:00:00") : null}
       />
+
+      {/* POPUP MODAL 1: Aviso de Militar em Outra Unidade (Transferência / Escalar) */}
+      {pendingTransferMilitar && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-amber-100 text-amber-800 rounded-2xl shrink-0">
+                <ArrowLeftRight className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="text-base font-black text-slate-900 tracking-tight">
+                  Militar Lotado em Outra Unidade (CBA VII)
+                </h4>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Operando no ambiente do {obmContext}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-amber-50/80 rounded-2xl border border-amber-200 text-xs text-amber-950 mb-5 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-slate-600">Militar:</span>
+                <strong className="font-black text-slate-900 uppercase">
+                  {parseRank(pendingTransferMilitar.rank)} {pendingTransferMilitar.warName || pendingTransferMilitar.name}
+                </strong>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-slate-600">RG:</span>
+                <span className="font-mono font-bold text-slate-800">{pendingTransferMilitar.rg}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-slate-600">Lotação Atual no Cadastro:</span>
+                <span className="font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                  {pendingTransferMilitar.obm || '10º GBM'} {pendingTransferMilitar.ala ? `(Ala ${pendingTransferMilitar.ala})` : ''}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-slate-600">Unidade de Destino:</span>
+                <span className="font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">
+                  {obmContext} (Ala {identifiedAlaStr || '1'})
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed mb-6 font-medium">
+              Este militar está registrado no <strong>{pendingTransferMilitar.obm || '10º GBM'}</strong>. 
+              Como você está organizando a escala do <strong>{obmContext}</strong>, deseja confirmar a <strong>transferência definitiva para cá</strong> (atualizando a lotação no Sistema de Gestão do Efetivo do CBA VII) ou deseja apenas escalá-lo nesta data?
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5">
+              <button
+                onClick={() => setPendingTransferMilitar(null)}
+                disabled={isTransferringMilitar}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black uppercase tracking-wider transition-colors order-3 sm:order-1 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => executeMilitarTransfer(pendingTransferMilitar, obmContext, false)}
+                disabled={isTransferringMilitar}
+                className="px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-black uppercase tracking-wider transition-colors order-2 cursor-pointer"
+                title="Escala somente hoje sem mudar unidade definitiva"
+              >
+                Apenas Nesta Data (Reforço)
+              </button>
+              <button
+                onClick={() => executeMilitarTransfer(pendingTransferMilitar, obmContext, true)}
+                disabled={isTransferringMilitar}
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors shadow-sm flex items-center justify-center gap-1.5 order-1 sm:order-3 cursor-pointer"
+              >
+                {isTransferringMilitar ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                Transferir para {obmContext} e Escalar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP MODAL 2: Modal de Transferência Direta / Receber Militar para {obmContext} */}
+      {showTransferSearchModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-indigo-100 text-indigo-700 rounded-2xl">
+                  <UserPlus className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="text-base font-black text-slate-900 tracking-tight">Receber / Transferir Militar</h4>
+                  <p className="text-xs text-slate-500 font-medium">Destino: {obmContext} (CBA VII)</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowTransferSearchModal(false);
+                  setTransferModalSelectedMilitar(null);
+                  setTransferModalSearch('');
+                }}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 mb-4 font-medium">
+              Pesquise qualquer militar do CBA VII (10º GBM, 1/10, 2/10, 3/10, 4/10, 26º GBM, etc.) para recebê-lo e transferi-lo para o <strong>{obmContext}</strong>:
+            </p>
+
+            <div className="space-y-3 mb-6">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar militar por nome ou RG..."
+                  value={transferModalSearch}
+                  onChange={(e) => setTransferModalSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 rounded-xl text-xs font-bold text-slate-800 outline-none"
+                  autoFocus
+                />
+              </div>
+
+              {transferModalSearch.length >= 2 && !transferModalSelectedMilitar && (
+                <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-white shadow-inner">
+                  {militars
+                    .filter(m => {
+                      const searchRg = normalizeRg(transferModalSearch);
+                      const matchesRg = searchRg ? normalizeRg(m.rg || '').includes(searchRg) : false;
+                      return (m.name || '').toLowerCase().includes(transferModalSearch.toLowerCase()) ||
+                             (m.warName || '').toLowerCase().includes(transferModalSearch.toLowerCase()) ||
+                             matchesRg;
+                    })
+                    .slice(0, 15)
+                    .map(m => {
+                      const mObm = normalizeObm(m.obm || '10º GBM');
+                      const isCurrentCtx = mObm === normalizeObm(obmContext || '10º GBM');
+
+                      return (
+                        <div
+                          key={m.rg}
+                          onClick={() => setTransferModalSelectedMilitar(m)}
+                          className="p-2.5 hover:bg-indigo-50 cursor-pointer flex items-center justify-between text-xs transition-colors"
+                        >
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-800">{parseRank(m.rank)} {m.warName || m.name}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">RG {m.rg}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn(
+                              "text-[9px] font-black uppercase px-2 py-0.5 rounded-full border",
+                              isCurrentCtx ? "bg-slate-100 text-slate-600 border-slate-200" : "bg-amber-100 text-amber-800 border-amber-300"
+                            )}>
+                              {m.obm || '10º GBM'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+
+              {transferModalSelectedMilitar && (
+                <div className="p-4 bg-indigo-50/70 border border-indigo-200 rounded-2xl flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-black text-indigo-900">
+                      {parseRank(transferModalSelectedMilitar.rank)} {transferModalSelectedMilitar.warName || transferModalSelectedMilitar.name}
+                    </div>
+                    <div className="text-[10px] text-indigo-700 font-medium mt-0.5">
+                      RG: {transferModalSelectedMilitar.rg} • Lotação Atual: <strong>{transferModalSelectedMilitar.obm || '10º GBM'}</strong> (Ala: {transferModalSelectedMilitar.ala || 'Sem Ala'})
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setTransferModalSelectedMilitar(null)}
+                    className="text-xs text-indigo-600 hover:text-indigo-800 font-bold underline cursor-pointer"
+                  >
+                    Trocar
+                  </button>
+                </div>
+              )}
+
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">
+                  Ala de Destino no {obmContext}
+                </label>
+                <select
+                  value={transferModalTargetAla}
+                  onChange={(e) => setTransferModalTargetAla(e.target.value)}
+                  className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs font-black uppercase text-slate-800 outline-none cursor-pointer"
+                >
+                  <option value="1">ALA 1</option>
+                  <option value="2">ALA 2</option>
+                  <option value="3">ALA 3</option>
+                  <option value="4">ALA 4</option>
+                  <option value="EXP">EXPEDIENTE</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowTransferSearchModal(false);
+                  setTransferModalSelectedMilitar(null);
+                  setTransferModalSearch('');
+                }}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black uppercase tracking-wider transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => transferModalSelectedMilitar && executeMilitarTransfer(transferModalSelectedMilitar, obmContext, true, transferModalTargetAla)}
+                disabled={!transferModalSelectedMilitar || isTransferringMilitar}
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
+              >
+                {isTransferringMilitar ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                Confirmar Transferência para {obmContext}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {actionNotice && (
         <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 border border-slate-700">
