@@ -9,7 +9,7 @@ import { getFirestore as getAdminFirestore, FieldValue } from 'firebase-admin/fi
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { initializeApp } from 'firebase/app';
 import { getFirestore as getClientFirestore, initializeFirestore, doc, setDoc, serverTimestamp, collection, getDocs, getDoc, query, limit, orderBy, where, writeBatch, onSnapshot, deleteField } from 'firebase/firestore';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
 import fs from 'fs';
 import compression from 'compression';
 import cors from 'cors';
@@ -352,16 +352,24 @@ async function initFirebaseAdmin() {
      // Authenticate client SDK so server-side operations on clientDb satisfy `request.auth != null`
      const clientAuth = getAuth(clientApp);
      try {
-       await signInWithEmailAndPassword(clientAuth, "system_admin@cbmerj.local", "AdminServerSecret123!");
+       await signInWithEmailAndPassword(clientAuth, "system_admin@cbmerj.com", "AdminServerSecret123!");
        console.log("[Firebase] Backend clientDb authenticated as system_admin.");
      } catch (authErr: any) {
        if (authErr.code === "auth/user-not-found" || authErr.code === "auth/invalid-credential") {
          try {
-           await createUserWithEmailAndPassword(clientAuth, "system_admin@cbmerj.local", "AdminServerSecret123!");
+           await createUserWithEmailAndPassword(clientAuth, "system_admin@cbmerj.com", "AdminServerSecret123!");
            console.log("[Firebase] Backend clientDb created and authenticated system_admin.");
          } catch (createErr: any) {
            console.warn("[Firebase] Could not create system_admin user:", createErr.message);
          }
+       }
+     }
+     if (!clientAuth.currentUser) {
+       try {
+         await signInAnonymously(clientAuth);
+         console.log("[Firebase] Backend clientDb authenticated anonymously.");
+       } catch (anonErr: any) {
+         console.warn("[Firebase] Backend clientDb anonymous auth notice:", anonErr.message);
        }
      }
   } catch(e: any) {

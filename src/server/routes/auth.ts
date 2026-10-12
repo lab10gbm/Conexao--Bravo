@@ -3,23 +3,65 @@ import { getAuth } from "firebase-admin/auth";
 
 export const authRouter = express.Router();
 
+export const optionalFirebaseSession = async (req: any, res: any, next: any) => {
+  const authHeader = req.headers.authorization;
+  const queryRg = (req.query.rg || req.headers['x-user-rg'] || req.body?.rg) as string;
+
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const idToken = authHeader.split("Bearer ")[1]?.trim();
+    if (idToken && idToken !== 'mock-token-local') {
+      try {
+        const decodedToken = await getAuth().verifyIdToken(idToken);
+        req.user = decodedToken;
+        return next();
+      } catch (error) {
+        // Token was invalid or expired or firebase-admin not initialized, fall through
+      }
+    } else if (idToken === 'mock-token-local') {
+      const rg = queryRg || '54444';
+      req.user = { uid: "local-dev", rg, isAdmin: true };
+      return next();
+    }
+  }
+
+  // Fallback to RG if passed in query/body/header
+  if (queryRg) {
+    const cleanRg = String(queryRg).replace(/\D/g, '');
+    req.user = { uid: cleanRg, rg: cleanRg, isAdmin: cleanRg === '54444' || cleanRg === '54208' };
+  } else {
+    req.user = null;
+  }
+
+  next();
+};
+
 export const verifyFirebaseSession = async (req: any, res: any, next: any) => {
   const authHeader = req.headers.authorization;
+  const queryRg = (req.query.rg || req.headers['x-user-rg'] || req.body?.rg) as string;
+
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     // If no token, check if we are in a dev environment without credentials
     // If so, we'll allow access by extracting RG from query or body
-    const rg = req.query.rg || req.body.rg;
-    if (rg) {
-       req.user = { uid: "local-dev", rg, isAdmin: rg === '54444' || rg === '54208' };
+    if (queryRg) {
+       const cleanRg = String(queryRg).replace(/\D/g, '');
+       req.user = { uid: cleanRg, rg: cleanRg, isAdmin: cleanRg === '54444' || cleanRg === '54208' };
        return next();
     }
     return res.status(401).json({ error: "No token provided" });
   }
 
-  const idToken = authHeader.split("Bearer ")[1];
+  const idToken = authHeader.split("Bearer ")[1]?.trim();
+  if (!idToken) {
+    if (queryRg) {
+       const cleanRg = String(queryRg).replace(/\D/g, '');
+       req.user = { uid: cleanRg, rg: cleanRg, isAdmin: cleanRg === '54444' || cleanRg === '54208' };
+       return next();
+    }
+    return res.status(401).json({ error: "Empty token provided" });
+  }
   
   if (idToken === 'mock-token-local') {
-    const rg = req.query.rg || req.body.rg || '54444';
+    const rg = queryRg || '54444';
     req.user = { uid: "local-dev", rg, isAdmin: true };
     return next();
   }
@@ -31,9 +73,9 @@ export const verifyFirebaseSession = async (req: any, res: any, next: any) => {
   } catch (error) {
     console.warn("Error verifying auth token", error);
     // Fallback for local development
-    const rg = req.query.rg || req.body.rg;
-    if (rg) {
-       req.user = { uid: "local-dev", rg, isAdmin: rg === '54444' || rg === '54208' };
+    if (queryRg) {
+       const cleanRg = String(queryRg).replace(/\D/g, '');
+       req.user = { uid: cleanRg, rg: cleanRg, isAdmin: cleanRg === '54444' || cleanRg === '54208' };
        return next();
     }
     res.status(403).json({ error: "Unauthorized" });

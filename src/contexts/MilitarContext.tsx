@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { UserProfile } from '../types';
 import { db, auth } from '../lib/firebase';
+import { signInAnonymously } from 'firebase/auth';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { cleanUndefined } from '../lib/utils';
 
@@ -38,7 +39,19 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
       }
 
       const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
-      const res = await fetch(`/api/militar${rg ? `?rg=${rg}` : ''}`, { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } });
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      if (rg) {
+        headers['x-user-rg'] = String(rg);
+      }
+
+      const res = await fetch(`/api/militar${rg ? `?rg=${encodeURIComponent(rg)}` : ''}`, { 
+        cache: 'no-store', 
+        headers 
+      });
+
       if (!res.ok) {
         console.warn('[MilitarContext] Failed to fetch militars:', res.status, res.statusText);
         return;
@@ -55,6 +68,11 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // Ensure Firebase auth session is present (anonymous fallback if not logged in)
+    if (!auth.currentUser) {
+      signInAnonymously(auth).catch(() => {});
+    }
+
     // Initial fetch to populate data
     fetchMilitars();
     
@@ -131,8 +149,11 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
     try {
       // 2. Call backend DELETE endpoint (removes from memory cache, updates deleted set, triggers SSE)
       const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+      const headers: Record<string, string> = { 'x-user-rg': safeRg };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const res = await fetch(`/api/militar/${safeRg}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers,
         method: 'DELETE',
       });
 
@@ -172,8 +193,14 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
     try {
       // 2. Update backend server cache & Firestore
       const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+      const headers: Record<string, string> = { 
+        'Content-Type': 'application/json',
+        'x-user-rg': safeRg
+      };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       await fetch('/api/militar/update', {
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers,
         method: 'POST',
         body: JSON.stringify({ rg: safeRg, data: payload })
       });

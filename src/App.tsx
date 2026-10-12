@@ -5,7 +5,7 @@
 
 import React, { useEffect, useState } from "react";
 import { auth, db } from "./lib/firebase";
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import { onAuthStateChanged, signOut, signInAnonymously } from "firebase/auth";
 import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import {
   Routes,
@@ -365,6 +365,13 @@ export default function App() {
          setAuthReady(true);
       }
     }, 5000);
+
+    // 1. Ensure Firebase Client Auth has an active session for Firestore rules and Bearer tokens
+    if (!auth.currentUser) {
+      signInAnonymously(auth).catch((err) => {
+        console.warn("[Auth] Client anonymous auth notice:", err?.message || err);
+      });
+    }
 
     // 2. Listen for Auth changes
     const unsubscribeAuth = onAuthStateChanged(auth, async (u) => {

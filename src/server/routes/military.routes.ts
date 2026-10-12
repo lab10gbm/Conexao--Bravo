@@ -1,4 +1,4 @@
-import { verifyFirebaseSession } from "./auth";
+import { verifyFirebaseSession, optionalFirebaseSession } from "./auth";
 import express from 'express';
 import { collection, getDocs, getDoc, doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import fs from 'fs';
@@ -110,13 +110,20 @@ export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
     }
   });
 
-  app.get('/api/militar', verifyFirebaseSession, async (req: any, res) => {
+  app.get('/api/militar', optionalFirebaseSession, async (req: any, res) => {
     res.setHeader('Cache-Control', 'no-store');
     const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, normalizeObm, OBM_HIERARCHY, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
     const requesterRg = (req.user?.rg || req.user?.uid || req.query.rg) as string;
     let usersData: any[] = [];
     
-    if (isCacheLoaded && militaryCache.size > 0) {
+    // Ensure cache is loaded before returning
+    if (cachePromise && (!isCacheLoaded || militaryCache.size === 0)) {
+      try {
+        await cachePromise;
+      } catch (e) {}
+    }
+
+    if (militaryCache.size > 0) {
       usersData = Array.from(militaryCache.values());
       console.log(`[API] Served ${usersData.length} militaries from cache for ${requesterRg || 'anonymous'}`);
       

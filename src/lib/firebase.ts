@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, signInAnonymously } from 'firebase/auth';
 import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, setLogLevel } from 'firebase/firestore';
 import firebaseConfigData from '../../firebase-applet-config.json';
 
@@ -45,6 +45,17 @@ function initFirestore() {
 
 export const db = initFirestore();
 export const auth = getAuth();
+
+// Guarantee active client session so Firestore security rules (request.auth != null) are always met
+if (typeof window !== 'undefined') {
+  auth.onAuthStateChanged((currentUser) => {
+    if (!currentUser) {
+      signInAnonymously(auth).catch((err) => {
+        console.warn('[Firebase Auth] Client auto-auth note:', err?.message || err);
+      });
+    }
+  });
+}
 
 // Suppress internal Firestore connection reset/retry noise (Code 14 UNAVAILABLE / ECONNRESET)
 setLogLevel('silent');
