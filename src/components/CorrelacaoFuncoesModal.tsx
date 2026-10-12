@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Settings, X, Save, Loader2 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../lib/utils";
 import { db } from "../lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";

@@ -172,13 +172,15 @@ export function MainLayout({
                     setModeratorMode(nextMode);
                     setAdminModeActive(nextMode);
                   }}
-                  className={`p-1.5 sm:p-2 transition-colors rounded-lg flex items-center justify-center gap-1.5 sm:gap-2 px-1.5 sm:px-3 ${moderatorMode ? "bg-indigo-500 text-white shadow-inner" : "text-white/50 hover:text-indigo-400 hover:bg-white/5 border border-white/10"}`}
-                  title={moderatorMode ? "Desativar Modo Moderador" : "Ativar Modo Moderador"}
+                  className={`w-9 h-9 sm:w-10 sm:h-10 transition-all rounded-xl flex items-center justify-center shrink-0 active:scale-95 cursor-pointer ${
+                    moderatorMode
+                      ? "bg-indigo-600 text-white border border-indigo-400/50 shadow-md shadow-indigo-900/40 hover:bg-indigo-500"
+                      : "text-white/60 hover:text-indigo-300 hover:bg-white/10 border border-white/10 hover:border-indigo-400/30"
+                  }`}
+                  title={moderatorMode ? "Modo Moderador Ativo (clique para desativar)" : "Ativar Modo Moderador"}
+                  aria-label="Modo Moderador"
                 >
-                  <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
-                  <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest hidden sm:block">
-                    {moderatorMode ? "Moderador Ativo" : "Ativar Moderador"}
-                  </span>
+                  <ShieldCheck className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
                 </button>
               )}
             </div>

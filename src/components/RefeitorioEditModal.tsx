@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { Settings2, X, Calendar, Edit2, Sunrise, Utensils, Sunset, Coffee, Save } from 'lucide-react';
 import { TagInput } from './TagInput';
 import { useRefeitorioData } from '../hooks/useRefeitorioData';

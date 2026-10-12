@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Check, Ruler, Shield, AlertCircle, Info, Database, Layout } from 'lucide-react';
 import { UserProfile } from '../types';
 import { db } from '../lib/firebase';

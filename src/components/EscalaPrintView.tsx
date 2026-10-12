@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Printer, X, Image as ImageIcon, PenTool, Save, Columns, LayoutList, Shield, ExternalLink } from 'lucide-react';
+import { Printer, X, Image as ImageIcon, PenTool, Save, Columns, LayoutList, Shield, ExternalLink, Eye, EyeOff, ChevronDown, Check } from 'lucide-react';
 import { RankInsignia } from './RankInsignia';
 import { LogoDecimoGbm } from './LogoDecimoGbm';
 import { LogoCbaSete } from './LogoCbaSete';
@@ -10,6 +10,7 @@ import { parseRank, sortAllBySeniority } from '../lib/rankUtils';
 import { formatMilitaryName, normalizeObm, normalizeRg, normalizeAlaField, cn, getAlaForDate } from '../lib/utils';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { OfficerVisibility } from '../types';
 
 export function EscalaPrintView({
   selectedDate,
@@ -24,9 +25,14 @@ export function EscalaPrintView({
   oficialDia,
   oficialNautica,
   oficialMedico,
+  officerVisibility: propOfficerVisibility,
+  onOfficerVisibilityChange,
+  adminRolesVisibility: propAdminRolesVisibility,
+  onAdminRolesVisibilityChange,
   user,
   afastamentos,
   obmContext,
+  grdRgs: propGrdRgs,
   onRegister,
   onClose
 }: any) {
@@ -34,8 +40,191 @@ export function EscalaPrintView({
   const [showLogoModal, setShowLogoModal] = useState(false);
   const [isSigned, setIsSigned] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
-  const [grdRgs, setGrdRgs] = useState<string[]>([]);
+  const [grdRgs, setGrdRgs] = useState<string[]>(() => propGrdRgs || []);
   const [printFallbackUrl, setPrintFallbackUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (propGrdRgs !== undefined && Array.isArray(propGrdRgs)) {
+      setGrdRgs(propGrdRgs);
+    }
+  }, [propGrdRgs]);
+  const [showOfficerMenu, setShowOfficerMenu] = useState(false);
+  const officerMenuRef = useRef<HTMLDivElement>(null);
+
+  const [officerVisibility, setOfficerVisibility] = useState<OfficerVisibility>(() => {
+    if (propOfficerVisibility) return propOfficerVisibility;
+    try {
+      const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : '10º GBM';
+      const cleanObm = normalizeObm(rawObm);
+      const saved = localStorage.getItem(`escala_officer_visibility_${cleanObm}`);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      showSection: true,
+      showOficialDia: true,
+      showOficialNautica: true,
+      showOficialMedico: true,
+    };
+  });
+
+  useEffect(() => {
+    if (propOfficerVisibility) {
+      setOfficerVisibility(propOfficerVisibility);
+    }
+  }, [propOfficerVisibility]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (officerMenuRef.current && !officerMenuRef.current.contains(e.target as Node)) {
+        setShowOfficerMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleUpdateOfficerVisibility = (updater: (prev: OfficerVisibility) => OfficerVisibility) => {
+    setOfficerVisibility(prev => {
+      const next = updater(prev);
+      try {
+        const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : '10º GBM';
+        const cleanObm = normalizeObm(rawObm);
+        localStorage.setItem(`escala_officer_visibility_${cleanObm}`, JSON.stringify(next));
+      } catch {}
+      onOfficerVisibilityChange?.(next);
+      return next;
+    });
+  };
+
+  const toggleOfficerVisibility = (key: 'showOficialDia' | 'showOficialNautica' | 'showOficialMedico') => {
+    handleUpdateOfficerVisibility(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      next.showSection = next.showOficialDia || next.showOficialNautica || next.showOficialMedico;
+      return next;
+    });
+  };
+
+  const setAllOfficersVisibility = (visible: boolean) => {
+    handleUpdateOfficerVisibility(() => ({
+      showSection: visible,
+      showOficialDia: visible,
+      showOficialNautica: visible,
+      showOficialMedico: visible,
+    }));
+  };
+
+  const isSectionVisible = officerVisibility.showSection !== false;
+  const isDiaVisible = isSectionVisible && officerVisibility.showOficialDia !== false;
+  const isNauticaVisible = isSectionVisible && officerVisibility.showOficialNautica !== false;
+  const isMedicoVisible = isSectionVisible && officerVisibility.showOficialMedico !== false;
+  const hasAnyVisibleOfficer = isDiaVisible || isNauticaVisible || isMedicoVisible;
+  const activeOfficerCount = (isDiaVisible ? 1 : 0) + (isNauticaVisible ? 1 : 0) + (isMedicoVisible ? 1 : 0);
+
+  const [adminRolesVisibility, setAdminRolesVisibility] = useState<Record<string, boolean>>(() => {
+    if (propAdminRolesVisibility && Object.keys(propAdminRolesVisibility).length > 0) {
+      return propAdminRolesVisibility;
+    }
+    try {
+      const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+      const cleanObm = normalizeObm(rawObm);
+      const saved = localStorage.getItem(`escala_admin_roles_visibility_${cleanObm}`);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {};
+  });
+
+  useEffect(() => {
+    if (propAdminRolesVisibility) {
+      setAdminRolesVisibility(propAdminRolesVisibility);
+    }
+  }, [propAdminRolesVisibility]);
+
+  const [showAdminMenu, setShowAdminMenu] = useState(false);
+  const adminMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (adminMenuRef.current && !adminMenuRef.current.contains(event.target as Node)) {
+        setShowAdminMenu(false);
+      }
+    }
+    if (showAdminMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showAdminMenu]);
+
+  const isAdminRoleVisible = (roleKey: string) => {
+    const norm = normalize(roleKey);
+    if (adminRolesVisibility[norm] !== undefined) return adminRolesVisibility[norm];
+    if (adminRolesVisibility[roleKey] !== undefined) return adminRolesVisibility[roleKey];
+    for (const [k, v] of Object.entries(adminRolesVisibility)) {
+      if (normalize(k) === norm) return v;
+    }
+    return true; // default is visible
+  };
+
+  const toggleAdminRoleVisibility = (roleKey: string) => {
+    const norm = normalize(roleKey);
+    const current = isAdminRoleVisible(roleKey);
+    const next = {
+      ...adminRolesVisibility,
+      [norm]: !current,
+      [roleKey]: !current,
+    };
+    setAdminRolesVisibility(next);
+    if (onAdminRolesVisibilityChange) {
+      onAdminRolesVisibilityChange(next);
+    }
+    try {
+      const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+      const cleanObm = normalizeObm(rawObm);
+      localStorage.setItem(`escala_admin_roles_visibility_${cleanObm}`, JSON.stringify(next));
+    } catch {}
+  };
+
+  const setAllAdminRolesVisibility = (visible: boolean) => {
+    const next: Record<string, boolean> = { ...adminRolesVisibility };
+    const allAdminKeys = [
+      'ADJUNTO', 'ENCARREGADO DE MOTORISTA', 'RESP FAXINA', 'SGT DIA', 'CMT GUARDA',
+      'DIA AO DEPOSITO', 'ABASTECEDOR', 'CB DIA', 'CB GUARDA',
+      'COMUNICANTE', 'SENTINELA', 'AUXILIAR RANCHO', 'TOQUE DE FOGO', 'ESCALANTE'
+    ];
+    allAdminKeys.forEach(k => {
+      next[normalize(k)] = visible;
+      next[k] = visible;
+    });
+    setAdminRolesVisibility(next);
+    if (onAdminRolesVisibilityChange) {
+      onAdminRolesVisibilityChange(next);
+    }
+    try {
+      const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+      const cleanObm = normalizeObm(rawObm);
+      localStorage.setItem(`escala_admin_roles_visibility_${cleanObm}`, JSON.stringify(next));
+    } catch {}
+  };
+
+  const getAdminRoleMappedKey = (label: string): string => {
+    const clean = label.replace(/[:.]/g, '').trim().toUpperCase();
+    if (clean.includes('ENCARREGADO')) return 'ENCARREGADO DE MOTORISTA';
+    if (clean.includes('FAXINA')) return 'RESP FAXINA';
+    if (clean.includes('SGT')) return 'SGT DIA';
+    if (clean.includes('CMT')) return 'CMT GUARDA';
+    if (clean.includes('DEPOSITO') || clean.includes('DEPÓSITO')) return 'DIA AO DEPOSITO';
+    if (clean.includes('ABASTECEDOR')) return 'ABASTECEDOR';
+    if (clean.includes('CB DIA') || clean.includes('CB DE DIA')) return 'CB DIA';
+    if (clean.includes('CB GUARDA') || clean.includes('CB DA GUARDA')) return 'CB GUARDA';
+    if (clean.includes('ADJUNTO')) return 'ADJUNTO';
+    if (clean.includes('COMUNICANTE')) return 'COMUNICANTE';
+    if (clean.includes('SENTINELA')) return 'SENTINELA';
+    if (clean.includes('RANCHO')) return 'AUXILIAR RANCHO';
+    if (clean.includes('FOGO')) return 'TOQUE DE FOGO';
+    return clean;
+  };
+
   const [expedienteLayout, setExpedienteLayout] = useState<'coluna' | 'secao'>(() => {
     try {
       const saved = localStorage.getItem('escala_expediente_layout');
@@ -158,6 +347,10 @@ export function EscalaPrintView({
   }, [selectedDate, obmContext, militars, afastamentos]);
 
   useEffect(() => {
+    if (propGrdRgs !== undefined && Array.isArray(propGrdRgs) && propGrdRgs.length > 0) {
+      setGrdRgs(propGrdRgs);
+      return;
+    }
     const fetchGrd = async () => {
       if (!selectedDate || !obmContext) return;
       try {
@@ -176,7 +369,7 @@ export function EscalaPrintView({
       }
     };
     fetchGrd();
-  }, [selectedDate, obmContext]);
+  }, [selectedDate, obmContext, propGrdRgs]);
 
   // Helper to get active viaturas dynamically
   const getActiveVtr = (prefix: string, index: number = 0) => {
@@ -553,24 +746,28 @@ export function EscalaPrintView({
   const dateStr = selectedDate ? format(safeDateObj, "dd 'DE' MMMM 'DE' yyyy", { locale: ptBR }).toUpperCase() : '';
   const shortDateStr = selectedDate ? format(safeDateObj, "dd/MM/yyyy") : '';
 
-  const renderInativaMsg = () => (
-     <div className="flex flex-col items-center justify-center text-center font-bold text-slate-500 px-1 py-1 leading-tight opacity-60">
-        <span className="text-[9px] uppercase tracking-wide">INATIVA NO SERVIÇO</span>
-        <span className="text-[8px] opacity-75">({shortDateStr})</span>
+  const renderInativaMsg = (customLabel?: string) => (
+     <div className="flex flex-col items-center justify-center text-center font-bold text-slate-600 px-1 py-1.5 leading-tight opacity-75 my-auto">
+        <span className="text-[9.5px] uppercase tracking-wider font-extrabold text-slate-700">{customLabel || "INATIVA NO SERVIÇO"}</span>
+        {shortDateStr && (
+           <span className="text-[8px] opacity-75 font-semibold mt-0.5">({shortDateStr})</span>
+        )}
      </div>
   );
 
   // Get active members list
-  const activeMembersList = baseRoster.map((m: any) => {
+  const activeMembersList = useMemo(() => {
+    return (baseRoster || []).map((m: any) => {
       const rg = m.rg || '';
-      const isSwapped = permutasOut.has(rg);
-      const actualMilitar = isSwapped ? (militars.find((x: any) => x.rg === permutasOut.get(rg)?.substituteRg) || m) : m;
+      const isSwapped = permutasOut?.has(rg);
+      const actualMilitar = isSwapped ? (militars?.find((x: any) => x.rg === permutasOut.get(rg)?.substituteRg) || m) : m;
       return {
         rg: actualMilitar?.rg || rg,
         militar: actualMilitar || m,
         label: `${actualMilitar?.rank || ''} ${actualMilitar?.warName || (actualMilitar?.name ? actualMilitar.name.split(' ')[0] : actualMilitar?.rg || '')}`
       };
-  });
+    }).sort((a: any, b: any) => sortAllBySeniority(a.militar, b.militar));
+  }, [baseRoster, permutasOut, militars]);
 
   const permutasAtivas = Array.from(permutasOut.values()).map((p: any) => {
      const sub = militars.find((x:any) => x.rg === p.substituteRg);
@@ -608,8 +805,8 @@ export function EscalaPrintView({
 
       // Clonar e limpar controles interativos exclusivos da tela
       const clone = sheetEl.cloneNode(true) as HTMLElement;
-      const actionsEl = clone.querySelector(".print\\:hidden, [class*='print:hidden']");
-      if (actionsEl) actionsEl.remove();
+      const hiddenEls = clone.querySelectorAll(".print\\:hidden, [class*='print:hidden']");
+      hiddenEls.forEach(el => el.remove());
 
       // Forçar atributos inline de cor exata e print-color-adjust em todos os cabeçalhos de ala
       const alaElements = clone.querySelectorAll(".escala-ala-header, ." + alaTheme.bgClass);
@@ -742,7 +939,7 @@ export function EscalaPrintView({
       }
     }, 250);
     return () => clearTimeout(timer);
-  }, [selectedDate, identifiedAla, baseRoster, viaturasInfo, expedienteLayout, isSigned, showVisualMode, alaTheme]);
+  }, [selectedDate, identifiedAla, baseRoster, viaturasInfo, expedienteLayout, isSigned, showVisualMode, alaTheme, officerVisibility, adminRolesVisibility]);
 
   const handlePrintEscala = () => {
     const fullHtml = generatePrintHtml();
@@ -824,6 +1021,175 @@ export function EscalaPrintView({
            <button type="button" onClick={() => setShowVisualMode(!showVisualMode)} className="bg-slate-200 text-slate-800 px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-300 cursor-pointer">
              <ImageIcon className="w-4 h-4" /> {showVisualMode ? 'Modo Texto' : 'Modo Visual'}
            </button>
+           {/* Seletor/Menu de Funções dos Oficiais */}
+           <div className="relative" ref={officerMenuRef}>
+             <button
+               type="button"
+               onClick={() => setShowOfficerMenu(!showOfficerMenu)}
+               className={cn(
+                 "border px-3 py-2 rounded-lg font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs text-xs",
+                 hasAnyVisibleOfficer
+                   ? "bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300"
+                   : "bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-300"
+               )}
+               title="Ativar ou desativar o aparecimento das funções dos oficiais no arquivo de escala"
+             >
+               {hasAnyVisibleOfficer ? (
+                 <Shield className="w-4 h-4 text-indigo-700" />
+               ) : (
+                 <EyeOff className="w-4 h-4 text-rose-600" />
+               )}
+               <span>Oficiais ({activeOfficerCount}/3)</span>
+               <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+             </button>
+
+             {showOfficerMenu && (
+               <div className="absolute right-0 top-full mt-1.5 w-64 bg-white border border-slate-300 rounded-xl shadow-2xl p-3 z-50 text-left">
+                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
+                   <span className="text-[10px] font-black uppercase tracking-wider text-slate-700">
+                     Funções dos Oficiais
+                   </span>
+                   <button
+                     type="button"
+                     onClick={() => setAllOfficersVisibility(!hasAnyVisibleOfficer)}
+                     className="text-[9px] font-black uppercase text-indigo-600 hover:text-indigo-800 cursor-pointer underline"
+                   >
+                     {hasAnyVisibleOfficer ? "Desativar Todos" : "Ativar Todos"}
+                   </button>
+                 </div>
+
+                 <div className="space-y-1.5">
+                   <label className="flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer">
+                     <span className="text-[11px] font-bold text-slate-800">Oficial de Dia</span>
+                     <input
+                       type="checkbox"
+                       checked={isDiaVisible}
+                       onChange={() => toggleOfficerVisibility('showOficialDia')}
+                       className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
+                     />
+                   </label>
+
+                   <label className="flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer">
+                     <span className="text-[11px] font-bold text-slate-800">Oficial da Náutica</span>
+                     <input
+                       type="checkbox"
+                       checked={isNauticaVisible}
+                       onChange={() => toggleOfficerVisibility('showOficialNautica')}
+                       className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
+                     />
+                   </label>
+
+                   <label className="flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer">
+                     <span className="text-[11px] font-bold text-slate-800">Oficial Médico</span>
+                     <input
+                       type="checkbox"
+                       checked={isMedicoVisible}
+                       onChange={() => toggleOfficerVisibility('showOficialMedico')}
+                       className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
+                     />
+                   </label>
+                 </div>
+
+                 <div className="pt-2 mt-2 border-t border-slate-100 flex items-center justify-between text-[9px] text-slate-500 font-medium">
+                   <span>Salvo no Gerar Escala</span>
+                   <button
+                     type="button"
+                     onClick={() => setShowOfficerMenu(false)}
+                     className="text-slate-700 font-bold hover:underline"
+                   >
+                     Fechar
+                   </button>
+                 </div>
+               </div>
+             )}
+           </div>
+
+           {/* Seletor/Menu de Funções Administrativas */}
+           <div className="relative" ref={adminMenuRef}>
+             <button
+               type="button"
+               onClick={() => setShowAdminMenu(!showAdminMenu)}
+               className="border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-2 rounded-lg font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs text-xs"
+               title="Ativar ou desativar o aparecimento das funções administrativas no arquivo de escala"
+             >
+               <Printer className="w-4 h-4 text-slate-600" />
+               <span>Funções Admin</span>
+               <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+             </button>
+
+             {showAdminMenu && (
+               <div className="absolute right-0 top-full mt-1.5 w-72 bg-white border border-slate-300 rounded-xl shadow-2xl p-3 z-50 text-left max-h-[420px] overflow-y-auto">
+                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
+                   <span className="text-[10px] font-black uppercase tracking-wider text-slate-700">
+                     Funções Administrativas
+                   </span>
+                   <div className="flex items-center gap-1.5">
+                     <button
+                       type="button"
+                       onClick={() => setAllAdminRolesVisibility(true)}
+                       className="text-[9px] font-black uppercase text-emerald-600 hover:text-emerald-800 cursor-pointer underline"
+                     >
+                       Ativar
+                     </button>
+                     <span className="text-slate-300 text-xs">/</span>
+                     <button
+                       type="button"
+                       onClick={() => setAllAdminRolesVisibility(false)}
+                       className="text-[9px] font-black uppercase text-rose-600 hover:text-rose-800 cursor-pointer underline"
+                     >
+                       Ocultar
+                     </button>
+                   </div>
+                 </div>
+
+                 <div className="space-y-1">
+                   {[
+                     { key: 'ADJUNTO', label: 'Adjunto' },
+                     { key: 'ENCARREGADO DE MOTORISTA', label: 'Encarregado de Motoristas' },
+                     { key: 'RESP FAXINA', label: 'Resp. Faxina' },
+                     { key: 'SGT DIA', label: 'Sargento de Dia' },
+                     { key: 'CMT GUARDA', label: 'Comandante da Guarda' },
+                     { key: 'DIA AO DEPOSITO', label: 'Dia ao Depósito' },
+                     { key: 'ABASTECEDOR', label: 'Abastecedor' },
+                     { key: 'CB DIA', label: 'Cabo de Dia' },
+                     { key: 'CB GUARDA', label: 'Cabo da Guarda' },
+                     { key: 'COMUNICANTE', label: 'Comunicantes' },
+                     { key: 'SENTINELA', label: 'Sentinelas' },
+                     { key: 'AUXILIAR RANCHO', label: 'Auxiliar Rancho' },
+                     { key: 'TOQUE DE FOGO', label: 'Toque de Fogo' },
+                   ].map(item => {
+                     const isVis = isAdminRoleVisible(item.key);
+                     return (
+                       <label
+                         key={item.key}
+                         className="flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer"
+                       >
+                         <span className="text-[11px] font-bold text-slate-800">{item.label}</span>
+                         <input
+                           type="checkbox"
+                           checked={isVis}
+                           onChange={() => toggleAdminRoleVisibility(item.key)}
+                           className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
+                         />
+                       </label>
+                     );
+                   })}
+                 </div>
+
+                 <div className="pt-2 mt-2 border-t border-slate-100 flex items-center justify-between text-[9px] text-slate-500 font-medium">
+                   <span>Salvo no Gerar Escala</span>
+                   <button
+                     type="button"
+                     onClick={() => setShowAdminMenu(false)}
+                     className="text-slate-700 font-bold hover:underline"
+                   >
+                     Fechar
+                   </button>
+                 </div>
+               </div>
+             )}
+           </div>
+
            <button
              type="button"
              onClick={toggleExpedienteLayout}
@@ -933,10 +1299,85 @@ export function EscalaPrintView({
                  <span>{dateStr}</span>
               </div>
 
-              <div className="font-bold flex flex-col text-left uppercase text-xs border-t border-black w-full pt-2 pb-2 pl-4">
-                  <span>OFICIAL DE DIA E PRONTIDÃO: {oficialDia ? <span className="ml-1 font-black underline">{oficialDia}</span> : ''}</span>
-                  <span>OFICIAL DA NÁUTICA: {oficialNautica ? <span className="ml-1 font-black underline">{oficialNautica}</span> : ''}</span>
-                  <span>OFICIAL MÉDICO: {oficialMedico ? <span className="ml-1 font-black underline">{oficialMedico}</span> : ''}</span>
+              <div className="font-bold flex flex-col text-left uppercase text-xs border-t border-black w-full pt-2 pb-2 pl-4 min-h-[58px]">
+                {isDiaVisible ? (
+                  <div className="flex items-center justify-between group/officer-row min-h-[16px]">
+                    <span>OFICIAL DE DIA E PRONTIDÃO: {oficialDia ? <span className="ml-1 font-black underline">{oficialDia}</span> : ''}</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleOfficerVisibility('showOficialDia')}
+                      className="print:hidden opacity-0 group-hover/officer-row:opacity-100 hover:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 rounded cursor-pointer mr-3"
+                      title="Desativar Oficial de Dia no arquivo Gerar Escala"
+                    >
+                      <EyeOff className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  /* Espaço vazio ao invés do texto quando desativado */
+                  <div className="flex items-center justify-between group/officer-row min-h-[16px]">
+                    <span className="opacity-0 select-none">&nbsp;</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleOfficerVisibility('showOficialDia')}
+                      className="print:hidden opacity-0 group-hover/officer-row:opacity-100 hover:opacity-100 text-slate-400 hover:text-emerald-600 transition-opacity p-0.5 rounded cursor-pointer mr-3"
+                      title="Ativar Oficial de Dia no arquivo Gerar Escala"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+                {isNauticaVisible ? (
+                  <div className="flex items-center justify-between group/officer-row min-h-[16px]">
+                    <span>OFICIAL DA NÁUTICA: {oficialNautica ? <span className="ml-1 font-black underline">{oficialNautica}</span> : ''}</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleOfficerVisibility('showOficialNautica')}
+                      className="print:hidden opacity-0 group-hover/officer-row:opacity-100 hover:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 rounded cursor-pointer mr-3"
+                      title="Desativar Oficial da Náutica no arquivo Gerar Escala"
+                    >
+                      <EyeOff className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  /* Espaço vazio ao invés do texto quando desativado */
+                  <div className="flex items-center justify-between group/officer-row min-h-[16px]">
+                    <span className="opacity-0 select-none">&nbsp;</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleOfficerVisibility('showOficialNautica')}
+                      className="print:hidden opacity-0 group-hover/officer-row:opacity-100 hover:opacity-100 text-slate-400 hover:text-emerald-600 transition-opacity p-0.5 rounded cursor-pointer mr-3"
+                      title="Ativar Oficial da Náutica no arquivo Gerar Escala"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+                {isMedicoVisible ? (
+                  <div className="flex items-center justify-between group/officer-row min-h-[16px]">
+                    <span>OFICIAL MÉDICO: {oficialMedico ? <span className="ml-1 font-black underline">{oficialMedico}</span> : ''}</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleOfficerVisibility('showOficialMedico')}
+                      className="print:hidden opacity-0 group-hover/officer-row:opacity-100 hover:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 rounded cursor-pointer mr-3"
+                      title="Desativar Oficial Médico no arquivo Gerar Escala"
+                    >
+                      <EyeOff className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  /* Espaço vazio ao invés do texto quando desativado */
+                  <div className="flex items-center justify-between group/officer-row min-h-[16px]">
+                    <span className="opacity-0 select-none">&nbsp;</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleOfficerVisibility('showOficialMedico')}
+                      className="print:hidden opacity-0 group-hover/officer-row:opacity-100 hover:opacity-100 text-slate-400 hover:text-emerald-600 transition-opacity p-0.5 rounded cursor-pointer mr-3"
+                      title="Ativar Oficial Médico no arquivo Gerar Escala"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
            </div>
         </div>
@@ -963,11 +1404,42 @@ export function EscalaPrintView({
 
           const columns: VtrColumn[] = [];
 
+          // Agrupamento de viaturas inativas que compartilham o mesmo espaço configurado (1/3 ou 1/2):
+          // Viaturas com 1/3 (ex: BIA-006 e BIA-013) ocupam O MESMO ESPAÇO de 1/3 com a mensagem inativa,
+          // mantendo a configuração "como era" em 1/3 no trio em vez de virar 1 bloco inteiro.
+          const inactiveThirds = displayedVtrs.filter((v: any) => !v.ativa && getVtrEspaco(v) === '1/3');
+          const mergedInactiveThird = inactiveThirds.length >= 2 ? {
+             id: 'merged_inactive_' + inactiveThirds.map((v: any) => v.id).join('_'),
+             vtr: inactiveThirds.map((v: any) => v.vtr).join(' / '),
+             ativa: false,
+             exibir: true,
+             espaco: '1/3' as const,
+             isMergedInactive: true,
+             items: inactiveThirds
+          } : null;
+
+          const inactiveHalves = displayedVtrs.filter((v: any) => !v.ativa && getVtrEspaco(v) === '1/2');
+          const mergedInactiveHalf = inactiveHalves.length >= 2 ? {
+             id: 'merged_inactive_' + inactiveHalves.map((v: any) => v.id).join('_'),
+             vtr: inactiveHalves.map((v: any) => v.vtr).join(' / '),
+             ativa: false,
+             exibir: true,
+             espaco: '1/2' as const,
+             isMergedInactive: true,
+             items: inactiveHalves
+          } : null;
+
           // Group 1/2 viaturas into pairs
           const halfPool: any[] = [];
           displayedVtrs.forEach((v: any) => {
             if (getVtrEspaco(v) === '1/2') {
-              halfPool.push(v);
+              if (!v.ativa && mergedInactiveHalf) {
+                if (!halfPool.some((x: any) => x.id === mergedInactiveHalf.id)) {
+                  halfPool.push(mergedInactiveHalf);
+                }
+              } else {
+                halfPool.push(v);
+              }
             }
           });
 
@@ -984,7 +1456,13 @@ export function EscalaPrintView({
           const thirdPool: any[] = [];
           displayedVtrs.forEach((v: any) => {
             if (getVtrEspaco(v) === '1/3') {
-              thirdPool.push(v);
+              if (!v.ativa && mergedInactiveThird) {
+                if (!thirdPool.some((x: any) => x.id === mergedInactiveThird.id)) {
+                  thirdPool.push(mergedInactiveThird);
+                }
+              } else {
+                thirdPool.push(v);
+              }
             }
           });
 
@@ -999,6 +1477,7 @@ export function EscalaPrintView({
 
           displayedVtrs.forEach((v: any) => {
             if (consumedIds.has(v.id)) return;
+
             const esp = getVtrEspaco(v);
             if (esp === '1') {
               columns.push({ type: 'full', vtr: v });
@@ -1007,16 +1486,22 @@ export function EscalaPrintView({
               const pair = halfPairs[pairIdx++];
               if (pair && 'top' in pair) {
                 consumedIds.add(pair.top.id);
+                if (pair.top.items) pair.top.items.forEach((it: any) => consumedIds.add(it.id));
                 consumedIds.add(pair.bottom.id);
+                if (pair.bottom.items) pair.bottom.items.forEach((it: any) => consumedIds.add(it.id));
                 columns.push({ type: 'pair', top: pair.top, bottom: pair.bottom });
               } else if (pair && 'vtr' in pair) {
                 consumedIds.add(pair.vtr.id);
+                if (pair.vtr.items) pair.vtr.items.forEach((it: any) => consumedIds.add(it.id));
                 columns.push({ type: 'half', vtr: pair.vtr });
               }
             } else if (esp === '1/3') {
               const group = thirdGroups[trioIdx++];
               if (group && group.length > 0) {
-                group.forEach((item: any) => consumedIds.add(item.id));
+                group.forEach((item: any) => {
+                  consumedIds.add(item.id);
+                  if (item.items) item.items.forEach((it: any) => consumedIds.add(it.id));
+                });
                 columns.push({ type: 'trio', items: group });
               }
             }
@@ -1108,10 +1593,14 @@ export function EscalaPrintView({
                <thead>
                   <tr className={cn(headerColorClass, "font-bold border-b-2 border-black text-center text-xs escala-ala-header")} style={headerBgStyle}>
                      {columns.map((col, idx) => {
-                        let headerTitle = '';
-                        if (col.type === 'pair') headerTitle = col.top.vtr;
-                        else if (col.type === 'trio') headerTitle = col.items[0]?.vtr || '';
-                        else headerTitle = col.vtr.vtr;
+                        let headerTitle: React.ReactNode = '';
+                        if (col.type === 'pair') {
+                           headerTitle = col.top.vtr;
+                        } else if (col.type === 'trio') {
+                           headerTitle = col.items[0]?.vtr || '';
+                        } else {
+                           headerTitle = col.vtr.vtr;
+                        }
 
                         return (
                            <th key={idx} className="border-2 border-black py-1 px-1 escala-ala-header" style={headerBgStyle}>
@@ -1151,11 +1640,26 @@ export function EscalaPrintView({
                         }
 
                         if (col.type === 'trio') {
+                           const isSingleInactive = col.items.length === 1 && !col.items[0].ativa;
+
                            return (
                               <td key={colIdx} className="border border-black p-0 align-top">
                                  <div className="flex flex-col h-full">
                                     {col.items.map((itemVtr: any, itemIdx: number) => {
                                        const count = itemVtr.ativa ? getSlotCount(itemVtr) : 1;
+                                       const isInactive = !itemVtr.ativa;
+
+                                       // Altura / flex proporcional:
+                                       // Em um trio de 2 viaturas (ex: L-09 ativa + BIA 006/013 inativas):
+                                       // a ativa fica com o espaço necessário e a inativa com 1/3 exato (basis-1/3 shrink-0).
+                                       // Se for 1 única viatura inativa no trio, ocupa 1/3 da altura total.
+                                       let flexClass = 'flex-1';
+                                       if (col.items.length === 2 && isInactive) {
+                                          flexClass = 'basis-1/3 shrink-0';
+                                       } else if (isSingleInactive) {
+                                          flexClass = 'h-1/3 min-h-[50px] shrink-0';
+                                       }
+
                                        return (
                                           <React.Fragment key={itemVtr.id || itemIdx}>
                                              {itemIdx > 0 && (
@@ -1163,22 +1667,39 @@ export function EscalaPrintView({
                                                    {itemVtr.vtr}
                                                 </div>
                                              )}
-                                             <div className={`p-1 px-1.5 flex-1 flex flex-col ${getDistributionClass(count, true)}`}>
+                                             <div className={cn(
+                                                "p-1 px-1.5 flex flex-col justify-center",
+                                                flexClass,
+                                                itemVtr.ativa ? getDistributionClass(count, true) : 'items-center text-center'
+                                             )}>
                                                 {!itemVtr.ativa ? renderInativaMsg() : renderSlotsForVtr(itemVtr)}
                                              </div>
                                           </React.Fragment>
                                        );
                                     })}
+                                    {isSingleInactive && (
+                                       <div className="flex-1 bg-slate-50/10 border-t border-dashed border-slate-200" />
+                                    )}
                                  </div>
                               </td>
                            );
                         }
 
                         const fullCount = col.vtr.ativa ? getSlotCount(col.vtr) : 1;
+                        const isHalfCol = col.type === 'half';
                         return (
                            <td key={colIdx} className="border border-black p-0 align-top">
-                              <div className={`flex flex-col h-full p-1.5 px-2 ${getDistributionClass(fullCount, false)}`}>
-                                 {!col.vtr.ativa ? renderInativaMsg() : renderSlotsForVtr(col.vtr)}
+                              <div className={`flex flex-col h-full ${isHalfCol ? '' : 'p-1.5 px-2 ' + getDistributionClass(fullCount, false)}`}>
+                                 {isHalfCol ? (
+                                    <>
+                                       <div className="p-1 px-1.5 h-1/2 min-h-[50px] flex flex-col justify-center items-center">
+                                          {!col.vtr.ativa ? renderInativaMsg() : renderSlotsForVtr(col.vtr)}
+                                       </div>
+                                       <div className="flex-1 bg-slate-50/10 border-t border-dashed border-slate-200" />
+                                    </>
+                                 ) : (
+                                    !col.vtr.ativa ? renderInativaMsg() : renderSlotsForVtr(col.vtr)
+                                 )}
                               </div>
                            </td>
                         );
@@ -1192,135 +1713,202 @@ export function EscalaPrintView({
         {/* ADMIN ROLES */}
         <div className="flex border-2 border-black mb-2 p-1 font-bold uppercase min-h-[90px] text-xs">
            <div className="w-1/2 flex flex-col gap-1 pr-4">
-              {Object.entries(adminRoles).map(([k, v]) => (
-                <div key={k} className="flex gap-2 w-full items-center min-h-[20px]">
-                   <span className="w-[180px] shrink-0">{k}</span>
-                   <span className="font-normal truncate">{renderMilitar(v[0])}</span>
-                </div>
-              ))}
+              {Object.entries(adminRoles).map(([k, v]) => {
+                const roleKey = getAdminRoleMappedKey(k);
+                const isVisible = isAdminRoleVisible(roleKey);
+                return (
+                  <div key={k} className="flex gap-2 w-full items-center min-h-[20px] group/admin-row">
+                     {isVisible ? (
+                       <>
+                         <span className="w-[180px] shrink-0">{k}</span>
+                         <span className="font-normal truncate">{renderMilitar(v[0])}</span>
+                       </>
+                     ) : (
+                       /* Espaço vazio ao invés desse texto quando desativado! */
+                       <>
+                         <span className="w-[180px] shrink-0 opacity-0 select-none">{k}</span>
+                         <span className="font-normal truncate opacity-0 select-none">&nbsp;</span>
+                       </>
+                     )}
+                     <button
+                       type="button"
+                       onClick={() => toggleAdminRoleVisibility(roleKey)}
+                       className="print:hidden opacity-0 group-hover/admin-row:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 ml-auto cursor-pointer"
+                       title={isVisible ? `Desativar ${k} no Gerar Escala` : `Ativar ${k} no Gerar Escala`}
+                     >
+                       {isVisible ? <EyeOff className="w-3 h-3 text-slate-400 hover:text-rose-600" /> : <Eye className="w-3 h-3 text-emerald-600" />}
+                     </button>
+                  </div>
+                );
+              })}
            </div>
            <div className="w-1/2 flex flex-col gap-1">
-              {adminRolesRight.map((item, idx) => (
-                <div key={idx} className="flex gap-2 w-full items-center min-h-[20px]">
-                   <span className="w-[140px] shrink-0">{item.label}</span>
-                   <span className="font-normal truncate">{renderMilitar(item.value)}</span>
-                </div>
-              ))}
+              {adminRolesRight.map((item, idx) => {
+                const roleKey = getAdminRoleMappedKey(item.label);
+                const isVisible = isAdminRoleVisible(roleKey);
+                return (
+                  <div key={idx} className="flex gap-2 w-full items-center min-h-[20px] group/admin-row">
+                     {isVisible ? (
+                       <>
+                         <span className="w-[140px] shrink-0">{item.label}</span>
+                         <span className="font-normal truncate">{renderMilitar(item.value)}</span>
+                       </>
+                     ) : (
+                       /* Espaço vazio ao invés desse texto quando desativado! */
+                       <>
+                         <span className="w-[140px] shrink-0 opacity-0 select-none">{item.label}</span>
+                         <span className="font-normal truncate opacity-0 select-none">&nbsp;</span>
+                       </>
+                     )}
+                     <button
+                       type="button"
+                       onClick={() => toggleAdminRoleVisibility(roleKey)}
+                       className="print:hidden opacity-0 group-hover/admin-row:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 ml-auto cursor-pointer"
+                       title={isVisible ? `Desativar ${item.label} no Gerar Escala` : `Ativar ${item.label} no Gerar Escala`}
+                     >
+                       {isVisible ? <EyeOff className="w-3 h-3 text-slate-400 hover:text-rose-600" /> : <Eye className="w-3 h-3 text-emerald-600" />}
+                     </button>
+                  </div>
+                );
+              })}
            </div>
         </div>
 
         {/* SENTINELAS & COMUNICANTES */}
-        <table className="w-full border-collapse border-2 border-black text-center mb-2 table-fixed">
-           <colgroup>
-              <col className="w-[23%]" />
-              <col className="w-[17%]" />
-              <col className="w-[23%]" />
-              <col className="w-[17%]" />
-              <col className="w-[20%]" />
-           </colgroup>
-           <thead>
-              <tr className={cn(headerColorClass, "font-bold border-b-2 border-black escala-ala-header")} style={headerBgStyle}>
-                 <th className="border-r border-black p-1 uppercase text-left pl-2 escala-ala-header" style={headerBgStyle} colSpan={2}>SENTINELAS: <span className="ml-8">GUARDA NORTE</span></th>
-                 <th className="border-r border-black p-1 uppercase text-left pl-2 escala-ala-header" style={headerBgStyle} colSpan={2}>SENTINELAS:</th>
-                 <th className="p-1 uppercase border-black border-l-2 text-center escala-ala-header" style={headerBgStyle} colSpan={1}>COMUNICANTE 1:</th>
-              </tr>
-           </thead>
-           <tbody className="text-left font-bold uppercase">
-              <tr>
-                 <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
-                   <div className="flex items-center gap-1.5 min-w-0">
-                     <span className="font-black shrink-0">1º</span>
-                     <span className="truncate">{renderMilitar(sentinelas[0])}</span>
-                   </div>
-                 </td>
-                 <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">6 às 8 / 14 às 16 / 22 às 00:00</td>
-                 <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
-                   <div className="flex items-center gap-1.5 min-w-0">
-                     <span className="font-black shrink-0">1º</span>
-                     <span className="truncate">{renderMilitar(sentinelas[4])}</span>
-                   </div>
-                 </td>
-                 <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">6 às 7:30 / 12 às 13:30</td>
-                 <td className="border-l-2 border-black p-1 font-normal text-center border-b truncate" rowSpan={2}><div className="flex justify-center">{renderMilitar(comunicantes[0])}</div></td>
-              </tr>
-              <tr>
-                 <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
-                   <div className="flex items-center gap-1.5 min-w-0">
-                     <span className="font-black shrink-0">2º</span>
-                     <span className="truncate">{renderMilitar(sentinelas[1])}</span>
-                   </div>
-                 </td>
-                 <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">8 às 10 / 16 às 18 / 00 às 02:00</td>
-                 <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
-                   <div className="flex items-center gap-1.5 min-w-0">
-                     <span className="font-black shrink-0">2º</span>
-                     <span className="truncate">{renderMilitar(sentinelas[5])}</span>
-                   </div>
-                 </td>
-                 <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">7:30 às 9 / 13:30 às 15</td>
-              </tr>
-              <tr>
-                 <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
-                   <div className="flex items-center gap-1.5 min-w-0">
-                     <span className="font-black shrink-0">3º</span>
-                     <span className="truncate">{renderMilitar(sentinelas[2])}</span>
-                   </div>
-                 </td>
-                 <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">10 às 12 / 18 às 20 / 02 às 04:00</td>
-                 <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
-                   <div className="flex items-center gap-1.5 min-w-0">
-                     <span className="font-black shrink-0">3º</span>
-                     <span className="truncate">{renderMilitar(sentinelas[6])}</span>
-                   </div>
-                 </td>
-                 <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">9 às 10:30 / 15 às 16:30</td>
-                 <td className={cn("border-y-2 border-l-2 border-black p-1", headerColorClass, "font-bold text-center escala-ala-header")} style={headerBgStyle}>COMUNICANTE 2:</td>
-              </tr>
-              <tr>
-                 <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
-                   <div className="flex items-center gap-1.5 min-w-0">
-                     <span className="font-black shrink-0">4º</span>
-                     <span className="truncate">{renderMilitar(sentinelas[3])}</span>
-                   </div>
-                 </td>
-                 <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">12 às 14 / 20 às 22 / 04 às 06:00</td>
-                 <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
-                   <div className="flex items-center gap-1.5 min-w-0">
-                     <span className="font-black shrink-0">4º</span>
-                     <span className="truncate">{renderMilitar(sentinelas[7])}</span>
-                   </div>
-                 </td>
-                 <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">10:30 às 12/16:30 às 18</td>
-                 <td className="border-l-2 border-black p-1 font-normal text-center border-b truncate"><div className="flex justify-center">{renderMilitar(comunicantes[1])}</div></td>
-              </tr>
-              <tr className={cn(headerColorClass, "font-bold border-t-2 border-black escala-ala-header")} style={headerBgStyle}>
-                 <td className="border-r border-black p-1 text-center uppercase escala-ala-header" style={headerBgStyle} colSpan={1}>AUX. RANCHO:</td>
-                 <td className="border-r border-black p-1 font-normal bg-white text-center truncate" style={{ backgroundColor: '#ffffff', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }} colSpan={1}>
-                   <div className="flex items-center justify-center gap-2">
-                     {auxRancho.map((m: any, i: number) => <React.Fragment key={i}>{i > 0 && <span>/</span>}{renderMilitar(m)}</React.Fragment>)}
-                   </div>
-                 </td>
-                 <td className="border-r border-black p-1 text-center uppercase escala-ala-header" style={headerBgStyle} colSpan={1}>Toque de Fogo:</td>
-                 <td className="border-black p-1 font-normal bg-white text-center truncate" style={{ backgroundColor: '#ffffff', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }} colSpan={2}>
-                   <div className="flex items-center justify-center gap-2">
-                     {toqueFogo.map((m: any, i: number) => <React.Fragment key={i}>{i > 0 && <span>/</span>}{renderMilitar(m)}</React.Fragment>)}
-                   </div>
-                 </td>
-              </tr>
-           </tbody>
-        </table>
+        {(() => {
+          const isSentinelaVisible = isAdminRoleVisible('SENTINELA');
+          const isComunicanteVisible = isAdminRoleVisible('COMUNICANTE');
+          const isAuxRanchoVisible = isAdminRoleVisible('AUXILIAR RANCHO');
+          const isToqueFogoVisible = isAdminRoleVisible('TOQUE DE FOGO');
+
+          return (
+            <table className="w-full border-collapse border-2 border-black text-center mb-2 table-fixed">
+               <colgroup>
+                  <col className="w-[23%]" />
+                  <col className="w-[17%]" />
+                  <col className="w-[23%]" />
+                  <col className="w-[17%]" />
+                  <col className="w-[20%]" />
+               </colgroup>
+               <thead>
+                  <tr className={cn(headerColorClass, "font-bold border-b-2 border-black escala-ala-header")} style={headerBgStyle}>
+                     <th className="border-r border-black p-1 uppercase text-left pl-2 escala-ala-header" style={headerBgStyle} colSpan={2}>SENTINELAS: <span className="ml-8">GUARDA NORTE</span></th>
+                     <th className="border-r border-black p-1 uppercase text-left pl-2 escala-ala-header" style={headerBgStyle} colSpan={2}>SENTINELAS:</th>
+                     <th className="p-1 uppercase border-black border-l-2 text-center escala-ala-header" style={headerBgStyle} colSpan={1}>COMUNICANTE 1:</th>
+                  </tr>
+               </thead>
+               <tbody className="text-left font-bold uppercase">
+                  <tr>
+                     <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
+                       <div className="flex items-center gap-1.5 min-w-0">
+                         <span className="font-black shrink-0">1º</span>
+                         <span className="truncate">{isSentinelaVisible ? renderMilitar(sentinelas[0]) : <span className="opacity-0 select-none">&nbsp;</span>}</span>
+                       </div>
+                     </td>
+                     <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">6 às 8 / 14 às 16 / 22 às 00:00</td>
+                     <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
+                       <div className="flex items-center gap-1.5 min-w-0">
+                         <span className="font-black shrink-0">1º</span>
+                         <span className="truncate">{isSentinelaVisible ? renderMilitar(sentinelas[4]) : <span className="opacity-0 select-none">&nbsp;</span>}</span>
+                       </div>
+                     </td>
+                     <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">6 às 7:30 / 12 às 13:30</td>
+                     <td className="border-l-2 border-black p-1 font-normal text-center border-b truncate" rowSpan={2}><div className="flex justify-center">{isComunicanteVisible ? renderMilitar(comunicantes[0]) : <span className="opacity-0 select-none">&nbsp;</span>}</div></td>
+                  </tr>
+                  <tr>
+                     <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
+                       <div className="flex items-center gap-1.5 min-w-0">
+                         <span className="font-black shrink-0">2º</span>
+                         <span className="truncate">{isSentinelaVisible ? renderMilitar(sentinelas[1]) : <span className="opacity-0 select-none">&nbsp;</span>}</span>
+                       </div>
+                     </td>
+                     <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">8 às 10 / 16 às 18 / 00 às 02:00</td>
+                     <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
+                       <div className="flex items-center gap-1.5 min-w-0">
+                         <span className="font-black shrink-0">2º</span>
+                         <span className="truncate">{isSentinelaVisible ? renderMilitar(sentinelas[5]) : <span className="opacity-0 select-none">&nbsp;</span>}</span>
+                       </div>
+                     </td>
+                     <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">7:30 às 9 / 13:30 às 15</td>
+                  </tr>
+                  <tr>
+                     <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
+                       <div className="flex items-center gap-1.5 min-w-0">
+                         <span className="font-black shrink-0">3º</span>
+                         <span className="truncate">{isSentinelaVisible ? renderMilitar(sentinelas[2]) : <span className="opacity-0 select-none">&nbsp;</span>}</span>
+                       </div>
+                     </td>
+                     <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">10 às 12 / 18 às 20 / 02 às 04:00</td>
+                     <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
+                       <div className="flex items-center gap-1.5 min-w-0">
+                         <span className="font-black shrink-0">3º</span>
+                         <span className="truncate">{isSentinelaVisible ? renderMilitar(sentinelas[6]) : <span className="opacity-0 select-none">&nbsp;</span>}</span>
+                       </div>
+                     </td>
+                     <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">9 às 10:30 / 15 às 16:30</td>
+                     <td className={cn("border-y-2 border-l-2 border-black p-1", headerColorClass, "font-bold text-center escala-ala-header")} style={headerBgStyle}>COMUNICANTE 2:</td>
+                  </tr>
+                  <tr>
+                     <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
+                       <div className="flex items-center gap-1.5 min-w-0">
+                         <span className="font-black shrink-0">4º</span>
+                         <span className="truncate">{isSentinelaVisible ? renderMilitar(sentinelas[3]) : <span className="opacity-0 select-none">&nbsp;</span>}</span>
+                       </div>
+                     </td>
+                     <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">12 às 14 / 20 às 22 / 04 às 06:00</td>
+                     <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
+                       <div className="flex items-center gap-1.5 min-w-0">
+                         <span className="font-black shrink-0">4º</span>
+                         <span className="truncate">{isSentinelaVisible ? renderMilitar(sentinelas[7]) : <span className="opacity-0 select-none">&nbsp;</span>}</span>
+                       </div>
+                     </td>
+                     <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">10:30 às 12/16:30 às 18</td>
+                     <td className="border-l-2 border-black p-1 font-normal text-center border-b truncate"><div className="flex justify-center">{isComunicanteVisible ? renderMilitar(comunicantes[1]) : <span className="opacity-0 select-none">&nbsp;</span>}</div></td>
+                  </tr>
+                  <tr className={cn(headerColorClass, "font-bold border-t-2 border-black escala-ala-header")} style={headerBgStyle}>
+                     <td className="border-r border-black p-1 text-center uppercase escala-ala-header" style={headerBgStyle} colSpan={1}>AUX. RANCHO:</td>
+                     <td className="border-r border-black p-1 font-normal bg-white text-center truncate" style={{ backgroundColor: '#ffffff', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }} colSpan={1}>
+                       <div className="flex items-center justify-center gap-2">
+                         {isAuxRanchoVisible ? (
+                           auxRancho.map((m: any, i: number) => <React.Fragment key={i}>{i > 0 && <span>/</span>}{renderMilitar(m)}</React.Fragment>)
+                         ) : (
+                           <span className="opacity-0 select-none">&nbsp;</span>
+                         )}
+                       </div>
+                     </td>
+                     <td className="border-r border-black p-1 text-center uppercase escala-ala-header" style={headerBgStyle} colSpan={1}>Toque de Fogo:</td>
+                     <td className="border-black p-1 font-normal bg-white text-center truncate" style={{ backgroundColor: '#ffffff', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }} colSpan={2}>
+                       <div className="flex items-center justify-center gap-2">
+                         {isToqueFogoVisible ? (
+                           toqueFogo.map((m: any, i: number) => <React.Fragment key={i}>{i > 0 && <span>/</span>}{renderMilitar(m)}</React.Fragment>)
+                         ) : (
+                           <span className="opacity-0 select-none">&nbsp;</span>
+                         )}
+                       </div>
+                     </td>
+                  </tr>
+               </tbody>
+            </table>
+          );
+        })()}
 
         {/* PERMUTAS AUTORIZADAS */}
-        <div className="border-2 border-black mb-2 flex flex-col min-h-[60px]">
+        <div className="border-2 border-black mb-2 flex flex-col min-h-[50px]">
            <div className={cn(headerColorClass, "border-b border-black font-bold uppercase text-center p-1 escala-ala-header")} style={headerBgStyle}>
               PERMUTAS AUTORIZADAS:
            </div>
-           <div className="p-2 flex flex-wrap gap-4">
-              {permutasAtivas.map((p: any, idx: number) => (
-                 <div key={idx} className="uppercase text-[10px] flex items-center gap-2">
-                   <span className="font-bold">Sai:</span> {renderMilitar(p.req)} <span className="font-bold ml-2">Entra:</span> {renderMilitar(p.sub)}
+           <div className="p-2 flex flex-wrap gap-4 flex-1 items-center">
+              {permutasAtivas.length > 0 ? (
+                 permutasAtivas.map((p: any, idx: number) => (
+                    <div key={idx} className="uppercase text-[10px] flex items-center gap-2">
+                      <span className="font-bold">Sai:</span> {renderMilitar(p.req)} <span className="font-bold ml-2">Entra:</span> {renderMilitar(p.sub)}
+                    </div>
+                 ))
+              ) : (
+                 <div className="w-full text-center font-normal text-slate-500 italic text-[10px]">
+                    Nenhuma permuta foi realizada.
                  </div>
-              ))}
+              )}
            </div>
         </div>
 
@@ -1336,56 +1924,59 @@ export function EscalaPrintView({
               </colgroup>
            ) : (
               <colgroup>
-                 <col className="w-[26.6%]" />
-                 <col className="w-[26.6%]" />
-                 <col className="w-[26.6%]" />
-                 <col className="w-[20.2%]" />
+                 <col className="w-[20.5%]" />
+                 <col className="w-[20.5%]" />
+                 <col className="w-[20.5%]" />
+                 <col className="w-[20.5%]" />
+                 <col className="w-[18%]" />
               </colgroup>
            )}
            <thead>
               <tr className={cn(headerColorClass, "font-bold border-b-2 border-black escala-ala-header")} style={headerBgStyle}>
-                 <th className="border-r border-black p-1 text-center uppercase escala-ala-header" style={headerBgStyle} colSpan={3}>CHAMADA GERAL</th>
+                 <th className="border-r border-black p-1 text-center uppercase escala-ala-header" style={headerBgStyle} colSpan={expedienteLayout === 'coluna' ? 3 : 4}>CHAMADA GERAL</th>
                  {expedienteLayout === 'coluna' && (
                     <th className="border-r border-black p-1 text-center uppercase escala-ala-header" style={headerBgStyle} colSpan={1}>EXPEDIENTE</th>
                  )}
-                 <th className={cn("p-1 text-center uppercase escala-ala-header", expedienteLayout === 'coluna' ? '' : 'w-[20%]')} style={headerBgStyle} colSpan={1}>RAS</th>
+                 <th className={cn("p-1 text-center uppercase escala-ala-header", expedienteLayout === 'coluna' ? '' : 'w-[18%]')} style={headerBgStyle} colSpan={1}>RAS</th>
               </tr>
            </thead>
            <tbody>
               {(() => {
-                 const totalRows = Math.max(
-                    Math.ceil(activeMembersList.length / 3),
-                    9,
-                    (rasApplications?.length || 0),
-                    expedienteLayout === 'coluna' ? (expedienteMilitars?.length || 0) : 0
-                 );
-                 const cLen = Math.max(Math.ceil(activeMembersList.length / 3), 1);
+                 const numCols = expedienteLayout === 'coluna' ? 3 : 4;
+                 const chamadaRows = Math.ceil(activeMembersList.length / numCols);
+                 const expRows = expedienteLayout === 'coluna' ? (expedienteMilitars?.length || 0) : 0;
+                 const rasCount = rasApplications?.length || 0;
+
+                 // Exibir apenas as linhas estritamente necessárias (sem forçar 9 ou linhas vazias desnecessárias)
+                 const totalRows = Math.max(chamadaRows, expRows, rasCount, 1);
 
                  return Array.from({ length: totalRows }).map((_, i) => {
-                    const m1 = i < cLen ? (activeMembersList[i] || null) : null;
-                    const m2 = i < cLen ? (activeMembersList[i + cLen] || null) : null;
-                    const m3 = i < cLen ? (activeMembersList[i + cLen * 2] || null) : null;
-
                     const expMil = (expedienteMilitars && expedienteMilitars[i]) || null;
 
-                    const rasApp = rasApplications && rasApplications[i] ? {
-                       rg: rasApplications[i].militarRg,
-                       name: rasApplications[i].militarName,
-                       warName: rasApplications[i].militarWarName,
-                       rank: rasApplications[i].militarRank,
+                    const rasItem = rasApplications && rasApplications[i];
+                    const rasApp = rasItem ? {
+                       rg: rasItem.militarRg || rasItem.rg,
+                       name: rasItem.militarName || rasItem.name,
+                       warName: rasItem.militarWarName || rasItem.warName,
+                       rank: rasItem.militarRank || rasItem.rank,
                     } : null;
 
                     return (
                        <tr key={i}>
-                          <td className="border-r border-b border-black p-0.5 px-2 truncate">
-                             {m1 ? <div className="flex gap-1 items-center min-h-[20px]"><span className="shrink-0">{m1.rg} -</span> <span className="truncate">{renderMilitar(m1.militar)}</span></div> : ''}
-                          </td>
-                          <td className="border-r border-b border-black p-0.5 px-2 truncate">
-                             {m2 ? <div className="flex gap-1 items-center min-h-[20px]"><span className="shrink-0">{m2.rg} -</span> <span className="truncate">{renderMilitar(m2.militar)}</span></div> : ''}
-                          </td>
-                          <td className="border-r border-b border-black p-0.5 px-2 truncate">
-                             {m3 ? <div className="flex gap-1 items-center min-h-[20px]"><span className="shrink-0">{m3.rg} -</span> <span className="truncate">{renderMilitar(m3.militar)}</span></div> : ''}
-                          </td>
+                          {Array.from({ length: numCols }).map((__, colIdx) => {
+                             const itemIdx = i * numCols + colIdx;
+                             const m = activeMembersList[itemIdx] || null;
+                             return (
+                                <td key={colIdx} className="border-r border-b border-black p-0.5 px-2 truncate">
+                                   {m ? (
+                                      <div className="flex gap-1 items-center min-h-[20px]">
+                                         <span className="shrink-0">{m.rg} -</span> <span className="truncate">{renderMilitar(m.militar)}</span>
+                                      </div>
+                                   ) : ''}
+                                </td>
+                             );
+                          })}
+
                           {expedienteLayout === 'coluna' && (
                              <td className="border-r border-b border-black p-0.5 px-2 truncate">
                                 {expMil ? (
@@ -1401,9 +1992,23 @@ export function EscalaPrintView({
                                 ) : ''}
                              </td>
                           )}
-                          <td className="border-b border-black p-0.5 text-left pl-2 font-bold text-[9px] truncate">
-                             {i + 1} {rasApp ? `- ${renderMilitar(rasApp)}` : ''}
-                          </td>
+
+                          {rasCount === 0 ? (
+                             i === 0 ? (
+                                <td rowSpan={totalRows} className="border-b border-black p-2 text-center text-slate-500 italic font-normal text-[10px] align-middle">
+                                   Nenhum RAS realizado
+                                </td>
+                             ) : null
+                          ) : (
+                             <td className="border-b border-black p-0.5 text-left pl-2 font-bold text-[9px] truncate">
+                                {rasApp ? (
+                                   <div className="flex gap-1 items-center min-h-[20px]">
+                                      <span className="shrink-0">{i + 1} -</span>
+                                      <span className="truncate">{renderMilitar(rasApp)}</span>
+                                   </div>
+                                ) : ''}
+                             </td>
+                          )}
                        </tr>
                     );
                  });
@@ -1472,11 +2077,13 @@ export function EscalaPrintView({
            }).filter(Boolean);
 
            const grdMilitarsList = (grdRgs || []).map((rg: string) => {
+              if (!rg || !rg.trim()) return '(VAGA ABERTA)';
               const mil = (militars || []).find((m: any) => normalizeRg(m.rg) === normalizeRg(rg));
-              if (!mil) return null;
+              if (!mil) return rg ? `RG: ${rg}` : '(VAGA ABERTA)';
               return `${parseRank(mil.rank)} ${mil.warName || (mil.name || '').split(' ')[0]}`;
-           }).filter(Boolean);
+           });
 
+           const hasGrd = grdMilitarsList.length > 0;
            const obmName = (obmContext || '10º GBM').split('-')[0].trim();
 
            return (
@@ -1503,11 +2110,14 @@ export function EscalaPrintView({
                        GRD - {obmName}
                     </div>
                     <div className="w-[80%] p-2 px-4 flex-1">
-                       {grdMilitarsList.length > 0 ? (
-                          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[10px] font-bold uppercase">
+                       {hasGrd ? (
+                          <div className={cn("grid gap-x-6 gap-y-1.5 text-[10px] font-bold uppercase", grdMilitarsList.length > 4 ? "grid-cols-3" : "grid-cols-2")}>
                              {grdMilitarsList.map((str: any, idx: number) => (
                                 <div key={idx} className="flex gap-1 items-start">
-                                   <span className="shrink-0">{idx + 1}-</span> <span className="leading-[1.1]">{str}</span>
+                                   <span className="shrink-0">{idx + 1}-</span>
+                                   <span className={cn("leading-[1.1]", str === '(VAGA ABERTA)' ? "text-slate-400 font-normal italic" : "")}>
+                                      {str}
+                                   </span>
                                 </div>
                              ))}
                           </div>

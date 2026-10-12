@@ -12,7 +12,6 @@ import { VacationModule } from './VacationModule';
 import { RasManagerModule } from './RasManagerModule';
 import { ControleViaturasModule } from './ControleViaturasModule';
 import { EfetivoPanel } from './EfetivoPanel';
-import { GestaoEfetivoModeracaoModule } from './GestaoEfetivoModeracaoModule';
 import { RegistroEscalasModule } from './RegistroEscalasModule';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -411,3 +410,5 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
     </div>
   );
 }
+
+export default EscalanteDashboard;

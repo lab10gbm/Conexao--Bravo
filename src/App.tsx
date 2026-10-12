@@ -34,6 +34,8 @@ import {
   ArrowLeftRight,
   Utensils,
   ChevronDown,
+  AlertTriangle,
+  RotateCcw,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -49,141 +51,164 @@ import { RankInsignia } from "./components/RankInsignia";
 import { OBM_HIERARCHY } from "./constants";
 import { useKeepAliveHeartbeat } from "./hooks/useKeepAliveHeartbeat";
 
-// Lazy load heavy route components
-const EfetivoPanel = React.lazy(() =>
-  import("./components/EfetivoPanel").then((m) => ({
-    default: m.EfetivoPanel,
-  })),
-);
-const OfficerDashboard = React.lazy(() =>
-  import("./components/OfficerDashboard").then((m) => ({
-    default: m.OfficerDashboard,
-  })),
-);
-const PermutaModule = React.lazy(() =>
-  import("./components/PermutaModule").then((m) => ({
-    default: m.PermutaModule,
-  })),
-);
-const VacationModule = React.lazy(() =>
-  import("./components/VacationModule").then((m) => ({
-    default: m.VacationModule,
-  })),
-);
-const ProfileUpdate = React.lazy(() =>
-  import("./components/ProfileUpdate").then((m) => ({
-    default: m.ProfileUpdate,
-  })),
-);
-const PatrimonyModule = React.lazy(() =>
-  import("./components/PatrimonyModule").then((m) => ({
-    default: m.PatrimonyModule,
-  })),
-);
-const EscalanteDashboard = React.lazy(() =>
-  import("./components/EscalanteDashboard").then((m) => ({
-    default: m.EscalanteDashboard,
-  })),
-);
-const OficiaisDashboard = React.lazy(() =>
-  import("./components/OficiaisDashboard").then((m) => ({
-    default: m.OficiaisDashboard,
-  })),
-);
-const EstudoTecnicoGuarnicoesModule = React.lazy(() => import("./components/EstudoTecnicoGuarnicoesModule").then(m => ({ default: m.EstudoTecnicoGuarnicoesModule })));
-const GestaoEfetivoModeracaoModule = React.lazy(() => import("./components/GestaoEfetivoModeracaoModule").then((m) => ({ default: m.GestaoEfetivoModeracaoModule })));
-const GestaoSadDashboard = React.lazy(() => import("./components/GestaoSadDashboard").then((m) => ({ default: m.GestaoSadDashboard })));
-const RasClientModule = React.lazy(() => import("./components/RasClientModule").then((m) => ({ default: m.RasClientModule })));
-const DgpSyncModule = React.lazy(() => import("./components/DgpSyncModule").then((m) => ({ default: m.DgpSyncModule })));
-const PainelMilitarDashboard = React.lazy(() => import("./components/PainelMilitarDashboard").then((m) => ({ default: m.PainelMilitarDashboard })));
-const MedidasModule = React.lazy(() =>
-  import("./components/MedidasModule").then((m) => ({
-    default: m.MedidasModule,
-  })),
-);
-const SopMedidasModule = React.lazy(() =>
-  import("./components/SopMedidasModule").then((m) => ({
-    default: m.SopMedidasModule,
-  })),
-);
-const SopConfigModule = React.lazy(() =>
-  import("./components/SopConfigModule").then((m) => ({
-    default: m.SopConfigModule,
-  })),
-);
-const GrdModule = React.lazy(() =>
-  import("./components/GrdModule").then((m) => ({ default: m.GrdModule })),
-);
-const TerceirizadosModule = React.lazy(() =>
-  import("./components/TerceirizadosModule").then((m) => ({
-    default: m.TerceirizadosModule,
-  })),
-);
-const OfficerGrdModule = React.lazy(() =>
-  import("./components/OfficerGrdModule").then((m) => ({
-    default: m.OfficerGrdModule,
-  })),
-);
-const NucleoNauticoGrdModule = React.lazy(() =>
-  import("./components/NucleoNauticoGrdModule").then((m) => ({
-    default: m.NucleoNauticoGrdModule,
-  })),
-);
-const OfficerMedicosModule = React.lazy(() =>
-  import("./components/OfficerMedicosModule").then((m) => ({
-    default: m.OfficerMedicosModule,
-  })),
-);
-const OfficerConfigModule = React.lazy(() =>
-  import("./components/OfficerConfigModule").then((m) => ({
-    default: m.OfficerConfigModule,
-  })),
-);
-const PublicCargaViewer = React.lazy(() =>
-  import("./components/PublicCargaViewer").then((m) => ({
-    default: m.PublicCargaViewer,
-  })),
-);
-const RefeitorioModule = React.lazy(() =>
-  import("./components/RefeitorioModule").then((m) => ({
-    default: m.RefeitorioModule,
-  })),
-);
-const AprovisionamentoModule = React.lazy(() =>
-  import("./components/AprovisionamentoModule").then((m) => ({
-    default: m.AprovisionamentoModule,
-  })),
-);
-const PublicCardapioViewer = React.lazy(() =>
-  import("./components/PublicCardapioViewer").then((m) => ({
-    default: m.PublicCardapioViewer,
-  })),
-);
-const TransladoModule = React.lazy(() =>
-  import("./components/TransladoModule").then((m) => ({
-    default: m.TransladoModule,
-  })),
-);
-const ComunicanteDashboard = React.lazy(() =>
-  import("./components/ComunicanteDashboard").then((m) => ({
-    default: m.ComunicanteDashboard,
-  })),
-);
+// Robust dynamic import wrapper with automatic retry and stale-chunk recovery
+function lazyWithRetry<T extends React.ComponentType<any>>(
+  factory: () => Promise<any>
+): React.LazyExoticComponent<T> {
+  return React.lazy(async () => {
+    try {
+      const module = await factory();
+      sessionStorage.removeItem("chunk_reload_lock");
+      if (module && module.default) {
+        return module;
+      }
+      if (module && typeof module === "object") {
+        for (const key of Object.keys(module)) {
+          if (typeof module[key] === "function") {
+            return { default: module[key] };
+          }
+        }
+      }
+      return { default: module };
+    } catch (error: any) {
+      console.warn("[LazyWithRetry] Tentando novamente após erro de importação:", error?.message || error);
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        const module = await factory();
+        sessionStorage.removeItem("chunk_reload_lock");
+        if (module && module.default) return module;
+        return { default: module?.default || module };
+      } catch (secondError: any) {
+        const errorMsg = String(secondError?.message || "");
+        const isDynamicImportError =
+          errorMsg.includes("Failed to fetch dynamically imported module") ||
+          errorMsg.includes("error loading dynamically imported module") ||
+          errorMsg.includes("Importing a module script failed");
+
+        if (isDynamicImportError && typeof window !== "undefined") {
+          const hasReloaded = sessionStorage.getItem("chunk_reload_lock");
+          if (!hasReloaded) {
+            sessionStorage.setItem("chunk_reload_lock", "true");
+            window.location.reload();
+            return new Promise(() => {});
+          }
+        }
+        throw secondError;
+      }
+    }
+  });
+}
+
+// Error Boundary for UI and dynamic import resilience
+interface AppErrorBoundaryProps {
+  children: React.ReactNode;
+}
+interface AppErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+export class AppErrorBoundary extends React.Component<AppErrorBoundaryProps, AppErrorBoundaryState> {
+  constructor(props: AppErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): AppErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("[AppErrorBoundary] Erro capturado na aplicação:", error, errorInfo);
+  }
+
+  handleReload = () => {
+    sessionStorage.removeItem("chunk_reload_lock");
+    window.location.reload();
+  };
+
+  render() {
+    if (this.state.hasError) {
+      const isDynamicImportError =
+        this.state.error?.message?.includes("dynamically imported module") ||
+        this.state.error?.message?.includes("fetch");
+
+      return (
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-xl text-center flex flex-col items-center gap-4">
+            <div className="w-16 h-16 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm">
+              <AlertTriangle className="w-8 h-8" />
+            </div>
+            <div>
+              <h2 className="text-lg sm:text-xl font-black text-slate-900 uppercase tracking-tight">
+                {isDynamicImportError ? "Sincronização de Módulo" : "Instabilidade Temporária"}
+              </h2>
+              <p className="text-xs text-slate-500 font-medium mt-2 leading-relaxed">
+                {isDynamicImportError
+                  ? "Houve uma atualização de arquivos ou oscilação de conexão ao carregar esta tela. Clique abaixo para recarregar o módulo atualizado."
+                  : "Ocorreu uma falha inesperada na visualização. Clique no botão abaixo para recarregar com segurança."}
+              </p>
+            </div>
+            <button
+              onClick={this.handleReload}
+              className="mt-2 w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-200 active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Recarregar Módulo
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// Lazy load heavy route components with retry resilience
+const EfetivoPanel = lazyWithRetry(() => import("./components/EfetivoPanel").then((m) => ({ default: m.EfetivoPanel })));
+const OfficerDashboard = lazyWithRetry(() => import("./components/OfficerDashboard").then((m) => ({ default: m.OfficerDashboard })));
+const PermutaModule = lazyWithRetry(() => import("./components/PermutaModule").then((m) => ({ default: m.PermutaModule })));
+const VacationModule = lazyWithRetry(() => import("./components/VacationModule").then((m) => ({ default: m.VacationModule })));
+const ProfileUpdate = lazyWithRetry(() => import("./components/ProfileUpdate").then((m) => ({ default: m.ProfileUpdate })));
+const PatrimonyModule = lazyWithRetry(() => import("./components/PatrimonyModule").then((m) => ({ default: m.PatrimonyModule })));
+const EscalanteDashboard = lazyWithRetry(() => import("./components/EscalanteDashboard").then((m) => ({ default: m.EscalanteDashboard || m.default })));
+const OficiaisDashboard = lazyWithRetry(() => import("./components/OficiaisDashboard").then((m) => ({ default: m.OficiaisDashboard })));
+const EstudoTecnicoGuarnicoesModule = lazyWithRetry(() => import("./components/EstudoTecnicoGuarnicoesModule").then((m) => ({ default: m.EstudoTecnicoGuarnicoesModule })));
+const GestaoEfetivoModeracaoModule = lazyWithRetry(() => import("./components/GestaoEfetivoModeracaoModule").then((m) => ({ default: m.GestaoEfetivoModeracaoModule })));
+const GestaoSadDashboard = lazyWithRetry(() => import("./components/GestaoSadDashboard").then((m) => ({ default: m.GestaoSadDashboard })));
+const RasClientModule = lazyWithRetry(() => import("./components/RasClientModule").then((m) => ({ default: m.RasClientModule })));
+const DgpSyncModule = lazyWithRetry(() => import("./components/DgpSyncModule").then((m) => ({ default: m.DgpSyncModule })));
+const PainelMilitarDashboard = lazyWithRetry(() => import("./components/PainelMilitarDashboard").then((m) => ({ default: m.PainelMilitarDashboard })));
+const MedidasModule = lazyWithRetry(() => import("./components/MedidasModule").then((m) => ({ default: m.MedidasModule })));
+const SopMedidasModule = lazyWithRetry(() => import("./components/SopMedidasModule").then((m) => ({ default: m.SopMedidasModule })));
+const SopConfigModule = lazyWithRetry(() => import("./components/SopConfigModule").then((m) => ({ default: m.SopConfigModule })));
+const GrdModule = lazyWithRetry(() => import("./components/GrdModule").then((m) => ({ default: m.GrdModule })));
+const TerceirizadosModule = lazyWithRetry(() => import("./components/TerceirizadosModule").then((m) => ({ default: m.TerceirizadosModule })));
+const OfficerGrdModule = lazyWithRetry(() => import("./components/OfficerGrdModule").then((m) => ({ default: m.OfficerGrdModule })));
+const NucleoNauticoGrdModule = lazyWithRetry(() => import("./components/NucleoNauticoGrdModule").then((m) => ({ default: m.NucleoNauticoGrdModule })));
+const OfficerMedicosModule = lazyWithRetry(() => import("./components/OfficerMedicosModule").then((m) => ({ default: m.OfficerMedicosModule })));
+const OfficerConfigModule = lazyWithRetry(() => import("./components/OfficerConfigModule").then((m) => ({ default: m.OfficerConfigModule })));
+const PublicCargaViewer = lazyWithRetry(() => import("./components/PublicCargaViewer").then((m) => ({ default: m.PublicCargaViewer })));
+const RefeitorioModule = lazyWithRetry(() => import("./components/RefeitorioModule").then((m) => ({ default: m.RefeitorioModule })));
+const AprovisionamentoModule = lazyWithRetry(() => import("./components/AprovisionamentoModule").then((m) => ({ default: m.AprovisionamentoModule })));
+const PublicCardapioViewer = lazyWithRetry(() => import("./components/PublicCardapioViewer").then((m) => ({ default: m.PublicCardapioViewer })));
+const TransladoModule = lazyWithRetry(() => import("./components/TransladoModule").then((m) => ({ default: m.TransladoModule })));
+const ComunicanteDashboard = lazyWithRetry(() => import("./components/ComunicanteDashboard").then((m) => ({ default: m.ComunicanteDashboard })));
 
 import { usePresence } from "./hooks/usePresence";
 import { useViaturaAlerts } from "./hooks/useViaturaAlerts";
 
 import { MainLayout } from "./components/layout/MainLayout";
-const Login = React.lazy(() => import("./components/Login").then((m) => ({ default: m.Login })));
-const WeeklyMonitor = React.lazy(() => import("./components/WeeklyMonitor").then((m) => ({ default: m.WeeklyMonitor })));
-const AgendaPessoal = React.lazy(() => import("./components/AgendaPessoal").then((m) => ({ default: m.AgendaPessoal })));
-const PermutaBoard = React.lazy(() => import("./components/PermutaBoard").then((m) => ({ default: m.PermutaBoard })));
-const RequestPermuta = React.lazy(() => import("./components/RequestPermuta").then((m) => ({ default: m.RequestPermuta })));
-const CalendarHighlights = React.lazy(() => import("./components/CalendarHighlights").then((m) => ({ default: m.CalendarHighlights })));
-const ConfiguracoesModule = React.lazy(() => import("./components/ConfiguracoesModule").then((m) => ({ default: m.ConfiguracoesModule })));
-const ExpedienteScheduler = React.lazy(() => import("./components/ExpedienteScheduler").then((m) => ({ default: m.ExpedienteScheduler })));
-const BuscarMilitarModule = React.lazy(() => import("./components/BuscarMilitarModule").then((m) => ({ default: m.BuscarMilitarModule })));
-const HomePortal = React.lazy(() => import("./components/HomePortal").then((m) => ({ default: m.HomePortal })));
+const Login = lazyWithRetry(() => import("./components/Login").then((m) => ({ default: m.Login })));
+const WeeklyMonitor = lazyWithRetry(() => import("./components/WeeklyMonitor").then((m) => ({ default: m.WeeklyMonitor })));
+const AgendaPessoal = lazyWithRetry(() => import("./components/AgendaPessoal").then((m) => ({ default: m.AgendaPessoal })));
+const PermutaBoard = lazyWithRetry(() => import("./components/PermutaBoard").then((m) => ({ default: m.PermutaBoard })));
+const RequestPermuta = lazyWithRetry(() => import("./components/RequestPermuta").then((m) => ({ default: m.RequestPermuta })));
+const CalendarHighlights = lazyWithRetry(() => import("./components/CalendarHighlights").then((m) => ({ default: m.CalendarHighlights })));
+const ConfiguracoesModule = lazyWithRetry(() => import("./components/ConfiguracoesModule").then((m) => ({ default: m.ConfiguracoesModule })));
+const ExpedienteScheduler = lazyWithRetry(() => import("./components/ExpedienteScheduler").then((m) => ({ default: m.ExpedienteScheduler })));
+const BuscarMilitarModule = lazyWithRetry(() => import("./components/BuscarMilitarModule").then((m) => ({ default: m.BuscarMilitarModule })));
+const HomePortal = lazyWithRetry(() => import("./components/HomePortal").then((m) => ({ default: m.HomePortal })));
 import { EmDesenvolvimento } from "./components/EmDesenvolvimento";
 
 export default function App() {
@@ -548,6 +573,7 @@ export default function App() {
       setObmContext={setObmContext}
       availableObms={availableObms}
     >
+      <AppErrorBoundary>
         <React.Suspense
           fallback={
             <div className="h-40 flex items-center justify-center">
@@ -1275,6 +1301,7 @@ export default function App() {
             </Routes>
           </AnimatePresence>
         </React.Suspense>
+      </AppErrorBoundary>
 
       {/* Controlled Floating Button */}
       {currentPath.includes("permutas") && !isPermutaModalOpen && (

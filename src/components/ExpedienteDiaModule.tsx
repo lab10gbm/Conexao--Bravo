@@ -168,15 +168,15 @@ export function ExpedienteDiaModule({
                 <div
                   key={item.rg}
                   className={cn(
-                    "bg-white border rounded-2xl p-3 shadow-xs hover:shadow-sm transition-all flex flex-col justify-between gap-2.5",
+                    "bg-white border rounded-xl p-2 shadow-xs hover:shadow-sm transition-all flex flex-col justify-center",
                     item.is24h
                       ? "border-amber-200/90 hover:border-amber-300 bg-gradient-to-b from-white to-amber-50/20"
                       : "border-slate-200/90 hover:border-sky-300"
                   )}
                 >
-                  {/* IDENTIFICAÇÃO DO MILITAR (APRESENTAÇÃO EXATA COM INSÍGNIA, POSTO/GRAD, GUERRA E RG) */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
+                  {/* IDENTIFICAÇÃO DO MILITAR COM INSÍGNIA, POSTO/GRAD, GUERRA, RG E TAG DO SETOR AO LADO */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
                       <div className="shrink-0">
                         <RankInsignia rankStr={item.rank} className="w-4 h-4 shrink-0" />
                       </div>
@@ -184,8 +184,18 @@ export function ExpedienteDiaModule({
                         <div className="font-bold text-slate-800 uppercase text-xs tracking-tight truncate leading-tight">
                           {parseRank(item.rank)} {item.displayName}
                         </div>
-                        <div className="font-mono text-[9px] text-slate-400 font-bold mt-0.5 leading-none">
-                          {item.rg}
+                        <div className="flex items-center gap-1.5 mt-0.5 whitespace-nowrap min-w-0">
+                          <span className="font-mono text-[9px] text-slate-400 font-bold shrink-0 leading-none">
+                            {item.rg}
+                          </span>
+                          {item.sector && (
+                            <span
+                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[7.5px] font-black uppercase tracking-wider bg-sky-50 text-sky-800 border border-sky-200/80 truncate shrink-0 max-w-[130px] leading-tight"
+                              title={`Seção: ${item.sector}`}
+                            >
+                              {item.sector}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -197,13 +207,6 @@ export function ExpedienteDiaModule({
                         24H
                       </span>
                     )}
-                  </div>
-
-                  {/* SETOR COMO TAG */}
-                  <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-slate-100">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-sky-50 text-sky-800 border border-sky-200/80 truncate max-w-full">
-                      {item.sector}
-                    </span>
                   </div>
                 </div>
               );

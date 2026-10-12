@@ -589,22 +589,26 @@ export function Header({
                         <button
                           onClick={onToggleAdminMode}
                           className={cn(
-                            "text-[8px] sm:text-[10px] font-black px-2.5 py-1 rounded-lg sm:rounded-xl flex items-center gap-1.5 border transition-all shadow-sm active:scale-95 cursor-pointer shrink-0 mt-1 sm:mt-0",
+                            "p-1.5 sm:p-2 rounded-lg sm:rounded-xl flex items-center justify-center border transition-all shadow-sm active:scale-95 cursor-pointer shrink-0 mt-1 sm:mt-0",
                             adminModeActive
                               ? "bg-indigo-600 text-white border-indigo-700 shadow-indigo-100/50 hover:bg-indigo-700"
-                              : "bg-slate-100 text-slate-700 border-slate-300 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-300",
+                              : "bg-white/80 text-slate-600 border-slate-300 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-300",
                           )}
-                          title="Habilitar/Desabilitar Modo Moderador"
+                          title={adminModeActive ? "Modo Moderador Ativo (clique para desativar)" : "Ativar Modo Moderador"}
+                          aria-label="Modo Moderador"
                         >
-                          <ShieldCheck className="w-3.5 h-3.5" />
-                          {adminModeActive ? "MODERADOR: ATIVO" : "ATIVAR MODERADOR"}
+                          <ShieldCheck className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
                         </button>
                       );
                     }
 
                     return (
-                      <span className="bg-amber-100 text-amber-700 text-[8px] sm:text-[10px] font-black px-2 py-1 rounded flex items-center gap-1 border border-amber-200 shrink-0 mt-1 sm:mt-0">
-                        MODERADOR
+                      <span
+                        className="bg-amber-100 text-amber-700 p-1.5 rounded-lg flex items-center justify-center border border-amber-200 shrink-0 mt-1 sm:mt-0"
+                        title="Moderador"
+                        aria-label="Moderador"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
                       </span>
                     );
                   })()}

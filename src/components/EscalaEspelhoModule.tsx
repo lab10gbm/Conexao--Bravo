@@ -13,10 +13,11 @@ import { EscalaPrintView } from "./EscalaPrintView";
 import { RequestPermuta } from "./RequestPermuta";
 import { AfastamentosAlaModule } from "./AfastamentosAlaModule";
 import { ExpedienteDiaModule } from "./ExpedienteDiaModule";
+import { GrdDiaModule } from "./GrdDiaModule";
 import { EscalanteDashboardCalendar } from "./EscalanteDashboardCalendar";
-import { Calendar as CalendarIcon, Users, ArrowRightLeft, ArrowRight, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, ChevronLeft, ChevronRight, Check, X, Clock, Printer, Shuffle, Plus, Settings, Activity, TrendingDown, PieChart, BriefcaseBusiness, Download, RotateCcw, ExternalLink, Edit3, Award, Star, UserCheck, Anchor, Stethoscope, HeartPulse, Sparkles, Trash2, Building2, ArrowLeftRight, UserPlus, Loader2, AlertTriangle, Search } from 'lucide-react';
+import { Calendar as CalendarIcon, Users, ArrowRightLeft, ArrowRight, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, ChevronLeft, ChevronRight, Check, X, Clock, Printer, Shuffle, Plus, Settings, Activity, TrendingDown, PieChart, BriefcaseBusiness, Download, RotateCcw, ExternalLink, Edit3, Award, Star, UserCheck, Anchor, Stethoscope, HeartPulse, Sparkles, Trash2, Building2, ArrowLeftRight, UserPlus, Loader2, AlertTriangle, Search, Eye, EyeOff } from 'lucide-react';
 
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { cleanUndefined, getUserObmAccess, normalizeObm, getAlaForDate, cn, getAlaColor, getAlaName, formatMilitaryName, normalizeAlaField, normalizeRg } from '../lib/utils';
 
 
@@ -158,7 +159,7 @@ function FuncoesMultiSelect({
   );
 }
 
-import { UserProfile } from "../types";
+import { UserProfile, OfficerVisibility } from "../types";
 import { RAS_FUNCTION_MAP } from "../constants";
 
 interface EscalaEspelhoModuleProps {
@@ -168,15 +169,15 @@ interface EscalaEspelhoModuleProps {
 }
 
 const DEFAULT_VIATURAS: any[] = [
-  { id: "ABT-183", vtr: "ABT-183", ativa: true, exibir: true, maritima: false, condutor: true, g1: true, g2: true, g3: true, g4: false, cg: true, blocked: [] },
-  { id: "ABSL-152", vtr: "ABSL-152", ativa: true, exibir: true, maritima: false, condutor: true, g1: true, g2: true, g3: false, g4: false, cg: true, blocked: [] },
-  { id: "ASE-404", vtr: "ASE-404", ativa: true, exibir: true, maritima: false, condutor: true, g1: true, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
-  { id: "ARC-162", vtr: "ARC-162", ativa: true, exibir: true, maritima: false, condutor: true, g1: true, g2: null, g3: null, g4: null, cg: null, blocked: ["g2", "g3", "g4", "cg"] },
-  { id: "AR-583", vtr: "AR-583", ativa: true, exibir: true, maritima: false, condutor: true, g1: null, g2: null, g3: null, g4: null, cg: null, blocked: ["g1", "g2", "g3", "g4", "cg"] },
-  { id: "L-09", vtr: "L-09", ativa: true, exibir: true, maritima: true, condutor: true, g1: true, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
-  { id: "BIA-006", vtr: "BIA-006", ativa: true, exibir: true, maritima: true, condutor: true, g1: true, g2: true, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
-  { id: "BIA-013", vtr: "BIA-013", ativa: false, exibir: false, maritima: true, condutor: false, g1: false, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
-  { id: "ABT-12", vtr: "ABT-12", ativa: false, exibir: false, maritima: false, condutor: false, g1: false, g2: false, g3: false, g4: false, cg: false, blocked: [] },
+  { id: "ABT-143", vtr: "ABT-143", ativa: true, exibir: true, espaco: "1", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: true, g3: true, g4: false, cg: true, blocked: [] },
+  { id: "ABSL-152", vtr: "ABSL-152", ativa: true, exibir: true, espaco: "1", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: true, g3: false, g4: false, cg: true, blocked: [] },
+  { id: "ASE-572", vtr: "ASE-572", ativa: true, exibir: true, espaco: "1", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "AR-600", vtr: "AR-600", ativa: true, exibir: true, espaco: "1/2", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: null, g2: null, g3: null, g4: null, cg: null, blocked: ["g1", "g2", "g3", "g4", "cg"] },
+  { id: "ARC-162", vtr: "ARC-162", ativa: true, exibir: true, espaco: "1/2", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: null, g3: null, g4: null, cg: null, blocked: ["g2", "g3", "g4", "cg"] },
+  { id: "L-09", vtr: "L-09", ativa: true, exibir: true, espaco: "1/3", maritima: true, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "BIA-006", vtr: "BIA-006", ativa: false, exibir: true, espaco: "1/3", maritima: true, obm: "10º GBM", tipo: 'operacional', condutor: false, g1: false, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "BIA-013", vtr: "BIA-013", ativa: false, exibir: true, espaco: "1/3", maritima: true, obm: "10º GBM", tipo: 'operacional', condutor: false, g1: false, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "ABT-12", vtr: "ABT-12", ativa: false, exibir: false, espaco: "1", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: false, g1: false, g2: false, g3: false, g4: false, cg: false, blocked: [] },
 ];
 
 export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEspelhoModuleProps) {
@@ -392,16 +393,148 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     Record<string, string[]>
   >({});
 
-  const [viaturasInfo, setViaturasInfo] = useState<any[]>(DEFAULT_VIATURAS);
+  const [viaturasInfo, setViaturasInfo] = useState<any[]>(() => {
+    try {
+      const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : '10º GBM';
+      const cleanObm = normalizeObm(rawObm);
+      const keys = [
+        `custom_default_viaturas_${cleanObm}`,
+        `custom_default_viaturas_${rawObm}`,
+        `viaturas_config_${cleanObm}`,
+        `viaturas_config_${rawObm}`,
+        `custom_default_viaturas_${cleanObm.replace(/º/g, '°')}`,
+        `custom_default_viaturas_${cleanObm.replace(/°/g, 'º')}`,
+        `viaturas_config_${cleanObm.replace(/º/g, '°')}`,
+        `viaturas_config_${cleanObm.replace(/°/g, 'º')}`,
+        `custom_default_viaturas_10º GBM`,
+        `custom_default_viaturas_10° GBM`,
+        `viaturas_config_10º GBM`,
+        `viaturas_config_10° GBM`,
+        `custom_default_viaturas_global_active`,
+        `viaturas_config_global_active`
+      ];
+      for (const k of keys) {
+        const raw = localStorage.getItem(k);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const op = parsed.filter((v: any) => v.tipo !== 'administrativa');
+            const list = op.length > 0 ? op : parsed;
+            return list.map((v: any) => ({
+              ...v,
+              exibir: v.exibir !== undefined ? v.exibir : true,
+              espaco: v.espaco || (v.maritima || v.vtr?.startsWith('L-') || v.vtr?.startsWith('BIA') ? '1/3' : (v.vtr?.startsWith('AR') || v.vtr?.startsWith('ARC') ? '1/2' : '1'))
+            }));
+          }
+        }
+      }
+    } catch {}
+    return DEFAULT_VIATURAS;
+  });
+
+  const isViaturasCustomizedForDate = useRef(false);
+  const [patternAppliedMessage, setPatternAppliedMessage] = useState<string | null>(null);
 
   const isFirstLoad = useRef(true);
   const previousDate = useRef(selectedDate);
   const [savingState, setSavingState] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [showPrintView, setShowPrintView] = useState(false);
+  const [officerVisibility, setOfficerVisibility] = useState<OfficerVisibility>(() => {
+    try {
+      const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+      const cleanObm = normalizeObm(rawObm);
+      const saved = localStorage.getItem(`escala_officer_visibility_${cleanObm}`);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      showSection: true,
+      showOficialDia: true,
+      showOficialNautica: true,
+      showOficialMedico: true,
+    };
+  });
+
+  const [adminRolesVisibility, setAdminRolesVisibility] = useState<Record<string, boolean>>(() => {
+    try {
+      const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+      const cleanObm = normalizeObm(rawObm);
+      const saved = localStorage.getItem(`escala_admin_roles_visibility_${cleanObm}`);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {};
+  });
+
+  const [adminTwoBlockMode, setAdminTwoBlockMode] = useState<'categories' | 'status' | 'table_analytics'>('categories');
+
+  const handleToggleAdminRoleVisibility = (roleName: string) => {
+    const norm = normalizeFnName(roleName);
+    setAdminRolesVisibility(prev => {
+      const current = prev[norm] !== false && prev[roleName] !== false; // default true
+      const next = {
+        ...prev,
+        [norm]: !current,
+        [roleName]: !current,
+      };
+      try {
+        const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+        const cleanObm = normalizeObm(rawObm);
+        localStorage.setItem(`escala_admin_roles_visibility_${cleanObm}`, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleSetAllAdminRolesVisibility = (visible: boolean) => {
+    setAdminRolesVisibility(prev => {
+      const next: Record<string, boolean> = { ...prev };
+      dynamicRequirements.filter(f => f.category === 'admin').forEach(f => {
+        next[normalizeFnName(f.name)] = visible;
+        next[f.name] = visible;
+      });
+      ['ADJUNTO', 'ENCARREGADO DE MOTORISTA', 'RESP FAXINA', 'SGT DIA', 'CMT GUARDA', 'DIA AO DEPOSITO', 'ABASTECEDOR', 'CB DIA', 'CB GUARDA', 'COMUNICANTE', 'SENTINELA', 'AUXILIAR RANCHO', 'TOQUE DE FOGO', 'ESCALANTE'].forEach(k => {
+        next[normalizeFnName(k)] = visible;
+        next[k] = visible;
+      });
+      try {
+        const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+        const cleanObm = normalizeObm(rawObm);
+        localStorage.setItem(`escala_admin_roles_visibility_${cleanObm}`, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleToggleOfficerVisibility = (key: 'showSection' | 'showOficialDia' | 'showOficialNautica' | 'showOficialMedico') => {
+    setOfficerVisibility(prev => {
+      let next: OfficerVisibility;
+      if (key === 'showSection') {
+        const nextVal = !prev.showSection;
+        next = {
+          showSection: nextVal,
+          showOficialDia: nextVal,
+          showOficialNautica: nextVal,
+          showOficialMedico: nextVal,
+        };
+      } else {
+        next = {
+          ...prev,
+          [key]: !prev[key]
+        };
+        next.showSection = next.showOficialDia || next.showOficialNautica || next.showOficialMedico;
+      }
+      try {
+        const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+        const cleanObm = normalizeObm(rawObm);
+        localStorage.setItem(`escala_officer_visibility_${cleanObm}`, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
   const [correlation, setCorrelation] = useState<Record<string, Record<string, number>>>({});
   const [roleQtds, setRoleQtds] = useState<Record<string, number>>({});
   const [predefinicoes, setPredefinicoes] = useState<Record<string, string[]>>({});
   const [isPreferenciasModalOpen, setIsPreferenciasModalOpen] = useState(false);
+  const [grdDayRgs, setGrdDayRgs] = useState<string[]>([]);
 
   // Load correlation matrix, quantities and predefinicoes
   useEffect(() => {
@@ -436,20 +569,127 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     loadSettings();
   }, [obmContext]);
 
+  // Função auxiliar para carregar o padrão ativo da OBM (definido pelo usuário em Controle de Viaturas)
+  const getObmActivePattern = async (targetObm?: string): Promise<any[]> => {
+    const rawObm = targetObm && targetObm !== 'GLOBAL' ? targetObm : (obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM'));
+    const cleanObm = normalizeObm(rawObm);
+
+    // 1. Tentar LocalStorage primeiro (instantâneo e síncrono)
+    const localKeys = [
+      `custom_default_viaturas_${cleanObm}`,
+      `custom_default_viaturas_${rawObm}`,
+      `viaturas_config_${cleanObm}`,
+      `viaturas_config_${rawObm}`,
+      `custom_default_viaturas_${cleanObm.replace(/º/g, '°')}`,
+      `custom_default_viaturas_${cleanObm.replace(/°/g, 'º')}`,
+      `viaturas_config_${cleanObm.replace(/º/g, '°')}`,
+      `viaturas_config_${cleanObm.replace(/°/g, 'º')}`,
+      `custom_default_viaturas_10º GBM`,
+      `custom_default_viaturas_10° GBM`,
+      `viaturas_config_10º GBM`,
+      `viaturas_config_10° GBM`,
+      `custom_default_viaturas_global_active`,
+      `viaturas_config_global_active`
+    ];
+    for (const key of localKeys) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const operational = parsed.filter((v: any) => v.tipo !== 'administrativa');
+            const targetList = operational.length > 0 ? operational : parsed;
+            return targetList.map((v: any) => ({
+              ...v,
+              exibir: v.exibir !== undefined ? v.exibir : true,
+              espaco: v.espaco || (v.maritima || v.vtr?.startsWith('L-') || v.vtr?.startsWith('BIA') ? '1/3' : (v.vtr?.startsWith('AR') || v.vtr?.startsWith('ARC') ? '1/2' : '1'))
+            }));
+          }
+        }
+      } catch {}
+    }
+
+    // 2. Tentar Firestore obm_settings
+    if (db) {
+      const docKeys = Array.from(new Set([
+        cleanObm.replace(/\//g, '_').replace(/\s/g, '_'),
+        rawObm.replace(/\//g, '_').replace(/\s/g, '_'),
+        cleanObm.replace(/º/g, '°').replace(/\//g, '_').replace(/\s/g, '_'),
+        cleanObm.replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_'),
+        cleanObm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase(),
+        '10º_GBM',
+        '10°_GBM',
+        '10__gbm',
+        '10_gbm',
+        '10_GBM'
+      ]));
+      for (const k of docKeys) {
+        try {
+          const snap = await getDoc(doc(db, "obm_settings", k));
+          if (snap.exists()) {
+            const data = snap.data();
+            const list = data.viaturas_config || data.viaturas_custom_default;
+            if (Array.isArray(list) && list.length > 0) {
+              const filtered = list.filter((v: any) => 
+                v.tipo !== 'administrativa' && 
+                (!v.obm || normalizeObm(v.obm) === cleanObm)
+              );
+              const targetList = filtered.length > 0 ? filtered : list.filter((v: any) => v.tipo !== 'administrativa');
+              const finalItems = (targetList.length > 0 ? targetList : list).map((v: any) => ({
+                ...v,
+                exibir: v.exibir !== undefined ? v.exibir : true,
+                espaco: v.espaco || (v.maritima || v.vtr?.startsWith('L-') || v.vtr?.startsWith('BIA') ? '1/3' : (v.vtr?.startsWith('AR') || v.vtr?.startsWith('ARC') ? '1/2' : '1'))
+              }));
+              
+              // Cache no LocalStorage para consultas instantâneas
+              try {
+                localStorage.setItem(`custom_default_viaturas_${cleanObm}`, JSON.stringify(finalItems));
+                localStorage.setItem(`viaturas_config_${cleanObm}`, JSON.stringify(finalItems));
+              } catch {}
+
+              return finalItems;
+            }
+          }
+        } catch {}
+      }
+    }
+
+    return DEFAULT_VIATURAS;
+  };
+
+  // Ouvinte em tempo real para sincronizar o padrão atualizado em Controle de Viaturas
+  useEffect(() => {
+    const handlePatternUpdate = (e: any) => {
+      if (e.detail?.viaturas && Array.isArray(e.detail.viaturas)) {
+        const op = e.detail.viaturas.filter((v: any) => v.tipo !== 'administrativa');
+        const targetList = op.length > 0 ? op : e.detail.viaturas;
+        const updated = targetList.map((v: any) => ({
+          ...v,
+          exibir: v.exibir !== undefined ? v.exibir : true,
+          espaco: v.espaco || (v.maritima || v.vtr?.startsWith('L-') || v.vtr?.startsWith('BIA') ? '1/3' : (v.vtr?.startsWith('AR') || v.vtr?.startsWith('ARC') ? '1/2' : '1'))
+        }));
+        setViaturasInfo(updated);
+      }
+    };
+    window.addEventListener('obm_viaturas_pattern_updated', handlePatternUpdate);
+    return () => window.removeEventListener('obm_viaturas_pattern_updated', handlePatternUpdate);
+  }, []);
+
   // Sync state from Firebase when date changes
   useEffect(() => {
-    if (!selectedDate || !obmContext || obmContext === 'GLOBAL') return;
+    if (!selectedDate) return;
+    const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+    const cleanObm = normalizeObm(rawObm);
     
     // Reset state locally if date changed
     if (previousDate.current !== selectedDate) {
        setSelectedFunctions({});
        setManuallyAddedRgs({});
-       setViaturasInfo(DEFAULT_VIATURAS);
        previousDate.current = selectedDate;
        isFirstLoad.current = true;
     }
     
-    const normalizedObm = obmContext.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+    const normalizedObm = cleanObm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
     const docRef = doc(db, `escala24h_${normalizedObm}`, selectedDate);
     
     let isMounted = true;
@@ -457,6 +697,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
        try {
            const snap = await getDoc(docRef);
            let savedViaturas: any[] | null = null;
+           let isExplicitCustomization = false;
 
            if (snap.exists() && isMounted) {
                const data = snap.data();
@@ -467,26 +708,51 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                if (data.manuallyRemovedRgs) {
                    setManuallyRemovedRgs(prev => ({...prev, [selectedDate]: data.manuallyRemovedRgs}));
                }
-               if (data.viaturasInfo) {
+               if (data.viaturasInfo && Array.isArray(data.viaturasInfo)) {
                    savedViaturas = data.viaturasInfo;
+                   isExplicitCustomization = Boolean(data.viaturasCustomizedForDate);
+                   isViaturasCustomizedForDate.current = isExplicitCustomization;
+               }
+               if (data.officerVisibility) {
+                   setOfficerVisibility({
+                       showSection: data.officerVisibility.showSection !== false,
+                       showOficialDia: data.officerVisibility.showOficialDia !== false,
+                       showOficialNautica: data.officerVisibility.showOficialNautica !== false,
+                       showOficialMedico: data.officerVisibility.showOficialMedico !== false,
+                   });
+               }
+               if (data.adminRolesVisibility) {
+                   setAdminRolesVisibility(data.adminRolesVisibility);
                }
            }
            
            if (isMounted) {
-               const settingsRef = doc(db, "obm_settings", obmContext.replace(/\//g, '_').replace(/\s/g, '_'));
-               const settingsSnap = await getDoc(settingsRef);
-               let baseVtrs = DEFAULT_VIATURAS;
+               const baseVtrs = await getObmActivePattern(cleanObm);
                
-               if (settingsSnap.exists() && settingsSnap.data()?.viaturas_config) {
-                   const vtrs = settingsSnap.data().viaturas_config;
-                   const filtered = vtrs.filter((v: any) => 
-                       v.tipo !== 'administrativa' && 
-                       (!v.obm || normalizeObm(v.obm) === normalizeObm(obmContext))
-                   );
-                   if (filtered.length > 0) baseVtrs = filtered;
-               }
+               // Detectar se o savedViaturas possui veículos obsoletos ou se é apenas o hardcoded default antigo:
+               const LEGACY_STALE_IDS = new Set(['ABT-183', 'ASE-404', 'AR-583']);
+               const hasStaleLegacyVehicles = savedViaturas && savedViaturas.some((s: any) => {
+                   const sId = (s.id || s.vtr || '').toUpperCase();
+                   return LEGACY_STALE_IDS.has(sId) && !baseVtrs.some((b: any) => (b.id || b.vtr || '').toUpperCase() === sId);
+               });
 
-               if (savedViaturas && Array.isArray(savedViaturas) && savedViaturas.length > 0) {
+               const OLD_DEFAULT_IDS = ['ABT-143', 'ABSL-152', 'ASE-572', 'AR-600', 'ARC-162', 'L-09', 'BIA-006', 'BIA-013', 'ABT-12'];
+               const isOldDefaultHardcodedFleet = savedViaturas && savedViaturas.length === 9 && 
+                 OLD_DEFAULT_IDS.every((id, idx) => (savedViaturas[idx]?.id || savedViaturas[idx]?.vtr || '').toUpperCase() === id);
+               
+               const baseMatchesOldDefault = baseVtrs.length === 9 &&
+                 OLD_DEFAULT_IDS.every((id, idx) => (baseVtrs[idx]?.id || baseVtrs[idx]?.vtr || '').toUpperCase() === id);
+
+               // Se não há dados salvos, ou se os dados salvos são a frota antiga obsoleta, ou se não houve customização explícita e o usuário definiu um padrão novo:
+               if (!savedViaturas || savedViaturas.length === 0 || hasStaleLegacyVehicles || (!isExplicitCustomization && isOldDefaultHardcodedFleet && !baseMatchesOldDefault)) {
+                   setViaturasInfo(baseVtrs);
+               } else if (!isExplicitCustomization) {
+                   // Se não foi customizado manualmente neste dia específico, preconfigura estritamente com o padrão do usuário,
+                   // mantendo apenas viaturas extras que foram adicionadas manualmente (isExtra):
+                   const genuineExtras = savedViaturas.filter((s: any) => s.isExtra && !baseVtrs.some((b: any) => b.id === s.id || b.vtr === s.vtr));
+                   setViaturasInfo([...baseVtrs, ...genuineExtras]);
+               } else {
+                   // Dia teve customização pontual explícita: mescla respeitando a ordem do padrão
                    const mergedBase = baseVtrs.map((base: any) => {
                        const saved = savedViaturas.find((s: any) => s.id === base.id || s.vtr === base.vtr);
                        if (saved) {
@@ -494,6 +760,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                                ...base, 
                                ativa: saved.ativa !== undefined ? saved.ativa : base.ativa,
                                exibir: saved.exibir !== undefined ? saved.exibir : base.exibir,
+                               espaco: saved.espaco !== undefined ? saved.espaco : base.espaco,
                                condutor: saved.condutor !== undefined ? saved.condutor : base.condutor,
                                g1: saved.g1 !== undefined ? saved.g1 : base.g1,
                                g2: saved.g2 !== undefined ? saved.g2 : base.g2,
@@ -504,10 +771,8 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                        }
                        return base;
                    });
-                   const extras = savedViaturas.filter((s: any) => !baseVtrs.some((b: any) => b.id === s.id || b.vtr === s.vtr));
-                   setViaturasInfo([...mergedBase, ...extras]);
-               } else {
-                   setViaturasInfo(baseVtrs);
+                   const genuineExtras = savedViaturas.filter((s: any) => s.isExtra && !baseVtrs.some((b: any) => b.id === s.id || b.vtr === s.vtr));
+                   setViaturasInfo([...mergedBase, ...genuineExtras]);
                }
                
                isFirstLoad.current = false;
@@ -526,19 +791,24 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   // Auto-save state to Firebase
   useEffect(() => {
     if (isFirstLoad.current) return;
-    if (!selectedDate || !obmContext || obmContext === 'GLOBAL') return;
+    if (!selectedDate) return;
+    const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+    const cleanObm = normalizeObm(rawObm);
     
     setSavingState('saving');
     const timeout = setTimeout(async () => {
       try {
-          const normalizedObm = obmContext.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+          const normalizedObm = cleanObm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
           const docRef = doc(db, `escala24h_${normalizedObm}`, selectedDate);
           await setDoc(docRef, {
              selectedFunctions,
              viaturasInfo,
+             viaturasCustomizedForDate: isViaturasCustomizedForDate.current,
              manuallyAddedRgs: manuallyAddedRgs[selectedDate] || [],
-             manuallyRemovedRgs: manuallyRemovedRgs[selectedDate] || []
-          });
+             manuallyRemovedRgs: manuallyRemovedRgs[selectedDate] || [],
+             officerVisibility,
+             adminRolesVisibility
+          }, { merge: true });
           
           setSavingState('saved');
           setTimeout(() => setSavingState('idle'), 2000);
@@ -549,7 +819,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     }, 1000);
     
     return () => clearTimeout(timeout);
-  }, [selectedFunctions, viaturasInfo, manuallyAddedRgs, manuallyRemovedRgs, selectedDate, obmContext]);
+  }, [selectedFunctions, viaturasInfo, manuallyAddedRgs, manuallyRemovedRgs, selectedDate, obmContext, officerVisibility, adminRolesVisibility]);
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -1494,6 +1764,34 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
   }, [baseRoster, permutasOut, militars, dynamicRequirements, correlation]);
 
+  const handleApplyObmPattern = async () => {
+    try {
+      const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+      const cleanObm = normalizeObm(rawObm);
+      const pattern = await getObmActivePattern(cleanObm);
+      
+      setViaturasInfo(pattern);
+      isViaturasCustomizedForDate.current = false;
+
+      if (db && selectedDate) {
+        const normalizedObm = cleanObm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+        const docRef = doc(db, `escala24h_${normalizedObm}`, selectedDate);
+        await setDoc(docRef, {
+          viaturasInfo: pattern,
+          viaturasCustomizedForDate: false,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      }
+
+      setPatternAppliedMessage(`Padrão da OBM aplicado com sucesso! (${pattern.length} viaturas)`);
+      setTimeout(() => setPatternAppliedMessage(null), 4000);
+    } catch (e) {
+      console.error("Erro ao aplicar padrão:", e);
+      setPatternAppliedMessage("Erro ao aplicar o padrão da OBM.");
+      setTimeout(() => setPatternAppliedMessage(null), 4000);
+    }
+  };
+
   const handleAddViaturaExtra = () => {
      const name = window.prompt("Qual o nome/prefixo da viatura extra? (ex: ABT-999)");
      if (!name || name.trim() === '') return;
@@ -1518,9 +1816,11 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         g3: true,
         g4: false,
         cg: true,
-        blocked: []
+        blocked: [],
+        isExtra: true
      };
      
+     isViaturasCustomizedForDate.current = true;
      setViaturasInfo([...viaturasInfo, newVtr]);
   };
 
@@ -2069,9 +2369,11 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         signatureData,
         selectedFunctions,
         viaturasInfo,
-        oficialDia: oficialDiaValue,
-        oficialNautica: nauticoOficialValue,
-        oficialMedico: medicoOficialValue,
+        officerVisibility,
+        adminRolesVisibility,
+        oficialDia: (officerVisibility.showSection !== false && officerVisibility.showOficialDia !== false) ? oficialDiaValue : '',
+        oficialNautica: (officerVisibility.showSection !== false && officerVisibility.showOficialNautica !== false) ? nauticoOficialValue : '',
+        oficialMedico: (officerVisibility.showSection !== false && officerVisibility.showOficialMedico !== false) ? medicoOficialValue : '',
         expedienteMilitars: (expedienteMilitars || []).map(m => ({
           rg: m.rg,
           name: m.name,
@@ -2079,7 +2381,8 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           rank: m.rank,
           quadro: m.quadro,
           is24h: m.is24h
-        }))
+        })),
+        grdRgs: grdDayRgs
       };
 
       await setDoc(doc(db, "registro_escalas_24h", docId), cleanUndefined(payload));
@@ -2255,57 +2558,64 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
             )}
           </div>
 
-          {/* LADO DIREITO: Barra de Ações Operacionais Harmoniosa */}
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0 self-end xl:self-center">
+          {/* LADO DIREITO: Barra de Ações Operacionais (2 Linhas Estruturadas) */}
+          <div className="flex flex-col gap-2 shrink-0 self-end xl:self-center items-end">
             
-            {/* Botão Gerar Permuta */}
-            <button
-              onClick={() => setIsPermutaModalOpen(true)}
-              className="h-10 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-wider text-[11px] shadow-sm hover:shadow flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
-              title="Abrir solicitação e gestão de permutas"
-            >
-              <ArrowRightLeft className="w-4 h-4" />
-              <span>Gerar Permuta</span>
-            </button>
-
-            {/* Botão Sortear Funções + Configurações (Cluster Integrado) */}
-            <div className="flex items-center rounded-xl shadow-sm border border-amber-500/40 overflow-hidden shrink-0">
+            {/* LINHA 1: Gerar Permuta + Sortear Funções */}
+            <div className="flex items-center gap-2">
+              {/* Botão Gerar Permuta */}
               <button
-                onClick={handleSortear}
-                className="h-10 px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-black uppercase tracking-wider text-[11px] flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
-                title="Sortear funções operacionais automaticamente"
+                onClick={() => setIsPermutaModalOpen(true)}
+                className="h-9 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-wider text-[11px] shadow-sm hover:shadow flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shrink-0"
+                title="Abrir solicitação e gestão de permutas"
               >
-                <Shuffle className="w-4 h-4" />
-                <span>Sortear Funções</span>
+                <ArrowRightLeft className="w-3.5 h-3.5" />
+                <span>Gerar Permuta</span>
               </button>
+
+              {/* Botão Sortear Funções + Configurações (Cluster Integrado) */}
+              <div className="flex items-center rounded-xl shadow-sm border border-amber-500/40 overflow-hidden shrink-0">
+                <button
+                  onClick={handleSortear}
+                  className="h-9 px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-black uppercase tracking-wider text-[11px] flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                  title="Sortear funções operacionais automaticamente"
+                >
+                  <Shuffle className="w-3.5 h-3.5" />
+                  <span>Sortear Funções</span>
+                </button>
+                <button
+                  onClick={() => setIsPreferenciasModalOpen(true)}
+                  className="h-9 px-2 bg-orange-600 hover:bg-orange-500 text-white border-l border-orange-400/40 flex items-center justify-center transition-colors cursor-pointer"
+                  title="Pré-definições e Configurações de Sorteio"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* LINHA 2: Limpar + Gerar Escala (Diretamente abaixo de Gerar Permuta e Sortear Funções) */}
+            <div className="flex items-center gap-2 w-full justify-end">
+              {/* Botão Limpar */}
               <button
-                onClick={() => setIsPreferenciasModalOpen(true)}
-                className="h-10 px-2.5 bg-orange-600 hover:bg-orange-500 text-white border-l border-orange-400/40 flex items-center justify-center transition-colors cursor-pointer"
-                title="Pré-definições e Configurações de Sorteio"
+                onClick={() => setSelectedFunctions({})}
+                className="h-9 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-200 font-black uppercase tracking-wider text-[11px] shadow-2xs transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer shrink-0"
+                title="Limpar todas as funções selecionadas na escala"
               >
-                <Settings className="w-4 h-4" />
+                <RotateCcw className="w-3.5 h-3.5 text-rose-500" />
+                <span>Limpar</span>
+              </button>
+
+              {/* Botão Principal: Gerar Escala */}
+              <button
+                onClick={handleGerarEscala}
+                className="flex-1 sm:flex-initial h-9 px-4 sm:px-5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-slate-900 hover:from-indigo-500 hover:via-indigo-600 hover:to-slate-800 text-white font-black uppercase tracking-widest text-[11px] shadow-md hover:shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95 ring-2 ring-indigo-500/20 cursor-pointer"
+                title="Gerar e Imprimir Escala de Serviço 24h"
+              >
+                <Printer className="w-4 h-4 text-indigo-200" />
+                <span>Gerar Escala</span>
               </button>
             </div>
 
-            {/* Botão Limpar */}
-            <button
-              onClick={() => setSelectedFunctions({})}
-              className="h-10 px-3 py-2 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-200 font-black uppercase tracking-wider text-[11px] shadow-2xs transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer"
-              title="Limpar todas as funções selecionadas na escala"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-rose-500" />
-              <span>Limpar</span>
-            </button>
-
-            {/* Botão Principal: Gerar Escala */}
-            <button
-              onClick={handleGerarEscala}
-              className="h-10 px-4 sm:px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-slate-900 hover:from-indigo-500 hover:via-indigo-600 hover:to-slate-800 text-white font-black uppercase tracking-widest text-[11px] shadow-md hover:shadow-lg flex items-center gap-2.5 transition-all active:scale-95 ring-2 ring-indigo-500/20 cursor-pointer"
-              title="Gerar e Imprimir Escala de Serviço 24h"
-            >
-              <Printer className="w-4 h-4 text-indigo-200" />
-              <span>Gerar Escala</span>
-            </button>
           </div>
 
         </div>
@@ -2427,7 +2737,31 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => handleToggleOfficerVisibility('showSection')}
+                className={cn(
+                  "px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer border shadow-2xs",
+                  officerVisibility.showSection !== false && (officerVisibility.showOficialDia || officerVisibility.showOficialNautica || officerVisibility.showOficialMedico)
+                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30"
+                    : "bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30"
+                )}
+                title="Ativar ou desativar o aparecimento de todos os oficiais no arquivo Gerar Escala"
+              >
+                {officerVisibility.showSection !== false && (officerVisibility.showOficialDia || officerVisibility.showOficialNautica || officerVisibility.showOficialMedico) ? (
+                  <>
+                    <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Gerar Escala: Ativo</span>
+                  </>
+                ) : (
+                  <>
+                    <EyeOff className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Gerar Escala: Desativado</span>
+                  </>
+                )}
+              </button>
+
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest font-mono">
                 OBM: <strong className="text-white">{obmContext || "10º GBM"}</strong>
               </span>
@@ -2452,14 +2786,39 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                       </span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => navigate('/servicos-grd')}
-                    className="p-1.5 hover:bg-white rounded-lg text-slate-500 hover:text-amber-700 transition-colors text-[9px] font-black uppercase flex items-center gap-1 border border-transparent hover:border-amber-200"
-                    title="Acessar módulo de Serviços & GRD"
-                  >
-                    <ExternalLink className="w-3 h-3 text-amber-600" />
-                    <span className="hidden sm:inline">Módulo</span>
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleOfficerVisibility('showOficialDia')}
+                      className={cn(
+                        "px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer border",
+                        officerVisibility.showSection !== false && officerVisibility.showOficialDia !== false
+                          ? "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
+                          : "bg-slate-100 text-slate-500 border-slate-300 hover:bg-slate-200"
+                      )}
+                      title={officerVisibility.showSection !== false && officerVisibility.showOficialDia !== false ? "Função ativa no Gerar Escala (clique para desativar)" : "Função desativada no Gerar Escala (clique para ativar)"}
+                    >
+                      {officerVisibility.showSection !== false && officerVisibility.showOficialDia !== false ? (
+                        <>
+                          <Eye className="w-3 h-3 text-emerald-600" />
+                          <span className="hidden sm:inline">Gerar Escala:</span> Ativo
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff className="w-3 h-3 text-slate-400" />
+                          <span className="hidden sm:inline">Gerar Escala:</span> Oculto
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => navigate('/servicos-grd')}
+                      className="p-1.5 hover:bg-white rounded-lg text-slate-500 hover:text-amber-700 transition-colors text-[9px] font-black uppercase flex items-center gap-1 border border-transparent hover:border-amber-200"
+                      title="Acessar módulo de Serviços & GRD"
+                    >
+                      <ExternalLink className="w-3 h-3 text-amber-600" />
+                      <span className="hidden sm:inline">Módulo</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="p-3.5 flex-1 flex flex-col justify-between gap-3">
@@ -2596,14 +2955,39 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                       </span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => navigate('/nucleo-nautico')}
-                    className="p-1.5 hover:bg-white rounded-lg text-slate-500 hover:text-cyan-700 transition-colors text-[9px] font-black uppercase flex items-center gap-1 border border-transparent hover:border-cyan-200"
-                    title="Acessar módulo Núcleo Náutico"
-                  >
-                    <ExternalLink className="w-3 h-3 text-cyan-600" />
-                    <span className="hidden sm:inline">Módulo</span>
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleOfficerVisibility('showOficialNautica')}
+                      className={cn(
+                        "px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer border",
+                        officerVisibility.showSection !== false && officerVisibility.showOficialNautica !== false
+                          ? "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
+                          : "bg-slate-100 text-slate-500 border-slate-300 hover:bg-slate-200"
+                      )}
+                      title={officerVisibility.showSection !== false && officerVisibility.showOficialNautica !== false ? "Função ativa no Gerar Escala (clique para desativar)" : "Função desativada no Gerar Escala (clique para ativar)"}
+                    >
+                      {officerVisibility.showSection !== false && officerVisibility.showOficialNautica !== false ? (
+                        <>
+                          <Eye className="w-3 h-3 text-emerald-600" />
+                          <span className="hidden sm:inline">Gerar Escala:</span> Ativo
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff className="w-3 h-3 text-slate-400" />
+                          <span className="hidden sm:inline">Gerar Escala:</span> Oculto
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => navigate('/nucleo-nautico')}
+                      className="p-1.5 hover:bg-white rounded-lg text-slate-500 hover:text-cyan-700 transition-colors text-[9px] font-black uppercase flex items-center gap-1 border border-transparent hover:border-cyan-200"
+                      title="Acessar módulo Núcleo Náutico"
+                    >
+                      <ExternalLink className="w-3 h-3 text-cyan-600" />
+                      <span className="hidden sm:inline">Módulo</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="p-3.5 flex-1 flex flex-col justify-between gap-3">
@@ -2740,14 +3124,39 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                       </span>
                     </div>
                   </div>
-                  <button
-                    onClick={() => navigate('/oficiais-medicos')}
-                    className="p-1.5 hover:bg-white rounded-lg text-slate-500 hover:text-rose-700 transition-colors text-[9px] font-black uppercase flex items-center gap-1 border border-transparent hover:border-rose-200"
-                    title="Acessar módulo Oficiais Médicos"
-                  >
-                    <ExternalLink className="w-3 h-3 text-rose-600" />
-                    <span className="hidden sm:inline">Módulo</span>
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleOfficerVisibility('showOficialMedico')}
+                      className={cn(
+                        "px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer border",
+                        officerVisibility.showSection !== false && officerVisibility.showOficialMedico !== false
+                          ? "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
+                          : "bg-slate-100 text-slate-500 border-slate-300 hover:bg-slate-200"
+                      )}
+                      title={officerVisibility.showSection !== false && officerVisibility.showOficialMedico !== false ? "Função ativa no Gerar Escala (clique para desativar)" : "Função desativada no Gerar Escala (clique para ativar)"}
+                    >
+                      {officerVisibility.showSection !== false && officerVisibility.showOficialMedico !== false ? (
+                        <>
+                          <Eye className="w-3 h-3 text-emerald-600" />
+                          <span className="hidden sm:inline">Gerar Escala:</span> Ativo
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff className="w-3 h-3 text-slate-400" />
+                          <span className="hidden sm:inline">Gerar Escala:</span> Oculto
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => navigate('/oficiais-medicos')}
+                      className="p-1.5 hover:bg-white rounded-lg text-slate-500 hover:text-rose-700 transition-colors text-[9px] font-black uppercase flex items-center gap-1 border border-transparent hover:border-rose-200"
+                      title="Acessar módulo Oficiais Médicos"
+                    >
+                      <ExternalLink className="w-3 h-3 text-rose-600" />
+                      <span className="hidden sm:inline">Módulo</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="p-3.5 flex-1 flex flex-col justify-between gap-3">
@@ -2869,14 +3278,34 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
               </div>
             </div>
 
-            <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-              <span className="flex items-center gap-1 text-emerald-700 font-black">
-                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                Os 3 Oficiais são automaticamente integrados ao rodapé oficial de impressão (Gerar Escala 24h).
-              </span>
-              <span className="font-mono">
-                Atualização em tempo real via Nuvem
-              </span>
+            <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="flex items-center gap-1 text-slate-700 font-black">
+                  <Shield className="w-3.5 h-3.5 text-indigo-600" />
+                  Gerar Escala:
+                </span>
+                <span className={cn("px-2 py-0.5 rounded text-[8px] font-black transition-colors", officerVisibility.showSection !== false && officerVisibility.showOficialDia !== false ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-500 line-through")}>
+                  Oficial de Dia: {officerVisibility.showSection !== false && officerVisibility.showOficialDia !== false ? "Ativo" : "Oculto"}
+                </span>
+                <span className={cn("px-2 py-0.5 rounded text-[8px] font-black transition-colors", officerVisibility.showSection !== false && officerVisibility.showOficialNautica !== false ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-500 line-through")}>
+                  Náutica: {officerVisibility.showSection !== false && officerVisibility.showOficialNautica !== false ? "Ativo" : "Oculto"}
+                </span>
+                <span className={cn("px-2 py-0.5 rounded text-[8px] font-black transition-colors", officerVisibility.showSection !== false && officerVisibility.showOficialMedico !== false ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-500 line-through")}>
+                  Médico: {officerVisibility.showSection !== false && officerVisibility.showOficialMedico !== false ? "Ativo" : "Oculto"}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const allActive = officerVisibility.showSection !== false && officerVisibility.showOficialDia !== false && officerVisibility.showOficialNautica !== false && officerVisibility.showOficialMedico !== false;
+                  handleToggleOfficerVisibility('showSection');
+                }}
+                className="text-[9px] font-black uppercase text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+              >
+                {officerVisibility.showSection !== false && officerVisibility.showOficialDia !== false && officerVisibility.showOficialNautica !== false && officerVisibility.showOficialMedico !== false
+                  ? "Desativar todos no Gerar Escala"
+                  : "Ativar todos no Gerar Escala"}
+              </button>
             </div>
           </div>
         </div>
@@ -3591,7 +4020,432 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           militars={militars}
         />
 
-        {/* SECTION 3: QUANT_MILITARES1 */}
+        {/* SECTION 2.7: GUARNIÇÃO DE REFORÇO (GRD) NO DIA */}
+        <GrdDiaModule
+          obmContext={obmContext}
+          selectedDate={selectedDate}
+          militars={militars}
+          afastamentos={afastamentos}
+          baseRoster={baseRoster}
+          onGrdChange={(rgs) => {
+            setGrdDayRgs(rgs);
+          }}
+          onOpenPrintView={() => setShowPrintView(true)}
+          user={user}
+        />
+
+        {/* SEÇÃO 3A: FUNÇÕES ADMINISTRATIVAS (2 BLOCOS) */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative z-20">
+          <div className="bg-slate-800 text-white rounded-t-2xl border-b border-slate-700 p-3 px-4 flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2.5">
+              <Printer className="w-4 h-4 text-slate-300" />
+              <h3 className="text-xs font-black uppercase tracking-widest text-white">
+                Funções Administrativas
+              </h3>
+              <span className="text-[10px] font-bold text-slate-300 bg-slate-700/60 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                Prontidão Administrativa (2 Blocos)
+              </span>
+            </div>
+
+            {(() => {
+              const adminReqs = dynamicRequirements.filter(f => f.category === 'admin');
+              const activeAdminCount = adminReqs.filter(f => {
+                const norm = normalizeFnName(f.name);
+                return adminRolesVisibility[norm] !== false && adminRolesVisibility[f.name] !== false;
+              }).length;
+              const hasAnyVisibleAdmin = activeAdminCount > 0;
+
+              return (
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                  {/* Resumo Global Administrativo */}
+                  <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-700 px-2.5 py-1 rounded-lg text-[10px]">
+                    <span className="text-slate-400 font-bold uppercase tracking-wider">Global:</span>
+                    <span className={cn("font-black", estudoTecnico.efetivoAdministrativo.chance > 0 ? "text-rose-400" : "text-emerald-400")}>
+                      {estudoTecnico.efetivoAdministrativo.chance}% Vazio
+                    </span>
+                    <span className="text-slate-500">|</span>
+                    <span className="text-slate-300 font-bold">Lacunas: {estudoTecnico.efetivoAdministrativo.deficit}</span>
+                    <span className="text-slate-500">|</span>
+                    <span className="text-slate-300 font-bold">Nec: {estudoTecnico.efetivoAdministrativo.req}</span>
+                  </div>
+
+                  {/* Seletor de Modo dos 2 Blocos */}
+                  <div className="flex items-center bg-slate-900/80 p-0.5 rounded-lg border border-slate-700">
+                    <button
+                      type="button"
+                      onClick={() => setAdminTwoBlockMode('categories')}
+                      className={cn(
+                        "px-2.5 py-1 rounded text-[9.5px] font-black uppercase tracking-wider transition-all cursor-pointer",
+                        adminTwoBlockMode === 'categories'
+                          ? "bg-slate-700 text-white shadow-2xs"
+                          : "text-slate-400 hover:text-slate-200"
+                      )}
+                      title="Dividir em 2 blocos por grupos (Gestão/Guarda e Apoio/Logística)"
+                    >
+                      2 Grupos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdminTwoBlockMode('status')}
+                      className={cn(
+                        "px-2.5 py-1 rounded text-[9.5px] font-black uppercase tracking-wider transition-all cursor-pointer",
+                        adminTwoBlockMode === 'status'
+                          ? "bg-slate-700 text-white shadow-2xs"
+                          : "text-slate-400 hover:text-slate-200"
+                      )}
+                      title="Dividir em 2 blocos por situação (Déficit e Regulares)"
+                    >
+                      Por Status
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdminTwoBlockMode('table_analytics')}
+                      className={cn(
+                        "px-2.5 py-1 rounded text-[9.5px] font-black uppercase tracking-wider transition-all cursor-pointer",
+                        adminTwoBlockMode === 'table_analytics'
+                          ? "bg-slate-700 text-white shadow-2xs"
+                          : "text-slate-400 hover:text-slate-200"
+                      )}
+                      title="2 blocos: Tabela completa + Diagnóstico do Administrativo"
+                    >
+                      Tabela + Diagnóstico
+                    </button>
+                  </div>
+
+                  {/* Botão Ativar/Desativar Todas Gerar Escala */}
+                  <button
+                    type="button"
+                    onClick={() => handleSetAllAdminRolesVisibility(!hasAnyVisibleAdmin)}
+                    className={cn(
+                      "px-2.5 py-1 rounded-lg text-[9.5px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer border shadow-2xs",
+                      hasAnyVisibleAdmin
+                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/30"
+                        : "bg-rose-500/20 text-rose-300 border-rose-500/30 hover:bg-rose-500/30"
+                    )}
+                    title="Ativar ou desativar todas as funções administrativas no arquivo Gerar Escala"
+                  >
+                    {hasAnyVisibleAdmin ? (
+                      <>
+                        <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Gerar Escala: Ativas ({activeAdminCount}/{adminReqs.length})</span>
+                      </>
+                    ) : (
+                      <>
+                        <EyeOff className="w-3.5 h-3.5 text-rose-400" />
+                        <span>Gerar Escala: Ocultas</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              );
+            })()}
+          </div>
+
+          <div className="p-4 sm:p-6 bg-slate-50 relative">
+            {(() => {
+              const adminReqs = dynamicRequirements.filter(f => f.category === 'admin');
+              const adminFunctions = adminReqs
+                .map(f => {
+                  const currentCount = Object.values(selectedFunctions).flat().filter((v) => normalizeFnName(v) === normalizeFnName(f.name)).length;
+                  return { ...f, currentCount, isOk: currentCount >= f.req };
+                })
+                .filter(f => f.req > 0 || f.currentCount > 0)
+                .sort((a, b) => {
+                  if (a.isOk === b.isOk) return 0;
+                  return a.isOk ? 1 : -1;
+                });
+
+              const group1Names = ['ADJUNTO', 'SGT DIA', 'CMT GUARDA', 'CB GUARDA', 'CB DIA', 'SENTINELA', 'ESCALANTE'].map(normalizeFnName);
+              const group1List = adminFunctions.filter(f => group1Names.includes(normalizeFnName(f.name)));
+              const group2List = adminFunctions.filter(f => !group1Names.includes(normalizeFnName(f.name)));
+
+              const defList = adminFunctions.filter(f => !f.isOk);
+              const okList = adminFunctions.filter(f => f.isOk);
+
+              const renderAdminTable = (items: typeof adminFunctions) => (
+                <div className="overflow-x-auto flex-1">
+                  <table className="w-full text-left text-[10px] font-bold uppercase tracking-wider bg-white">
+                    <thead className="bg-slate-100/90 text-slate-700 text-[10.5px] border-b border-slate-200">
+                      <tr>
+                        <th className="p-2.5 px-4 font-black">Função</th>
+                        <th className="p-2.5 px-3 w-16 text-center font-black">Atual</th>
+                        <th className="p-2.5 px-3 w-16 text-center font-black">Nec.</th>
+                        <th className="p-2.5 px-3 w-20 text-center font-black">Status</th>
+                        <th className="p-2.5 px-3 w-28 text-center font-black">Gerar Escala</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {items.map(funcao => {
+                        const currentCount = funcao.currentCount;
+                        const isOk = funcao.isOk;
+                        const norm = normalizeFnName(funcao.name);
+                        const isVisibleInGerarEscala = adminRolesVisibility[norm] !== false && adminRolesVisibility[funcao.name] !== false;
+                        return (
+                          <tr key={funcao.name} className="hover:bg-slate-50 transition-colors">
+                            <td className="p-2.5 px-4 tracking-tighter text-slate-800 text-[11px] font-black">
+                              {funcao.name}
+                            </td>
+                            <td className="p-2.5 px-3 text-center">
+                              <span className={cn(
+                                "px-2 py-0.5 rounded-md text-[10px] font-black inline-block min-w-[20px]",
+                                currentCount > 0 ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400"
+                              )}>
+                                {currentCount}
+                              </span>
+                            </td>
+                            <td className="p-2.5 px-3 text-center text-slate-500 font-black text-[11px]">
+                              {funcao.req}
+                            </td>
+                            <td className="p-2.5 px-3 text-center">
+                              {isOk ? (
+                                <span className="text-emerald-500 font-black inline-flex items-center justify-center gap-1">
+                                  <CheckCircle2 className="w-3.5 h-3.5 stroke-[3]" /> OK
+                                </span>
+                              ) : (
+                                <span className="text-rose-500 font-black inline-flex items-center justify-center gap-1">
+                                  <AlertCircle className="w-3.5 h-3.5 stroke-[3]" /> DEF
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-2.5 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleAdminRoleVisibility(funcao.name)}
+                                className={cn(
+                                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer border shadow-2xs",
+                                  isVisibleInGerarEscala
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                    : "bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200 hover:text-slate-600"
+                                )}
+                                title={isVisibleInGerarEscala ? `Função ${funcao.name} ativa no Gerar Escala (clique para desativar)` : `Função ${funcao.name} desativada no Gerar Escala (clique para ativar)`}
+                              >
+                                {isVisibleInGerarEscala ? (
+                                  <>
+                                    <Eye className="w-3 h-3 text-emerald-600" />
+                                    <span>Ativa</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <EyeOff className="w-3 h-3 text-slate-400" />
+                                    <span>Oculta</span>
+                                  </>
+                                )}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {items.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="p-6 text-center text-slate-400 text-xs font-bold uppercase tracking-wider">
+                            Nenhuma função administrativa neste bloco
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              );
+
+              return (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-7xl mx-auto items-start">
+                  {/* SELEÇÃO DO BLOCO 1 E BLOCO 2 CONFORME O MODO */}
+                  {adminTwoBlockMode === 'categories' && (
+                    <>
+                      {/* BLOCO 1: GESTÃO & GUARDA */}
+                      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs flex flex-col h-full">
+                        <div className="bg-[#1e293b] text-white p-3 px-4 flex items-center justify-between border-b border-slate-700">
+                          <div className="flex items-center gap-2">
+                            <Shield className="w-4 h-4 text-indigo-400" />
+                            <span className="text-[11px] font-black uppercase tracking-wider">Supervisão, Comando & Guarda</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9.5px] font-bold text-slate-300 bg-slate-700/60 px-2 py-0.5 rounded-md">
+                              {group1List.length} Funções
+                            </span>
+                            <span className="text-[9.5px] font-black text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-md border border-emerald-500/30">
+                              {group1List.filter(f => f.isOk).length} OK
+                            </span>
+                            {group1List.filter(f => !f.isOk).length > 0 && (
+                              <span className="text-[9.5px] font-black text-rose-300 bg-rose-500/20 px-2 py-0.5 rounded-md border border-rose-500/30">
+                                {group1List.filter(f => !f.isOk).length} DEF
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {renderAdminTable(group1List)}
+                      </div>
+
+                      {/* BLOCO 2: APOIO & LOGÍSTICA */}
+                      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs flex flex-col h-full">
+                        <div className="bg-[#1e293b] text-white p-3 px-4 flex items-center justify-between border-b border-slate-700">
+                          <div className="flex items-center gap-2">
+                            <BriefcaseBusiness className="w-4 h-4 text-amber-400" />
+                            <span className="text-[11px] font-black uppercase tracking-wider">Apoio Operacional, Rancho & Logística</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9.5px] font-bold text-slate-300 bg-slate-700/60 px-2 py-0.5 rounded-md">
+                              {group2List.length} Funções
+                            </span>
+                            <span className="text-[9.5px] font-black text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-md border border-emerald-500/30">
+                              {group2List.filter(f => f.isOk).length} OK
+                            </span>
+                            {group2List.filter(f => !f.isOk).length > 0 && (
+                              <span className="text-[9.5px] font-black text-rose-300 bg-rose-500/20 px-2 py-0.5 rounded-md border border-rose-500/30">
+                                {group2List.filter(f => !f.isOk).length} DEF
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {renderAdminTable(group2List)}
+                      </div>
+                    </>
+                  )}
+
+                  {adminTwoBlockMode === 'status' && (
+                    <>
+                      {/* BLOCO 1: FUNÇÕES EM DÉFICIT */}
+                      <div className="bg-white rounded-xl border border-rose-200 overflow-hidden shadow-xs flex flex-col h-full">
+                        <div className="bg-rose-950 text-white p-3 px-4 flex items-center justify-between border-b border-rose-800">
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-rose-400" />
+                            <span className="text-[11px] font-black uppercase tracking-wider">Funções com Déficit (Necessitam Militar)</span>
+                          </div>
+                          <span className="text-[9.5px] font-black text-rose-200 bg-rose-800/80 px-2.5 py-0.5 rounded-md border border-rose-700">
+                            {defList.length} Funções com Lacuna
+                          </span>
+                        </div>
+                        {renderAdminTable(defList)}
+                      </div>
+
+                      {/* BLOCO 2: FUNÇÕES REGULARES */}
+                      <div className="bg-white rounded-xl border border-emerald-200 overflow-hidden shadow-xs flex flex-col h-full">
+                        <div className="bg-emerald-950 text-white p-3 px-4 flex items-center justify-between border-b border-emerald-800">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                            <span className="text-[11px] font-black uppercase tracking-wider">Funções Regularizadas (Efetivo Completo)</span>
+                          </div>
+                          <span className="text-[9.5px] font-black text-emerald-200 bg-emerald-800/80 px-2.5 py-0.5 rounded-md border border-emerald-700">
+                            {okList.length} Funções Cobertas
+                          </span>
+                        </div>
+                        {renderAdminTable(okList)}
+                      </div>
+                    </>
+                  )}
+
+                  {adminTwoBlockMode === 'table_analytics' && (
+                    <>
+                      {/* BLOCO 1: TABELA GERAL */}
+                      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs flex flex-col h-full">
+                        <div className="bg-[#1e293b] text-white p-3 px-4 flex items-center justify-between border-b border-slate-700">
+                          <div className="flex items-center gap-2">
+                            <Printer className="w-4 h-4 text-slate-300" />
+                            <span className="text-[11px] font-black uppercase tracking-wider">Tabela de Funções Administrativas</span>
+                          </div>
+                          <span className="text-[9.5px] font-bold text-slate-300 bg-slate-700/60 px-2 py-0.5 rounded-md">
+                            {adminFunctions.length} Funções
+                          </span>
+                        </div>
+                        {renderAdminTable(adminFunctions)}
+                      </div>
+
+                      {/* BLOCO 2: DIAGNÓSTICO E INTELIGÊNCIA ADMINISTRATIVA */}
+                      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs flex flex-col h-full">
+                        <div className="bg-slate-800 text-white p-3 px-4 flex items-center justify-between border-b border-slate-700">
+                          <div className="flex items-center gap-2">
+                            <Activity className="w-4 h-4 text-amber-400" />
+                            <span className="text-[11px] font-black uppercase tracking-wider">Diagnóstico & Gestão do Administrativo</span>
+                          </div>
+                          <span className="text-[9.5px] font-bold text-slate-300 bg-slate-700/60 px-2 py-0.5 rounded-md">
+                            Resumo OBM
+                          </span>
+                        </div>
+
+                        <div className="p-4 space-y-4 flex-1 bg-white">
+                          {/* Medidor de Déficit */}
+                          <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                            <div className="flex justify-between items-end mb-1">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Global Administrativo</span>
+                              <span className={cn("text-[11px] font-black", estudoTecnico.efetivoAdministrativo.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                                {estudoTecnico.efetivoAdministrativo.chance}% Vazio
+                              </span>
+                            </div>
+                            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                              <div
+                                className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.efetivoAdministrativo.chance > 0 ? "bg-rose-500" : "bg-emerald-500")}
+                                style={{ width: `${estudoTecnico.efetivoAdministrativo.chance}%` }}
+                              />
+                            </div>
+                            <div className="flex justify-between mt-1 text-[9.5px] text-slate-500 font-bold">
+                              <span>Lacunas: {estudoTecnico.efetivoAdministrativo.deficit}</span>
+                              <span>Necessidade: {estudoTecnico.efetivoAdministrativo.req}</span>
+                            </div>
+                          </div>
+
+                          {/* Balanço de Regularidade */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg text-center">
+                              <span className="text-[9.5px] font-bold text-emerald-700 uppercase tracking-wider block">Regularizadas</span>
+                              <span className="text-xl font-black text-emerald-800">{okList.length}</span>
+                              <span className="text-[9px] text-emerald-600 block mt-0.5">funções atendidas</span>
+                            </div>
+                            <div className="bg-rose-50 border border-rose-200 p-3 rounded-lg text-center">
+                              <span className="text-[9.5px] font-bold text-rose-700 uppercase tracking-wider block">Em Déficit</span>
+                              <span className="text-xl font-black text-rose-800">{defList.length}</span>
+                              <span className="text-[9px] text-rose-600 block mt-0.5">precisam de militar</span>
+                            </div>
+                          </div>
+
+                          {/* Militares Escalados no Administrativo */}
+                          <div>
+                            <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest block mb-2">
+                              Militares Escalados no Administrativo ({militars.filter(m => {
+                                const fns = selectedFunctions[m.rg] || [];
+                                return fns.some(fn => adminFunctions.some(af => normalizeFnName(af.name) === normalizeFnName(fn)));
+                              }).length})
+                            </span>
+                            <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto pr-1">
+                              {militars
+                                .filter(m => {
+                                  const fns = selectedFunctions[m.rg] || [];
+                                  return fns.some(fn => adminFunctions.some(af => normalizeFnName(af.name) === normalizeFnName(fn)));
+                                })
+                                .map(m => {
+                                  const fns = selectedFunctions[m.rg] || [];
+                                  const adminFns = fns.filter(fn => adminFunctions.some(af => normalizeFnName(af.name) === normalizeFnName(fn)));
+                                  return (
+                                    <div
+                                      key={m.rg}
+                                      className="inline-flex items-center gap-1.5 bg-slate-100 border border-slate-200 text-slate-800 text-[10px] px-2 py-1 rounded-md font-bold"
+                                    >
+                                      <span>{m.warName?.toUpperCase() || formatMilitaryName(m.name || "")}</span>
+                                      <span className="text-slate-400">→</span>
+                                      <span className="text-indigo-700 font-black">{adminFns.join(', ')}</span>
+                                    </div>
+                                  );
+                                })}
+                              {militars.filter(m => {
+                                const fns = selectedFunctions[m.rg] || [];
+                                return fns.some(fn => adminFunctions.some(af => normalizeFnName(af.name) === normalizeFnName(fn)));
+                              }).length === 0 && (
+                                <span className="text-[10px] text-slate-400 italic">
+                                  Nenhum militar alocado em função administrativa nesta escala ainda.
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+
+        {/* SECTION 3B: PRONTIDÃO OPERACIONAL (QUANT_MILITARES1) */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative z-20">
           <div className="bg-amber-50 rounded-t-2xl border-b border-amber-100 p-3 px-4 flex items-center justify-between">
             <h3 className="text-xs font-black text-amber-900 uppercase tracking-widest flex items-center gap-2">
@@ -3603,315 +4457,260 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
             </span>
           </div>
           <div className="p-4 sm:p-6 bg-slate-50 relative">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
-              
-              {/* OPERACIONAIS */}
-              <div>
-                <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest mb-3 flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-indigo-500" />
-                  Funções Operacionais
-                </h4>
-                <table className="w-full text-left text-[10px] font-bold uppercase tracking-wider bg-white rounded-lg overflow-hidden border border-slate-200 shadow-sm">
-                  <thead className="bg-[#1e293b] text-white text-[11px]">
-                    <tr>
-                      <th className="p-2.5 px-4 border-b border-slate-700">Função</th>
-                      <th className="p-2.5 px-4 border-b border-slate-700 w-20 text-center">Atual</th>
-                      <th className="p-2.5 px-4 border-b border-slate-700 w-20 text-center">Nec.</th>
-                      <th className="p-2.5 px-4 border-b border-slate-700 w-20 text-center">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {dynamicRequirements
-                      .filter(f => f.category !== 'admin')
-                      .map(f => {
-                        const currentCount = Object.values(selectedFunctions).flat().filter((v) => normalizeFnName(v) === normalizeFnName(f.name)).length;
-                        return { ...f, currentCount, isOk: currentCount >= f.req };
-                      })
-                      .filter(f => f.req > 0 || f.currentCount > 0)
-                      .sort((a, b) => {
-                        if (a.isOk === b.isOk) return 0;
-                        return a.isOk ? 1 : -1;
-                      })
-                      .map((funcao) => {
-                      const currentCount = funcao.currentCount;
-                      const isOk = funcao.isOk;
-                      return (
-                        <tr key={funcao.name} className="hover:bg-slate-50 transition-colors">
-                          <td className="p-2.5 px-4 tracking-tighter text-slate-800 text-[11px]">{funcao.name}</td>
-                          <td className="p-2.5 px-4 text-center">
-                            <span className={cn("px-2 py-1 rounded-md text-[10px] font-black", currentCount > 0 ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400")}>
-                              {currentCount}
-                            </span>
-                          </td>
-                          <td className="p-2.5 px-4 text-center text-slate-500 font-black">{funcao.req}</td>
-                          <td className="p-2.5 px-4 text-center">
-                            {isOk ? (
-                              <span className="text-emerald-500 font-black flex items-center justify-center gap-1">
-                                <CheckCircle2 className="w-3.5 h-3.5 stroke-[3]" /> OK
-                              </span>
-                            ) : (
-                              <span className="text-rose-500 font-black flex items-center justify-center gap-1">
-                                <AlertCircle className="w-3.5 h-3.5 stroke-[3]" /> DEF
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* ADMINISTRATIVAS */}
-              <div>
-                <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest mb-3 flex items-center gap-2">
-                  <Printer className="w-4 h-4 text-slate-500" />
-                  Funções Administrativas
-                </h4>
-                <table className="w-full text-left text-[10px] font-bold uppercase tracking-wider bg-white rounded-lg overflow-hidden border border-slate-200 shadow-sm">
-                  <thead className="bg-[#1e293b] text-white text-[11px]">
-                    <tr>
-                      <th className="p-2.5 px-4 border-b border-slate-700">Função</th>
-                      <th className="p-2.5 px-4 border-b border-slate-700 w-20 text-center">Atual</th>
-                      <th className="p-2.5 px-4 border-b border-slate-700 w-20 text-center">Nec.</th>
-                      <th className="p-2.5 px-4 border-b border-slate-700 w-20 text-center">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {dynamicRequirements
-                      .filter(f => f.category === 'admin')
-                      .map(f => {
-                        const currentCount = Object.values(selectedFunctions).flat().filter((v) => normalizeFnName(v) === normalizeFnName(f.name)).length;
-                        return { ...f, currentCount, isOk: currentCount >= f.req };
-                      })
-                      .filter(f => f.req > 0 || f.currentCount > 0)
-                      .sort((a, b) => {
-                        if (a.isOk === b.isOk) return 0;
-                        return a.isOk ? 1 : -1;
-                      })
-                      .map((funcao) => {
-                      const currentCount = funcao.currentCount;
-                      const isOk = funcao.isOk;
-                      return (
-                        <tr key={funcao.name} className="hover:bg-slate-50 transition-colors">
-                          <td className="p-2.5 px-4 tracking-tighter text-slate-800 text-[11px]">{funcao.name}</td>
-                          <td className="p-2.5 px-4 text-center">
-                            <span className={cn("px-2 py-1 rounded-md text-[10px] font-black", currentCount > 0 ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400")}>
-                              {currentCount}
-                            </span>
-                          </td>
-                          <td className="p-2.5 px-4 text-center text-slate-500 font-black">{funcao.req}</td>
-                          <td className="p-2.5 px-4 text-center">
-                            {isOk ? (
-                              <span className="text-emerald-500 font-black flex items-center justify-center gap-1">
-                                <CheckCircle2 className="w-3.5 h-3.5 stroke-[3]" /> OK
-                              </span>
-                            ) : (
-                              <span className="text-rose-500 font-black flex items-center justify-center gap-1">
-                                <AlertCircle className="w-3.5 h-3.5 stroke-[3]" /> DEF
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* ESTUDO TÉCNICO */}
-              <div className="lg:col-span-1">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-rose-500" />
-                    Previsão Algorítmica
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-7xl mx-auto items-start">
+                
+                {/* OPERACIONAIS (VERTICAL) */}
+                <div>
+                  <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-indigo-500" />
+                    Funções Operacionais
                   </h4>
-                  <button 
-                    onClick={() => navigate('/estudo-tecnico-guarnicoes')}
-                    className="flex items-center gap-1.5 px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-md text-[10px] font-bold tracking-wider transition-colors"
-                  >
-                    Estudo Plurianual <ArrowRight className="w-3 h-3" />
-                  </button>
+                  <table className="w-full text-left text-[10px] font-bold uppercase tracking-wider bg-white rounded-lg overflow-hidden border border-slate-200 shadow-sm">
+                    <thead className="bg-[#1e293b] text-white text-[11px]">
+                      <tr>
+                        <th className="p-2.5 px-4 border-b border-slate-700">Função</th>
+                        <th className="p-2.5 px-4 border-b border-slate-700 w-20 text-center">Atual</th>
+                        <th className="p-2.5 px-4 border-b border-slate-700 w-20 text-center">Nec.</th>
+                        <th className="p-2.5 px-4 border-b border-slate-700 w-20 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {dynamicRequirements
+                        .filter(f => f.category !== 'admin')
+                        .map(f => {
+                          const currentCount = Object.values(selectedFunctions).flat().filter((v) => normalizeFnName(v) === normalizeFnName(f.name)).length;
+                          return { ...f, currentCount, isOk: currentCount >= f.req };
+                        })
+                        .filter(f => f.req > 0 || f.currentCount > 0)
+                        .sort((a, b) => {
+                          if (a.isOk === b.isOk) return 0;
+                          return a.isOk ? 1 : -1;
+                        })
+                        .map((funcao) => {
+                        const currentCount = funcao.currentCount;
+                        const isOk = funcao.isOk;
+                        return (
+                          <tr key={funcao.name} className="hover:bg-slate-50 transition-colors">
+                            <td className="p-2.5 px-4 tracking-tighter text-slate-800 text-[11px]">{funcao.name}</td>
+                            <td className="p-2.5 px-4 text-center">
+                              <span className={cn("px-2 py-1 rounded-md text-[10px] font-black", currentCount > 0 ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400")}>
+                                {currentCount}
+                              </span>
+                            </td>
+                            <td className="p-2.5 px-4 text-center text-slate-500 font-black">{funcao.req}</td>
+                            <td className="p-2.5 px-4 text-center">
+                              {isOk ? (
+                                <span className="text-emerald-500 font-black flex items-center justify-center gap-1">
+                                  <CheckCircle2 className="w-3.5 h-3.5 stroke-[3]" /> OK
+                                </span>
+                              ) : (
+                                <span className="text-rose-500 font-black flex items-center justify-center gap-1">
+                                  <AlertCircle className="w-3.5 h-3.5 stroke-[3]" /> DEF
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-                <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm flex flex-col h-full">
-                   <div className="p-4 bg-slate-800 text-white flex items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
-                         <TrendingDown className="w-4 h-4 text-rose-400" />
-                         Risco de Déficit
-                      </span>
-                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-700/50">
-                         PREVISÃO
-                      </span>
-                   </div>
-                   <div className="p-4 space-y-4 flex-1">
-                      {/* Efetivo Global */}
-                      <div>
-                        <div className="flex justify-between items-end mb-1">
-                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Efetivo Global (Total)</span>
-                           <span className={cn("text-[11px] font-black", estudoTecnico.efetivo.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
-                             {estudoTecnico.efetivo.chance}% Vazio
-                           </span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                           <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.efetivo.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.efetivo.chance}%` }} />
-                        </div>
-                        <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
-                           <span>Lacunas: {estudoTecnico.efetivo.deficit}</span>
-                           <span>Nec: {estudoTecnico.efetivo.req}</span>
-                        </div>
-                      </div>
 
-                      <div className="pt-2">
-                        <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest border-b border-slate-200 block w-full pb-1 mb-2">Funções Operacionais</span>
-                      </div>
-                      
-                      {/* Efetivo Operacional */}
-                      <div>
-                        <div className="flex justify-between items-end mb-1">
-                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Global Operacional</span>
-                           <span className={cn("text-[11px] font-black", estudoTecnico.efetivoOperacional.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
-                             {estudoTecnico.efetivoOperacional.chance}% Vazio
-                           </span>
+                {/* ESTUDO TÉCNICO / PREVISÃO ALGORÍTMICA (VERTICAL) */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-rose-500" />
+                      Previsão Algorítmica
+                    </h4>
+                    <button 
+                      onClick={() => navigate('/estudo-tecnico-guarnicoes')}
+                      className="flex items-center gap-1.5 px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-md text-[10px] font-bold tracking-wider transition-colors"
+                    >
+                      Estudo Plurianual <ArrowRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm flex flex-col h-full">
+                     <div className="p-4 bg-slate-800 text-white flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+                           <TrendingDown className="w-4 h-4 text-rose-400" />
+                           Risco de Déficit
+                        </span>
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-700/50">
+                           PREVISÃO
+                        </span>
+                     </div>
+                     <div className="p-4 space-y-4 flex-1">
+                        {/* Efetivo Global */}
+                        <div>
+                          <div className="flex justify-between items-end mb-1">
+                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Efetivo Global (Total)</span>
+                             <span className={cn("text-[11px] font-black", estudoTecnico.efetivo.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                               {estudoTecnico.efetivo.chance}% Vazio
+                             </span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                             <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.efetivo.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.efetivo.chance}%` }} />
+                          </div>
+                          <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                             <span>Lacunas: {estudoTecnico.efetivo.deficit}</span>
+                             <span>Nec: {estudoTecnico.efetivo.req}</span>
+                          </div>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                           <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.efetivoOperacional.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.efetivoOperacional.chance}%` }} />
-                        </div>
-                        <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
-                           <span>Lacunas: {estudoTecnico.efetivoOperacional.deficit}</span>
-                           <span>Nec: {estudoTecnico.efetivoOperacional.req}</span>
-                        </div>
-                      </div>
-                      
-                      {/* Condutores */}
-                      <div>
-                        <div className="flex justify-between items-end mb-1">
-                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Condutores</span>
-                           <span className={cn("text-[11px] font-black", estudoTecnico.condutores.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
-                             {estudoTecnico.condutores.chance}% Vazio
-                           </span>
-                        </div>
-                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                           <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.condutores.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.condutores.chance}%` }} />
-                        </div>
-                        <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
-                           <span>Lacunas: {estudoTecnico.condutores.deficit}</span>
-                           <span>Nec: {estudoTecnico.condutores.req}</span>
-                        </div>
-                      </div>
 
-                      {estudoTecnico.condutores_maritimos.req > 0 && (
-                      <div>
-                        <div className="flex justify-between items-end mb-1">
-                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Mestres (Marítimo)</span>
-                           <span className={cn("text-[11px] font-black", estudoTecnico.condutores_maritimos.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
-                             {estudoTecnico.condutores_maritimos.chance}% Vazio
-                           </span>
+                        <div className="pt-2">
+                          <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest border-b border-slate-200 block w-full pb-1 mb-2">Funções Operacionais</span>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                           <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.condutores_maritimos.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.condutores_maritimos.chance}%` }} />
+                        
+                        {/* Efetivo Operacional */}
+                        <div>
+                          <div className="flex justify-between items-end mb-1">
+                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Global Operacional</span>
+                             <span className={cn("text-[11px] font-black", estudoTecnico.efetivoOperacional.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                               {estudoTecnico.efetivoOperacional.chance}% Vazio
+                             </span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                             <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.efetivoOperacional.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.efetivoOperacional.chance}%` }} />
+                          </div>
+                          <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                             <span>Lacunas: {estudoTecnico.efetivoOperacional.deficit}</span>
+                             <span>Nec: {estudoTecnico.efetivoOperacional.req}</span>
+                          </div>
                         </div>
-                        <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
-                           <span>Lacunas: {estudoTecnico.condutores_maritimos.deficit}</span>
-                           <span>Nec: {estudoTecnico.condutores_maritimos.req}</span>
+                        
+                        {/* Condutores */}
+                        <div>
+                          <div className="flex justify-between items-end mb-1">
+                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Condutores</span>
+                             <span className={cn("text-[11px] font-black", estudoTecnico.condutores.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                               {estudoTecnico.condutores.chance}% Vazio
+                             </span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                             <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.condutores.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.condutores.chance}%` }} />
+                          </div>
+                          <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                             <span>Lacunas: {estudoTecnico.condutores.deficit}</span>
+                             <span>Nec: {estudoTecnico.condutores.req}</span>
+                          </div>
                         </div>
-                      </div>
-                      )}
 
-                      {/* Chefes */}
-                      <div>
-                        <div className="flex justify-between items-end mb-1">
-                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Chefes de Guarnição</span>
-                           <span className={cn("text-[11px] font-black", estudoTecnico.chefes.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
-                             {estudoTecnico.chefes.chance}% Vazio
-                           </span>
+                        {estudoTecnico.condutores_maritimos.req > 0 && (
+                        <div>
+                          <div className="flex justify-between items-end mb-1">
+                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Mestres (Marítimo)</span>
+                             <span className={cn("text-[11px] font-black", estudoTecnico.condutores_maritimos.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                               {estudoTecnico.condutores_maritimos.chance}% Vazio
+                             </span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                             <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.condutores_maritimos.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.condutores_maritimos.chance}%` }} />
+                          </div>
+                          <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                             <span>Lacunas: {estudoTecnico.condutores_maritimos.deficit}</span>
+                             <span>Nec: {estudoTecnico.condutores_maritimos.req}</span>
+                          </div>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                           <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.chefes.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.chefes.chance}%` }} />
-                        </div>
-                        <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
-                           <span>Lacunas: {estudoTecnico.chefes.deficit}</span>
-                           <span>Nec: {estudoTecnico.chefes.req}</span>
-                        </div>
-                      </div>
+                        )}
 
-                      {estudoTecnico.chefes_maritimos.req > 0 && (
-                      <div>
-                        <div className="flex justify-between items-end mb-1">
-                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Chefes (Marítimo)</span>
-                           <span className={cn("text-[11px] font-black", estudoTecnico.chefes_maritimos.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
-                             {estudoTecnico.chefes_maritimos.chance}% Vazio
-                           </span>
+                        {/* Chefes */}
+                        <div>
+                          <div className="flex justify-between items-end mb-1">
+                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Chefes de Guarnição</span>
+                             <span className={cn("text-[11px] font-black", estudoTecnico.chefes.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                               {estudoTecnico.chefes.chance}% Vazio
+                             </span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                             <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.chefes.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.chefes.chance}%` }} />
+                          </div>
+                          <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                             <span>Lacunas: {estudoTecnico.chefes.deficit}</span>
+                             <span>Nec: {estudoTecnico.chefes.req}</span>
+                          </div>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                           <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.chefes_maritimos.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.chefes_maritimos.chance}%` }} />
-                        </div>
-                        <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
-                           <span>Lacunas: {estudoTecnico.chefes_maritimos.deficit}</span>
-                           <span>Nec: {estudoTecnico.chefes_maritimos.req}</span>
-                        </div>
-                      </div>
-                      )}
 
-                      {/* Auxiliares */}
-                      <div>
-                        <div className="flex justify-between items-end mb-1">
-                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Auxiliares / Geral</span>
-                           <span className={cn("text-[11px] font-black", estudoTecnico.auxiliares.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
-                             {estudoTecnico.auxiliares.chance}% Vazio
-                           </span>
+                        {estudoTecnico.chefes_maritimos.req > 0 && (
+                        <div>
+                          <div className="flex justify-between items-end mb-1">
+                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Chefes (Marítimo)</span>
+                             <span className={cn("text-[11px] font-black", estudoTecnico.chefes_maritimos.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                               {estudoTecnico.chefes_maritimos.chance}% Vazio
+                             </span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                             <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.chefes_maritimos.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.chefes_maritimos.chance}%` }} />
+                          </div>
+                          <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                             <span>Lacunas: {estudoTecnico.chefes_maritimos.deficit}</span>
+                             <span>Nec: {estudoTecnico.chefes_maritimos.req}</span>
+                          </div>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                           <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.auxiliares.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.auxiliares.chance}%` }} />
-                        </div>
-                        <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
-                           <span>Lacunas: {estudoTecnico.auxiliares.deficit}</span>
-                           <span>Nec: {estudoTecnico.auxiliares.req}</span>
-                        </div>
-                      </div>
+                        )}
 
-                      {estudoTecnico.auxiliares_maritimos.req > 0 && (
-                      <div>
-                        <div className="flex justify-between items-end mb-1">
-                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Marinheiros (Marítimo)</span>
-                           <span className={cn("text-[11px] font-black", estudoTecnico.auxiliares_maritimos.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
-                             {estudoTecnico.auxiliares_maritimos.chance}% Vazio
-                           </span>
+                        {/* Auxiliares */}
+                        <div>
+                          <div className="flex justify-between items-end mb-1">
+                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Auxiliares / Geral</span>
+                             <span className={cn("text-[11px] font-black", estudoTecnico.auxiliares.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                               {estudoTecnico.auxiliares.chance}% Vazio
+                             </span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                             <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.auxiliares.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.auxiliares.chance}%` }} />
+                          </div>
+                          <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                             <span>Lacunas: {estudoTecnico.auxiliares.deficit}</span>
+                             <span>Nec: {estudoTecnico.auxiliares.req}</span>
+                          </div>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                           <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.auxiliares_maritimos.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.auxiliares_maritimos.chance}%` }} />
-                        </div>
-                        <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
-                           <span>Lacunas: {estudoTecnico.auxiliares_maritimos.deficit}</span>
-                           <span>Nec: {estudoTecnico.auxiliares_maritimos.req}</span>
-                        </div>
-                      </div>
-                      )}
 
-                      <div className="pt-4">
-                        <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest border-b border-slate-200 block w-full pb-1 mb-2">Funções Administrativas</span>
-                      </div>
+                        {estudoTecnico.auxiliares_maritimos.req > 0 && (
+                        <div>
+                          <div className="flex justify-between items-end mb-1">
+                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Marinheiros (Marítimo)</span>
+                             <span className={cn("text-[11px] font-black", estudoTecnico.auxiliares_maritimos.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                               {estudoTecnico.auxiliares_maritimos.chance}% Vazio
+                             </span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                             <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.auxiliares_maritimos.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.auxiliares_maritimos.chance}%` }} />
+                          </div>
+                          <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                             <span>Lacunas: {estudoTecnico.auxiliares_maritimos.deficit}</span>
+                             <span>Nec: {estudoTecnico.auxiliares_maritimos.req}</span>
+                          </div>
+                        </div>
+                        )}
 
-                      {/* Efetivo Administrativo */}
-                      <div>
-                        <div className="flex justify-between items-end mb-1">
-                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Global Administrativo</span>
-                           <span className={cn("text-[11px] font-black", estudoTecnico.efetivoAdministrativo.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
-                             {estudoTecnico.efetivoAdministrativo.chance}% Vazio
-                           </span>
+                        <div className="pt-4">
+                          <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest border-b border-slate-200 block w-full pb-1 mb-2">Funções Administrativas</span>
                         </div>
-                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                           <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.efetivoAdministrativo.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.efetivoAdministrativo.chance}%` }} />
-                        </div>
-                        <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
-                           <span>Lacunas: {estudoTecnico.efetivoAdministrativo.deficit}</span>
-                           <span>Nec: {estudoTecnico.efetivoAdministrativo.req}</span>
-                        </div>
-                      </div>
 
-                   </div>
+                        {/* Efetivo Administrativo */}
+                        <div>
+                          <div className="flex justify-between items-end mb-1">
+                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Global Administrativo</span>
+                             <span className={cn("text-[11px] font-black", estudoTecnico.efetivoAdministrativo.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                               {estudoTecnico.efetivoAdministrativo.chance}% Vazio
+                             </span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                             <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.efetivoAdministrativo.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.efetivoAdministrativo.chance}%` }} />
+                          </div>
+                          <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                             <span>Lacunas: {estudoTecnico.efetivoAdministrativo.deficit}</span>
+                             <span>Nec: {estudoTecnico.efetivoAdministrativo.req}</span>
+                          </div>
+                        </div>
+
+                     </div>
+                  </div>
                 </div>
+
               </div>
-            </div>
+
           </div>
         </div>
 
@@ -3922,10 +4721,24 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
               <Truck className="w-4 h-4 text-slate-400" />
               Distribuição (Viaturas)
             </h3>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              {patternAppliedMessage && (
+                <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-1 rounded-md animate-in fade-in">
+                  {patternAppliedMessage}
+                </span>
+              )}
+              <button 
+                type="button"
+                onClick={handleApplyObmPattern}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 rounded-md transition-colors border border-amber-400/20 cursor-pointer shadow-2xs"
+                title="Recarregar e aplicar o Novo Padrão de Viaturas da OBM definido no Controle de Viaturas para esta data"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                Aplicar Padrão da OBM
+              </button>
               <button 
                 onClick={handleAddViaturaExtra}
-                className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-400/10 hover:bg-emerald-400/20 rounded-md transition-colors border border-emerald-400/20"
+                className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-400/10 hover:bg-emerald-400/20 rounded-md transition-colors border border-emerald-400/20 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Adicionar VTR Extra
@@ -3989,10 +4802,15 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                   const isAtiva = Boolean(vtr.ativa);
                   const isExibir = vtr.exibir !== undefined ? Boolean(vtr.exibir) : true;
                   const vtrEspaco: '1' | '1/2' | '1/3' = vtr.espaco === '1/3' ? '1/3' : (vtr.espaco === '1/2' ? '1/2' : '1');
+                  const multipleInactiveDisplayed = viaturasInfo.filter(
+                    (v) => !v.ativa && (v.exibir !== undefined ? Boolean(v.exibir) : true)
+                  ).length >= 2;
+                  const isGroupedInactive = !isAtiva && isExibir && multipleInactiveDisplayed;
 
                   const moveVtrUp = (e: React.MouseEvent) => {
                     e.stopPropagation();
                     if (vtrIdx <= 0) return;
+                    isViaturasCustomizedForDate.current = true;
                     setViaturasInfo((prev) => {
                       const next = [...prev];
                       const temp = next[vtrIdx - 1];
@@ -4005,6 +4823,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                   const moveVtrDown = (e: React.MouseEvent) => {
                     e.stopPropagation();
                     if (vtrIdx >= viaturasInfo.length - 1) return;
+                    isViaturasCustomizedForDate.current = true;
                     setViaturasInfo((prev) => {
                       const next = [...prev];
                       const temp = next[vtrIdx + 1];
@@ -4016,6 +4835,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
                   const toggleVtr = (e: React.MouseEvent) => {
                     e.stopPropagation();
+                    isViaturasCustomizedForDate.current = true;
                     setViaturasInfo((prev) =>
                       prev.map((v, i) =>
                         i === vtrIdx ? { ...v, ativa: !Boolean(v.ativa) } : v,
@@ -4025,6 +4845,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
                   const toggleExibir = (e: React.MouseEvent) => {
                     e.stopPropagation();
+                    isViaturasCustomizedForDate.current = true;
                     setViaturasInfo((prev) =>
                       prev.map((v, i) =>
                         i === vtrIdx ? { ...v, exibir: !(v.exibir !== undefined ? Boolean(v.exibir) : true) } : v,
@@ -4034,6 +4855,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
                   const setEspaco = (e: React.MouseEvent, esp: '1' | '1/2' | '1/3') => {
                     e.stopPropagation();
+                    isViaturasCustomizedForDate.current = true;
                     setViaturasInfo((prev) =>
                       prev.map((v, i) =>
                         i === vtrIdx ? { ...v, espaco: esp } : v,
@@ -4045,6 +4867,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                     field: "condutor" | "g1" | "g2" | "g3" | "g4" | "cg",
                   ) => {
                     if (vtr.blocked?.includes(field)) return;
+                    isViaturasCustomizedForDate.current = true;
                     setViaturasInfo((prev) =>
                       prev.map((v, i) =>
                         i === vtrIdx ? { ...v, [field]: !v[field] } : v,
@@ -4139,6 +4962,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                               "inline-flex items-center rounded border border-slate-200 overflow-hidden bg-slate-100 text-[9px] font-black transition-opacity",
                               !isExibir && "opacity-40"
                             )}
+                            title={isGroupedInactive ? "Viaturas inativas e exibidas ocupam automaticamente o mesmo bloco na escala gerada" : undefined}
                           >
                             <button
                               type="button"
@@ -4204,8 +5028,21 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                             ATIVA
                           </span>
                         ) : (
-                          <span className="bg-[#fac7b0] text-[#783f2a] px-2 py-1 text-[9px] w-full block rounded-[3px] font-black">
+                          <span 
+                            className={cn(
+                              "px-2 py-1 text-[9px] w-full block rounded-[3px] font-black transition-all",
+                              isGroupedInactive 
+                                ? "bg-[#fac7b0] text-[#783f2a] border border-[#d97757]/40 ring-1 ring-[#d97757]/20" 
+                                : "bg-[#fac7b0] text-[#783f2a]"
+                            )}
+                            title={isGroupedInactive ? "Ocupará o mesmo espaço/bloco compartilhado na escala com as demais viaturas inativas" : "Viatura inativa no serviço"}
+                          >
                             INATIVA
+                            {isGroupedInactive && (
+                              <span className="block text-[7.5px] font-black text-amber-900 tracking-tighter mt-0.5 opacity-90 uppercase">
+                                (MESMO BLOCO)
+                              </span>
+                            )}
                           </span>
                         )}
                       </td>
@@ -4342,9 +5179,28 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           viaturasInfo={viaturasInfo}
           rasApplications={rasApplications}
           expedienteMilitars={expedienteMilitars}
+          grdRgs={grdDayRgs}
           oficialDia={oficialDiaValue}
           oficialNautica={nauticoOficialValue}
           oficialMedico={medicoOficialValue}
+          officerVisibility={officerVisibility}
+          onOfficerVisibilityChange={(updated: OfficerVisibility) => {
+            setOfficerVisibility(updated);
+            try {
+              const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : '10º GBM';
+              const cleanObm = normalizeObm(rawObm);
+              localStorage.setItem(`escala_officer_visibility_${cleanObm}`, JSON.stringify(updated));
+            } catch {}
+          }}
+          adminRolesVisibility={adminRolesVisibility}
+          onAdminRolesVisibilityChange={(updated: Record<string, boolean>) => {
+            setAdminRolesVisibility(updated);
+            try {
+              const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : '10º GBM';
+              const cleanObm = normalizeObm(rawObm);
+              localStorage.setItem(`escala_admin_roles_visibility_${cleanObm}`, JSON.stringify(updated));
+            } catch {}
+          }}
           user={user}
           onRegister={handleRegisterEscala}
           onClose={() => setShowPrintView(false)}

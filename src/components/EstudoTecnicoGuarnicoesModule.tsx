@@ -8,16 +8,18 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn, getAlaColor, getAlaName, normalizeObm, normalizeAlaField } from '../lib/utils';
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 
 const DEFAULT_VIATURAS: any[] = [
-  { id: "ABT-183", vtr: "ABT-183", ativa: true, exibir: true, maritima: false, condutor: true, g1: true, g2: true, g3: true, g4: false, cg: true, blocked: [] },
-  { id: "ABSL-152", vtr: "ABSL-152", ativa: true, exibir: true, maritima: false, condutor: true, g1: true, g2: true, g3: false, g4: false, cg: true, blocked: [] },
-  { id: "ASE-404", vtr: "ASE-404", ativa: true, exibir: true, maritima: false, condutor: true, g1: true, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
-  { id: "ARC-162", vtr: "ARC-162", ativa: true, exibir: true, maritima: false, condutor: true, g1: true, g2: null, g3: null, g4: null, cg: null, blocked: ["g2", "g3", "g4", "cg"] },
-  { id: "AR-583", vtr: "AR-583", ativa: true, exibir: true, maritima: false, condutor: true, g1: null, g2: null, g3: null, g4: null, cg: null, blocked: ["g1", "g2", "g3", "g4", "cg"] },
-  { id: "L-09", vtr: "L-09", ativa: true, exibir: true, maritima: true, condutor: true, g1: true, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
-  { id: "BIA-006", vtr: "BIA-006", ativa: true, exibir: true, maritima: true, condutor: true, g1: true, g2: true, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "ABT-143", vtr: "ABT-143", ativa: true, exibir: true, espaco: "1", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: true, g3: true, g4: false, cg: true, blocked: [] },
+  { id: "ABSL-152", vtr: "ABSL-152", ativa: true, exibir: true, espaco: "1", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: true, g3: false, g4: false, cg: true, blocked: [] },
+  { id: "ASE-572", vtr: "ASE-572", ativa: true, exibir: true, espaco: "1", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "AR-600", vtr: "AR-600", ativa: true, exibir: true, espaco: "1/2", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: null, g2: null, g3: null, g4: null, cg: null, blocked: ["g1", "g2", "g3", "g4", "cg"] },
+  { id: "ARC-162", vtr: "ARC-162", ativa: true, exibir: true, espaco: "1/2", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: null, g3: null, g4: null, cg: null, blocked: ["g2", "g3", "g4", "cg"] },
+  { id: "L-09", vtr: "L-09", ativa: true, exibir: true, espaco: "1/3", maritima: true, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "BIA-006", vtr: "BIA-006", ativa: false, exibir: true, espaco: "1/3", maritima: true, obm: "10º GBM", tipo: 'operacional', condutor: false, g1: false, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "BIA-013", vtr: "BIA-013", ativa: false, exibir: true, espaco: "1/3", maritima: true, obm: "10º GBM", tipo: 'operacional', condutor: false, g1: false, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
+  { id: "ABT-12", vtr: "ABT-12", ativa: false, exibir: false, espaco: "1", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: false, g1: false, g2: false, g3: false, g4: false, cg: false, blocked: [] },
 ];
 
 export function EstudoTecnicoGuarnicoesModule({ obmContext }: { obmContext: string }) {
@@ -49,10 +51,12 @@ export function EstudoTecnicoGuarnicoesModule({ obmContext }: { obmContext: stri
             setCorrelation(data.escala_regras.correlation || {});
             setRoleQtds(data.escala_regras.qtds || {});
           }
-          if (data.viaturasInfo) {
-             setViaturasInfo(data.viaturasInfo);
-          } else if (data.viaturas_config) {
+          if (data.viaturas_custom_default && Array.isArray(data.viaturas_custom_default)) {
+             setViaturasInfo(data.viaturas_custom_default);
+          } else if (data.viaturas_config && Array.isArray(data.viaturas_config)) {
              setViaturasInfo(data.viaturas_config);
+          } else if (data.viaturasInfo && Array.isArray(data.viaturasInfo)) {
+             setViaturasInfo(data.viaturasInfo);
           }
         }
       } catch (e) {

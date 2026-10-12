@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, Plus, Trash2, Save, MoveUp, MoveDown, Layout, Type, Layers, Users, UserPlus, Search, Info } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { doc, setDoc, collection, onSnapshot, getDocs, deleteDoc } from 'firebase/firestore';

@@ -1,3 +1,10 @@
+export interface OfficerVisibility {
+  showSection: boolean;
+  showOficialDia: boolean;
+  showOficialNautica: boolean;
+  showOficialMedico: boolean;
+}
+
 export enum PermutaStatus {
   PENDING = 'pending',
   ACCEPTED = 'accepted',
