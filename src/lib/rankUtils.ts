@@ -11,18 +11,67 @@ export function parseRank(r?: string): string {
   if (up.includes('ASP') && up.includes('OF')) return 'ASP OF';
   if (up.includes('ASP')) return 'ASP OF'; // fallback for just 'ASP'
 
-  if (up.includes('SUB') || up.includes('ST') || up.includes('SUBTENENTE') || up.includes('SUBTEN')) return 'SUBTENENTE';
-  if ((up.includes('1') && (up.includes('SGT') || up.includes('SARGENTO'))) || up === '1SGT') return '1º SARGENTO';
-  if ((up.includes('2') && (up.includes('SGT') || up.includes('SARGENTO'))) || up === '2SGT') return '2º SARGENTO';
-  if ((up.includes('3') && (up.includes('SGT') || up.includes('SARGENTO'))) || up === '3SGT') return '3º SARGENTO';
-  if (up.includes('CB') || up.includes('CABO')) return 'CABO';
-  if (up.includes('SD') || up.includes('SOLDADO')) return 'SOLDADO';
+  if (up.includes('SUB') || up.includes('ST') || up.includes('SUBTENENTE') || up.includes('SUBTEN')) return 'SUBTEN';
+  if ((up.includes('1') && (up.includes('SGT') || up.includes('SARGENTO'))) || up === '1SGT' || up === '1ºSGT' || up === '1º SGT') return '1ºSGT';
+  if ((up.includes('2') && (up.includes('SGT') || up.includes('SARGENTO'))) || up === '2SGT' || up === '2ºSGT' || up === '2º SGT') return '2ºSGT';
+  if ((up.includes('3') && (up.includes('SGT') || up.includes('SARGENTO'))) || up === '3SGT' || up === '3ºSGT' || up === '3º SGT') return '3ºSGT';
+  if (up === 'SGT' || up === 'SARGENTO') return '3ºSGT';
+  if (up.includes('CB') || up.includes('CABO')) return 'CB';
+  if (up.includes('SD') || up.includes('SOLDADO')) return 'SD';
   
   return up;
 }
 
+export function formatRankAbbr(r?: string): string {
+  return parseRank(r);
+}
+
+export function stripRankPrefix(name: string): string {
+  if (!name) return '';
+  const prefixes = [
+    'SUBTENENTE ', 'SUBTEN ', 'ST ',
+    '1º SARGENTO ', '1ºSGT ', '1º SGT ', '1SGT ', '1 SARGENTO ',
+    '2º SARGENTO ', '2ºSGT ', '2º SGT ', '2SGT ', '2 SARGENTO ',
+    '3º SARGENTO ', '3ºSGT ', '3º SGT ', '3SGT ', '3 SARGENTO ',
+    'SARGENTO ', 'SGT ',
+    'CABO ', 'CB ',
+    'SOLDADO ', 'SD ',
+    'CORONEL ', 'CEL ',
+    'TENENTE CORONEL ', 'TENENTE-CORONEL ', 'TEN CEL ', 'TC ',
+    'MAJOR ', 'MAJ ',
+    'CAPITÃO ', 'CAPITAO ', 'CAP ',
+    '1º TENENTE ', '1º TEN ', '1TEN ', '1 TEN ',
+    '2º TENENTE ', '2º TEN ', '2TEN ', '2 TEN ',
+    'ASP OF ', 'ASPIRANTE ', 'ASP ', 'ALUNO ', 'AL '
+  ];
+  let trimmed = name.trim();
+  const up = trimmed.toUpperCase();
+  for (const p of prefixes) {
+    if (up.startsWith(p)) {
+      return trimmed.substring(p.length).trim();
+    }
+  }
+  return trimmed;
+}
+
+export function formatRankAndName(militar: any): string {
+  if (!militar) return '';
+  const rAbbr = formatRankAbbr(militar.rank || '');
+  let rawName = militar.warName || '';
+  if (!rawName && militar.name) {
+    const strippedFullName = stripRankPrefix(militar.name);
+    rawName = strippedFullName.split(' ')[0] || militar.name.split(' ')[0];
+  }
+  if (!rawName) rawName = militar.rg || '';
+  const finalName = stripRankPrefix(rawName) || rawName;
+  if (rAbbr) {
+    return `${rAbbr} ${finalName}`.trim();
+  }
+  return finalName;
+}
+
 export const COLS_OFICIAIS = ['CORONEL', 'TENENTE CORONEL', 'MAJOR', 'CAPITÃO', '1º TENENTE', '2º TENENTE', 'ASP OF'];
-export const RANKS_PRACAS = ['SUBTENENTE', '1º SARGENTO', '2º SARGENTO', '3º SARGENTO', 'CABO', 'SOLDADO'];
+export const RANKS_PRACAS = ['SUBTEN', '1ºSGT', '2ºSGT', '3ºSGT', 'CB', 'SD'];
 export const ALL_RANKS_IN_ORDER = [...COLS_OFICIAIS, ...RANKS_PRACAS];
 
 export const sortRanks = (a: string, b: string) => {

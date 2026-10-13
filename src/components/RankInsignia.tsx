@@ -95,7 +95,7 @@ export function RankInsignia({ rankStr, className }: RankInsigniaProps) {
   }
 
   // Subtenente -> Triangle
-  if (r === 'SUBTENENTE') {
+  if (r === 'SUBTENENTE' || r === 'SUBTEN' || r === 'ST') {
     return (
       <div className={`flex items-center justify-center min-w-[24px] ${containerClasses}`}>
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-amber-500 shrink-0">
@@ -107,11 +107,11 @@ export function RankInsignia({ rankStr, className }: RankInsigniaProps) {
 
   // Praças (Chevron logic)
   let chevrons = 0;
-  if (r === '1º SARGENTO') chevrons = 5;
-  else if (r === '2º SARGENTO') chevrons = 4;
-  else if (r === '3º SARGENTO') chevrons = 3;
-  else if (r === 'CABO') chevrons = 2;
-  else if (r === 'SOLDADO') chevrons = 1;
+  if (r === '1º SARGENTO' || r === '1ºSGT' || r === '1º SGT') chevrons = 5;
+  else if (r === '2º SARGENTO' || r === '2ºSGT' || r === '2º SGT') chevrons = 4;
+  else if (r === '3º SARGENTO' || r === '3ºSGT' || r === '3º SGT') chevrons = 3;
+  else if (r === 'CABO' || r === 'CB') chevrons = 2;
+  else if (r === 'SOLDADO' || r === 'SD') chevrons = 1;
 
   if (chevrons > 0) {
     return (

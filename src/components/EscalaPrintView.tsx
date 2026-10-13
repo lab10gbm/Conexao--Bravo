@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Printer, X, Image as ImageIcon, PenTool, Save, Columns, LayoutList, Shield, ExternalLink, Eye, EyeOff, ChevronDown, Check } from 'lucide-react';
+import { Printer, X, Image as ImageIcon, PenTool, Save, Shield, ExternalLink, Eye, EyeOff, ChevronDown, Check } from 'lucide-react';
 import { RankInsignia } from './RankInsignia';
 import { LogoDecimoGbm } from './LogoDecimoGbm';
 import { LogoCbaSete } from './LogoCbaSete';
 import { LogoManagerModal } from './LogoManagerModal';
-import { parseRank, sortAllBySeniority } from '../lib/rankUtils';
+import { parseRank, sortAllBySeniority, formatRankAndName, formatRankAbbr } from '../lib/rankUtils';
 import { formatMilitaryName, normalizeObm, normalizeRg, normalizeAlaField, cn, getAlaForDate } from '../lib/utils';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -50,6 +50,19 @@ export function EscalaPrintView({
   }, [propGrdRgs]);
   const [showOfficerMenu, setShowOfficerMenu] = useState(false);
   const officerMenuRef = useRef<HTMLDivElement>(null);
+  const [officerTableLayout, setOfficerTableLayout] = useState<'colunas' | 'linhas'>(() => {
+    try {
+      const saved = localStorage.getItem('escala_officer_table_layout');
+      if (saved === 'linhas' || saved === 'colunas') return saved;
+    } catch {}
+    return 'colunas';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('escala_officer_table_layout', officerTableLayout);
+    } catch {}
+  }, [officerTableLayout]);
 
   const [officerVisibility, setOfficerVisibility] = useState<OfficerVisibility>(() => {
     if (propOfficerVisibility) return propOfficerVisibility;
@@ -158,6 +171,16 @@ export function EscalaPrintView({
 
   const isAdminRoleVisible = (roleKey: string) => {
     const norm = normalize(roleKey);
+    if (norm === 'COMUNICANTE 1') {
+      if (adminRolesVisibility['COMUNICANTE 1'] !== undefined) return adminRolesVisibility['COMUNICANTE 1'];
+      if (adminRolesVisibility['comunicante 1'] !== undefined) return adminRolesVisibility['comunicante 1'];
+      return true;
+    }
+    if (norm === 'COMUNICANTE 2') {
+      if (adminRolesVisibility['COMUNICANTE 2'] !== undefined) return adminRolesVisibility['COMUNICANTE 2'];
+      if (adminRolesVisibility['comunicante 2'] !== undefined) return adminRolesVisibility['comunicante 2'];
+      return true;
+    }
     if (adminRolesVisibility[norm] !== undefined) return adminRolesVisibility[norm];
     if (adminRolesVisibility[roleKey] !== undefined) return adminRolesVisibility[roleKey];
     for (const [k, v] of Object.entries(adminRolesVisibility)) {
@@ -190,7 +213,7 @@ export function EscalaPrintView({
     const allAdminKeys = [
       'ADJUNTO', 'ENCARREGADO DE MOTORISTA', 'RESP FAXINA', 'SGT DIA', 'CMT GUARDA',
       'DIA AO DEPOSITO', 'ABASTECEDOR', 'CB DIA', 'CB GUARDA',
-      'COMUNICANTE', 'SENTINELA', 'AUXILIAR RANCHO', 'TOQUE DE FOGO', 'ESCALANTE'
+      'COMUNICANTE', 'COMUNICANTE 1', 'COMUNICANTE 2', 'SENTINELA', 'AUXILIAR RANCHO', 'TOQUE DE FOGO', 'ESCALANTE'
     ];
     allAdminKeys.forEach(k => {
       next[normalize(k)] = visible;
@@ -218,6 +241,8 @@ export function EscalaPrintView({
     if (clean.includes('CB DIA') || clean.includes('CB DE DIA')) return 'CB DIA';
     if (clean.includes('CB GUARDA') || clean.includes('CB DA GUARDA')) return 'CB GUARDA';
     if (clean.includes('ADJUNTO')) return 'ADJUNTO';
+    if (clean.includes('COMUNICANTE 1')) return 'COMUNICANTE 1';
+    if (clean.includes('COMUNICANTE 2')) return 'COMUNICANTE 2';
     if (clean.includes('COMUNICANTE')) return 'COMUNICANTE';
     if (clean.includes('SENTINELA')) return 'SENTINELA';
     if (clean.includes('RANCHO')) return 'AUXILIAR RANCHO';
@@ -225,24 +250,6 @@ export function EscalaPrintView({
     return clean;
   };
 
-  const [expedienteLayout, setExpedienteLayout] = useState<'coluna' | 'secao'>(() => {
-    try {
-      const saved = localStorage.getItem('escala_expediente_layout');
-      return saved === 'secao' ? 'secao' : 'coluna';
-    } catch {
-      return 'coluna';
-    }
-  });
-
-  const toggleExpedienteLayout = () => {
-    setExpedienteLayout(prev => {
-      const next = prev === 'coluna' ? 'secao' : 'coluna';
-      try {
-        localStorage.setItem('escala_expediente_layout', next);
-      } catch {}
-      return next;
-    });
-  };
 
   const [expedienteMilitars, setExpedienteMilitars] = useState<any[]>(
     Array.isArray(initialExpedienteMilitars) ? initialExpedienteMilitars : []
@@ -493,12 +500,35 @@ export function EscalaPrintView({
     return baseRoster.filter((m: any) => {
       const rg = m.rg || '';
       const funcs = selectedFunctions[rg] || [];
-      return funcs.some((f: string) => {
+      const hasSelectedFunc = funcs.some((f: string) => {
         const fNorm = normalize(f);
         if (fNorm === targetNorm) return true;
+
+        if (targetNorm === 'AUXILIAR RANCHO' && (fNorm === 'AUX RANCHO' || fNorm === 'RANCHO' || fNorm.includes('RANCHO'))) return true;
+        if (targetNorm === 'TOQUE DE FOGO' && (fNorm === 'T FOGO' || fNorm === 'TQ FOGO' || fNorm === 'T. FOGO' || fNorm.includes('FOGO'))) return true;
+        if (targetNorm === 'SENTINELA' && fNorm.includes('SENTINELA')) return true;
+        if (targetNorm === 'COMUNICANTE' && fNorm.includes('COMUNICANTE')) return true;
+        if (targetNorm === 'COMUNICANTE 1' && (fNorm === 'COMUNICANTE 1' || fNorm === 'COMUNICANTE')) return true;
+        if (targetNorm === 'COMUNICANTE 2' && fNorm === 'COMUNICANTE 2') return true;
+        if (targetNorm === 'ENCARREGADO DE MOTORISTA' && (fNorm === 'ENC MOTORISTA' || (fNorm.includes('ENC') && fNorm.includes('MOTORISTA')))) return true;
+        if (targetNorm === 'RESP FAXINA' && fNorm.includes('FAXINA')) return true;
+        if (targetNorm === 'DIA AO DEPOSITO' && (fNorm.includes('DEPOSITO') || fNorm === 'DEPOSITO')) return true;
+        if (targetNorm === 'SGT DIA' && fNorm.includes('SGT') && fNorm.includes('DIA')) return true;
+        if (targetNorm === 'CB DIA' && fNorm.includes('CB') && fNorm.includes('DIA')) return true;
+        if (targetNorm === 'CB GUARDA' && fNorm.includes('CB') && fNorm.includes('GUARDA')) return true;
+        if (targetNorm === 'CMT GUARDA' && fNorm.includes('CMT') && fNorm.includes('GUARDA')) return true;
+        if (targetNorm === 'ADJUNTO' && fNorm.includes('ADJUNTO')) return true;
+        if (targetNorm === 'ABASTECEDOR' && fNorm.includes('ABASTECEDOR')) return true;
+
         if (f.trim().toUpperCase() === funcName.trim().toUpperCase()) return true;
-        return false;
+        return fNorm.includes(targetNorm) || targetNorm.includes(fNorm);
       });
+      if (hasSelectedFunc) return true;
+      if ((targetNorm === 'COMUNICANTE' || targetNorm === 'COMUNICANTE 1') && m.ativoComunicante) {
+        const otherRoles = funcs.filter((f: string) => !normalize(f).includes('COMUNICANTE'));
+        if (otherRoles.length === 0) return true;
+      }
+      return false;
     }).map((m: any) => {
       const rg = m.rg || '';
       const isSwapped = permutasOut.has(rg);
@@ -516,13 +546,13 @@ export function EscalaPrintView({
             <RankInsignia rankStr={militar.rank} className="w-4 h-4" />
           </div>
           <div className="flex flex-col text-left justify-center min-w-0">
-            <span className="text-[8px] font-black uppercase text-slate-500 tracking-widest leading-none mb-[2px] whitespace-nowrap">{parseRank(militar.rank)}</span>
+            <span className="text-[8px] font-black uppercase text-slate-500 tracking-widest leading-none mb-[2px] whitespace-nowrap">{formatRankAbbr(militar.rank)}</span>
             <span className="text-[11px] font-black uppercase tracking-tight text-slate-800 leading-none truncate block">{militar.warName?.toUpperCase() || formatMilitaryName(militar.name || "")}</span>
           </div>
         </div>
       );
     }
-    return `${militar.rank || ''} ${militar.warName || (militar.name ? militar.name.split(' ')[0] : militar.rg || '')}`;
+    return formatRankAndName(militar);
   };
 
   
@@ -705,6 +735,31 @@ export function EscalaPrintView({
   };
 
 
+  const com1List = getByFunc('COMUNICANTE 1');
+  const com2List = getByFunc('COMUNICANTE 2');
+  const generalComList = getByFunc('COMUNICANTE');
+
+  let com1Militar = com1List[0];
+  let com2Militar = com2List[0];
+
+  if (!com1Militar && generalComList.length > 0) {
+    com1Militar = generalComList[0];
+  }
+  if (!com2Militar) {
+    const remaining = generalComList.filter(m => (m.rg || m.id) !== (com1Militar?.rg || com1Militar?.id));
+    if (remaining.length > 0) {
+      com2Militar = remaining[0];
+    }
+  }
+
+  const comunicantes = [
+    ...(com1Militar ? [com1Militar] : []),
+    ...(com2Militar ? [com2Militar] : []),
+  ];
+  const auxRancho = getByFunc('AUXILIAR RANCHO');
+  const toqueFogo = getByFunc('TOQUE DE FOGO');
+  const sentinelas = getByFunc('SENTINELA');
+
   const adminRoles = {
     'ADJUNTO:': getByFunc('ADJUNTO'),
     'ENCARREGADO DE MOTORIS:': getByFunc('ENCARREGADO DE MOTORISTA'),
@@ -720,11 +775,6 @@ export function EscalaPrintView({
     { label: 'CB DE DIA:', value: getByFunc('CB DIA')[0] },
     { label: 'CB DA GUARDA:', value: getByFunc('CB GUARDA')[0] },
   ];
-
-  const comunicantes = getByFunc('COMUNICANTE');
-  const auxRancho = getByFunc('AUXILIAR RANCHO');
-  const toqueFogo = getByFunc('TOQUE DE FOGO');
-  const sentinelas = getByFunc('SENTINELA');
 
   const safeDateObj = useMemo(() => {
     if (!selectedDate || typeof selectedDate !== 'string') return new Date();
@@ -764,7 +814,7 @@ export function EscalaPrintView({
       return {
         rg: actualMilitar?.rg || rg,
         militar: actualMilitar || m,
-        label: `${actualMilitar?.rank || ''} ${actualMilitar?.warName || (actualMilitar?.name ? actualMilitar.name.split(' ')[0] : actualMilitar?.rg || '')}`
+        label: formatRankAndName(actualMilitar)
       };
     }).sort((a: any, b: any) => sortAllBySeniority(a.militar, b.militar));
   }, [baseRoster, permutasOut, militars]);
@@ -772,7 +822,7 @@ export function EscalaPrintView({
   const permutasAtivas = Array.from(permutasOut.values()).map((p: any) => {
      const sub = militars.find((x:any) => x.rg === p.substituteRg);
      const req = militars.find((x:any) => x.rg === p.requesterRg);
-     return { req, sub, text: `Sai: ${req?.rank} ${req?.warName || req?.name} - Entra: ${sub?.rank} ${sub?.warName || sub?.name}` };
+     return { req, sub, text: `Sai: ${formatRankAndName(req)} - Entra: ${formatRankAndName(sub)}` };
   });
 
   // Gerador de documento HTML isolado com cores da ala preservadas para impressão e PDF
@@ -939,7 +989,7 @@ export function EscalaPrintView({
       }
     }, 250);
     return () => clearTimeout(timer);
-  }, [selectedDate, identifiedAla, baseRoster, viaturasInfo, expedienteLayout, isSigned, showVisualMode, alaTheme, officerVisibility, adminRolesVisibility]);
+  }, [selectedDate, identifiedAla, baseRoster, viaturasInfo, isSigned, showVisualMode, alaTheme, officerVisibility, adminRolesVisibility]);
 
   const handlePrintEscala = () => {
     const fullHtml = generatePrintHtml();
@@ -1090,6 +1140,38 @@ export function EscalaPrintView({
                    </label>
                  </div>
 
+                 <div className="pt-2 border-t border-slate-100 mt-2">
+                   <span className="text-[10px] font-black uppercase tracking-wider text-slate-700 block mb-1.5">
+                     Estilo da Tabela
+                   </span>
+                   <div className="grid grid-cols-2 gap-1 bg-slate-100 p-0.5 rounded-lg text-[10px] font-bold">
+                     <button
+                       type="button"
+                       onClick={() => setOfficerTableLayout('colunas')}
+                       className={cn(
+                         "py-1 rounded-md transition-all cursor-pointer text-center",
+                         officerTableLayout === 'colunas'
+                           ? "bg-white text-indigo-700 shadow-2xs font-black"
+                           : "text-slate-600 hover:text-slate-900"
+                       )}
+                     >
+                       3 Colunas
+                     </button>
+                     <button
+                       type="button"
+                       onClick={() => setOfficerTableLayout('linhas')}
+                       className={cn(
+                         "py-1 rounded-md transition-all cursor-pointer text-center",
+                         officerTableLayout === 'linhas'
+                           ? "bg-white text-indigo-700 shadow-2xs font-black"
+                           : "text-slate-600 hover:text-slate-900"
+                       )}
+                     >
+                       Linhas
+                     </button>
+                   </div>
+                 </div>
+
                  <div className="pt-2 mt-2 border-t border-slate-100 flex items-center justify-between text-[9px] text-slate-500 font-medium">
                    <span>Salvo no Gerar Escala</span>
                    <button
@@ -1153,7 +1235,8 @@ export function EscalaPrintView({
                      { key: 'ABASTECEDOR', label: 'Abastecedor' },
                      { key: 'CB DIA', label: 'Cabo de Dia' },
                      { key: 'CB GUARDA', label: 'Cabo da Guarda' },
-                     { key: 'COMUNICANTE', label: 'Comunicantes' },
+                     { key: 'COMUNICANTE 1', label: 'Comunicante 1' },
+                     { key: 'COMUNICANTE 2', label: 'Comunicante 2' },
                      { key: 'SENTINELA', label: 'Sentinelas' },
                      { key: 'AUXILIAR RANCHO', label: 'Auxiliar Rancho' },
                      { key: 'TOQUE DE FOGO', label: 'Toque de Fogo' },
@@ -1190,24 +1273,6 @@ export function EscalaPrintView({
              )}
            </div>
 
-           <button
-             type="button"
-             onClick={toggleExpedienteLayout}
-             className="bg-indigo-50 text-indigo-900 border border-indigo-200 px-3.5 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-indigo-100 transition-colors cursor-pointer shadow-2xs"
-             title="Alternar entre Expediente em Coluna na Chamada Geral ou Seção dedicada abaixo da tabela"
-           >
-             {expedienteLayout === 'coluna' ? (
-               <>
-                 <LayoutList className="w-4 h-4 text-indigo-700" />
-                 <span>Expediente: Coluna</span>
-               </>
-             ) : (
-               <>
-                 <Columns className="w-4 h-4 text-indigo-700" />
-                 <span>Expediente: Seção</span>
-               </>
-             )}
-           </button>
            <button type="button" onClick={() => setIsSigned(true)} disabled={isSigned} className="bg-amber-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-amber-400 cursor-pointer">
              <PenTool className="w-4 h-4" /> {isSigned ? 'Assinado' : 'Assinar'}
            </button>
@@ -1243,143 +1308,201 @@ export function EscalaPrintView({
         </div>
 
         {/* HEADER */}
-        <div className="flex w-full mb-2 border-b border-black mt-8 print:mt-0">
-           {/* Left column */}
-           <div className="w-1/4 text-center border-r border-black pr-2 flex flex-col items-center pt-5 pb-2">
-              <span className="font-bold text-sm mb-6">VISTO</span>
-              
-              <div className="w-full flex flex-col items-center mb-6">
-                 <div className="w-3/4 border-b border-black mb-1"></div>
-                 <span className="font-bold text-xs">Ch. SaD</span>
-              </div>
-              
-              <div className="w-full flex flex-col items-center">
-                 <div className="w-3/4 border-b border-black mb-1"></div>
-                 <span className="font-bold text-xs">Escalante</span>
-                 {isSigned && user && (
-                   <span className="text-[9px] mt-1 font-bold uppercase leading-tight">
-                     {parseRank(user.rank)} {user.warName || user.name}<br/>
-                     RG: {user.rg}
-                   </span>
-                 )}
-              </div>
-           </div>
+        <div className="flex flex-col w-full mb-2 border-b border-black mt-8 print:mt-0 text-center justify-between">
+           <div className="flex flex-col w-full">
+                 <div className="flex items-start justify-between w-full mt-0 mb-1 px-2 sm:px-5 print:px-3 pl-3 sm:pl-5">
+                    {/* Lado esquerdo: Décimo GBM na linha do topo */}
+                    <div
+                      onClick={() => setShowLogoModal(true)}
+                      className="w-20 h-24 sm:w-24 sm:h-28 print:w-[86px] print:h-[102px] flex items-start justify-center shrink-0 cursor-pointer relative group rounded-sm hover:outline hover:outline-1 hover:outline-red-400 transition-transform hover:scale-102 mr-2 sm:mr-4 pt-0"
+                      title="10º GBM - Clique para carregar ou alterar esta imagem"
+                    >
+                       <LogoDecimoGbm className="w-full h-full object-contain object-top max-h-[92px] sm:max-h-[105px] print:max-h-[96px]" allowUpload={true} />
+                    </div>
 
-           {/* Right column */}
-           <div className="w-3/4 text-center flex flex-col justify-between pl-2">
-              <div className="flex items-center justify-center gap-3 sm:gap-5 print:gap-4 w-full mt-1 mb-2 px-1">
-                 {/* Lado esquerdo: Décimo GBM */}
-                 <div
-                   onClick={() => setShowLogoModal(true)}
-                   className="w-20 h-24 sm:w-24 sm:h-28 print:w-[86px] print:h-[102px] flex items-center justify-center shrink-0 cursor-pointer relative group rounded-sm hover:outline hover:outline-1 hover:outline-red-400 transition-transform hover:scale-102"
-                   title="10º GBM - Clique para carregar ou alterar esta imagem"
-                 >
-                    <LogoDecimoGbm className="w-full h-full object-contain max-h-[92px] sm:max-h-[105px] print:max-h-[96px]" allowUpload={true} />
-                 </div>
+                    {/* Centro: Cabeçalho Oficial unificado com o texto da Escala */}
+                    <div className="font-bold flex flex-col justify-start items-center text-center px-1 flex-1 leading-tight -mt-0.5 sm:-mt-1 pt-0">
+                       <div className="text-[13px] sm:text-[14px] flex flex-col justify-start items-center text-center tracking-tight leading-tight">
+                          <span>CORPO DE BOMBEIROS MILITAR DO ESTADO DO RIO DE JANEIRO</span>
+                          <span>COMANDO DE BOMBEIROS DA COSTA VERDE</span>
+                          <span>DÉCIMO GRUPAMENTO DE BOMBEIRO MILITAR-ANGRA DOS REIS</span>
+                       </div>
+                       
+                       {/* Texto da Escala integrado como parte do cabeçalho */}
+                       <div className="flex justify-center items-center gap-2 text-sm sm:text-base font-bold mt-2 sm:mt-2.5 tracking-tight">
+                          <span>ESCALA DE SERVIÇO PARA O DIA:</span>
+                          <span>{dateStr}</span>
+                       </div>
+                    </div>
 
-                 {/* Centro: Título Oficial */}
-                 <div className="font-bold text-[11px] sm:text-[12px] flex flex-col justify-center items-center text-center px-1 shrink-0 leading-tight sm:leading-normal">
-                    <span>CORPO DE BOMBEIROS MILITAR DO ESTADO DO RIO DE JANEIRO</span>
-                    <span>COMANDO DE BOMBEIROS DA COSTA VERDE</span>
-                    <span>DÉCIMO GRUPAMENTO DE BOMBEIRO MILITAR-ANGRA DOS REIS</span>
-                 </div>
-
-                 {/* Lado direito: CBA7 */}
-                 <div
-                   onClick={() => setShowLogoModal(true)}
-                   className="w-20 h-24 sm:w-24 sm:h-28 print:w-[86px] print:h-[102px] flex items-center justify-center shrink-0 cursor-pointer relative group rounded-sm hover:outline hover:outline-1 hover:outline-emerald-400 transition-transform hover:scale-102"
-                   title="CBA VII - Clique para carregar ou alterar esta imagem"
-                 >
-                    <LogoCbaSete className="w-full h-full object-contain max-h-[92px] sm:max-h-[105px] print:max-h-[96px]" allowUpload={true} />
+                    {/* Lado direito: CBA7 na linha do topo */}
+                    <div
+                      onClick={() => setShowLogoModal(true)}
+                      className="w-20 h-24 sm:w-24 sm:h-28 print:w-[86px] print:h-[102px] flex items-start justify-center shrink-0 cursor-pointer relative group rounded-sm hover:outline hover:outline-1 hover:outline-emerald-400 transition-transform hover:scale-102 ml-2 sm:ml-4 pt-0"
+                      title="CBA VII - Clique para carregar ou alterar esta imagem"
+                    >
+                       <LogoCbaSete className="w-full h-full object-contain object-top max-h-[92px] sm:max-h-[105px] print:max-h-[96px]" allowUpload={true} />
+                    </div>
                  </div>
               </div>
-              
-              <div className="flex justify-center gap-2 w-full text-sm font-bold px-16 mb-2">
-                 <span>ESCALA DE SERVIÇO PARA O DIA:</span>
-                 <span>{dateStr}</span>
-              </div>
 
-              <div className="font-bold flex flex-col text-left uppercase text-xs border-t border-black w-full pt-2 pb-2 pl-4 min-h-[58px]">
-                {isDiaVisible ? (
-                  <div className="flex items-center justify-between group/officer-row min-h-[16px]">
-                    <span>OFICIAL DE DIA E PRONTIDÃO: {oficialDia ? <span className="ml-1 font-black underline">{oficialDia}</span> : ''}</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleOfficerVisibility('showOficialDia')}
-                      className="print:hidden opacity-0 group-hover/officer-row:opacity-100 hover:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 rounded cursor-pointer mr-3"
-                      title="Desativar Oficial de Dia no arquivo Gerar Escala"
+              {/* OFICIAIS TABLE (ESTRUTURA ESTILO TABELA) */}
+              {officerTableLayout === 'linhas' ? (
+                <table className="w-full border-collapse border-t border-black table-fixed text-xs select-none">
+                  <tbody>
+                    <tr className="border-b border-black group/officer-row h-[20px]">
+                      <td
+                        className={cn("w-[42%] sm:w-[38%] border-r border-black px-2.5 py-0.5 font-bold uppercase text-[9.5px] sm:text-[10.5px] text-left escala-ala-header", headerColorClass)}
+                        style={headerBgStyle}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span>OFICIAL DE DIA E PRONTIDÃO:</span>
+                          <button
+                            type="button"
+                            onClick={() => toggleOfficerVisibility('showOficialDia')}
+                            className="print:hidden opacity-0 group-hover/officer-row:opacity-100 hover:opacity-100 text-slate-700 hover:text-rose-700 transition-opacity p-0.5 rounded cursor-pointer"
+                            title={isDiaVisible ? "Desativar Oficial de Dia" : "Ativar Oficial de Dia"}
+                          >
+                            {isDiaVisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-3 py-0.5 font-bold uppercase text-[11px] sm:text-xs text-left">
+                        {isDiaVisible ? (
+                          oficialDia ? <span className="font-black underline">{oficialDia}</span> : <span className="text-slate-400 font-normal italic text-[10px] select-none">-</span>
+                        ) : (
+                          <span className="opacity-0 select-none">&nbsp;</span>
+                        )}
+                      </td>
+                    </tr>
+                    <tr className="border-b border-black group/officer-row h-[20px]">
+                      <td
+                        className={cn("w-[42%] sm:w-[38%] border-r border-black px-2.5 py-0.5 font-bold uppercase text-[9.5px] sm:text-[10.5px] text-left escala-ala-header", headerColorClass)}
+                        style={headerBgStyle}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span>OFICIAL DA NÁUTICA:</span>
+                          <button
+                            type="button"
+                            onClick={() => toggleOfficerVisibility('showOficialNautica')}
+                            className="print:hidden opacity-0 group-hover/officer-row:opacity-100 hover:opacity-100 text-slate-700 hover:text-rose-700 transition-opacity p-0.5 rounded cursor-pointer"
+                            title={isNauticaVisible ? "Desativar Oficial da Náutica" : "Ativar Oficial da Náutica"}
+                          >
+                            {isNauticaVisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-3 py-0.5 font-bold uppercase text-[11px] sm:text-xs text-left">
+                        {isNauticaVisible ? (
+                          oficialNautica ? <span className="font-black underline">{oficialNautica}</span> : <span className="text-slate-400 font-normal italic text-[10px] select-none">-</span>
+                        ) : (
+                          <span className="opacity-0 select-none">&nbsp;</span>
+                        )}
+                      </td>
+                    </tr>
+                    <tr className="group/officer-row h-[20px]">
+                      <td
+                        className={cn("w-[42%] sm:w-[38%] border-r border-black px-2.5 py-0.5 font-bold uppercase text-[9.5px] sm:text-[10.5px] text-left escala-ala-header", headerColorClass)}
+                        style={headerBgStyle}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span>OFICIAL MÉDICO:</span>
+                          <button
+                            type="button"
+                            onClick={() => toggleOfficerVisibility('showOficialMedico')}
+                            className="print:hidden opacity-0 group-hover/officer-row:opacity-100 hover:opacity-100 text-slate-700 hover:text-rose-700 transition-opacity p-0.5 rounded cursor-pointer"
+                            title={isMedicoVisible ? "Desativar Oficial Médico" : "Ativar Oficial Médico"}
+                          >
+                            {isMedicoVisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-3 py-0.5 font-bold uppercase text-[11px] sm:text-xs text-left">
+                        {isMedicoVisible ? (
+                          oficialMedico ? <span className="font-black underline">{oficialMedico}</span> : <span className="text-slate-400 font-normal italic text-[10px] select-none">-</span>
+                        ) : (
+                          <span className="opacity-0 select-none">&nbsp;</span>
+                        )}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              ) : (
+                /* DEFAULT: TABELA EM 3 COLUNAS LADO A LADO */
+                <table className="w-full border-collapse border-t border-black table-fixed text-xs select-none">
+                  <thead>
+                    <tr
+                      className={cn("font-bold border-b border-black text-center text-[9.5px] sm:text-[11px] uppercase tracking-tight escala-ala-header", headerColorClass)}
+                      style={headerBgStyle}
                     >
-                      <EyeOff className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  /* Espaço vazio ao invés do texto quando desativado */
-                  <div className="flex items-center justify-between group/officer-row min-h-[16px]">
-                    <span className="opacity-0 select-none">&nbsp;</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleOfficerVisibility('showOficialDia')}
-                      className="print:hidden opacity-0 group-hover/officer-row:opacity-100 hover:opacity-100 text-slate-400 hover:text-emerald-600 transition-opacity p-0.5 rounded cursor-pointer mr-3"
-                      title="Ativar Oficial de Dia no arquivo Gerar Escala"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-                {isNauticaVisible ? (
-                  <div className="flex items-center justify-between group/officer-row min-h-[16px]">
-                    <span>OFICIAL DA NÁUTICA: {oficialNautica ? <span className="ml-1 font-black underline">{oficialNautica}</span> : ''}</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleOfficerVisibility('showOficialNautica')}
-                      className="print:hidden opacity-0 group-hover/officer-row:opacity-100 hover:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 rounded cursor-pointer mr-3"
-                      title="Desativar Oficial da Náutica no arquivo Gerar Escala"
-                    >
-                      <EyeOff className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  /* Espaço vazio ao invés do texto quando desativado */
-                  <div className="flex items-center justify-between group/officer-row min-h-[16px]">
-                    <span className="opacity-0 select-none">&nbsp;</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleOfficerVisibility('showOficialNautica')}
-                      className="print:hidden opacity-0 group-hover/officer-row:opacity-100 hover:opacity-100 text-slate-400 hover:text-emerald-600 transition-opacity p-0.5 rounded cursor-pointer mr-3"
-                      title="Ativar Oficial da Náutica no arquivo Gerar Escala"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-                {isMedicoVisible ? (
-                  <div className="flex items-center justify-between group/officer-row min-h-[16px]">
-                    <span>OFICIAL MÉDICO: {oficialMedico ? <span className="ml-1 font-black underline">{oficialMedico}</span> : ''}</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleOfficerVisibility('showOficialMedico')}
-                      className="print:hidden opacity-0 group-hover/officer-row:opacity-100 hover:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 rounded cursor-pointer mr-3"
-                      title="Desativar Oficial Médico no arquivo Gerar Escala"
-                    >
-                      <EyeOff className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  /* Espaço vazio ao invés do texto quando desativado */
-                  <div className="flex items-center justify-between group/officer-row min-h-[16px]">
-                    <span className="opacity-0 select-none">&nbsp;</span>
-                    <button
-                      type="button"
-                      onClick={() => toggleOfficerVisibility('showOficialMedico')}
-                      className="print:hidden opacity-0 group-hover/officer-row:opacity-100 hover:opacity-100 text-slate-400 hover:text-emerald-600 transition-opacity p-0.5 rounded cursor-pointer mr-3"
-                      title="Ativar Oficial Médico no arquivo Gerar Escala"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-              </div>
-           </div>
+                      <th className="border-r border-black py-1 px-1.5 w-[34%] escala-ala-header relative group/officer-col">
+                        <div className="flex items-center justify-center relative">
+                          <span className="truncate">OFICIAL DE DIA E PRONTIDÃO</span>
+                          <button
+                            type="button"
+                            onClick={() => toggleOfficerVisibility('showOficialDia')}
+                            className="print:hidden opacity-0 group-hover/officer-col:opacity-100 hover:opacity-100 text-slate-700 hover:text-rose-700 transition-opacity p-0.5 rounded cursor-pointer absolute right-0"
+                            title={isDiaVisible ? "Desativar Oficial de Dia" : "Ativar Oficial de Dia"}
+                          >
+                            {isDiaVisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                          </button>
+                        </div>
+                      </th>
+                      <th className="border-r border-black py-1 px-1.5 w-[33%] escala-ala-header relative group/officer-col">
+                        <div className="flex items-center justify-center relative">
+                          <span className="truncate">OFICIAL DA NÁUTICA</span>
+                          <button
+                            type="button"
+                            onClick={() => toggleOfficerVisibility('showOficialNautica')}
+                            className="print:hidden opacity-0 group-hover/officer-col:opacity-100 hover:opacity-100 text-slate-700 hover:text-rose-700 transition-opacity p-0.5 rounded cursor-pointer absolute right-0"
+                            title={isNauticaVisible ? "Desativar Oficial da Náutica" : "Ativar Oficial da Náutica"}
+                          >
+                            {isNauticaVisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                          </button>
+                        </div>
+                      </th>
+                      <th className="py-1 px-1.5 w-[33%] escala-ala-header relative group/officer-col">
+                        <div className="flex items-center justify-center relative">
+                          <span className="truncate">OFICIAL MÉDICO</span>
+                          <button
+                            type="button"
+                            onClick={() => toggleOfficerVisibility('showOficialMedico')}
+                            className="print:hidden opacity-0 group-hover/officer-col:opacity-100 hover:opacity-100 text-slate-700 hover:text-rose-700 transition-opacity p-0.5 rounded cursor-pointer absolute right-0"
+                            title={isMedicoVisible ? "Desativar Oficial Médico" : "Ativar Oficial Médico"}
+                          >
+                            {isMedicoVisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                          </button>
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="text-center font-bold text-xs uppercase h-7 sm:h-8">
+                      <td className="border-r border-black py-1 px-1.5 align-middle">
+                        {isDiaVisible ? (
+                          oficialDia ? <span className="font-black underline tracking-tight">{oficialDia}</span> : <span className="text-slate-400 font-normal italic text-[10px] select-none">-</span>
+                        ) : (
+                          <span className="opacity-0 select-none">&nbsp;</span>
+                        )}
+                      </td>
+                      <td className="border-r border-black py-1 px-1.5 align-middle">
+                        {isNauticaVisible ? (
+                          oficialNautica ? <span className="font-black underline tracking-tight">{oficialNautica}</span> : <span className="text-slate-400 font-normal italic text-[10px] select-none">-</span>
+                        ) : (
+                          <span className="opacity-0 select-none">&nbsp;</span>
+                        )}
+                      </td>
+                      <td className="py-1 px-1.5 align-middle">
+                        {isMedicoVisible ? (
+                          oficialMedico ? <span className="font-black underline tracking-tight">{oficialMedico}</span> : <span className="text-slate-400 font-normal italic text-[10px] select-none">-</span>
+                        ) : (
+                          <span className="opacity-0 select-none">&nbsp;</span>
+                        )}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
         </div>
 
         {/* VIATURAS TABLE */}
@@ -1710,76 +1833,164 @@ export function EscalaPrintView({
           );
         })()}
 
-        {/* ADMIN ROLES */}
-        <div className="flex border-2 border-black mb-2 p-1 font-bold uppercase min-h-[90px] text-xs">
-           <div className="w-1/2 flex flex-col gap-1 pr-4">
-              {Object.entries(adminRoles).map(([k, v]) => {
-                const roleKey = getAdminRoleMappedKey(k);
-                const isVisible = isAdminRoleVisible(roleKey);
-                return (
-                  <div key={k} className="flex gap-2 w-full items-center min-h-[20px] group/admin-row">
-                     {isVisible ? (
-                       <>
-                         <span className="w-[180px] shrink-0">{k}</span>
-                         <span className="font-normal truncate">{renderMilitar(v[0])}</span>
-                       </>
-                     ) : (
-                       /* Espaço vazio ao invés desse texto quando desativado! */
-                       <>
-                         <span className="w-[180px] shrink-0 opacity-0 select-none">{k}</span>
-                         <span className="font-normal truncate opacity-0 select-none">&nbsp;</span>
-                       </>
-                     )}
-                     <button
-                       type="button"
-                       onClick={() => toggleAdminRoleVisibility(roleKey)}
-                       className="print:hidden opacity-0 group-hover/admin-row:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 ml-auto cursor-pointer"
-                       title={isVisible ? `Desativar ${k} no Gerar Escala` : `Ativar ${k} no Gerar Escala`}
-                     >
-                       {isVisible ? <EyeOff className="w-3 h-3 text-slate-400 hover:text-rose-600" /> : <Eye className="w-3 h-3 text-emerald-600" />}
-                     </button>
-                  </div>
-                );
-              })}
+        {/* FUNÇÕES ADMINISTRATIVAS & COMUNICANTES */}
+        <div className="flex border-2 border-black mb-1.5 uppercase text-[9px] leading-tight">
+           {/* FUNÇÕES ADMINISTRATIVAS (80% da largura, alinhado com Sentinelas) */}
+           <div className="w-[80%] flex font-bold py-[2px] px-1.5">
+              <div className="w-1/2 flex flex-col gap-[1px] pr-2.5">
+                 {Object.entries(adminRoles).map(([k, v]) => {
+                   const roleKey = getAdminRoleMappedKey(k);
+                   const isVisible = isAdminRoleVisible(roleKey);
+                   return (
+                     <div key={k} className="flex gap-1 w-full items-center min-h-[12.5px] leading-tight group/admin-row">
+                        {isVisible ? (
+                          <>
+                            <span className="w-[145px] shrink-0 font-bold">{k}</span>
+                            <span className="font-normal truncate">{renderMilitar(v[0])}</span>
+                          </>
+                        ) : (
+                          /* Espaço vazio ao invés desse texto quando desativado! */
+                          <>
+                            <span className="w-[145px] shrink-0 opacity-0 select-none font-bold">{k}</span>
+                            <span className="font-normal truncate opacity-0 select-none">&nbsp;</span>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => toggleAdminRoleVisibility(roleKey)}
+                          className="print:hidden opacity-0 group-hover/admin-row:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 ml-auto cursor-pointer h-3 flex items-center"
+                          title={isVisible ? `Desativar ${k} no Gerar Escala` : `Ativar ${k} no Gerar Escala`}
+                        >
+                          {isVisible ? <EyeOff className="w-2.5 h-2.5 text-slate-400 hover:text-rose-600" /> : <Eye className="w-2.5 h-2.5 text-emerald-600" />}
+                        </button>
+                     </div>
+                   );
+                 })}
+              </div>
+              <div className="w-1/2 flex flex-col gap-[1px]">
+                 {adminRolesRight.map((item, idx) => {
+                   const roleKey = getAdminRoleMappedKey(item.label);
+                   const isVisible = isAdminRoleVisible(roleKey);
+                   return (
+                     <div key={idx} className="flex gap-1 w-full items-center min-h-[12.5px] leading-tight group/admin-row">
+                        {isVisible ? (
+                          <>
+                            <span className="w-[115px] shrink-0 font-bold">{item.label}</span>
+                            <span className="font-normal truncate">{renderMilitar(item.value)}</span>
+                          </>
+                        ) : (
+                          /* Espaço vazio ao invés desse texto quando desativado! */
+                          <>
+                            <span className="w-[115px] shrink-0 opacity-0 select-none font-bold">{item.label}</span>
+                            <span className="font-normal truncate opacity-0 select-none">&nbsp;</span>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => toggleAdminRoleVisibility(roleKey)}
+                          className="print:hidden opacity-0 group-hover/admin-row:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 ml-auto cursor-pointer h-3 flex items-center"
+                          title={isVisible ? `Desativar ${item.label} no Gerar Escala` : `Ativar ${item.label} no Gerar Escala`}
+                        >
+                          {isVisible ? <EyeOff className="w-2.5 h-2.5 text-slate-400 hover:text-rose-600" /> : <Eye className="w-2.5 h-2.5 text-emerald-600" />}
+                        </button>
+                     </div>
+                   );
+                 })}
+              </div>
            </div>
-           <div className="w-1/2 flex flex-col gap-1">
-              {adminRolesRight.map((item, idx) => {
-                const roleKey = getAdminRoleMappedKey(item.label);
-                const isVisible = isAdminRoleVisible(roleKey);
-                return (
-                  <div key={idx} className="flex gap-2 w-full items-center min-h-[20px] group/admin-row">
-                     {isVisible ? (
-                       <>
-                         <span className="w-[140px] shrink-0">{item.label}</span>
-                         <span className="font-normal truncate">{renderMilitar(item.value)}</span>
-                       </>
-                     ) : (
-                       /* Espaço vazio ao invés desse texto quando desativado! */
-                       <>
-                         <span className="w-[140px] shrink-0 opacity-0 select-none">{item.label}</span>
-                         <span className="font-normal truncate opacity-0 select-none">&nbsp;</span>
-                       </>
-                     )}
-                     <button
-                       type="button"
-                       onClick={() => toggleAdminRoleVisibility(roleKey)}
-                       className="print:hidden opacity-0 group-hover/admin-row:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 ml-auto cursor-pointer"
-                       title={isVisible ? `Desativar ${item.label} no Gerar Escala` : `Ativar ${item.label} no Gerar Escala`}
-                     >
-                       {isVisible ? <EyeOff className="w-3 h-3 text-slate-400 hover:text-rose-600" /> : <Eye className="w-3 h-3 text-emerald-600" />}
-                     </button>
-                  </div>
-                );
-              })}
-           </div>
+
+           {/* COMUNICANTE 1 E COMUNICANTE 2 (20% da largura, idêntico a Auxiliar Rancho & Toque de Fogo) */}
+           {(() => {
+              const isCom1Visible = isAdminRoleVisible('COMUNICANTE 1');
+              const isCom2Visible = isAdminRoleVisible('COMUNICANTE 2');
+              return (
+                 <div className="w-[20%] border-l-2 border-black flex flex-col justify-between font-bold">
+                    {/* COMUNICANTE 1 */}
+                    <div className="flex flex-col flex-1">
+                       <div
+                          className={cn("p-1 uppercase border-b border-black text-center escala-ala-header font-bold text-[9px]", headerColorClass)}
+                          style={headerBgStyle}
+                       >
+                          COMUNICANTE 1:
+                       </div>
+                       <div className="flex-1 flex items-center justify-center p-1 font-normal text-center truncate relative group/com1 min-h-[20px]">
+                          {isCom1Visible ? (
+                             com1Militar ? (
+                                <div className="truncate">{renderMilitar(com1Militar)}</div>
+                             ) : (
+                                <span className="opacity-0 select-none">&nbsp;</span>
+                             )
+                          ) : (
+                             <span className="opacity-0 select-none">&nbsp;</span>
+                          )}
+                          <button
+                             type="button"
+                             onClick={() => toggleAdminRoleVisibility('COMUNICANTE 1')}
+                             className="print:hidden opacity-0 group-hover/com1:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 absolute right-1 top-1 cursor-pointer"
+                             title={isCom1Visible ? "Desativar Comunicante 1 no Gerar Escala" : "Ativar Comunicante 1 no Gerar Escala"}
+                          >
+                             {isCom1Visible ? <EyeOff className="w-2.5 h-2.5 text-slate-400 hover:text-rose-600" /> : <Eye className="w-2.5 h-2.5 text-emerald-600" />}
+                          </button>
+                       </div>
+                    </div>
+
+                    {/* COMUNICANTE 2 */}
+                    <div className="flex flex-col flex-1">
+                       <div
+                          className={cn("p-1 uppercase border-t-2 border-b border-black text-center escala-ala-header font-bold text-[9px]", headerColorClass)}
+                          style={headerBgStyle}
+                       >
+                          COMUNICANTE 2:
+                       </div>
+                       <div className="flex-1 flex items-center justify-center p-1 font-normal text-center truncate relative group/com2 min-h-[20px]">
+                          {isCom2Visible ? (
+                             com2Militar ? (
+                                <div className="truncate">{renderMilitar(com2Militar)}</div>
+                             ) : (
+                                <span className="opacity-0 select-none">&nbsp;</span>
+                             )
+                          ) : (
+                             <span className="opacity-0 select-none">&nbsp;</span>
+                          )}
+                          <button
+                             type="button"
+                             onClick={() => toggleAdminRoleVisibility('COMUNICANTE 2')}
+                             className="print:hidden opacity-0 group-hover/com2:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 absolute right-1 top-1 cursor-pointer"
+                             title={isCom2Visible ? "Desativar Comunicante 2 no Gerar Escala" : "Ativar Comunicante 2 no Gerar Escala"}
+                          >
+                             {isCom2Visible ? <EyeOff className="w-2.5 h-2.5 text-slate-400 hover:text-rose-600" /> : <Eye className="w-2.5 h-2.5 text-emerald-600" />}
+                          </button>
+                       </div>
+                    </div>
+                 </div>
+              );
+           })()}
         </div>
 
-        {/* SENTINELAS & COMUNICANTES */}
+        {/* SENTINELAS, AUXILIAR RANCHO & TOQUE DE FOGO */}
         {(() => {
           const isSentinelaVisible = isAdminRoleVisible('SENTINELA');
-          const isComunicanteVisible = isAdminRoleVisible('COMUNICANTE');
           const isAuxRanchoVisible = isAdminRoleVisible('AUXILIAR RANCHO');
           const isToqueFogoVisible = isAdminRoleVisible('TOQUE DE FOGO');
+
+          const horariosNorte = [
+            '6 às 8 / 14 às 16 / 22 às 00:00',
+            '8 às 10 / 16 às 18 / 00 às 02:00',
+            '10 às 12 / 18 às 20 / 02 às 04:00',
+            '12 às 14 / 20 às 22 / 04 às 06:00',
+          ];
+
+          const horariosSul = [
+            '6 às 7:30 / 12 às 13:30',
+            '7:30 às 9 / 13:30 às 15',
+            '9 às 10:30 / 15 às 16:30',
+            '10:30 às 12/16:30 às 18',
+          ];
+
+          const turnLabels = ['1º', '2º', '3º', '4º'];
+
+          const hasMilitar = (m: any) => Boolean(m) && Boolean(renderMilitar(m)) && isSentinelaVisible;
+          const hasAnySul = [0, 1, 2, 3].some(i => hasMilitar(sentinelas[i + 4]));
 
           return (
             <table className="w-full border-collapse border-2 border-black text-center mb-2 table-fixed">
@@ -1793,100 +2004,130 @@ export function EscalaPrintView({
                <thead>
                   <tr className={cn(headerColorClass, "font-bold border-b-2 border-black escala-ala-header")} style={headerBgStyle}>
                      <th className="border-r border-black p-1 uppercase text-left pl-2 escala-ala-header" style={headerBgStyle} colSpan={2}>SENTINELAS: <span className="ml-8">GUARDA NORTE</span></th>
-                     <th className="border-r border-black p-1 uppercase text-left pl-2 escala-ala-header" style={headerBgStyle} colSpan={2}>SENTINELAS:</th>
-                     <th className="p-1 uppercase border-black border-l-2 text-center escala-ala-header" style={headerBgStyle} colSpan={1}>COMUNICANTE 1:</th>
+                     <th className="border-r border-black p-1 uppercase text-left pl-2 escala-ala-header" style={headerBgStyle} colSpan={2}>{hasAnySul ? 'SENTINELAS:' : ''}</th>
+                     <th className="p-1 uppercase border-black border-l-2 text-center escala-ala-header" style={headerBgStyle} colSpan={1}>AUXILIAR RANCHO:</th>
                   </tr>
                </thead>
                <tbody className="text-left font-bold uppercase">
-                  <tr>
-                     <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
-                       <div className="flex items-center gap-1.5 min-w-0">
-                         <span className="font-black shrink-0">1º</span>
-                         <span className="truncate">{isSentinelaVisible ? renderMilitar(sentinelas[0]) : <span className="opacity-0 select-none">&nbsp;</span>}</span>
-                       </div>
-                     </td>
-                     <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">6 às 8 / 14 às 16 / 22 às 00:00</td>
-                     <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
-                       <div className="flex items-center gap-1.5 min-w-0">
-                         <span className="font-black shrink-0">1º</span>
-                         <span className="truncate">{isSentinelaVisible ? renderMilitar(sentinelas[4]) : <span className="opacity-0 select-none">&nbsp;</span>}</span>
-                       </div>
-                     </td>
-                     <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">6 às 7:30 / 12 às 13:30</td>
-                     <td className="border-l-2 border-black p-1 font-normal text-center border-b truncate" rowSpan={2}><div className="flex justify-center">{isComunicanteVisible ? renderMilitar(comunicantes[0]) : <span className="opacity-0 select-none">&nbsp;</span>}</div></td>
-                  </tr>
-                  <tr>
-                     <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
-                       <div className="flex items-center gap-1.5 min-w-0">
-                         <span className="font-black shrink-0">2º</span>
-                         <span className="truncate">{isSentinelaVisible ? renderMilitar(sentinelas[1]) : <span className="opacity-0 select-none">&nbsp;</span>}</span>
-                       </div>
-                     </td>
-                     <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">8 às 10 / 16 às 18 / 00 às 02:00</td>
-                     <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
-                       <div className="flex items-center gap-1.5 min-w-0">
-                         <span className="font-black shrink-0">2º</span>
-                         <span className="truncate">{isSentinelaVisible ? renderMilitar(sentinelas[5]) : <span className="opacity-0 select-none">&nbsp;</span>}</span>
-                       </div>
-                     </td>
-                     <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">7:30 às 9 / 13:30 às 15</td>
-                  </tr>
-                  <tr>
-                     <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
-                       <div className="flex items-center gap-1.5 min-w-0">
-                         <span className="font-black shrink-0">3º</span>
-                         <span className="truncate">{isSentinelaVisible ? renderMilitar(sentinelas[2]) : <span className="opacity-0 select-none">&nbsp;</span>}</span>
-                       </div>
-                     </td>
-                     <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">10 às 12 / 18 às 20 / 02 às 04:00</td>
-                     <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
-                       <div className="flex items-center gap-1.5 min-w-0">
-                         <span className="font-black shrink-0">3º</span>
-                         <span className="truncate">{isSentinelaVisible ? renderMilitar(sentinelas[6]) : <span className="opacity-0 select-none">&nbsp;</span>}</span>
-                       </div>
-                     </td>
-                     <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">9 às 10:30 / 15 às 16:30</td>
-                     <td className={cn("border-y-2 border-l-2 border-black p-1", headerColorClass, "font-bold text-center escala-ala-header")} style={headerBgStyle}>COMUNICANTE 2:</td>
-                  </tr>
-                  <tr>
-                     <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
-                       <div className="flex items-center gap-1.5 min-w-0">
-                         <span className="font-black shrink-0">4º</span>
-                         <span className="truncate">{isSentinelaVisible ? renderMilitar(sentinelas[3]) : <span className="opacity-0 select-none">&nbsp;</span>}</span>
-                       </div>
-                     </td>
-                     <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">12 às 14 / 20 às 22 / 04 às 06:00</td>
-                     <td className="border-r border-black p-1 pl-2 text-left font-bold border-b truncate text-[10px]">
-                       <div className="flex items-center gap-1.5 min-w-0">
-                         <span className="font-black shrink-0">4º</span>
-                         <span className="truncate">{isSentinelaVisible ? renderMilitar(sentinelas[7]) : <span className="opacity-0 select-none">&nbsp;</span>}</span>
-                       </div>
-                     </td>
-                     <td className="border-r border-black p-1 text-center font-normal border-b text-[10px]">10:30 às 12/16:30 às 18</td>
-                     <td className="border-l-2 border-black p-1 font-normal text-center border-b truncate"><div className="flex justify-center">{isComunicanteVisible ? renderMilitar(comunicantes[1]) : <span className="opacity-0 select-none">&nbsp;</span>}</div></td>
-                  </tr>
-                  <tr className={cn(headerColorClass, "font-bold border-t-2 border-black escala-ala-header")} style={headerBgStyle}>
-                     <td className="border-r border-black p-1 text-center uppercase escala-ala-header" style={headerBgStyle} colSpan={1}>AUX. RANCHO:</td>
-                     <td className="border-r border-black p-1 font-normal bg-white text-center truncate" style={{ backgroundColor: '#ffffff', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }} colSpan={1}>
-                       <div className="flex items-center justify-center gap-2">
-                         {isAuxRanchoVisible ? (
-                           auxRancho.map((m: any, i: number) => <React.Fragment key={i}>{i > 0 && <span>/</span>}{renderMilitar(m)}</React.Fragment>)
-                         ) : (
-                           <span className="opacity-0 select-none">&nbsp;</span>
-                         )}
-                       </div>
-                     </td>
-                     <td className="border-r border-black p-1 text-center uppercase escala-ala-header" style={headerBgStyle} colSpan={1}>Toque de Fogo:</td>
-                     <td className="border-black p-1 font-normal bg-white text-center truncate" style={{ backgroundColor: '#ffffff', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }} colSpan={2}>
-                       <div className="flex items-center justify-center gap-2">
-                         {isToqueFogoVisible ? (
-                           toqueFogo.map((m: any, i: number) => <React.Fragment key={i}>{i > 0 && <span>/</span>}{renderMilitar(m)}</React.Fragment>)
-                         ) : (
-                           <span className="opacity-0 select-none">&nbsp;</span>
-                         )}
-                       </div>
-                     </td>
-                  </tr>
+                  {[0, 1, 2, 3].map((rowIdx) => {
+                     const mNorte = sentinelas[rowIdx];
+                     const mSul = sentinelas[rowIdx + 4];
+                     const norteFilled = hasMilitar(mNorte);
+                     const sulFilled = hasMilitar(mSul);
+
+                     return (
+                        <tr key={rowIdx}>
+                           {/* Guarda Norte - Militar */}
+                           <td className="border-r border-black p-1 pl-2 text-left font-bold truncate text-[10px]">
+                              {norteFilled ? (
+                                 <div className="flex items-center gap-1.5 min-w-0">
+                                    <span className="font-black shrink-0">{turnLabels[rowIdx]}</span>
+                                    <span className="truncate">{renderMilitar(mNorte)}</span>
+                                 </div>
+                              ) : (
+                                 <span className="opacity-0 select-none">&nbsp;</span>
+                              )}
+                           </td>
+
+                           {/* Guarda Norte - Horário */}
+                           <td className="border-r border-black p-1 text-center font-normal text-[10px]">
+                              {norteFilled ? (
+                                 horariosNorte[rowIdx]
+                              ) : (
+                                 <span className="opacity-0 select-none">&nbsp;</span>
+                              )}
+                           </td>
+
+                           {/* Guarda Sul - Militar */}
+                           <td className="border-r border-black p-1 pl-2 text-left font-bold truncate text-[10px]">
+                              {sulFilled ? (
+                                 <div className="flex items-center gap-1.5 min-w-0">
+                                    <span className="font-black shrink-0">{turnLabels[rowIdx]}</span>
+                                    <span className="truncate">{renderMilitar(mSul)}</span>
+                                 </div>
+                              ) : (
+                                 <span className="opacity-0 select-none">&nbsp;</span>
+                              )}
+                           </td>
+
+                           {/* Guarda Sul - Horário */}
+                           <td className="border-r border-black p-1 text-center font-normal text-[10px]">
+                              {sulFilled ? (
+                                 horariosSul[rowIdx]
+                              ) : (
+                                 <span className="opacity-0 select-none">&nbsp;</span>
+                              )}
+                           </td>
+
+                           {/* Coluna 5: Auxiliar Rancho (linhas 0 e 1 com rowSpan 2) */}
+                           {rowIdx === 0 && (
+                              <td className="border-l-2 border-black p-1 font-normal text-center truncate relative group/aux" rowSpan={2}>
+                                 <div className="flex items-center justify-center gap-2">
+                                    {isAuxRanchoVisible ? (
+                                       auxRancho.length > 0 ? (
+                                          auxRancho.map((m: any, i: number) => (
+                                             <React.Fragment key={i}>
+                                                {i > 0 && <span>/</span>}
+                                                {renderMilitar(m)}
+                                             </React.Fragment>
+                                          ))
+                                       ) : (
+                                          <span className="opacity-0 select-none">&nbsp;</span>
+                                       )
+                                    ) : (
+                                       <span className="opacity-0 select-none">&nbsp;</span>
+                                    )}
+                                 </div>
+                                 <button
+                                    type="button"
+                                    onClick={() => toggleAdminRoleVisibility('AUXILIAR RANCHO')}
+                                    className="print:hidden opacity-0 group-hover/aux:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 absolute right-1 top-1 cursor-pointer"
+                                    title={isAuxRanchoVisible ? "Desativar Auxiliar Rancho no Gerar Escala" : "Ativar Auxiliar Rancho no Gerar Escala"}
+                                 >
+                                    {isAuxRanchoVisible ? <EyeOff className="w-2.5 h-2.5 text-slate-400 hover:text-rose-600" /> : <Eye className="w-2.5 h-2.5 text-emerald-600" />}
+                                 </button>
+                              </td>
+                           )}
+
+                           {/* Coluna 5: Cabeçalho Toque de Fogo (linha 2) */}
+                           {rowIdx === 2 && (
+                              <td className={cn("border-y-2 border-l-2 border-black p-1", headerColorClass, "font-bold text-center escala-ala-header")} style={headerBgStyle}>
+                                 TOQUE DE FOGO:
+                              </td>
+                           )}
+
+                           {/* Coluna 5: Toque de Fogo Militar (linha 3) */}
+                           {rowIdx === 3 && (
+                              <td className="border-l-2 border-black p-1 font-normal text-center truncate relative group/fogo">
+                                 <div className="flex items-center justify-center gap-2">
+                                    {isToqueFogoVisible ? (
+                                       toqueFogo.length > 0 ? (
+                                          toqueFogo.map((m: any, i: number) => (
+                                             <React.Fragment key={i}>
+                                                {i > 0 && <span>/</span>}
+                                                {renderMilitar(m)}
+                                             </React.Fragment>
+                                          ))
+                                       ) : (
+                                          <span className="opacity-0 select-none">&nbsp;</span>
+                                       )
+                                    ) : (
+                                       <span className="opacity-0 select-none">&nbsp;</span>
+                                    )}
+                                 </div>
+                                 <button
+                                    type="button"
+                                    onClick={() => toggleAdminRoleVisibility('TOQUE DE FOGO')}
+                                    className="print:hidden opacity-0 group-hover/fogo:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 absolute right-1 top-1 cursor-pointer"
+                                    title={isToqueFogoVisible ? "Desativar Toque de Fogo no Gerar Escala" : "Ativar Toque de Fogo no Gerar Escala"}
+                                 >
+                                    {isToqueFogoVisible ? <EyeOff className="w-2.5 h-2.5 text-slate-400 hover:text-rose-600" /> : <Eye className="w-2.5 h-2.5 text-emerald-600" />}
+                                 </button>
+                              </td>
+                           )}
+                        </tr>
+                     );
+                  })}
                </tbody>
             </table>
           );
@@ -1914,146 +2155,98 @@ export function EscalaPrintView({
 
         {/* CHAMADA GERAL */}
         <table className="w-full border-collapse border-2 border-black text-left table-fixed text-[10px]">
-           {expedienteLayout === 'coluna' ? (
-              <colgroup>
-                 <col className="w-[21%]" />
-                 <col className="w-[21%]" />
-                 <col className="w-[21%]" />
-                 <col className="w-[19%]" />
-                 <col className="w-[18%]" />
-              </colgroup>
-           ) : (
-              <colgroup>
-                 <col className="w-[20.5%]" />
-                 <col className="w-[20.5%]" />
-                 <col className="w-[20.5%]" />
-                 <col className="w-[20.5%]" />
-                 <col className="w-[18%]" />
-              </colgroup>
-           )}
+           <colgroup>
+              <col className="w-[82%]" />
+              <col className="w-[18%]" />
+           </colgroup>
            <thead>
               <tr className={cn(headerColorClass, "font-bold border-b-2 border-black escala-ala-header")} style={headerBgStyle}>
-                 <th className="border-r border-black p-1 text-center uppercase escala-ala-header" style={headerBgStyle} colSpan={expedienteLayout === 'coluna' ? 3 : 4}>CHAMADA GERAL</th>
-                 {expedienteLayout === 'coluna' && (
-                    <th className="border-r border-black p-1 text-center uppercase escala-ala-header" style={headerBgStyle} colSpan={1}>EXPEDIENTE</th>
-                 )}
-                 <th className={cn("p-1 text-center uppercase escala-ala-header", expedienteLayout === 'coluna' ? '' : 'w-[18%]')} style={headerBgStyle} colSpan={1}>RAS</th>
+                 <th className="border-r border-black p-1 text-center uppercase tracking-wider escala-ala-header" style={headerBgStyle}>CHAMADA GERAL</th>
+                 <th className="p-1 text-center uppercase tracking-wider escala-ala-header" style={headerBgStyle}>RAS</th>
               </tr>
            </thead>
            <tbody>
-              {(() => {
-                 const numCols = expedienteLayout === 'coluna' ? 3 : 4;
-                 const chamadaRows = Math.ceil(activeMembersList.length / numCols);
-                 const expRows = expedienteLayout === 'coluna' ? (expedienteMilitars?.length || 0) : 0;
-                 const rasCount = rasApplications?.length || 0;
-
-                 // Exibir apenas as linhas estritamente necessárias (sem forçar 9 ou linhas vazias desnecessárias)
-                 const totalRows = Math.max(chamadaRows, expRows, rasCount, 1);
-
-                 return Array.from({ length: totalRows }).map((_, i) => {
-                    const expMil = (expedienteMilitars && expedienteMilitars[i]) || null;
-
-                    const rasItem = rasApplications && rasApplications[i];
-                    const rasApp = rasItem ? {
-                       rg: rasItem.militarRg || rasItem.rg,
-                       name: rasItem.militarName || rasItem.name,
-                       warName: rasItem.militarWarName || rasItem.warName,
-                       rank: rasItem.militarRank || rasItem.rank,
-                    } : null;
-
-                    return (
-                       <tr key={i}>
-                          {Array.from({ length: numCols }).map((__, colIdx) => {
-                             const itemIdx = i * numCols + colIdx;
-                             const m = activeMembersList[itemIdx] || null;
+              <tr>
+                 <td className="border-r border-black p-1.5 px-3 align-top text-[10px] font-bold">
+                    {activeMembersList.length > 0 ? (
+                       <div className="grid grid-cols-4 gap-x-4 gap-y-1">
+                          {activeMembersList.map((m: any, idx: number) => (
+                             <div key={idx} className="flex items-center gap-1.5 truncate">
+                                <span className="font-mono text-slate-700 shrink-0">{m.rg} -</span>
+                                <span className="truncate">{renderMilitar(m.militar)}</span>
+                             </div>
+                          ))}
+                       </div>
+                    ) : (
+                       <div className="text-center font-normal text-slate-500 italic py-2">
+                          Nenhum militar na chamada geral.
+                       </div>
+                    )}
+                 </td>
+                 <td className="p-1.5 px-2 align-top text-[9px] font-bold">
+                    {rasApplications && rasApplications.length > 0 ? (
+                       <div className="flex flex-col gap-1">
+                          {rasApplications.map((rasItem: any, idx: number) => {
+                             const rasApp = {
+                                rg: rasItem.militarRg || rasItem.rg,
+                                name: rasItem.militarName || rasItem.name,
+                                warName: rasItem.militarWarName || rasItem.warName,
+                                rank: rasItem.militarRank || rasItem.rank,
+                             };
                              return (
-                                <td key={colIdx} className="border-r border-b border-black p-0.5 px-2 truncate">
-                                   {m ? (
-                                      <div className="flex gap-1 items-center min-h-[20px]">
-                                         <span className="shrink-0">{m.rg} -</span> <span className="truncate">{renderMilitar(m.militar)}</span>
-                                      </div>
-                                   ) : ''}
-                                </td>
+                                <div key={idx} className="flex items-center gap-1 truncate">
+                                   <span className="font-mono text-slate-700 shrink-0">{idx + 1} -</span>
+                                   <span className="truncate">{renderMilitar(rasApp)}</span>
+                                </div>
                              );
                           })}
-
-                          {expedienteLayout === 'coluna' && (
-                             <td className="border-r border-b border-black p-0.5 px-2 truncate">
-                                {expMil ? (
-                                   <div className="flex gap-1 items-center min-h-[20px]">
-                                      <span className="shrink-0">{expMil.rg} -</span>
-                                      <span className="truncate">{renderMilitar(expMil.militar || expMil)}</span>
-                                      {expMil.is24h && (
-                                         <span className="text-[7.5px] font-black text-rose-700 bg-rose-50 border border-rose-200 px-1 rounded ml-1 shrink-0">
-                                            24H
-                                         </span>
-                                      )}
-                                   </div>
-                                ) : ''}
-                             </td>
-                          )}
-
-                          {rasCount === 0 ? (
-                             i === 0 ? (
-                                <td rowSpan={totalRows} className="border-b border-black p-2 text-center text-slate-500 italic font-normal text-[10px] align-middle">
-                                   Nenhum RAS realizado
-                                </td>
-                             ) : null
-                          ) : (
-                             <td className="border-b border-black p-0.5 text-left pl-2 font-bold text-[9px] truncate">
-                                {rasApp ? (
-                                   <div className="flex gap-1 items-center min-h-[20px]">
-                                      <span className="shrink-0">{i + 1} -</span>
-                                      <span className="truncate">{renderMilitar(rasApp)}</span>
-                                   </div>
-                                ) : ''}
-                             </td>
-                          )}
-                       </tr>
-                    );
-                 });
-              })()}
+                       </div>
+                    ) : (
+                       <div className="min-h-[50px] flex items-center justify-center p-2 text-center text-slate-500 italic font-normal text-[10px]">
+                          Nenhum RAS realizado
+                       </div>
+                    )}
+                 </td>
+              </tr>
            </tbody>
         </table>
 
-        {/* EXPEDIENTE DE SERVIÇO (SEÇÃO ESTILO AFASTAMENTOS) */}
-        {expedienteLayout === 'secao' && (
-           <div className="border-2 border-black border-t-0 flex flex-col">
-              {/* EXPEDIENTE HEADER */}
-              <div className={cn(headerColorClass, "font-bold border-b-2 border-black text-center p-1 text-[10px] uppercase tracking-wider escala-ala-header")} style={headerBgStyle}>
-                 MILITARES DE EXPEDIENTE NO DIA
-              </div>
-              
-              {/* EXPEDIENTE LIST */}
-              <div className="p-1.5 px-3 border-b-2 border-black text-[10px] min-h-[30px] font-bold">
-                 {expedienteMilitars.length > 0 ? (
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-x-4 gap-y-1">
-                       {expedienteMilitars.map((m: any, idx: number) => {
-                          const sectorName = m.sector || m.militar?.setor;
-                          return (
-                             <div key={idx} className="flex items-center gap-1.5 truncate">
-                                <span className="font-mono text-slate-700 shrink-0">{m.rg} -</span>
-                                <span className="truncate">{renderMilitar(m.militar || m)}</span>
-                                {sectorName && (
-                                   <span className="text-[7.5px] font-bold text-slate-600 bg-slate-100 border border-slate-300 px-1 rounded ml-0.5 shrink-0 uppercase">
-                                      {sectorName}
-                                   </span>
-                                )}
-                                {m.is24h && (
-                                   <span className="text-[7.5px] font-black text-rose-700 bg-rose-50 border border-rose-200 px-1 rounded ml-1 shrink-0">
-                                      24H
-                                   </span>
-                                )}
-                             </div>
-                          );
-                       })}
-                    </div>
-                 ) : (
-                    <div className="text-center font-normal text-slate-500 italic">Nenhum militar de expediente escalado neste dia.</div>
-                 )}
-              </div>
+        {/* EXPEDIENTE DE SERVIÇO (SEÇÃO DEDICADA) */}
+        <div className="border-2 border-black border-t-0 flex flex-col">
+           {/* EXPEDIENTE HEADER */}
+           <div className={cn(headerColorClass, "font-bold border-b-2 border-black text-center p-1 text-[10px] uppercase tracking-wider escala-ala-header")} style={headerBgStyle}>
+              MILITARES DE EXPEDIENTE NO DIA
            </div>
-        )}
+           
+           {/* EXPEDIENTE LIST */}
+           <div className="p-1.5 px-3 border-b-2 border-black text-[10px] min-h-[30px] font-bold">
+              {expedienteMilitars.length > 0 ? (
+                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-x-4 gap-y-1">
+                    {expedienteMilitars.map((m: any, idx: number) => {
+                       const sectorName = m.sector || m.militar?.setor;
+                       return (
+                          <div key={idx} className="flex items-center gap-1.5 truncate">
+                             <span className="font-mono text-slate-700 shrink-0">{m.rg} -</span>
+                             <span className="truncate">{renderMilitar(m.militar || m)}</span>
+                             {sectorName && (
+                                <span className="text-[7.5px] font-bold text-slate-600 bg-slate-100 border border-slate-300 px-1 rounded ml-0.5 shrink-0 uppercase">
+                                   {sectorName}
+                                </span>
+                             )}
+                             {m.is24h && (
+                                <span className="text-[7.5px] font-black text-rose-700 bg-rose-50 border border-rose-200 px-1 rounded ml-1 shrink-0">
+                                   24H
+                                </span>
+                             )}
+                          </div>
+                       );
+                    })}
+                 </div>
+              ) : (
+                 <div className="text-center font-normal text-slate-500 italic">Nenhum militar de expediente escalado neste dia.</div>
+              )}
+           </div>
+        </div>
 
         {/* AFASTAMENTOS E GRD */}
         {(() => {
@@ -2076,58 +2269,99 @@ export function EscalaPrintView({
               return `${parseRank(mil.rank)} ${mil.warName || (mil.name || '').split(' ')[0]} (${typeStr})`;
            }).filter(Boolean);
 
-           const grdMilitarsList = (grdRgs || []).map((rg: string) => {
-              if (!rg || !rg.trim()) return '(VAGA ABERTA)';
-              const mil = (militars || []).find((m: any) => normalizeRg(m.rg) === normalizeRg(rg));
-              if (!mil) return rg ? `RG: ${rg}` : '(VAGA ABERTA)';
-              return `${parseRank(mil.rank)} ${mil.warName || (mil.name || '').split(' ')[0]}`;
-           });
+           const grdMilitarsList = (grdRgs || [])
+              .map((rg: any) => {
+                 const cleanRg = typeof rg === 'string' ? rg : rg?.rg;
+                 if (!cleanRg || !cleanRg.trim()) return null;
+                 const mil = (militars || []).find((m: any) => normalizeRg(m.rg) === normalizeRg(cleanRg));
+                 if (!mil) return cleanRg ? `RG: ${cleanRg.trim()}` : null;
+                 return `${parseRank(mil.rank)} ${mil.warName || (mil.name || '').split(' ')[0]}`;
+              })
+              .filter(Boolean) as string[];
 
            const hasGrd = grdMilitarsList.length > 0;
            const obmName = (obmContext || '10º GBM').split('-')[0].trim();
 
            return (
-              <div className="border-2 border-black border-t-0 flex flex-col mb-4">
-                 {/* AFASTAMENTOS HEADER */}
-                 <div className={cn(headerColorClass, "font-bold border-b-2 border-black text-center p-1 text-[10px] uppercase tracking-wider escala-ala-header")} style={headerBgStyle}>
-                    AFASTAMENTOS
-                 </div>
-                 
-                 {/* AFASTAMENTOS LIST */}
-                 <div className="p-1.5 px-3 border-b-2 border-black text-[10px] min-h-[30px] font-bold">
-                    {afastadosList.length > 0 ? (
-                       <div className="grid grid-cols-3 sm:grid-cols-4 gap-x-4 gap-y-1">
-                          {afastadosList.map((str: any, idx: number) => <span key={idx}>{str}</span>)}
-                       </div>
-                    ) : (
-                       <div className="text-center font-normal text-slate-500 italic">Nenhum afastamento.</div>
-                    )}
-                 </div>
-
-                 {/* GRD */}
-                 <div className="flex w-full min-h-[40px] items-stretch">
-                    <div className="w-[20%] border-r-2 border-black flex items-center justify-center font-black text-[11px] uppercase bg-slate-50 p-2 text-center shrink-0">
-                       GRD - {obmName}
+              <div className="border-2 border-black border-t-0 flex w-full mb-4 items-stretch">
+                 {/* COLUNA ESQUERDA: AFASTAMENTOS E GRD (82% de largura, alinhado com Chamada Geral) */}
+                 <div className="w-[82%] border-r-2 border-black flex flex-col justify-between">
+                    {/* AFASTAMENTOS HEADER */}
+                    <div className={cn(headerColorClass, "font-bold border-b-2 border-black text-center p-1 text-[10px] uppercase tracking-wider escala-ala-header")} style={headerBgStyle}>
+                       AFASTAMENTOS
                     </div>
-                    <div className="w-[80%] p-2 px-4 flex-1">
-                       {hasGrd ? (
-                          <div className={cn("grid gap-x-6 gap-y-1.5 text-[10px] font-bold uppercase", grdMilitarsList.length > 4 ? "grid-cols-3" : "grid-cols-2")}>
-                             {grdMilitarsList.map((str: any, idx: number) => (
-                                <div key={idx} className="flex gap-1 items-start">
-                                   <span className="shrink-0">{idx + 1}-</span>
-                                   <span className={cn("leading-[1.1]", str === '(VAGA ABERTA)' ? "text-slate-400 font-normal italic" : "")}>
-                                      {str}
-                                   </span>
-                                </div>
-                             ))}
+                    
+                    {/* AFASTAMENTOS LIST */}
+                    <div className="p-1.5 px-3 border-b-2 border-black text-[10px] min-h-[30px] font-bold flex-1 flex items-center">
+                       {afastadosList.length > 0 ? (
+                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-x-4 gap-y-1 w-full">
+                             {afastadosList.map((str: any, idx: number) => <span key={idx}>{str}</span>)}
                           </div>
                        ) : (
-                          <div className="text-slate-500 italic font-normal h-full flex items-center text-[10px]">Sem GRD no dia.</div>
+                          <div className="text-center font-normal text-slate-500 italic w-full">Nenhum afastamento.</div>
                        )}
                     </div>
+
+                    {/* GRD */}
+                    <div className="flex w-full min-h-[46px] items-stretch">
+                       <div className="w-[22%] border-r-2 border-black flex items-center justify-center font-black text-[10.5px] uppercase bg-slate-50 p-2 text-center shrink-0">
+                          GRD - {obmName}
+                       </div>
+                       <div className="w-[78%] p-2 px-3 flex-1 flex items-center">
+                          {hasGrd ? (
+                             <div className={cn("grid gap-x-6 gap-y-1 text-[10px] font-bold uppercase w-full", grdMilitarsList.length > 4 ? "grid-cols-3" : "grid-cols-2")}>
+                                {grdMilitarsList.map((str: any, idx: number) => (
+                                   <div key={idx} className="flex gap-1 items-start">
+                                      <span className="shrink-0">{idx + 1}-</span>
+                                      <span className="leading-[1.1]">
+                                         {str}
+                                      </span>
+                                   </div>
+                                ))}
+                             </div>
+                          ) : null}
+                       </div>
+                    </div>
                  </div>
-              </div>
-           );
+
+                 {/* COLUNA DIREITA: VISTO (18% de largura, estilo lateral como o RAS) */}
+                 <div className="w-[18%] flex flex-col shrink-0 text-center justify-between">
+                    {/* VISTO HEADER */}
+                    <div className={cn(headerColorClass, "font-bold border-b-2 border-black text-center p-1 text-[10px] uppercase tracking-wider escala-ala-header")} style={headerBgStyle}>
+                       VISTO
+                    </div>
+
+                    {/* VISTO BODY (Ch. SaD e Escalante) */}
+                    <div className="flex-1 flex flex-col items-center justify-between p-1.5 text-center">
+                       {/* Ch. SaD: espaço para rubrica e linha acima do Ch. SaD */}
+                       <div className="w-full flex flex-col items-center my-auto pt-1">
+                          <div className="h-4 w-full"></div>
+                          <div className="w-4/5 border-b border-black mb-0.5"></div>
+                          <span className="font-bold text-[9.5px] leading-tight">Ch. SaD</span>
+                        </div>
+                        
+                        {/* Escalante: texto na base do bloco, com a assinatura acima da linha */}
+                        <div className="w-full flex flex-col items-center mt-auto pt-1 pb-0.5">
+                           {/* Assinatura do escalante (acima da linha de escalante) */}
+                           <div className="min-h-[20px] flex flex-col items-center justify-end w-full mb-0.5">
+                             {isSigned && user ? (
+                               <div className="text-[8px] font-bold uppercase leading-tight text-center px-0.5">
+                                 <span>{parseRank(user.rank)} {user.warName || user.name}</span>
+                                 <span className="block text-[7px] font-semibold text-slate-700">RG: {user.rg}</span>
+                               </div>
+                             ) : (
+                               <div className="h-3.5"></div>
+                             )}
+                           </div>
+                           {/* Linha de escalante */}
+                           <div className="w-4/5 border-b border-black mb-0.5"></div>
+                           {/* Texto Escalante na base */}
+                           <span className="font-bold text-[9.5px] leading-tight mb-0">Escalante</span>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            );
         })()}
 
       </div>

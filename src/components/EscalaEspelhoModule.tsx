@@ -3988,7 +3988,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                 {baseRoster.length === 0 && !militarsLoading && (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={5}
                       className="p-8 text-center text-slate-400 font-black text-xs uppercase tracking-widest"
                     >
                       NENHUM MILITAR CADASTRADO NESTA ALA

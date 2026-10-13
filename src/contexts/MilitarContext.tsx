@@ -23,11 +23,31 @@ interface MilitarContextType {
 const MilitarContext = createContext<MilitarContextType | undefined>(undefined);
 
 export function MilitarProvider({ children }: { children: ReactNode }) {
-  const [militars, setMilitars] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [militars, setMilitars] = useState<UserProfile[]>(() => {
+    try {
+      const cached = localStorage.getItem('militars_cache_v2');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {}
+    return [];
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem('militars_cache_v2');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return false;
+      }
+    } catch {}
+    return true;
+  });
   const cacheVersionRef = useRef<number>(0);
 
-  const fetchMilitars = async () => {
+  const fetchMilitars = async (retryCount = 0) => {
     try {
       const storedUser = localStorage.getItem('militar_profile');
       let rg = '';
@@ -54,14 +74,28 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
 
       if (!res.ok) {
         console.warn('[MilitarContext] Failed to fetch militars:', res.status, res.statusText);
+        if (retryCount < 3) {
+          setTimeout(() => fetchMilitars(retryCount + 1), 1500 * (retryCount + 1));
+        }
         return;
       }
       const data = await res.json();
-      if (data.success && data.members) {
-        setMilitars(data.members as UserProfile[]);
+      if (data.success && Array.isArray(data.members)) {
+        if (data.members.length > 0) {
+          setMilitars(data.members as UserProfile[]);
+          try {
+            localStorage.setItem('militars_cache_v2', JSON.stringify(data.members));
+          } catch {}
+        } else if (retryCount < 2) {
+          // If empty array returned unexpectedly, retry after a short delay
+          setTimeout(() => fetchMilitars(retryCount + 1), 1000);
+        }
       }
     } catch (e) {
       console.error('[MilitarContext] Error fetching militars:', e);
+      if (retryCount < 3) {
+        setTimeout(() => fetchMilitars(retryCount + 1), 1500 * (retryCount + 1));
+      }
     } finally {
       setLoading(false);
     }
