@@ -14,6 +14,7 @@ import { RequestPermuta } from "./RequestPermuta";
 import { AfastamentosAlaModule } from "./AfastamentosAlaModule";
 import { ExpedienteDiaModule } from "./ExpedienteDiaModule";
 import { GrdDiaModule } from "./GrdDiaModule";
+import { SentinelasSection } from "./SentinelasSection";
 import { EscalanteDashboardCalendar } from "./EscalanteDashboardCalendar";
 import { Calendar as CalendarIcon, Users, ArrowRightLeft, ArrowRight, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, ChevronLeft, ChevronRight, Check, X, Clock, Printer, Shuffle, Plus, Settings, Activity, TrendingDown, PieChart, BriefcaseBusiness, Download, RotateCcw, ExternalLink, Edit3, Award, Star, UserCheck, Anchor, Stethoscope, HeartPulse, Sparkles, Trash2, Building2, ArrowLeftRight, UserPlus, Loader2, AlertTriangle, Search, Eye, EyeOff } from 'lucide-react';
 
@@ -537,6 +538,37 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   const [predefinicoes, setPredefinicoes] = useState<Record<string, string[]>>({});
   const [isPreferenciasModalOpen, setIsPreferenciasModalOpen] = useState(false);
   const [grdDayRgs, setGrdDayRgs] = useState<string[]>([]);
+  const [sentinelaRgs, setSentinelaRgs] = useState<(string | null)[]>(() => [null, null, null, null]);
+
+  const handleSentinelaChange = (newSentinelaRgs: (string | null)[]) => {
+    setSentinelaRgs(newSentinelaRgs);
+
+    setSelectedFunctions(prev => {
+      const next = { ...prev };
+      const currentAssigned = new Set(newSentinelaRgs.filter(Boolean) as string[]);
+      const previousAssigned = new Set((sentinelaRgs || []).filter(Boolean) as string[]);
+
+      previousAssigned.forEach(rg => {
+        if (!currentAssigned.has(rg) && next[rg]) {
+          const filtered = next[rg].filter(f => normalizeFnName(f) !== 'SENTINELA');
+          if (filtered.length === 0) {
+            delete next[rg];
+          } else {
+            next[rg] = filtered;
+          }
+        }
+      });
+
+      currentAssigned.forEach(rg => {
+        const existing = next[rg] || [];
+        if (!existing.some(f => normalizeFnName(f) === 'SENTINELA')) {
+          next[rg] = [...existing, 'SENTINELA'];
+        }
+      });
+
+      return next;
+    });
+  };
 
   // Load correlation matrix, quantities and predefinicoes
   useEffect(() => {
@@ -687,6 +719,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     if (previousDate.current !== selectedDate) {
        setSelectedFunctions({});
        setManuallyAddedRgs({});
+       setSentinelaRgs([null, null, null, null]);
        previousDate.current = selectedDate;
        isFirstLoad.current = true;
     }
@@ -725,6 +758,18 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                }
                if (data.adminRolesVisibility) {
                    setAdminRolesVisibility(data.adminRolesVisibility);
+               }
+               if (data.sentinelaRgs && Array.isArray(data.sentinelaRgs)) {
+                   setSentinelaRgs(data.sentinelaRgs);
+               } else if (data.selectedFunctions) {
+                   const sentinelasFromFuncs = Object.entries(data.selectedFunctions as Record<string, string[]>)
+                     .filter(([_, funcs]) => funcs.some(f => normalizeFnName(f) === 'SENTINELA'))
+                     .map(([rg]) => rg);
+                   if (sentinelasFromFuncs.length > 0) {
+                     const recovered = [...sentinelasFromFuncs];
+                     while (recovered.length < 4) recovered.push(null);
+                     setSentinelaRgs(recovered);
+                   }
                }
            }
            
@@ -809,7 +854,8 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
              manuallyAddedRgs: manuallyAddedRgs[selectedDate] || [],
              manuallyRemovedRgs: manuallyRemovedRgs[selectedDate] || [],
              officerVisibility,
-             adminRolesVisibility
+             adminRolesVisibility,
+             sentinelaRgs
           }, { merge: true });
           
           setSavingState('saved');
@@ -821,7 +867,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     }, 1000);
     
     return () => clearTimeout(timeout);
-  }, [selectedFunctions, viaturasInfo, manuallyAddedRgs, manuallyRemovedRgs, selectedDate, obmContext, officerVisibility, adminRolesVisibility]);
+  }, [selectedFunctions, viaturasInfo, manuallyAddedRgs, manuallyRemovedRgs, selectedDate, obmContext, officerVisibility, adminRolesVisibility, sentinelaRgs]);
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -1829,9 +1875,10 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   const handleSortear = () => {
     const newSelected = { ...selectedFunctions };
     
-    // 1. Determine all missing slots based on dynamicRequirements
+    // 1. Determine all missing slots based on dynamicRequirements (excluindo SENTINELA do sorteio automático)
     const missingSlots: string[] = [];
     dynamicRequirements.forEach(req => {
+      if (normalizeFnName(req.name) === 'SENTINELA' || normalizeFnName(req.genericName) === 'SENTINELA') return;
       const currentCount = Object.values(newSelected).flat().filter(f => normalizeFnName(f) === normalizeFnName(req.name)).length;
       if (req.req > currentCount) {
         for (let i = 0; i < req.req - currentCount; i++) {
@@ -2384,7 +2431,8 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           quadro: m.quadro,
           is24h: m.is24h
         })),
-        grdRgs: grdDayRgs
+        grdRgs: grdDayRgs,
+        sentinelaRgs
       };
 
       await setDoc(doc(db, "registro_escalas_24h", docId), cleanUndefined(payload));
@@ -4000,6 +4048,17 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           </div>
         </div>
 
+        {/* SEÇÃO 2.4: SENTINELAS DA GUARDA (ACIMA DE AFASTAMENTOS E FÉRIAS) */}
+        <SentinelasSection
+          obmContext={obmContext}
+          selectedDate={selectedDate}
+          baseRoster={baseRoster}
+          militars={militars}
+          sentinelaRgs={sentinelaRgs}
+          onSentinelaChange={handleSentinelaChange}
+          identifiedAlaStr={identifiedAlaStr}
+        />
+
         {/* SECTION 2.5: AFASTAMENTOS DA ALA */}
         <AfastamentosAlaModule obmContext={obmContext} type="atuais" filterAla={identifiedAlaStr} targetDate={selectedDate} />
 
@@ -5171,6 +5230,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           rasApplications={rasApplications}
           expedienteMilitars={expedienteMilitars}
           grdRgs={grdDayRgs}
+          sentinelaRgs={sentinelaRgs}
           oficialDia={oficialDiaValue}
           oficialNautica={nauticoOficialValue}
           oficialMedico={medicoOficialValue}

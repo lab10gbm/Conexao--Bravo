@@ -33,6 +33,7 @@ export function EscalaPrintView({
   afastamentos,
   obmContext,
   grdRgs: propGrdRgs,
+  sentinelaRgs: propSentinelaRgs,
   onRegister,
   onClose
 }: any) {
@@ -758,7 +759,22 @@ export function EscalaPrintView({
   ];
   const auxRancho = getByFunc('AUXILIAR RANCHO');
   const toqueFogo = getByFunc('TOQUE DE FOGO');
-  const sentinelas = getByFunc('SENTINELA');
+  const sentinelas = useMemo(() => {
+    if (propSentinelaRgs && Array.isArray(propSentinelaRgs) && propSentinelaRgs.length > 0) {
+      return propSentinelaRgs.map((rg: string | null) => {
+        if (!rg) return null;
+        const clean = normalizeRg(rg);
+        const isSwapped = permutasOut.has(clean);
+        const subRg = isSwapped ? permutasOut.get(clean)?.substituteRg : clean;
+        return (
+          militars.find((m: any) => normalizeRg(m.rg) === subRg) ||
+          baseRoster.find((m: any) => normalizeRg(m.rg) === subRg) ||
+          null
+        );
+      });
+    }
+    return getByFunc('SENTINELA');
+  }, [propSentinelaRgs, militars, baseRoster, permutasOut, selectedFunctions]);
 
   const adminRoles = {
     'ADJUNTO:': getByFunc('ADJUNTO'),
@@ -1971,16 +1987,16 @@ export function EscalaPrintView({
               </div>
 
               {/* SEÇÃO 3: COMUNICANTE (E OUTROS) (20%) */}
-              <div className="w-[20%] flex flex-col justify-between font-bold">
+              <div className="w-[20%] flex flex-col justify-between font-bold h-full">
                 {/* 1. COMUNICANTE 1 */}
-                <div className="flex flex-col flex-1">
+                <div className="flex flex-col flex-1 h-1/4 min-h-0">
                   <div
-                    className={cn("p-0.5 uppercase border-b border-black text-center escala-ala-header font-bold text-[8.5px]", headerColorClass)}
+                    className={cn("p-0.5 uppercase border-b border-black text-center escala-ala-header font-bold text-[8.5px] shrink-0", headerColorClass)}
                     style={headerBgStyle}
                   >
                     COMUNICANTE 1:
                   </div>
-                  <div className="flex-1 flex items-center justify-center p-0.5 font-normal text-center truncate relative group/com1 min-h-[14px] text-[8.5px]">
+                  <div className="flex-1 min-h-0 flex items-center justify-center p-0.5 font-normal text-center truncate relative group/com1 text-[8.5px]">
                     {isCom1Visible ? (
                       com1Militar ? (
                         <div className="truncate">{renderMilitar(com1Militar)}</div>
@@ -2002,14 +2018,14 @@ export function EscalaPrintView({
                 </div>
 
                 {/* 2. COMUNICANTE 2 */}
-                <div className="flex flex-col flex-1">
+                <div className="flex flex-col flex-1 h-1/4 min-h-0">
                   <div
-                    className={cn("p-0.5 uppercase border-t border-b border-black text-center escala-ala-header font-bold text-[8.5px]", headerColorClass)}
+                    className={cn("p-0.5 uppercase border-t border-b border-black text-center escala-ala-header font-bold text-[8.5px] shrink-0", headerColorClass)}
                     style={headerBgStyle}
                   >
                     COMUNICANTE 2:
                   </div>
-                  <div className="flex-1 flex items-center justify-center p-0.5 font-normal text-center truncate relative group/com2 min-h-[14px] text-[8.5px]">
+                  <div className="flex-1 min-h-0 flex items-center justify-center p-0.5 font-normal text-center truncate relative group/com2 text-[8.5px]">
                     {isCom2Visible ? (
                       com2Militar ? (
                         <div className="truncate">{renderMilitar(com2Militar)}</div>
@@ -2031,22 +2047,17 @@ export function EscalaPrintView({
                 </div>
 
                 {/* 3. AUXILIAR RANCHO */}
-                <div className="flex flex-col flex-1">
+                <div className="flex flex-col flex-1 h-1/4 min-h-0">
                   <div
-                    className={cn("p-0.5 uppercase border-t border-b border-black text-center escala-ala-header font-bold text-[8.5px]", headerColorClass)}
+                    className={cn("p-0.5 uppercase border-t border-b border-black text-center escala-ala-header font-bold text-[8.5px] shrink-0", headerColorClass)}
                     style={headerBgStyle}
                   >
                     AUXILIAR RANCHO:
                   </div>
-                  <div className="flex-1 flex items-center justify-center p-0.5 font-normal text-center truncate relative group/aux min-h-[14px] text-[8.5px]">
+                  <div className="flex-1 min-h-0 flex items-center justify-center p-0.5 font-normal text-center truncate relative group/aux text-[8.5px]">
                     {isAuxRanchoVisible ? (
-                      auxRancho.length > 0 ? (
-                        auxRancho.map((m: any, i: number) => (
-                          <React.Fragment key={i}>
-                            {i > 0 && <span>/</span>}
-                            <div className="truncate">{renderMilitar(m)}</div>
-                          </React.Fragment>
-                        ))
+                      auxRancho[0] ? (
+                        <div className="truncate">{renderMilitar(auxRancho[0])}</div>
                       ) : (
                         <span className="opacity-0 select-none">&nbsp;</span>
                       )
@@ -2065,22 +2076,17 @@ export function EscalaPrintView({
                 </div>
 
                 {/* 4. TOQUE DE FOGO */}
-                <div className="flex flex-col flex-1">
+                <div className="flex flex-col flex-1 h-1/4 min-h-0">
                   <div
-                    className={cn("p-0.5 uppercase border-t border-b border-black text-center escala-ala-header font-bold text-[8.5px]", headerColorClass)}
+                    className={cn("p-0.5 uppercase border-t border-b border-black text-center escala-ala-header font-bold text-[8.5px] shrink-0", headerColorClass)}
                     style={headerBgStyle}
                   >
                     TOQUE DE FOGO:
                   </div>
-                  <div className="flex-1 flex items-center justify-center p-0.5 font-normal text-center truncate relative group/fogo min-h-[14px] text-[8.5px]">
+                  <div className="flex-1 min-h-0 flex items-center justify-center p-0.5 font-normal text-center truncate relative group/fogo text-[8.5px]">
                     {isToqueFogoVisible ? (
-                      toqueFogo.length > 0 ? (
-                        toqueFogo.map((m: any, i: number) => (
-                          <React.Fragment key={i}>
-                            {i > 0 && <span>/</span>}
-                            <div className="truncate">{renderMilitar(m)}</div>
-                          </React.Fragment>
-                        ))
+                      toqueFogo[0] ? (
+                        <div className="truncate">{renderMilitar(toqueFogo[0])}</div>
                       ) : (
                         <span className="opacity-0 select-none">&nbsp;</span>
                       )
