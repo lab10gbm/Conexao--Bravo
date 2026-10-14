@@ -724,13 +724,22 @@ export function EscalaPrintView({
   const renderVtrSlot = (v: any, slot: string, defaultName: string, fallbackLabel: string, forceRender = false, invisible = false) => {
      if (!forceRender && (!v || v[slot] === false || v.blocked?.includes(slot))) return null;
      const m = getVtrSlotMilitar(v, slot, defaultName, forceRender);
-     // Shorten label if it's too long, or just use fallbackLabel
-     const displayLabel = v?.customNames?.[slot]?.trim() ? v.customNames[slot].trim().substring(0, 15) : fallbackLabel;
+     
+     // Faixa cinza com informação da função centralizada
+     const rawLabel = v?.customNames?.[slot]?.trim() ? v.customNames[slot].trim() : fallbackLabel;
+     const displayLabel = rawLabel.endsWith(':') ? rawLabel : `${rawLabel}:`;
      
      return (
-       <div className={`flex gap-1 items-start min-h-[20px] ${invisible ? 'opacity-0' : ''}`}>
-         <span className="font-bold shrink-0 pt-[1px]">{displayLabel}:</span> 
-         <span className="leading-[1.1]">{renderMilitar(m)}</span>
+       <div className={`flex flex-col justify-start w-full ${invisible ? 'opacity-0 select-none' : ''}`}>
+         <div
+           className="w-full bg-slate-200 border-b border-black font-bold uppercase text-[9px] sm:text-[9.5px] tracking-tight text-center py-0.5 px-1 text-slate-800"
+           style={{ backgroundColor: '#e2e8f0', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}
+         >
+           {displayLabel}
+         </div> 
+         <div className="leading-tight text-[10px] sm:text-[10.5px] font-semibold text-black px-1.5 py-1 truncate text-center">
+           {renderMilitar(m) || <span className="opacity-0 select-none">&nbsp;</span>}
+         </div>
        </div>
      );
   };
@@ -1656,6 +1665,7 @@ export function EscalaPrintView({
             const defaultCg = sigla === 'ABSL' ? 'CHEFE ABSL' : sigla === 'ABT' ? 'CHEFE ABT' : sigla === 'ARC' ? 'AUXILIAR/CHEFE ARC' : sigla === 'ASE' ? 'CHEFE ASE' : 'CHEFE GUA';
             const fallbackCg = sigla === 'ARC' ? 'AUXILIAR/CHEFE' : 'CHEFE';
             const forceCg = sigla === 'ABT' || sigla === 'ABSL';
+            const hasChefe = (v.cg === true || forceCg) && (forceCg || !v.blocked?.includes('cg'));
 
             // 2. Auxiliares (g1..g4)
             const getAuxDefault = (slot: string) => {
@@ -1667,32 +1677,131 @@ export function EscalaPrintView({
               return `AUXILIAR ${sigla}`;
             };
 
-            const getAuxFallback = (slot: string) => {
-              if (sigla === 'ASE') return 'ENFERMEIRO';
-              if (sigla === 'ARC') return 'AUXILIAR/CHEFE';
-              return 'AUXILIAR';
-            };
+            const auxSlots = (['g1', 'g2', 'g3', 'g4'] as const).filter(slot => v[slot] === true && !v.blocked?.includes(slot));
 
             // 3. Condutor
             const defaultCondutor = isMaritima
               ? (vtrName.startsWith('BIA') ? 'MESTRE BIA' : 'MESTRE L')
               : `CONDUTOR ${sigla || 'AR'}`;
-            const fallbackCondutor = 'CONDUTOR';
+            const fallbackCondutor = isMaritima ? 'MESTRE' : 'CONDUTOR';
+            const hasCondutor = v.condutor === true && !v.blocked?.includes('condutor');
+
+            // Rótulo Chefe
+            const rawChefe = v?.customNames?.['cg']?.trim() || fallbackCg;
+            const chefeLabel = rawChefe.endsWith(':') ? rawChefe : `${rawChefe}:`;
+
+            // Rótulo Auxiliares (se mais de 1, usa plural AUXILIARES)
+            let auxHeaderLabel = 'AUXILIARES:';
+            if (auxSlots.length > 1) {
+              if (isMaritima) auxHeaderLabel = 'MARINHEIROS:';
+              else if (sigla === 'ASE') auxHeaderLabel = 'ENFERMEIROS:';
+              else if (sigla === 'ARC') auxHeaderLabel = 'AUXILIARES/CHEFES:';
+              else auxHeaderLabel = 'AUXILIARES:';
+            } else if (auxSlots.length === 1) {
+              const singleSlot = auxSlots[0];
+              const custom = v?.customNames?.[singleSlot]?.trim();
+              if (custom) {
+                auxHeaderLabel = custom.endsWith(':') ? custom : `${custom}:`;
+              } else if (isMaritima) {
+                auxHeaderLabel = 'MARINHEIRO:';
+              } else if (sigla === 'ASE') {
+                auxHeaderLabel = 'ENFERMEIRO:';
+              } else if (sigla === 'ARC') {
+                auxHeaderLabel = 'AUXILIAR/CHEFE:';
+              } else {
+                auxHeaderLabel = 'AUXILIAR:';
+              }
+            }
+
+            // Rótulo Condutor
+            const rawCondutor = v?.customNames?.['condutor']?.trim() || fallbackCondutor;
+            const condutorLabel = rawCondutor.endsWith(':') ? rawCondutor : `${rawCondutor}:`;
+
+            // Militares
+            const mChefe = hasChefe ? getVtrSlotMilitar(v, 'cg', defaultCg, forceCg) : null;
+            const auxMilitars = auxSlots.map(slot => ({
+              slot,
+              militar: getVtrSlotMilitar(v, slot, getAuxDefault(slot), false)
+            }));
+            const mCondutor = hasCondutor ? getVtrSlotMilitar(v, 'condutor', defaultCondutor, true) : null;
+
+            // Seções ativas
+            const sections: Array<{
+              key: string;
+              label: string;
+              militars: any[];
+            }> = [];
+
+            if (hasChefe) {
+              sections.push({
+                key: 'chefe',
+                label: chefeLabel,
+                militars: [mChefe]
+              });
+            }
+
+            if (auxSlots.length > 0) {
+              sections.push({
+                key: 'auxiliares',
+                label: auxHeaderLabel,
+                militars: auxMilitars.map(a => a.militar)
+              });
+            }
+
+            if (hasCondutor) {
+              sections.push({
+                key: 'condutor',
+                label: condutorLabel,
+                militars: [mCondutor]
+              });
+            }
+
+            if (sections.length === 0) {
+              return (
+                <div className="flex-1 flex items-center justify-center p-2 text-slate-400 italic text-[9px]">
+                  Sem funções escaladas
+                </div>
+              );
+            }
 
             return (
-              <>
-                {/* Chefe (cg) */}
-                {(v.cg === true || forceCg) && renderVtrSlot(v, 'cg', defaultCg, fallbackCg, forceCg)}
+              <div className="flex flex-col h-full justify-between w-full">
+                {sections.map((sec, sIdx) => {
+                  const isFirst = sIdx === 0;
+                  return (
+                    <div key={sec.key} className="flex flex-col w-full">
+                      {/* FAIXA CINZA COM INFORMAÇÃO DA FUNÇÃO CENTRALIZADA */}
+                      <div
+                        className={cn(
+                          "w-full bg-slate-200 font-bold uppercase text-[9px] sm:text-[9.5px] tracking-tight text-center py-0.5 px-1 text-slate-800",
+                          isFirst ? "border-b border-black" : "border-y border-black"
+                        )}
+                        style={{
+                          backgroundColor: '#e2e8f0',
+                          WebkitPrintColorAdjust: 'exact',
+                          printColorAdjust: 'exact',
+                        }}
+                      >
+                        {sec.label}
+                      </div>
 
-                {/* Auxiliares / Guarnição / Enfermeiro (g1..g4) */}
-                {v.g1 === true && renderVtrSlot(v, 'g1', getAuxDefault('g1'), getAuxFallback('g1'))}
-                {v.g2 === true && renderVtrSlot(v, 'g2', getAuxDefault('g2'), getAuxFallback('g2'))}
-                {v.g3 === true && renderVtrSlot(v, 'g3', getAuxDefault('g3'), getAuxFallback('g3'))}
-                {v.g4 === true && renderVtrSlot(v, 'g4', getAuxDefault('g4'), getAuxFallback('g4'))}
-
-                {/* Condutor */}
-                {v.condutor === true && renderVtrSlot(v, 'condutor', defaultCondutor, fallbackCondutor, true)}
-              </>
+                      {/* MILITARES ABAIXO DA FAIXA */}
+                      <div className="flex flex-col py-0.5 flex-1 justify-center">
+                        {sec.militars.map((m, mIdx) => (
+                          <div
+                            key={mIdx}
+                            className="py-0.5 px-1 min-h-[19px] flex items-center justify-center text-center"
+                          >
+                            <span className="leading-tight text-[10px] sm:text-[10.5px] font-semibold text-black truncate block">
+                              {renderMilitar(m) || <span className="opacity-0 select-none">&nbsp;</span>}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             );
           };
 
@@ -1753,14 +1862,11 @@ export function EscalaPrintView({
                   <tr>
                      {columns.map((col, colIdx) => {
                         if (col.type === 'pair') {
-                           const topCount = col.top.ativa ? getSlotCount(col.top) : 1;
-                           const bottomCount = col.bottom.ativa ? getSlotCount(col.bottom) : 1;
-
                            return (
                               <td key={colIdx} className="border border-black p-0 align-top">
                                  <div className="flex flex-col h-full">
                                     {/* Top viatura (1/2 espaço) */}
-                                    <div className={`p-1 px-1.5 flex-1 flex flex-col ${getDistributionClass(topCount, true)}`}>
+                                    <div className="p-0 flex-1 flex flex-col justify-between">
                                        {!col.top.ativa ? renderInativaMsg() : renderSlotsForVtr(col.top)}
                                     </div>
 
@@ -1770,7 +1876,7 @@ export function EscalaPrintView({
                                     </div>
 
                                     {/* Bottom viatura (1/2 espaço) */}
-                                    <div className={`p-1 px-1.5 flex-1 flex flex-col ${getDistributionClass(bottomCount, true)}`}>
+                                    <div className="p-0 flex-1 flex flex-col justify-between">
                                        {!col.bottom.ativa ? renderInativaMsg() : renderSlotsForVtr(col.bottom)}
                                     </div>
                                  </div>
@@ -1785,13 +1891,8 @@ export function EscalaPrintView({
                               <td key={colIdx} className="border border-black p-0 align-top">
                                  <div className="flex flex-col h-full">
                                     {col.items.map((itemVtr: any, itemIdx: number) => {
-                                       const count = itemVtr.ativa ? getSlotCount(itemVtr) : 1;
                                        const isInactive = !itemVtr.ativa;
 
-                                       // Altura / flex proporcional:
-                                       // Em um trio de 2 viaturas (ex: L-09 ativa + BIA 006/013 inativas):
-                                       // a ativa fica com o espaço necessário e a inativa com 1/3 exato (basis-1/3 shrink-0).
-                                       // Se for 1 única viatura inativa no trio, ocupa 1/3 da altura total.
                                        let flexClass = 'flex-1';
                                        if (col.items.length === 2 && isInactive) {
                                           flexClass = 'basis-1/3 shrink-0';
@@ -1807,9 +1908,9 @@ export function EscalaPrintView({
                                                 </div>
                                              )}
                                              <div className={cn(
-                                                "p-1 px-1.5 flex flex-col justify-center",
+                                                "p-0 flex flex-col justify-between",
                                                 flexClass,
-                                                itemVtr.ativa ? getDistributionClass(count, true) : 'items-center text-center'
+                                                !itemVtr.ativa && 'items-center text-center justify-center p-1'
                                              )}>
                                                 {!itemVtr.ativa ? renderInativaMsg() : renderSlotsForVtr(itemVtr)}
                                              </div>
@@ -1824,14 +1925,13 @@ export function EscalaPrintView({
                            );
                         }
 
-                        const fullCount = col.vtr.ativa ? getSlotCount(col.vtr) : 1;
                         const isHalfCol = col.type === 'half';
                         return (
                            <td key={colIdx} className="border border-black p-0 align-top">
-                              <div className={`flex flex-col h-full ${isHalfCol ? '' : 'p-1.5 px-2 ' + getDistributionClass(fullCount, false)}`}>
+                              <div className={`flex flex-col h-full ${isHalfCol ? '' : 'p-0 justify-between'}`}>
                                  {isHalfCol ? (
                                     <>
-                                       <div className="p-1 px-1.5 h-1/2 min-h-[50px] flex flex-col justify-center items-center">
+                                       <div className="p-0 h-1/2 min-h-[50px] flex flex-col justify-between">
                                           {!col.vtr.ativa ? renderInativaMsg() : renderSlotsForVtr(col.vtr)}
                                        </div>
                                        <div className="flex-1 bg-slate-50/10 border-t border-dashed border-slate-200" />

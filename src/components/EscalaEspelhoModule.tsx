@@ -1685,7 +1685,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     reqs.push({ name: "CB DIA", genericName: "CB DIA", req: roleQtds["CB DIA"] ?? 1, category: 'admin' });
     reqs.push({ name: "COMUNICANTE", genericName: "COMUNICANTE", req: roleQtds["COMUNICANTE"] ?? 2, category: 'admin' });
     reqs.push({ name: "ESCALANTE", genericName: "ESCALANTE", req: roleQtds["ESCALANTE"] ?? 1, category: 'admin' });
-    reqs.push({ name: "SENTINELA", genericName: "SENTINELA", req: roleQtds["SENTINELA"] ?? 4, category: 'admin' });
+    // SENTINELA é gerenciado exclusivamente na Seção de Sentinelas, removido do sorteio automático conforme solicitado
 
     return reqs;
 
