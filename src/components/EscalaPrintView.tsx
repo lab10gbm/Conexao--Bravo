@@ -1833,145 +1833,13 @@ export function EscalaPrintView({
           );
         })()}
 
-        {/* FUNÇÕES ADMINISTRATIVAS & COMUNICANTES */}
-        <div className="flex border-2 border-black mb-1.5 uppercase text-[9px] leading-tight">
-           {/* FUNÇÕES ADMINISTRATIVAS (80% da largura, alinhado com Sentinelas) */}
-           <div className="w-[80%] flex font-bold py-[2px] px-1.5">
-              <div className="w-1/2 flex flex-col gap-[1px] pr-2.5">
-                 {Object.entries(adminRoles).map(([k, v]) => {
-                   const roleKey = getAdminRoleMappedKey(k);
-                   const isVisible = isAdminRoleVisible(roleKey);
-                   return (
-                     <div key={k} className="flex gap-1 w-full items-center min-h-[12.5px] leading-tight group/admin-row">
-                        {isVisible ? (
-                          <>
-                            <span className="w-[145px] shrink-0 font-bold">{k}</span>
-                            <span className="font-normal truncate">{renderMilitar(v[0])}</span>
-                          </>
-                        ) : (
-                          /* Espaço vazio ao invés desse texto quando desativado! */
-                          <>
-                            <span className="w-[145px] shrink-0 opacity-0 select-none font-bold">{k}</span>
-                            <span className="font-normal truncate opacity-0 select-none">&nbsp;</span>
-                          </>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => toggleAdminRoleVisibility(roleKey)}
-                          className="print:hidden opacity-0 group-hover/admin-row:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 ml-auto cursor-pointer h-3 flex items-center"
-                          title={isVisible ? `Desativar ${k} no Gerar Escala` : `Ativar ${k} no Gerar Escala`}
-                        >
-                          {isVisible ? <EyeOff className="w-2.5 h-2.5 text-slate-400 hover:text-rose-600" /> : <Eye className="w-2.5 h-2.5 text-emerald-600" />}
-                        </button>
-                     </div>
-                   );
-                 })}
-              </div>
-              <div className="w-1/2 flex flex-col gap-[1px]">
-                 {adminRolesRight.map((item, idx) => {
-                   const roleKey = getAdminRoleMappedKey(item.label);
-                   const isVisible = isAdminRoleVisible(roleKey);
-                   return (
-                     <div key={idx} className="flex gap-1 w-full items-center min-h-[12.5px] leading-tight group/admin-row">
-                        {isVisible ? (
-                          <>
-                            <span className="w-[115px] shrink-0 font-bold">{item.label}</span>
-                            <span className="font-normal truncate">{renderMilitar(item.value)}</span>
-                          </>
-                        ) : (
-                          /* Espaço vazio ao invés desse texto quando desativado! */
-                          <>
-                            <span className="w-[115px] shrink-0 opacity-0 select-none font-bold">{item.label}</span>
-                            <span className="font-normal truncate opacity-0 select-none">&nbsp;</span>
-                          </>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => toggleAdminRoleVisibility(roleKey)}
-                          className="print:hidden opacity-0 group-hover/admin-row:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 ml-auto cursor-pointer h-3 flex items-center"
-                          title={isVisible ? `Desativar ${item.label} no Gerar Escala` : `Ativar ${item.label} no Gerar Escala`}
-                        >
-                          {isVisible ? <EyeOff className="w-2.5 h-2.5 text-slate-400 hover:text-rose-600" /> : <Eye className="w-2.5 h-2.5 text-emerald-600" />}
-                        </button>
-                     </div>
-                   );
-                 })}
-              </div>
-           </div>
-
-           {/* COMUNICANTE 1 E COMUNICANTE 2 (20% da largura, idêntico a Auxiliar Rancho & Toque de Fogo) */}
-           {(() => {
-              const isCom1Visible = isAdminRoleVisible('COMUNICANTE 1');
-              const isCom2Visible = isAdminRoleVisible('COMUNICANTE 2');
-              return (
-                 <div className="w-[20%] border-l-2 border-black flex flex-col justify-between font-bold">
-                    {/* COMUNICANTE 1 */}
-                    <div className="flex flex-col flex-1">
-                       <div
-                          className={cn("p-1 uppercase border-b border-black text-center escala-ala-header font-bold text-[9px]", headerColorClass)}
-                          style={headerBgStyle}
-                       >
-                          COMUNICANTE 1:
-                       </div>
-                       <div className="flex-1 flex items-center justify-center p-1 font-normal text-center truncate relative group/com1 min-h-[20px]">
-                          {isCom1Visible ? (
-                             com1Militar ? (
-                                <div className="truncate">{renderMilitar(com1Militar)}</div>
-                             ) : (
-                                <span className="opacity-0 select-none">&nbsp;</span>
-                             )
-                          ) : (
-                             <span className="opacity-0 select-none">&nbsp;</span>
-                          )}
-                          <button
-                             type="button"
-                             onClick={() => toggleAdminRoleVisibility('COMUNICANTE 1')}
-                             className="print:hidden opacity-0 group-hover/com1:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 absolute right-1 top-1 cursor-pointer"
-                             title={isCom1Visible ? "Desativar Comunicante 1 no Gerar Escala" : "Ativar Comunicante 1 no Gerar Escala"}
-                          >
-                             {isCom1Visible ? <EyeOff className="w-2.5 h-2.5 text-slate-400 hover:text-rose-600" /> : <Eye className="w-2.5 h-2.5 text-emerald-600" />}
-                          </button>
-                       </div>
-                    </div>
-
-                    {/* COMUNICANTE 2 */}
-                    <div className="flex flex-col flex-1">
-                       <div
-                          className={cn("p-1 uppercase border-t-2 border-b border-black text-center escala-ala-header font-bold text-[9px]", headerColorClass)}
-                          style={headerBgStyle}
-                       >
-                          COMUNICANTE 2:
-                       </div>
-                       <div className="flex-1 flex items-center justify-center p-1 font-normal text-center truncate relative group/com2 min-h-[20px]">
-                          {isCom2Visible ? (
-                             com2Militar ? (
-                                <div className="truncate">{renderMilitar(com2Militar)}</div>
-                             ) : (
-                                <span className="opacity-0 select-none">&nbsp;</span>
-                             )
-                          ) : (
-                             <span className="opacity-0 select-none">&nbsp;</span>
-                          )}
-                          <button
-                             type="button"
-                             onClick={() => toggleAdminRoleVisibility('COMUNICANTE 2')}
-                             className="print:hidden opacity-0 group-hover/com2:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 absolute right-1 top-1 cursor-pointer"
-                             title={isCom2Visible ? "Desativar Comunicante 2 no Gerar Escala" : "Ativar Comunicante 2 no Gerar Escala"}
-                          >
-                             {isCom2Visible ? <EyeOff className="w-2.5 h-2.5 text-slate-400 hover:text-rose-600" /> : <Eye className="w-2.5 h-2.5 text-emerald-600" />}
-                          </button>
-                       </div>
-                    </div>
-                 </div>
-              );
-           })()}
-        </div>
-
-        {/* SENTINELAS, AUXILIAR RANCHO & TOQUE DE FOGO */}
+        {/* AMBIENTE UNIFICADO EM 3 SEÇÕES LADO A LADO: ( SENTINELAS / FUNÇÕES ADMINISTRATIVAS / COMUNICANTE (E OUTROS) ) */}
         {(() => {
           const isSentinelaVisible = isAdminRoleVisible('SENTINELA');
           const isAuxRanchoVisible = isAdminRoleVisible('AUXILIAR RANCHO');
           const isToqueFogoVisible = isAdminRoleVisible('TOQUE DE FOGO');
+          const isCom1Visible = isAdminRoleVisible('COMUNICANTE 1');
+          const isCom2Visible = isAdminRoleVisible('COMUNICANTE 2');
 
           const horariosNorte = [
             '6 às 8 / 14 às 16 / 22 às 00:00',
@@ -1993,143 +1861,244 @@ export function EscalaPrintView({
           const hasAnySul = [0, 1, 2, 3].some(i => hasMilitar(sentinelas[i + 4]));
 
           return (
-            <table className="w-full border-collapse border-2 border-black text-center mb-2 table-fixed">
-               <colgroup>
-                  <col className="w-[23%]" />
-                  <col className="w-[17%]" />
-                  <col className="w-[23%]" />
-                  <col className="w-[17%]" />
-                  <col className="w-[20%]" />
-               </colgroup>
-               <thead>
-                  <tr className={cn(headerColorClass, "font-bold border-b-2 border-black escala-ala-header")} style={headerBgStyle}>
-                     <th className="border-r border-black p-1 uppercase text-left pl-2 escala-ala-header" style={headerBgStyle} colSpan={2}>SENTINELAS: <span className="ml-8">GUARDA NORTE</span></th>
-                     <th className="border-r border-black p-1 uppercase text-left pl-2 escala-ala-header" style={headerBgStyle} colSpan={2}>{hasAnySul ? 'SENTINELAS:' : ''}</th>
-                     <th className="p-1 uppercase border-black border-l-2 text-center escala-ala-header" style={headerBgStyle} colSpan={1}>AUXILIAR RANCHO:</th>
-                  </tr>
-               </thead>
-               <tbody className="text-left font-bold uppercase">
-                  {[0, 1, 2, 3].map((rowIdx) => {
-                     const mNorte = sentinelas[rowIdx];
-                     const mSul = sentinelas[rowIdx + 4];
-                     const norteFilled = hasMilitar(mNorte);
-                     const sulFilled = hasMilitar(mSul);
+            <div className="flex border-2 border-black mb-1.5 uppercase text-[9px] leading-tight w-full">
+              {/* SEÇÃO 1: SENTINELAS (38%) */}
+              <div className="w-[38%] flex flex-col border-r-2 border-black group/sent-col">
+                {/* Header Sentinelas */}
+                <div
+                  className={cn("p-1 uppercase border-b border-black text-left pl-2 escala-ala-header font-bold text-[9px] flex items-center justify-between", headerColorClass)}
+                  style={headerBgStyle}
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <span>SENTINELAS:</span>
+                    <span className="font-bold text-[8.5px]">{hasAnySul ? 'G. NORTE / SUL' : 'GUARDA NORTE'}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => toggleAdminRoleVisibility('SENTINELA')}
+                    className="print:hidden opacity-0 group-hover/sent-col:opacity-100 text-slate-700 hover:text-rose-700 transition-opacity p-0.5 cursor-pointer mr-0.5"
+                    title={isSentinelaVisible ? "Desativar Sentinelas no Gerar Escala" : "Ativar Sentinelas no Gerar Escala"}
+                  >
+                    {isSentinelaVisible ? <EyeOff className="w-2.5 h-2.5 text-slate-700 hover:text-rose-700" /> : <Eye className="w-2.5 h-2.5 text-emerald-700" />}
+                  </button>
+                </div>
 
-                     return (
-                        <tr key={rowIdx}>
-                           {/* Guarda Norte - Militar */}
-                           <td className="border-r border-black p-1 pl-2 text-left font-bold truncate text-[10px]">
-                              {norteFilled ? (
-                                 <div className="flex items-center gap-1.5 min-w-0">
-                                    <span className="font-black shrink-0">{turnLabels[rowIdx]}</span>
-                                    <span className="truncate">{renderMilitar(mNorte)}</span>
-                                 </div>
-                              ) : (
-                                 <span className="opacity-0 select-none">&nbsp;</span>
-                              )}
-                           </td>
+                {/* Lista de Sentinelas (sem linhas de divisão horizontais, suportando dinamicamente mais que 4) */}
+                <div className="flex-1 flex flex-col justify-between py-[2px] px-2 text-[8.5px]">
+                  {(() => {
+                    const sentinelaList = sentinelas && sentinelas.length > 0 ? sentinelas : [null, null, null, null];
+                    return sentinelaList.map((m: any, idx: number) => {
+                      const filled = hasMilitar(m);
+                      const horario = horariosNorte[idx];
+                      return (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between w-full min-h-[12px] leading-tight"
+                        >
+                          <div className="flex items-center gap-1.5 min-w-0 truncate">
+                            <span className="font-black shrink-0">{idx + 1}º</span>
+                            <span className="font-normal truncate">
+                              {filled ? renderMilitar(m) : <span className="opacity-0 select-none">&nbsp;</span>}
+                            </span>
+                          </div>
+                          {horario && sentinelaList.length <= 4 && filled && (
+                            <span className="text-[8px] font-normal text-slate-600 shrink-0 ml-1">
+                              {horario}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
 
-                           {/* Guarda Norte - Horário */}
-                           <td className="border-r border-black p-1 text-center font-normal text-[10px]">
-                              {norteFilled ? (
-                                 horariosNorte[rowIdx]
-                              ) : (
-                                 <span className="opacity-0 select-none">&nbsp;</span>
-                              )}
-                           </td>
+              {/* SEÇÃO 2: FUNÇÕES ADMINISTRATIVAS (42%) - TODAS EM UMA COLUNA ÚNICA (UM EM CIMA DO OUTRO) */}
+              <div className="w-[42%] flex flex-col border-r-2 border-black">
+                {/* Header Funções Administrativas */}
+                <div
+                  className={cn("p-1 uppercase border-b border-black text-center escala-ala-header font-bold text-[9px]", headerColorClass)}
+                  style={headerBgStyle}
+                >
+                  FUNÇÕES ADMINISTRATIVAS:
+                </div>
 
-                           {/* Guarda Sul - Militar */}
-                           <td className="border-r border-black p-1 pl-2 text-left font-bold truncate text-[10px]">
-                              {sulFilled ? (
-                                 <div className="flex items-center gap-1.5 min-w-0">
-                                    <span className="font-black shrink-0">{turnLabels[rowIdx]}</span>
-                                    <span className="truncate">{renderMilitar(mSul)}</span>
-                                 </div>
-                              ) : (
-                                 <span className="opacity-0 select-none">&nbsp;</span>
-                              )}
-                           </td>
+                {/* Conteúdo com todas as 10 funções em uma única coluna vertical */}
+                <div className="flex-1 flex flex-col justify-between py-[2px] px-2 text-[8.5px]">
+                  {(() => {
+                    const allAdminRoles = [
+                      { label: 'ADJUNTO:', value: adminRoles['ADJUNTO:']?.[0] },
+                      { label: 'ENCARREGADO DE MOTORIS:', value: adminRoles['ENCARREGADO DE MOTORIS:']?.[0] },
+                      { label: 'RESP. P/ FAXINA:', value: adminRoles['RESP. P/ FAXINA:']?.[0] },
+                      { label: 'SGT DE DIA:', value: adminRoles['SGT DE DIA:']?.[0] },
+                      { label: 'CMT DA GUARDA:', value: adminRoles['CMT DA GUARDA:']?.[0] },
+                      { label: 'DIA AO DEPÓSITO:', value: adminRolesRight[0]?.value },
+                      { label: 'DIA AO DEPÓSITO:', value: adminRolesRight[1]?.value },
+                      { label: 'ABASTECEDOR:', value: adminRolesRight[2]?.value },
+                      { label: 'CB DE DIA:', value: adminRolesRight[3]?.value },
+                      { label: 'CB DA GUARDA:', value: adminRolesRight[4]?.value },
+                    ];
 
-                           {/* Guarda Sul - Horário */}
-                           <td className="border-r border-black p-1 text-center font-normal text-[10px]">
-                              {sulFilled ? (
-                                 horariosSul[rowIdx]
-                              ) : (
-                                 <span className="opacity-0 select-none">&nbsp;</span>
-                              )}
-                           </td>
+                    return allAdminRoles.map((item, idx) => {
+                      const roleKey = getAdminRoleMappedKey(item.label);
+                      const isVisible = isAdminRoleVisible(roleKey);
+                      return (
+                        <div key={idx} className="flex gap-1.5 w-full items-center min-h-[12px] leading-tight group/admin-row">
+                          {isVisible ? (
+                            <>
+                              <span className="shrink-0 font-bold">{item.label}</span>
+                              <span className="font-normal truncate min-w-0">{renderMilitar(item.value)}</span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="shrink-0 opacity-0 select-none font-bold">{item.label}</span>
+                              <span className="font-normal truncate opacity-0 select-none">&nbsp;</span>
+                            </>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => toggleAdminRoleVisibility(roleKey)}
+                            className="print:hidden opacity-0 group-hover/admin-row:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 ml-auto cursor-pointer h-3 flex items-center"
+                            title={isVisible ? `Desativar ${item.label} no Gerar Escala` : `Ativar ${item.label} no Gerar Escala`}
+                          >
+                            {isVisible ? <EyeOff className="w-2.5 h-2.5 text-slate-400 hover:text-rose-600" /> : <Eye className="w-2.5 h-2.5 text-emerald-600" />}
+                          </button>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
 
-                           {/* Coluna 5: Auxiliar Rancho (linhas 0 e 1 com rowSpan 2) */}
-                           {rowIdx === 0 && (
-                              <td className="border-l-2 border-black p-1 font-normal text-center truncate relative group/aux" rowSpan={2}>
-                                 <div className="flex items-center justify-center gap-2">
-                                    {isAuxRanchoVisible ? (
-                                       auxRancho.length > 0 ? (
-                                          auxRancho.map((m: any, i: number) => (
-                                             <React.Fragment key={i}>
-                                                {i > 0 && <span>/</span>}
-                                                {renderMilitar(m)}
-                                             </React.Fragment>
-                                          ))
-                                       ) : (
-                                          <span className="opacity-0 select-none">&nbsp;</span>
-                                       )
-                                    ) : (
-                                       <span className="opacity-0 select-none">&nbsp;</span>
-                                    )}
-                                 </div>
-                                 <button
-                                    type="button"
-                                    onClick={() => toggleAdminRoleVisibility('AUXILIAR RANCHO')}
-                                    className="print:hidden opacity-0 group-hover/aux:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 absolute right-1 top-1 cursor-pointer"
-                                    title={isAuxRanchoVisible ? "Desativar Auxiliar Rancho no Gerar Escala" : "Ativar Auxiliar Rancho no Gerar Escala"}
-                                 >
-                                    {isAuxRanchoVisible ? <EyeOff className="w-2.5 h-2.5 text-slate-400 hover:text-rose-600" /> : <Eye className="w-2.5 h-2.5 text-emerald-600" />}
-                                 </button>
-                              </td>
-                           )}
+              {/* SEÇÃO 3: COMUNICANTE (E OUTROS) (20%) */}
+              <div className="w-[20%] flex flex-col justify-between font-bold">
+                {/* 1. COMUNICANTE 1 */}
+                <div className="flex flex-col flex-1">
+                  <div
+                    className={cn("p-0.5 uppercase border-b border-black text-center escala-ala-header font-bold text-[8.5px]", headerColorClass)}
+                    style={headerBgStyle}
+                  >
+                    COMUNICANTE 1:
+                  </div>
+                  <div className="flex-1 flex items-center justify-center p-0.5 font-normal text-center truncate relative group/com1 min-h-[14px] text-[8.5px]">
+                    {isCom1Visible ? (
+                      com1Militar ? (
+                        <div className="truncate">{renderMilitar(com1Militar)}</div>
+                      ) : (
+                        <span className="opacity-0 select-none">&nbsp;</span>
+                      )
+                    ) : (
+                      <span className="opacity-0 select-none">&nbsp;</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => toggleAdminRoleVisibility('COMUNICANTE 1')}
+                      className="print:hidden opacity-0 group-hover/com1:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 absolute right-0.5 top-0.5 cursor-pointer"
+                      title={isCom1Visible ? "Desativar Comunicante 1 no Gerar Escala" : "Ativar Comunicante 1 no Gerar Escala"}
+                    >
+                      {isCom1Visible ? <EyeOff className="w-2 h-2 text-slate-400 hover:text-rose-600" /> : <Eye className="w-2 h-2 text-emerald-600" />}
+                    </button>
+                  </div>
+                </div>
 
-                           {/* Coluna 5: Cabeçalho Toque de Fogo (linha 2) */}
-                           {rowIdx === 2 && (
-                              <td className={cn("border-y-2 border-l-2 border-black p-1", headerColorClass, "font-bold text-center escala-ala-header")} style={headerBgStyle}>
-                                 TOQUE DE FOGO:
-                              </td>
-                           )}
+                {/* 2. COMUNICANTE 2 */}
+                <div className="flex flex-col flex-1">
+                  <div
+                    className={cn("p-0.5 uppercase border-t border-b border-black text-center escala-ala-header font-bold text-[8.5px]", headerColorClass)}
+                    style={headerBgStyle}
+                  >
+                    COMUNICANTE 2:
+                  </div>
+                  <div className="flex-1 flex items-center justify-center p-0.5 font-normal text-center truncate relative group/com2 min-h-[14px] text-[8.5px]">
+                    {isCom2Visible ? (
+                      com2Militar ? (
+                        <div className="truncate">{renderMilitar(com2Militar)}</div>
+                      ) : (
+                        <span className="opacity-0 select-none">&nbsp;</span>
+                      )
+                    ) : (
+                      <span className="opacity-0 select-none">&nbsp;</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => toggleAdminRoleVisibility('COMUNICANTE 2')}
+                      className="print:hidden opacity-0 group-hover/com2:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 absolute right-0.5 top-0.5 cursor-pointer"
+                      title={isCom2Visible ? "Desativar Comunicante 2 no Gerar Escala" : "Ativar Comunicante 2 no Gerar Escala"}
+                    >
+                      {isCom2Visible ? <EyeOff className="w-2 h-2 text-slate-400 hover:text-rose-600" /> : <Eye className="w-2 h-2 text-emerald-600" />}
+                    </button>
+                  </div>
+                </div>
 
-                           {/* Coluna 5: Toque de Fogo Militar (linha 3) */}
-                           {rowIdx === 3 && (
-                              <td className="border-l-2 border-black p-1 font-normal text-center truncate relative group/fogo">
-                                 <div className="flex items-center justify-center gap-2">
-                                    {isToqueFogoVisible ? (
-                                       toqueFogo.length > 0 ? (
-                                          toqueFogo.map((m: any, i: number) => (
-                                             <React.Fragment key={i}>
-                                                {i > 0 && <span>/</span>}
-                                                {renderMilitar(m)}
-                                             </React.Fragment>
-                                          ))
-                                       ) : (
-                                          <span className="opacity-0 select-none">&nbsp;</span>
-                                       )
-                                    ) : (
-                                       <span className="opacity-0 select-none">&nbsp;</span>
-                                    )}
-                                 </div>
-                                 <button
-                                    type="button"
-                                    onClick={() => toggleAdminRoleVisibility('TOQUE DE FOGO')}
-                                    className="print:hidden opacity-0 group-hover/fogo:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 absolute right-1 top-1 cursor-pointer"
-                                    title={isToqueFogoVisible ? "Desativar Toque de Fogo no Gerar Escala" : "Ativar Toque de Fogo no Gerar Escala"}
-                                 >
-                                    {isToqueFogoVisible ? <EyeOff className="w-2.5 h-2.5 text-slate-400 hover:text-rose-600" /> : <Eye className="w-2.5 h-2.5 text-emerald-600" />}
-                                 </button>
-                              </td>
-                           )}
-                        </tr>
-                     );
-                  })}
-               </tbody>
-            </table>
+                {/* 3. AUXILIAR RANCHO */}
+                <div className="flex flex-col flex-1">
+                  <div
+                    className={cn("p-0.5 uppercase border-t border-b border-black text-center escala-ala-header font-bold text-[8.5px]", headerColorClass)}
+                    style={headerBgStyle}
+                  >
+                    AUXILIAR RANCHO:
+                  </div>
+                  <div className="flex-1 flex items-center justify-center p-0.5 font-normal text-center truncate relative group/aux min-h-[14px] text-[8.5px]">
+                    {isAuxRanchoVisible ? (
+                      auxRancho.length > 0 ? (
+                        auxRancho.map((m: any, i: number) => (
+                          <React.Fragment key={i}>
+                            {i > 0 && <span>/</span>}
+                            <div className="truncate">{renderMilitar(m)}</div>
+                          </React.Fragment>
+                        ))
+                      ) : (
+                        <span className="opacity-0 select-none">&nbsp;</span>
+                      )
+                    ) : (
+                      <span className="opacity-0 select-none">&nbsp;</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => toggleAdminRoleVisibility('AUXILIAR RANCHO')}
+                      className="print:hidden opacity-0 group-hover/aux:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 absolute right-0.5 top-0.5 cursor-pointer"
+                      title={isAuxRanchoVisible ? "Desativar Auxiliar Rancho no Gerar Escala" : "Ativar Auxiliar Rancho no Gerar Escala"}
+                    >
+                      {isAuxRanchoVisible ? <EyeOff className="w-2 h-2 text-slate-400 hover:text-rose-600" /> : <Eye className="w-2 h-2 text-emerald-600" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4. TOQUE DE FOGO */}
+                <div className="flex flex-col flex-1">
+                  <div
+                    className={cn("p-0.5 uppercase border-t border-b border-black text-center escala-ala-header font-bold text-[8.5px]", headerColorClass)}
+                    style={headerBgStyle}
+                  >
+                    TOQUE DE FOGO:
+                  </div>
+                  <div className="flex-1 flex items-center justify-center p-0.5 font-normal text-center truncate relative group/fogo min-h-[14px] text-[8.5px]">
+                    {isToqueFogoVisible ? (
+                      toqueFogo.length > 0 ? (
+                        toqueFogo.map((m: any, i: number) => (
+                          <React.Fragment key={i}>
+                            {i > 0 && <span>/</span>}
+                            <div className="truncate">{renderMilitar(m)}</div>
+                          </React.Fragment>
+                        ))
+                      ) : (
+                        <span className="opacity-0 select-none">&nbsp;</span>
+                      )
+                    ) : (
+                      <span className="opacity-0 select-none">&nbsp;</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => toggleAdminRoleVisibility('TOQUE DE FOGO')}
+                      className="print:hidden opacity-0 group-hover/fogo:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 absolute right-0.5 top-0.5 cursor-pointer"
+                      title={isToqueFogoVisible ? "Desativar Toque de Fogo no Gerar Escala" : "Ativar Toque de Fogo no Gerar Escala"}
+                    >
+                      {isToqueFogoVisible ? <EyeOff className="w-2 h-2 text-slate-400 hover:text-rose-600" /> : <Eye className="w-2 h-2 text-emerald-600" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           );
         })()}
 
