@@ -15,11 +15,12 @@ import { AfastamentosAlaModule } from "./AfastamentosAlaModule";
 import { ExpedienteDiaModule } from "./ExpedienteDiaModule";
 import { GrdDiaModule } from "./GrdDiaModule";
 import { SentinelasSection } from "./SentinelasSection";
+import { SentinelaSlot } from "../lib/sentinelaUtils";
 import { EscalanteDashboardCalendar } from "./EscalanteDashboardCalendar";
 import { Calendar as CalendarIcon, Users, ArrowRightLeft, ArrowRight, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, ChevronLeft, ChevronRight, Check, X, Clock, Printer, Shuffle, Plus, Settings, Activity, TrendingDown, PieChart, BriefcaseBusiness, Download, RotateCcw, ExternalLink, Edit3, Award, Star, UserCheck, Anchor, Stethoscope, HeartPulse, Sparkles, Trash2, Building2, ArrowLeftRight, UserPlus, Loader2, AlertTriangle, Search, Eye, EyeOff } from 'lucide-react';
 
 import { motion } from "motion/react";
-import { cleanUndefined, getUserObmAccess, normalizeObm, getAlaForDate, cn, getAlaColor, getAlaName, formatMilitaryName, normalizeAlaField, normalizeRg } from '../lib/utils';
+import { cleanUndefined, getUserObmAccess, normalizeObm, getAlaForDate, cn, getAlaColor, getAlaName, formatMilitaryName, normalizeAlaField, normalizeRg, getObmSettingsDocKey, getObmSettingsFallbackKeys } from '../lib/utils';
 
 
 const normalizeFnName = (s: string) => {
@@ -537,11 +538,19 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   const [roleQtds, setRoleQtds] = useState<Record<string, number>>({});
   const [predefinicoes, setPredefinicoes] = useState<Record<string, string[]>>({});
   const [isPreferenciasModalOpen, setIsPreferenciasModalOpen] = useState(false);
+  const [sortearFeedback, setSortearFeedback] = useState<{
+    type: 'success' | 'warning' | 'info';
+    message: string;
+  } | null>(null);
   const [grdDayRgs, setGrdDayRgs] = useState<string[]>([]);
   const [sentinelaRgs, setSentinelaRgs] = useState<(string | null)[]>(() => [null, null, null, null]);
+  const [sentinelaSlots, setSentinelaSlots] = useState<SentinelaSlot[] | null>(null);
 
-  const handleSentinelaChange = (newSentinelaRgs: (string | null)[]) => {
+  const handleSentinelaChange = (newSentinelaRgs: (string | null)[], newSlots?: SentinelaSlot[]) => {
     setSentinelaRgs(newSentinelaRgs);
+    if (newSlots) {
+      setSentinelaSlots(newSlots);
+    }
 
     setSelectedFunctions(prev => {
       const next = { ...prev };
@@ -570,37 +579,62 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     });
   };
 
-  // Load correlation matrix, quantities and predefinicoes
+  // Load correlation matrix, quantities and predefinicoes with realtime onSnapshot and canonical key
   useEffect(() => {
     if (!obmContext || obmContext === 'GLOBAL') return;
-    const loadSettings = async () => {
-      try {
-        const docRef = doc(db, "obm_settings", obmContext.replace(/\//g, '_').replace(/\s/g, '_'));
-        const snap = await getDoc(docRef);
-        if (snap.exists()) {
-          const data = snap.data();
-          if (data.escala_regras) {
-            setCorrelation(data.escala_regras.correlation || {});
-            setRoleQtds(data.escala_regras.qtds || {});
-          } else {
-            setCorrelation({});
-            setRoleQtds({});
-          }
-          if (data.escala_preferencias) {
-            setPredefinicoes(data.escala_preferencias || {});
-          } else {
-            setPredefinicoes({});
-          }
+    const canonicalKey = getObmSettingsDocKey(obmContext);
+    const docRef = doc(db, "obm_settings", canonicalKey);
+
+    const unsub = onSnapshot(docRef, async (snap) => {
+      let data = snap.exists() ? snap.data() : null;
+
+      // Se o documento canônico ainda não tiver todas as configurações, verifica chaves legadas e migra
+      if (!data?.escala_regras || !data?.escala_preferencias) {
+        const fallbacks = getObmSettingsFallbackKeys(obmContext).filter(k => k !== canonicalKey);
+        for (const fk of fallbacks) {
+          try {
+            const fallbackSnap = await getDoc(doc(db, "obm_settings", fk));
+            if (fallbackSnap.exists()) {
+              const fbData = fallbackSnap.data();
+              if (fbData) {
+                data = { ...fbData, ...data };
+                // Migra de forma transparente para a chave canônica
+                setDoc(docRef, cleanUndefined({
+                  escala_regras: data?.escala_regras || fbData.escala_regras,
+                  escala_preferencias: data?.escala_preferencias || fbData.escala_preferencias,
+                  categorias_funcoes: data?.categorias_funcoes || fbData.categorias_funcoes,
+                  viaturas_config: data?.viaturas_config || fbData.viaturas_config
+                }), { merge: true }).catch(() => {});
+                break;
+              }
+            }
+          } catch (e) {}
+        }
+      }
+
+      if (data) {
+        if (data.escala_regras) {
+          setCorrelation(data.escala_regras.correlation || {});
+          setRoleQtds(data.escala_regras.qtds || {});
         } else {
           setCorrelation({});
           setRoleQtds({});
+        }
+        if (data.escala_preferencias) {
+          setPredefinicoes(data.escala_preferencias || {});
+        } else {
           setPredefinicoes({});
         }
-      } catch (e) {
-        console.error("Error loading obm settings", e);
+      } else {
+        setCorrelation({});
+        setRoleQtds({});
+        setPredefinicoes({});
       }
-    };
-    loadSettings();
+    }, (e) => {
+      console.warn("Could not listen to obm_settings in EscalaEspelhoModule:", e);
+    });
+
+    return () => unsub();
   }, [obmContext]);
 
   // Função auxiliar para carregar o padrão ativo da OBM (definido pelo usuário em Controle de Viaturas)
@@ -759,6 +793,11 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                if (data.adminRolesVisibility) {
                    setAdminRolesVisibility(data.adminRolesVisibility);
                }
+               if (data.sentinelaSlots && Array.isArray(data.sentinelaSlots)) {
+                   setSentinelaSlots(data.sentinelaSlots);
+               } else {
+                   setSentinelaSlots(null);
+               }
                if (data.sentinelaRgs && Array.isArray(data.sentinelaRgs)) {
                    setSentinelaRgs(data.sentinelaRgs);
                } else if (data.selectedFunctions) {
@@ -855,7 +894,8 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
              manuallyRemovedRgs: manuallyRemovedRgs[selectedDate] || [],
              officerVisibility,
              adminRolesVisibility,
-             sentinelaRgs
+             sentinelaRgs,
+             sentinelaSlots: sentinelaSlots || null
           }, { merge: true });
           
           setSavingState('saved');
@@ -867,7 +907,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     }, 1000);
     
     return () => clearTimeout(timeout);
-  }, [selectedFunctions, viaturasInfo, manuallyAddedRgs, manuallyRemovedRgs, selectedDate, obmContext, officerVisibility, adminRolesVisibility, sentinelaRgs]);
+  }, [selectedFunctions, viaturasInfo, manuallyAddedRgs, manuallyRemovedRgs, selectedDate, obmContext, officerVisibility, adminRolesVisibility, sentinelaRgs, sentinelaSlots]);
 
   useEffect(() => {
     if (!selectedDate) return;
@@ -1386,12 +1426,12 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         
         const isExcluded = ['INATIVO', 'EXCLUÍDO', 'EXCLUIDO', 'DESLIGADO'].some(status => (m.situacao || '').trim().toUpperCase().includes(status));
 
-        if (removedRgs.includes(m.rg || '')) return false;
+        if (removedRgs.some(r => normalizeRg(r) === normalizeRg(m.rg))) return false;
 
         const isAla = isInCtx && normalizeAlaField(m.ala) === identifiedAlaStr;
-        const isManual = manualRgs.includes(m.rg || '');
-        const isExpediente24h = isInCtx && expediente24hRgs.includes(m.rg || '');
-        const isRas = rasRgs.includes(m.rg || '');
+        const isManual = manualRgs.some(r => normalizeRg(r) === normalizeRg(m.rg));
+        const isExpediente24h = isInCtx && expediente24hRgs.some(r => normalizeRg(r) === normalizeRg(m.rg));
+        const isRas = rasRgs.some(r => normalizeRg(r) === normalizeRg(m.rg));
         
         if (isExcluded && !isManual && !isRas) return false;
         if (!isAla && !isManual && !isExpediente24h && !isRas) return false;
@@ -1873,155 +1913,249 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   };
 
   const handleSortear = () => {
-    const newSelected = { ...selectedFunctions };
+    const newSelected: Record<string, string[]> = { ...selectedFunctions };
     
     // 1. Determine all missing slots based on dynamicRequirements (excluindo SENTINELA do sorteio automático)
-    const missingSlots: string[] = [];
+    const missingSlots: { name: string; genericName: string; category: string }[] = [];
     dynamicRequirements.forEach(req => {
-      if (normalizeFnName(req.name) === 'SENTINELA' || normalizeFnName(req.genericName) === 'SENTINELA') return;
-      const currentCount = Object.values(newSelected).flat().filter(f => normalizeFnName(f) === normalizeFnName(req.name)).length;
+      const normName = normalizeFnName(req.name);
+      const normGeneric = normalizeFnName(req.genericName);
+      if (normName === 'SENTINELA' || normGeneric === 'SENTINELA') return;
+      
+      const currentCount = Object.values(newSelected).flat().filter(f => normalizeFnName(f) === normName).length;
       if (req.req > currentCount) {
         for (let i = 0; i < req.req - currentCount; i++) {
-          missingSlots.push(req.name);
+          missingSlots.push({
+            name: req.name,
+            genericName: req.genericName,
+            category: req.category
+          });
         }
       }
     });
 
     if (missingSlots.length === 0) {
-      // Todas as funções obrigatórias já estão preenchidas
+      setSortearFeedback({
+        type: 'info',
+        message: 'Todas as funções operacionais e administrativas já estão preenchidas para esta data.',
+      });
+      setTimeout(() => setSortearFeedback(null), 4000);
       return;
     }
-    
-    // 1.5 Aplicar Predefinições
-    baseRoster.forEach(m => {
-       const isSwapped = permutasOut.has(m.rg || '');
-       const actualMilitar = isSwapped ? (militars.find(x => x.rg === permutasOut.get(m.rg || '')?.substituteRg) || m) : m;
-       const rg = m.rg || '';
-       const pref = predefinicoes[rg] || [];
-       if ((!newSelected[rg] || newSelected[rg].length === 0) && pref.length > 0) {
-          const allowed = getAllowedOptions(actualMilitar) || [];
-          pref.forEach(p => {
-             if (allowed.includes(p) && missingSlots.includes(p)) {
-                newSelected[rg] = [...(newSelected[rg] || []), p];
-                const idx = missingSlots.indexOf(p);
-                if (idx !== -1) missingSlots.splice(idx, 1);
-             }
-          });
-       }
-    });
 
-    if (missingSlots.length === 0) {
-       setSelectedFunctions(newSelected);
-       return;
-    }
-
-    // 2. Pre-calculate eligible militars for each role
+    // 2. Build roster with real militars (considering permutas)
     const availableMilitars = baseRoster.map(m => {
-       const isSwapped = permutasOut.has(m.rg || '');
-       const actualMilitar = isSwapped ? (militars.find(x => x.rg === permutasOut.get(m.rg || '')?.substituteRg) || m) : m;
-       return {
-         rg: m.rg || '',
-         actualMilitar,
-         allowed: getAllowedOptions(actualMilitar) || []
-       };
+      const isSwapped = permutasOut.has(m.rg || '');
+      const actualMilitar = isSwapped ? (militars.find(x => x.rg === permutasOut.get(m.rg || '')?.substituteRg) || m) : m;
+      const allowed = getAllowedOptions(actualMilitar) || [];
+      return {
+        rg: m.rg || '',
+        actualMilitar,
+        allowed
+      };
     });
 
-    const getRoleCount = (rg: string) => (newSelected[rg] || []).length;
+    // Helper: check if militar is allowed for a slot (supports display name and generic fallback)
+    const isMilitarAllowed = (m: { allowed: string[] }, slotName: string, genericName: string) => {
+      const sNorm = normalizeFnName(slotName);
+      const gNorm = normalizeFnName(genericName);
+      return m.allowed.some(a => {
+        const aNorm = normalizeFnName(a);
+        return aNorm === sNorm || aNorm === gNorm || sNorm.includes(aNorm) || aNorm.includes(sNorm);
+      });
+    };
 
-    let remainingSlots = [...missingSlots];
+    // Classificação funcional militar:
+    // A) Chefias & Comando: Adjunto, Chefe ABT/ABSL/ARC/GUA, CMT Guarda, SGT de Dia
+    const isLeadershipRole = (name: string, generic: string, category: string) => {
+      const n = (name + ' ' + generic).toUpperCase();
+      return category === 'chefe' || category === 'chefe_maritimo' ||
+             n.includes('CHEFE') || n.includes('ADJUNTO') || n.includes('SGT DIA') || n.includes('CMT GUARDA');
+    };
+
+    // B) Condutores & Motoristas: Condutores de viaturas, Mestre marítimo, Encarregado de Motorista
+    const isDriverRole = (name: string, generic: string, category: string) => {
+      const n = (name + ' ' + generic).toUpperCase();
+      return category === 'condutor' || category === 'condutor_maritimo' ||
+             n.includes('CONDUTOR') || n.includes('MESTRE') || n.includes('ENCARREGADO DE MOTORISTA');
+    };
+
+    // C) Especialistas Técnicos: Comunicante (Rádio/CAD), Enfermeiro (Resgate), Salvamento Marítimo AMA
+    const isSpecialistRole = (name: string, generic: string) => {
+      const n = (name + ' ' + generic).toUpperCase();
+      return n.includes('COMUNICANTE') || n.includes('ENFERMEIRO') || n.includes('OPERADOR AMA') || n.includes('GV AMA');
+    };
+
+    // D) Encargos Secundários / Concomitantes de Quartel (Rotina interna que não deve desguarnecer a viatura)
+    const isSecondaryChore = (name: string, generic: string) => {
+      const n = (name + ' ' + generic).toUpperCase();
+      return n.includes('FAXINA') || n.includes('RANCHO') || n.includes('TOQUE DE FOGO') ||
+             n.includes('DEPOSITO') || n.includes('DEPÓSITO') || n.includes('ABASTECEDOR') ||
+             n.includes('CB GUARDA') || n.includes('CB DIA');
+    };
+
+    // Checa se o militar já possui posto primário de combate/viatura
+    const hasPrimaryRole = (rg: string) => {
+      const roles = newSelected[rg] || [];
+      return roles.some(r => !isSecondaryChore(r, r));
+    };
+
+    const getAssignedCount = (rg: string) => (newSelected[rg] || []).length;
+
     let slotsFilledCount = 0;
-    
-    // Process slots one by one to ensure dynamic updates to getRoleCount
-    while (remainingSlots.length > 0) {
-       // Recalculate eligible counts for each slot dynamically
-       const slotOptions = remainingSlots.map((slot, index) => {
-          const eligible = availableMilitars.filter(m => {
-             if (!m.allowed.includes(slot)) return false;
-             // Verify compatibility with already selected roles
-             const existingRoles = newSelected[m.rg] || [];
-             if (existingRoles.includes(slot)) return false; // Prevent assigning same role twice to the same person
-             
-             let isCompatible = true;
-             for (const role of existingRoles) {
-               const isSentinelaAux = (
-                  (slot === 'SENTINELA' && ['AUXILIAR ABT', 'AUXILIAR ABSL', 'AUXILIAR/CHEFE ARC'].includes(role)) ||
-                  (role === 'SENTINELA' && ['AUXILIAR ABT', 'AUXILIAR ABSL', 'AUXILIAR/CHEFE ARC'].includes(slot))
-               );
-               
-               if (isSentinelaAux) {
-                  const arcRole = slot === 'AUXILIAR/CHEFE ARC' || role === 'AUXILIAR/CHEFE ARC';
-                  if (arcRole) {
-                     if (m.actualMilitar.rank === 'Soldado') continue;
-                  } else {
-                     continue;
-                  }
-               }
+    const unfilledRoles: string[] = [];
 
-               const val1 = correlation[slot]?.[role] ?? 0;
-               const val2 = correlation[role]?.[slot] ?? 0;
-               if (val1 === 0 || val2 === 0) {
-                 isCompatible = false; // incompatible according to rules
-                 break;
-               }
-             }
-             if (!isCompatible) return false;
-             return true;
-          });
-          return { slot, index, eligible };
-       });
-       
-       const getSlotPriority = (slotName: string) => {
-          const req = dynamicRequirements.find(r => r.name === slotName);
-          if (!req) return 99;
-          if (req.category === 'condutor' || req.category === 'condutor_maritimo') return 1;
-          if (req.category === 'chefe' || req.category === 'chefe_maritimo' || slotName === 'COMUNICANTE' || slotName === 'ENFERMEIRO') return 2;
-          if (req.category === 'auxiliar' || req.category === 'auxiliar_maritimo') return 3;
-          return 4; // admin / other
-       };
+    // FASE 0: Aplicar Pré-definições Fixas configuradas pelo escalante no modal
+    baseRoster.forEach(m => {
+      const isSwapped = permutasOut.has(m.rg || '');
+      const actualMilitar = isSwapped ? (militars.find(x => x.rg === permutasOut.get(m.rg || '')?.substituteRg) || m) : m;
+      const rg = m.rg || '';
+      const pref = predefinicoes[rg] || [];
+      if ((!newSelected[rg] || newSelected[rg].length === 0) && pref.length > 0) {
+        pref.forEach(p => {
+          const slotIdx = missingSlots.findIndex(s => 
+            (normalizeFnName(s.name) === normalizeFnName(p) || normalizeFnName(s.genericName) === normalizeFnName(p)) &&
+            isMilitarAllowed({ allowed: getAllowedOptions(actualMilitar) || [] }, s.name, s.genericName)
+          );
+          if (slotIdx !== -1) {
+            newSelected[rg] = [...(newSelected[rg] || []), missingSlots[slotIdx].name];
+            missingSlots.splice(slotIdx, 1);
+            slotsFilledCount++;
+          }
+        });
+      }
+    });
 
-       // Sort slots by priority first, then by number of eligible candidates (ascending).
-       // We must fill the most important and hardest-to-fill slots first.
-       slotOptions.sort((a, b) => {
-          const pA = getSlotPriority(a.slot);
-          const pB = getSlotPriority(b.slot);
-          if (pA !== pB) return pA - pB;
-          return a.eligible.length - b.eligible.length;
-       });
-       
-       const toFill = slotOptions[0];
-       remainingSlots.splice(toFill.index, 1);
-       
-       if (toFill.eligible.length === 0) {
-          continue; // Cannot fill this slot with current constraints, skip
-       }
-       
-       // Strategy: Priority 1 - Fewest roles assigned so far.
-       //           Priority 2 - Most specialized (fewer allowed options total).
-       // By doing this, we avoid assigning generalists to easy slots and saving them for hard slots.
-       toFill.eligible.sort((a, b) => {
-         const countDiff = getRoleCount(a.rg) - getRoleCount(b.rg);
-         if (countDiff !== 0) return countDiff; // less assigned roles first
-         return a.allowed.length - b.allowed.length; // more specialized first
-       });
-       
-       const bestCandidateCount = getRoleCount(toFill.eligible[0].rg);
-       const bestCandidateAllowed = toFill.eligible[0].allowed.length;
-       
-       // Find all candidates that tie for best so we can randomly pick among them to vary scales
-       const topCandidates = toFill.eligible.filter(
-         m => getRoleCount(m.rg) === bestCandidateCount && m.allowed.length === bestCandidateAllowed
-       );
-       
-       const chosen = topCandidates[Math.floor(Math.random() * topCandidates.length)];
-       
-       newSelected[chosen.rg] = [...(newSelected[chosen.rg] || []), toFill.slot];
-       slotsFilledCount++;
-    }
-    
+    // Função utilitária de preenchimento inteligente de grupos de vagas
+    const fillSlotGroup = (
+      slotsToProcess: typeof missingSlots,
+      candidateFilter: (m: typeof availableMilitars[0], slot: typeof missingSlots[0]) => boolean,
+      candidateSorter: (a: typeof availableMilitars[0], b: typeof availableMilitars[0], slot: typeof missingSlots[0]) => number
+    ) => {
+      for (const slot of slotsToProcess) {
+        const eligible = availableMilitars.filter(m => {
+          if (!isMilitarAllowed(m, slot.name, slot.genericName)) return false;
+          const currentRoles = newSelected[m.rg] || [];
+          if (currentRoles.some(r => normalizeFnName(r) === normalizeFnName(slot.name))) return false;
+          return candidateFilter(m, slot);
+        });
+
+        if (eligible.length === 0) {
+          unfilledRoles.push(slot.name);
+          continue;
+        }
+
+        // Ordenar candidatos pelo critério da fase
+        eligible.sort((a, b) => candidateSorter(a, b, slot));
+
+        // Empate justo: se houver múltiplos com o mesmo score militar, sortear entre eles para rotatividade
+        const bestCandidate = eligible[0];
+        const tiedBest = eligible.filter(cand => candidateSorter(cand, bestCandidate, slot) === 0);
+        const chosen = tiedBest[Math.floor(Math.random() * tiedBest.length)];
+
+        newSelected[chosen.rg] = [...(newSelected[chosen.rg] || []), slot.name];
+        slotsFilledCount++;
+      }
+    };
+
+    // FASE 1: Chefias Operacionais e Adjunto (Mais Antigos Primeiro: Subtenente -> Sargentos -> Cabos antigos)
+    const leadershipSlots = missingSlots.filter(s => isLeadershipRole(s.name, s.genericName, s.category));
+    fillSlotGroup(
+      leadershipSlots,
+      (m) => !hasPrimaryRole(m.rg),
+      (a, b) => {
+        // Hierarquia militar estrita (Subtenente > 1ºSGT > 2ºSGT > 3ºSGT > CB > SD)
+        const seniorityDiff = sortAllBySeniority(a.actualMilitar, b.actualMilitar);
+        if (seniorityDiff !== 0) return seniorityDiff;
+        return getAssignedCount(a.rg) - getAssignedCount(b.rg);
+      }
+    );
+
+    // FASE 2: Condutores e Especialistas Críticos (Garantir motoristas nas viaturas e despacho no CAD)
+    const specialistAndDriverSlots = missingSlots.filter(s => 
+      !isLeadershipRole(s.name, s.genericName, s.category) &&
+      (isDriverRole(s.name, s.genericName, s.category) || isSpecialistRole(s.name, s.genericName))
+    );
+    // Ordenar vagas mais escassas primeiro (ex.: Mestre de Lancha ou Comunicante antes de condutor geral)
+    specialistAndDriverSlots.sort((s1, s2) => {
+      const count1 = availableMilitars.filter(m => isMilitarAllowed(m, s1.name, s1.genericName) && !hasPrimaryRole(m.rg)).length;
+      const count2 = availableMilitars.filter(m => isMilitarAllowed(m, s2.name, s2.genericName) && !hasPrimaryRole(m.rg)).length;
+      return count1 - count2;
+    });
+
+    fillSlotGroup(
+      specialistAndDriverSlots,
+      (m) => !hasPrimaryRole(m.rg),
+      (a, b) => {
+        const countDiff = getAssignedCount(a.rg) - getAssignedCount(b.rg);
+        if (countDiff !== 0) return countDiff;
+        // Para condutor/especialista: preferir praças habilitadas
+        return sortAllBySeniority(b.actualMilitar, a.actualMilitar);
+      }
+    );
+
+    // FASE 3: Combatentes Operacionais e Auxiliares de Viatura (Linha de Fogo, Resgate e Salvamento)
+    const auxiliarySlots = missingSlots.filter(s => 
+      !isLeadershipRole(s.name, s.genericName, s.category) &&
+      !isDriverRole(s.name, s.genericName, s.category) &&
+      !isSpecialistRole(s.name, s.genericName) &&
+      !isSecondaryChore(s.name, s.genericName)
+    );
+
+    fillSlotGroup(
+      auxiliarySlots,
+      (m) => !hasPrimaryRole(m.rg),
+      (a, b) => {
+        const countDiff = getAssignedCount(a.rg) - getAssignedCount(b.rg);
+        if (countDiff !== 0) return countDiff;
+        // Praças mais modernas compondo a guarnição de combate
+        return sortAllBySeniority(b.actualMilitar, a.actualMilitar);
+      }
+    );
+
+    // FASE 4: Encargos Secundários / Concomitantes de Quartel (Faxina, Rancho, Depósito, Toque de Fogo)
+    // Distribuídos de forma justa entre as praças da Ala, sem retirar ninguém do posto de combate
+    const secondarySlots = missingSlots.filter(s => isSecondaryChore(s.name, s.genericName));
+    fillSlotGroup(
+      secondarySlots,
+      (m) => {
+        const roles = newSelected[m.rg] || [];
+        // Não sobrecarregar Adjunto ou Condutor com faxina/rancho se houver outros combatentes
+        const isAdj = roles.some(r => normalizeFnName(r).includes('ADJUNTO'));
+        if (isAdj) return false;
+        // Máximo de 1 encargo secundário por militar para evitar sobrecarga
+        const choreCount = roles.filter(r => isSecondaryChore(r, r)).length;
+        return choreCount === 0;
+      },
+      (a, b) => {
+        const countDiff = getAssignedCount(a.rg) - getAssignedCount(b.rg);
+        if (countDiff !== 0) return countDiff;
+        // Praças mais modernas assumem a rotina interna
+        return sortAllBySeniority(b.actualMilitar, a.actualMilitar);
+      }
+    );
+
     if (slotsFilledCount > 0) {
-       setSelectedFunctions(newSelected);
+      setSelectedFunctions(newSelected);
+      const uniqueUnfilled = Array.from(new Set(unfilledRoles));
+      if (uniqueUnfilled.length > 0) {
+        setSortearFeedback({
+          type: 'warning',
+          message: `${slotsFilledCount} função(ões) sorteada(s) respeitando a hierarquia militar. Aviso: faltou efetivo habilitado para: ${uniqueUnfilled.join(', ')}.`,
+        });
+      } else {
+        setSortearFeedback({
+          type: 'success',
+          message: `${slotsFilledCount} função(ões) distribuídas com sucesso! Hierarquia, chefias, motoristas e combatentes organizados militarmente.`,
+        });
+      }
+      setTimeout(() => setSortearFeedback(null), 6000);
     } else {
-       // Não foi possível sortear funções adicionais
+      setSortearFeedback({
+        type: 'warning',
+        message: 'Nenhuma função pôde ser preenchida. Verifique se os militares da Ala possuem as permissões ativas em seus cadastros.',
+      });
+      setTimeout(() => setSortearFeedback(null), 5000);
     }
   };
 
@@ -2432,7 +2566,8 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           is24h: m.is24h
         })),
         grdRgs: grdDayRgs,
-        sentinelaRgs
+        sentinelaRgs,
+        sentinelaSlots: sentinelaSlots || null
       };
 
       await setDoc(doc(db, "registro_escalas_24h", docId), cleanUndefined(payload));
@@ -2447,62 +2582,60 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     <div className="flex flex-col bg-slate-50 relative">
       {/* Top Control Bar */}
       <div className="bg-white border-b-2 border-slate-200 p-3 sm:p-4 shrink-0 flex flex-col gap-3 z-10 shadow-sm relative">
-        {/* Linha Principal: Data & Navegação + Feixe do Escalante + Ações Operacionais */}
-        <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 sm:gap-4">
+        {/* BANNER ESCURO DA ALA: Data da Escala, Controles < >, Ala em Serviço, Militares Base, Permutas e Nuvem */}
+        <div className="w-full flex items-center flex-wrap xl:flex-nowrap justify-between bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-2.5 px-3 sm:px-4 border border-slate-800 shadow-md gap-3 sm:gap-4 overflow-x-auto no-scrollbar">
           
-          {/* LADO ESQUERDO: Seletor de Data Oficial + Setas Navegadoras */}
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="bg-white border-2 border-indigo-100 hover:border-indigo-300 rounded-xl p-1.5 px-3 shadow-xs flex items-center gap-2.5 transition-colors">
-              <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                <CalendarIcon className="w-4 h-4" />
+          <div className="flex items-center flex-wrap sm:flex-nowrap gap-3 sm:gap-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-800/80">
+            {/* Segmento: Data da Escala + Botões < > */}
+            <div className="flex items-center gap-2 pr-1 sm:pr-3 shrink-0">
+              <div className="bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 rounded-xl p-1.5 px-3 shadow-inner flex items-center gap-2.5 transition-colors">
+                <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center shrink-0">
+                  <CalendarIcon className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-black text-indigo-300 uppercase tracking-widest leading-none">
+                    Data da Escala
+                  </span>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="bg-transparent border-none outline-none text-xs sm:text-sm font-black text-white tracking-wider cursor-pointer mt-0.5 [color-scheme:dark]"
+                  />
+                </div>
               </div>
-              <div className="flex flex-col">
-                <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest leading-none">
-                  Data da Escala
-                </span>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="bg-transparent border-none outline-none text-xs sm:text-sm font-black text-slate-900 tracking-wider cursor-pointer mt-0.5"
-                />
+
+              {/* Setas de navegação rápida dia anterior / próximo */}
+              <div className="flex items-center bg-slate-800/90 rounded-xl p-1 border border-slate-700/80 shrink-0">
+                <button
+                  onClick={() => {
+                    try {
+                      const prev = subDays(parseISO(selectedDate), 1);
+                      setSelectedDate(format(prev, "yyyy-MM-dd"));
+                    } catch {}
+                  }}
+                  className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700/80 transition-colors cursor-pointer"
+                  title="Dia anterior (-1d)"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => {
+                    try {
+                      const next = addDays(parseISO(selectedDate), 1);
+                      setSelectedDate(format(next, "yyyy-MM-dd"));
+                    } catch {}
+                  }}
+                  className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700/80 transition-colors cursor-pointer"
+                  title="Próximo dia (+1d)"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
-            {/* Setas de navegação rápida dia anterior / próximo */}
-            <div className="flex items-center bg-slate-100 rounded-xl p-1 border border-slate-200 shrink-0">
-              <button
-                onClick={() => {
-                  try {
-                    const prev = subDays(parseISO(selectedDate), 1);
-                    setSelectedDate(format(prev, "yyyy-MM-dd"));
-                  } catch {}
-                }}
-                className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white transition-colors cursor-pointer"
-                title="Dia anterior (-1d)"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => {
-                  try {
-                    const next = addDays(parseISO(selectedDate), 1);
-                    setSelectedDate(format(next, "yyyy-MM-dd"));
-                  } catch {}
-                }}
-                className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white transition-colors cursor-pointer"
-                title="Próximo dia (+1d)"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* CENTRO: O FEIXE DO ESCALANTE (ALA EM SERVIÇO, MILITARES NA ALA BASE E PERMUTAS SOLICITADAS) */}
-          <div className="flex items-center flex-wrap sm:flex-nowrap bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-2 px-3 sm:px-4 border border-slate-800 shadow-md divide-x divide-slate-800/80 gap-3 sm:gap-4 shrink-0 overflow-x-auto no-scrollbar">
-            
             {/* Segmento 1: Ala de Serviço com Insígnia e Cor */}
-            <div className="flex items-center gap-2.5 pr-1 sm:pr-3 shrink-0">
+            <div className="flex items-center gap-2.5 pl-3 sm:pl-4 pr-1 sm:pr-3 shrink-0">
               <div
                 className={cn(
                   "w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs shadow-md shrink-0 transition-transform",
@@ -2592,142 +2725,138 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Status Nuvem */}
+          {/* Status Nuvem */}
+          <div className="flex items-center gap-2 pl-3 sm:pl-4 shrink-0">
             {savingState === "saving" && (
-              <div className="flex items-center gap-1.5 pl-3 sm:pl-4 text-amber-400 shrink-0">
+              <div className="flex items-center gap-1.5 text-amber-400 shrink-0">
                 <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
                 <span className="text-[9px] font-bold uppercase tracking-widest">Salvando...</span>
               </div>
             )}
             {savingState === "saved" && (
-              <div className="flex items-center gap-1.5 pl-3 sm:pl-4 text-emerald-400 shrink-0">
+              <div className="flex items-center gap-1.5 text-emerald-400 shrink-0">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                 <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400">Salvo ✓</span>
               </div>
             )}
           </div>
-
-          {/* LADO DIREITO: Barra de Ações Operacionais (2 Linhas Estruturadas) */}
-          <div className="flex flex-col gap-2 shrink-0 self-end xl:self-center items-end">
-            
-            {/* LINHA 1: Gerar Permuta + Sortear Funções */}
-            <div className="flex items-center gap-2">
-              {/* Botão Gerar Permuta */}
-              <button
-                onClick={() => setIsPermutaModalOpen(true)}
-                className="h-9 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-wider text-[11px] shadow-sm hover:shadow flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shrink-0"
-                title="Abrir solicitação e gestão de permutas"
-              >
-                <ArrowRightLeft className="w-3.5 h-3.5" />
-                <span>Gerar Permuta</span>
-              </button>
-
-              {/* Botão Sortear Funções + Configurações (Cluster Integrado) */}
-              <div className="flex items-center rounded-xl shadow-sm border border-amber-500/40 overflow-hidden shrink-0">
-                <button
-                  onClick={handleSortear}
-                  className="h-9 px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-black uppercase tracking-wider text-[11px] flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
-                  title="Sortear funções operacionais automaticamente"
-                >
-                  <Shuffle className="w-3.5 h-3.5" />
-                  <span>Sortear Funções</span>
-                </button>
-                <button
-                  onClick={() => setIsPreferenciasModalOpen(true)}
-                  className="h-9 px-2 bg-orange-600 hover:bg-orange-500 text-white border-l border-orange-400/40 flex items-center justify-center transition-colors cursor-pointer"
-                  title="Pré-definições e Configurações de Sorteio"
-                >
-                  <Settings className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* LINHA 2: Limpar + Gerar Escala (Diretamente abaixo de Gerar Permuta e Sortear Funções) */}
-            <div className="flex items-center gap-2 w-full justify-end">
-              {/* Botão Limpar */}
-              <button
-                onClick={() => setSelectedFunctions({})}
-                className="h-9 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-200 font-black uppercase tracking-wider text-[11px] shadow-2xs transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer shrink-0"
-                title="Limpar todas as funções selecionadas na escala"
-              >
-                <RotateCcw className="w-3.5 h-3.5 text-rose-500" />
-                <span>Limpar</span>
-              </button>
-
-              {/* Botão Principal: Gerar Escala */}
-              <button
-                onClick={handleGerarEscala}
-                className="flex-1 sm:flex-initial h-9 px-4 sm:px-5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-slate-900 hover:from-indigo-500 hover:via-indigo-600 hover:to-slate-800 text-white font-black uppercase tracking-widest text-[11px] shadow-md hover:shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95 ring-2 ring-indigo-500/20 cursor-pointer"
-                title="Gerar e Imprimir Escala de Serviço 24h"
-              >
-                <Printer className="w-4 h-4 text-indigo-200" />
-                <span>Gerar Escala</span>
-              </button>
-            </div>
-
-          </div>
-
         </div>
 
-        {/* Linha 2: Faixa de Navegação Rápida com os Próximos Dias e Badges de Alas */}
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-2 border-t border-slate-100">
-          <div className="flex items-center gap-1.5 text-slate-400 shrink-0 pr-1">
-            <Clock className="w-3.5 h-3.5 text-indigo-500" />
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-              Próximos Dias:
-            </span>
+        {/* Linha abaixo do banner: Botões Operacionais + Navegação Rápida com os Próximos Dias */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 pt-1">
+          {/* Linha dos Botões Operacionais: Gerar Permuta, Sortear Funções, Limpar e Gerar Escala */}
+          <div className="flex items-center flex-wrap gap-2 sm:gap-2.5 shrink-0">
+            {/* Botão Gerar Permuta */}
+            <button
+              onClick={() => setIsPermutaModalOpen(true)}
+              className="h-9 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-wider text-[11px] shadow-sm hover:shadow flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shrink-0"
+              title="Abrir solicitação e gestão de permutas"
+            >
+              <ArrowRightLeft className="w-3.5 h-3.5" />
+              <span>Gerar Permuta</span>
+            </button>
+
+            {/* Botão Sortear Funções + Configurações (Cluster Integrado) */}
+            <div className="flex items-center rounded-xl shadow-sm border border-amber-500/40 overflow-hidden shrink-0">
+              <button
+                onClick={handleSortear}
+                className="h-9 px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-black uppercase tracking-wider text-[11px] flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                title="Sortear funções operacionais automaticamente"
+              >
+                <Shuffle className="w-3.5 h-3.5" />
+                <span>Sortear Funções</span>
+              </button>
+              <button
+                onClick={() => setIsPreferenciasModalOpen(true)}
+                className="h-9 px-2 bg-orange-600 hover:bg-orange-500 text-white border-l border-orange-400/40 flex items-center justify-center transition-colors cursor-pointer"
+                title="Pré-definições e Configurações de Sorteio"
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Botão Limpar */}
+            <button
+              onClick={() => setSelectedFunctions({})}
+              className="h-9 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-200 font-black uppercase tracking-wider text-[11px] shadow-2xs transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer shrink-0"
+              title="Limpar todas as funções selecionadas na escala"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-rose-500" />
+              <span>Limpar</span>
+            </button>
+
+            {/* Botão Principal: Gerar Escala */}
+            <button
+              onClick={handleGerarEscala}
+              className="h-9 px-4 sm:px-5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-slate-900 hover:from-indigo-500 hover:via-indigo-600 hover:to-slate-800 text-white font-black uppercase tracking-widest text-[11px] shadow-md hover:shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95 ring-2 ring-indigo-500/20 cursor-pointer shrink-0"
+              title="Gerar e Imprimir Escala de Serviço 24h"
+            >
+              <Printer className="w-4 h-4 text-indigo-200" />
+              <span>Gerar Escala</span>
+            </button>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            {upcomingDays.map((item) => {
-              const isSelected = item.iso === selectedDate;
-              return (
-                <button
-                  key={item.iso}
-                  onClick={() => setSelectedDate(item.iso)}
-                  className={cn(
-                    "px-2.5 py-1.5 rounded-xl text-left flex items-center gap-2 border transition-all cursor-pointer active:scale-95 shrink-0",
-                    isSelected
-                      ? "bg-indigo-600 text-white border-indigo-600 shadow-sm ring-2 ring-indigo-400/40"
-                      : "bg-slate-50 hover:bg-indigo-50/50 text-slate-700 border-slate-200/90 hover:border-indigo-200"
-                  )}
-                  title={`Ir para ${item.label} (${item.dayNumber}) - Ala ${item.alaNum}`}
-                >
-                  <div className="flex flex-col leading-none">
-                    <span
-                      className={cn(
-                        "text-[9px] font-black uppercase tracking-wider",
-                        isSelected ? "text-indigo-200" : "text-slate-400"
-                      )}
-                    >
-                      {item.label}
-                    </span>
-                    <span
-                      className={cn(
-                        "text-xs font-black font-mono mt-0.5",
-                        isSelected ? "text-white" : "text-slate-800"
-                      )}
-                    >
-                      {item.dayNumber}
-                    </span>
-                  </div>
+          {/* Faixa de Navegação Rápida com os Próximos Dias */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0 max-w-full">
+            <div className="flex items-center gap-1.5 text-slate-400 shrink-0 pr-1">
+              <Clock className="w-3.5 h-3.5 text-indigo-500" />
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                Próximos Dias:
+              </span>
+            </div>
 
-                  {/* Mini Badge de Ala */}
-                  <span
+            <div className="flex items-center gap-1.5 shrink-0">
+              {upcomingDays.map((item) => {
+                const isSelected = item.iso === selectedDate;
+                return (
+                  <button
+                    key={item.iso}
+                    onClick={() => setSelectedDate(item.iso)}
                     className={cn(
-                      "text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider font-mono shrink-0 shadow-2xs",
-                      item.alaNum === 1 && "bg-emerald-500 text-slate-950 font-bold",
-                      item.alaNum === 2 && "bg-rose-500 text-white font-bold",
-                      item.alaNum === 3 && "bg-sky-500 text-slate-950 font-bold",
-                      item.alaNum === 4 && "bg-amber-400 text-slate-950 font-bold"
+                      "px-2.5 py-1.5 rounded-xl text-left flex items-center gap-2 border transition-all cursor-pointer active:scale-95 shrink-0",
+                      isSelected
+                        ? "bg-indigo-600 text-white border-indigo-600 shadow-sm ring-2 ring-indigo-400/40"
+                        : "bg-slate-50 hover:bg-indigo-50/50 text-slate-700 border-slate-200/90 hover:border-indigo-200"
                     )}
+                    title={`Ir para ${item.label} (${item.dayNumber}) - Ala ${item.alaNum}`}
                   >
-                    A{item.alaNum}
-                  </span>
-                </button>
-              );
-            })}
+                    <div className="flex flex-col leading-none">
+                      <span
+                        className={cn(
+                          "text-[9px] font-black uppercase tracking-wider",
+                          isSelected ? "text-indigo-200" : "text-slate-400"
+                        )}
+                      >
+                        {item.label}
+                      </span>
+                      <span
+                        className={cn(
+                          "text-xs font-black font-mono mt-0.5",
+                          isSelected ? "text-white" : "text-slate-800"
+                        )}
+                      >
+                        {item.dayNumber}
+                      </span>
+                    </div>
+
+                    {/* Mini Badge de Ala */}
+                    <span
+                      className={cn(
+                        "text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider font-mono shrink-0 shadow-2xs",
+                        item.alaNum === 1 && "bg-emerald-500 text-slate-950 font-bold",
+                        item.alaNum === 2 && "bg-rose-500 text-white font-bold",
+                        item.alaNum === 3 && "bg-sky-500 text-slate-950 font-bold",
+                        item.alaNum === 4 && "bg-amber-400 text-slate-950 font-bold"
+                      )}
+                    >
+                      A{item.alaNum}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -4055,6 +4184,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           baseRoster={baseRoster}
           militars={militars}
           sentinelaRgs={sentinelaRgs}
+          sentinelaSlots={sentinelaSlots}
           onSentinelaChange={handleSentinelaChange}
           identifiedAlaStr={identifiedAlaStr}
         />
@@ -5182,9 +5312,10 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                                const newPref = { ...predefinicoes, [militar.rg || '']: newVal };
                                setPredefinicoes(newPref);
                                try {
-                                 await updateDoc(doc(db, "obm_settings", obmContext.replace(/\//g, '_').replace(/\s/g, '_')), cleanUndefined({
+                                 const canonicalKey = getObmSettingsDocKey(obmContext);
+                                 await setDoc(doc(db, "obm_settings", canonicalKey), cleanUndefined({
                                     escala_preferencias: newPref
-                                 }));
+                                 }), { merge: true });
                                } catch(e) {
                                  console.error("Error saving predefinicoes", e);
                                }
@@ -5231,6 +5362,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           expedienteMilitars={expedienteMilitars}
           grdRgs={grdDayRgs}
           sentinelaRgs={sentinelaRgs}
+          sentinelaSlots={sentinelaSlots}
           oficialDia={oficialDiaValue}
           oficialNautica={nauticoOficialValue}
           oficialMedico={medicoOficialValue}
@@ -5485,7 +5617,28 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         </div>
       )}
 
-      {actionNotice && (
+      {sortearFeedback && (
+        <div className={cn(
+          "fixed bottom-6 right-6 z-50 max-w-md p-4 rounded-2xl shadow-2xl border backdrop-blur-md transition-all animate-in fade-in slide-in-from-bottom-5",
+          sortearFeedback.type === 'success' ? "bg-slate-900/95 border-emerald-500/50 text-white" :
+          sortearFeedback.type === 'warning' ? "bg-slate-900/95 border-amber-500/50 text-white" :
+          "bg-slate-900/95 border-indigo-500/50 text-white"
+        )}>
+          <div className="flex items-start gap-3">
+            {sortearFeedback.type === 'success' ? <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" /> :
+             sortearFeedback.type === 'warning' ? <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" /> :
+             <AlertCircle className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />}
+            <div className="flex-1 text-xs">
+              <p className="font-bold leading-relaxed">{sortearFeedback.message}</p>
+            </div>
+            <button onClick={() => setSortearFeedback(null)} className="p-1 hover:bg-white/10 rounded-lg text-white/60 hover:text-white transition-colors cursor-pointer">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {actionNotice && !sortearFeedback && (
         <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 border border-slate-700">
           <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
           <span>{actionNotice}</span>

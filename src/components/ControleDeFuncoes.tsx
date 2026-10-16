@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { parseRank, sortRanks } from "../lib/rankUtils";
 import { useMilitars } from "../contexts/MilitarContext";
 import { db, auth } from "../lib/firebase";
-import { doc, setDoc, onSnapshot } from "firebase/firestore";
+import { doc, setDoc, getDoc, onSnapshot } from "firebase/firestore";
 import {
   Search,
   Truck,
@@ -10,13 +10,12 @@ import {
   Settings,
   FolderCog
 } from "lucide-react";
-import { cn } from "../lib/utils";
+import { cn, getObmSettingsDocKey, getObmSettingsFallbackKeys, cleanUndefined } from "../lib/utils";
 import { UserProfile } from "../types";
 import { RankInsignia } from "./RankInsignia";
 import { MultiSelectFilter } from "./ui/MultiSelectFilter";
 import { CorrelacaoFuncoesModal } from "./CorrelacaoFuncoesModal";
 import { ControleCategoriasModal, CategoryConfig, DEFAULT_CATEGORIES, FunctionCondition } from "./ControleCategoriasModal";
-import { cleanUndefined } from "../lib/utils";
 
 export function checkConditions(militar: UserProfile, conditions?: FunctionCondition[]): { valid: boolean; reason?: string } {
   if (!conditions || conditions.length === 0) return { valid: true };
@@ -75,12 +74,27 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
 
   useEffect(() => {
     if (!db || !obmContext) return;
-    const docRef = doc(db, "obm_settings", obmContext.replace(/\//g, '_').replace(/\s/g, '_'));
-    const unsub = onSnapshot(docRef, (snap) => {
-      if (snap.exists() && snap.data()?.categorias_funcoes) {
-        // We migrate the on-the-fly to ensure activeProperty exists for viewing
-        const dbCategories = snap.data().categorias_funcoes;
-        const migrated = dbCategories.map((cat: any) => {
+    const canonicalKey = getObmSettingsDocKey(obmContext);
+    const docRef = doc(db, "obm_settings", canonicalKey);
+    const unsub = onSnapshot(docRef, async (snap) => {
+      let rawCategories = snap.exists() ? snap.data()?.categorias_funcoes : null;
+      if (!rawCategories) {
+        // Fallback: check legacy keys and migrate forward
+        const fallbacks = getObmSettingsFallbackKeys(obmContext).filter(k => k !== canonicalKey);
+        for (const fk of fallbacks) {
+          try {
+            const fallbackSnap = await getDoc(doc(db, "obm_settings", fk));
+            if (fallbackSnap.exists() && fallbackSnap.data()?.categorias_funcoes) {
+              rawCategories = fallbackSnap.data()?.categorias_funcoes;
+              setDoc(docRef, { categorias_funcoes: rawCategories }, { merge: true }).catch(() => {});
+              break;
+            }
+          } catch(e) {}
+        }
+      }
+
+      if (rawCategories && Array.isArray(rawCategories)) {
+        const migrated = rawCategories.map((cat: any) => {
           if (cat.activeProperty !== undefined) return cat;
           let activeProp = `dynamicFunctions.ativo_${cat.id}`;
           const newFunctions = [...(cat.functions || [])];

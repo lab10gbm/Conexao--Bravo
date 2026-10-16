@@ -5,7 +5,7 @@ import { Users, UserPlus, Search, Save, X, Trash2, ArrowLeft, Plus, ChevronDown,
 import { useMilitars } from '../contexts/MilitarContext';
 import { db } from '../lib/firebase';
 import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import { cn, cleanUndefined, normalizeObm } from '../lib/utils';
+import { cn, cleanUndefined, normalizeObm, normalizeRg } from '../lib/utils';
 import { UserProfile } from '../types';
 
 export function GestaoEfetivoModeracaoModule({ user, onBack, isEscalanteContext, obmContext }: { user: UserProfile; onBack: () => void; isEscalanteContext?: boolean; obmContext?: string }) {
@@ -150,7 +150,7 @@ export function GestaoEfetivoModeracaoModule({ user, onBack, isEscalanteContext,
   const handleDelete = async (rg: string) => {
     if (window.confirm("ATENÇÃO: Deseja realmente excluir este militar permanentemente do sistema?")) {
       try {
-        const cleanRg = rg.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        const cleanRg = normalizeRg(rg);
         const ok = await deleteMilitar(cleanRg);
         if (!ok) {
           alert("Não foi possível excluir o militar.");

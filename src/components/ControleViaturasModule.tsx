@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Truck, Plus, Trash2, Save, RotateCcw, Edit2, Check, X, BookmarkCheck, Star, ShieldCheck, Info, Sparkles } from 'lucide-react';
 import { doc, onSnapshot, updateDoc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { cn, normalizeObm } from '../lib/utils';
+import { cn, normalizeObm, getObmSettingsDocKey, getObmSettingsFallbackKeys } from '../lib/utils';
 import { motion } from 'motion/react';
 
 interface ControleViaturasModuleProps {
@@ -120,7 +120,7 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
     }
 
     const cleanObm = normalizeObm(obmContext);
-    const docKey = obmContext.replace(/\//g, '_').replace(/\s/g, '_');
+    const docKey = getObmSettingsDocKey(obmContext);
     const docRef = doc(db, "obm_settings", docKey);
     
     const unsubscribe = onSnapshot(docRef, async (docSnap) => {
@@ -128,14 +128,7 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
 
       // Fallback para outras chaves conhecidas se a chave direta não existir
       if (!data) {
-        const fallbackKeys = [
-          cleanObm.replace(/\//g, '_').replace(/\s/g, '_'),
-          cleanObm.replace(/º/g, '°').replace(/\//g, '_').replace(/\s/g, '_'),
-          cleanObm.replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_'),
-          '10º_GBM',
-          '10°_GBM',
-          '10__gbm'
-        ];
+        const fallbackKeys = getObmSettingsFallbackKeys(obmContext);
         for (const fk of fallbackKeys) {
           if (fk === docKey) continue;
           try {

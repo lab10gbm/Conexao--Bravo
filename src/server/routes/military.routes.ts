@@ -112,7 +112,7 @@ export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
 
   app.get('/api/militar', optionalFirebaseSession, async (req: any, res) => {
     res.setHeader('Cache-Control', 'no-store');
-    const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, normalizeObm, OBM_HIERARCHY, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
+    const { isDbHealthy, db, clientDb, militaryCache, deletedMilitaries, normalizeRg, normalizeObm, OBM_HIERARCHY, isCacheLoaded, cachePromise, setDbUnhealthy } = getDeps();
     const requesterRg = (req.user?.rg || req.user?.uid || req.query.rg) as string;
     let usersData: any[] = [];
     
@@ -124,7 +124,10 @@ export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
     }
 
     if (militaryCache.size > 0) {
-      usersData = Array.from(militaryCache.values());
+      usersData = Array.from(militaryCache.values()).filter((u: any) => {
+        const uRg = normalizeRg(u.rg);
+        return !deletedMilitaries || !deletedMilitaries.has(uRg);
+      });
       console.log(`[API] Served ${usersData.length} militaries from cache for ${requesterRg || 'anonymous'}`);
       
       if (requesterRg) {
@@ -425,12 +428,64 @@ app.get('/api/militar/:rg', async (req, res) => {
       // 3. Mark as deleted so static injections never resurrect this militar
       if (deletedMilitaries) {
         deletedMilitaries.add(safeRg);
+        if (clientDb) {
+          try {
+            await setDoc(doc(clientDb, 'config', 'deleted_militaries'), {
+              rgs: Array.from(deletedMilitaries),
+              updatedAt: new Date().toISOString()
+            }, { merge: true });
+          } catch (delConfErr) {}
+        }
+        if (db && isDbHealthy) {
+          try {
+            await db.collection('config').doc('deleted_militaries').set({
+              rgs: Array.from(deletedMilitaries),
+              updatedAt: new Date().toISOString()
+            }, { merge: true });
+          } catch (delConfErr) {}
+        }
       }
 
-      // 4. Remove from in-memory cache
-      militaryCache.delete(safeRg);
+      // 4. Remove from default_alas_composition.json on disk to prevent resurrection on sync/restore
+      try {
+        const hardcodedPath = path.join(process.cwd(), 'src/server/lib/default_alas_composition.json');
+        if (fs.existsSync(hardcodedPath)) {
+          const fileData = JSON.parse(fs.readFileSync(hardcodedPath, 'utf8'));
+          if (fileData[safeRg] || fileData[String(rawRg)]) {
+            delete fileData[safeRg];
+            delete fileData[String(rawRg)];
+            fs.writeFileSync(hardcodedPath, JSON.stringify(fileData, null, 2), 'utf8');
+            console.log(`[API] Pruned deleted military ${safeRg} from default_alas_composition.json`);
+          }
+        }
+      } catch (filePruneErr) {}
 
-      // 5. Increment cache version and notify all connected clients via SSE
+      // 5. Remove from Firestore default_alas_composition
+      if (clientDb) {
+        try {
+          const compSnap = await getDoc(doc(clientDb, 'config', 'default_alas_composition'));
+          if (compSnap.exists()) {
+            const compData = compSnap.data();
+            if (compData?.formation && (compData.formation[safeRg] || compData.formation[String(rawRg)])) {
+              delete compData.formation[safeRg];
+              delete compData.formation[String(rawRg)];
+              await setDoc(doc(clientDb, 'config', 'default_alas_composition'), {
+                ...compData,
+                totalMilitaries: Object.keys(compData.formation).length,
+                updatedAt: new Date().toISOString()
+              }, { merge: true });
+            }
+          }
+        } catch (compPruneErr) {}
+      }
+
+      // 6. Remove from in-memory cache
+      militaryCache.delete(safeRg);
+      if (String(rawRg) !== safeRg) {
+        militaryCache.delete(String(rawRg));
+      }
+
+      // 7. Increment cache version and notify all connected clients via SSE
       const newVersion = incrementCacheVersion ? incrementCacheVersion() : Date.now();
       if (cacheEvents) {
         cacheEvents.emit('update', newVersion);
@@ -454,22 +509,34 @@ app.get('/api/militar/:rg', async (req, res) => {
 
     const safeRg = normalizeRg(rg);
     try {
-      if (deletedMilitaries) {
+      if (deletedMilitaries && deletedMilitaries.has(safeRg)) {
         deletedMilitaries.delete(safeRg);
+        if (clientDb) {
+          try {
+            await setDoc(doc(clientDb, 'config', 'deleted_militaries'), {
+              rgs: Array.from(deletedMilitaries),
+              updatedAt: new Date().toISOString()
+            }, { merge: true });
+          } catch (e) {}
+        }
       }
 
+      let savedToDb = false;
       if (db && isDbHealthy) {
         try {
           await db.collection('militaries').doc(safeRg).set(data, { merge: true });
+          savedToDb = true;
         } catch (e: any) {
-          if (!e.message.includes('PERMISSION_DENIED')) {
-            console.error('[API] Failed to update militar data in Firestore:', e);
-          }
+          console.warn('[API] Admin SDK update notice, trying Client SDK:', e.message);
         }
-      } else if (clientDb) {
+      }
+      if (!savedToDb && clientDb) {
         try {
           await setDoc(doc(clientDb, 'militaries', safeRg), data, { merge: true });
-        } catch (e: any) {}
+          savedToDb = true;
+        } catch (e: any) {
+          console.error('[API] Client SDK update error:', e.message);
+        }
       }
 
       const existing = militaryCache.get(safeRg) || {};
@@ -495,18 +562,22 @@ app.post('/api/militar/role', async (req, res) => {
 
     const safeRg = normalizeRg(rg);
     try {
+      let savedRoleToDb = false;
       if (db && isDbHealthy) {
         try {
           await db.collection('militaries').doc(safeRg).set({ [role]: value }, { merge: true });
+          savedRoleToDb = true;
         } catch (e: any) {
-          if (!e.message.includes('PERMISSION_DENIED')) {
-            console.error('[API] Failed to update role in Firestore:', e);
-          }
+          console.warn('[API] Admin SDK role update notice, trying Client SDK:', e.message);
         }
-      } else if (clientDb) {
+      }
+      if (!savedRoleToDb && clientDb) {
         try {
           await setDoc(doc(clientDb, 'militaries', safeRg), { [role]: value }, { merge: true });
-        } catch (e: any) {}
+          savedRoleToDb = true;
+        } catch (e: any) {
+          console.error('[API] Client SDK role update error:', e.message);
+        }
       }
 
       const existing = militaryCache.get(safeRg) || {};
@@ -767,7 +838,7 @@ app.post('/api/militar/emprestar', async (req, res) => {
   // Restaurar a formação oficial das alas a partir do padrão gravado
   app.post('/api/militar/restore-default-alas', async (req, res) => {
     try {
-      const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, cacheEvents, incrementCacheVersion } = getDeps();
+      const { isDbHealthy, db, clientDb, militaryCache, deletedMilitaries, normalizeRg, cacheEvents, incrementCacheVersion } = getDeps();
       
       let formationMap: Record<string, any> | null = null;
       let updatedAt = '';
@@ -799,6 +870,7 @@ app.post('/api/militar/emprestar', async (req, res) => {
       // 3. Aplicar no cache em memória
       for (const [rg, m] of Object.entries(formationMap)) {
         const safeRg = normalizeRg(rg);
+        if (deletedMilitaries && deletedMilitaries.has(safeRg)) continue;
         const existing = militaryCache.get(safeRg) || {};
         militaryCache.set(safeRg, { ...existing, ala: m.ala });
       }
@@ -812,6 +884,7 @@ app.post('/api/militar/emprestar', async (req, res) => {
             const chunk = entries.slice(i, i + 400);
             for (const [rg, m] of chunk) {
               const safeRg = normalizeRg(rg);
+              if (deletedMilitaries && deletedMilitaries.has(safeRg)) continue;
               batch.set(doc(clientDb, 'militaries', safeRg), { ala: m.ala, updatedAt: new Date() }, { merge: true });
             }
             await batch.commit();

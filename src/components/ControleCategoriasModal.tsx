@@ -3,7 +3,7 @@ import { X, Save, Plus, Trash2, Loader2, GripVertical, Settings } from "lucide-r
 import { motion, AnimatePresence } from "motion/react";
 import { db } from "../lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
-import { cleanUndefined, cn } from "../lib/utils";
+import { cleanUndefined, cn, getObmSettingsDocKey } from "../lib/utils";
 
 export interface FunctionCondition {
   field: string;
@@ -168,7 +168,7 @@ export function ControleCategoriasModal({ isOpen, onClose, obmContext, initialCa
     if (!db) return;
     setSaving(true);
     try {
-      const docRef = doc(db, "obm_settings", obmContext.replace(/\//g, '_').replace(/\s/g, '_'));
+      const docRef = doc(db, "obm_settings", getObmSettingsDocKey(obmContext));
       await setDoc(docRef, cleanUndefined({ categorias_funcoes: categories }), { merge: true });
       onClose();
     } catch (err) {

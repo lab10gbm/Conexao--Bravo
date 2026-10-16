@@ -165,6 +165,7 @@ async function syncMilitariesFromSheetInternal() {
           if (!row['RG']) continue;
           const safeRg = normalizeRg(row['RG']);
           if (!safeRg || safeRg === 'RG') continue;
+          if (deletedMilitaries && deletedMilitaries.has(safeRg)) continue;
           const docRef = db.collection('militaries').doc(safeRg);
           
           const prevMem1 = militaryCache.get(safeRg) || {};
@@ -230,6 +231,7 @@ async function syncMilitariesFromSheetInternal() {
         if (!row['RG']) continue;
         const safeRg = normalizeRg(row['RG']);
         if (!safeRg || safeRg === 'RG') continue;
+        if (deletedMilitaries && deletedMilitaries.has(safeRg)) continue;
         const docRef = doc(clientDb, 'militaries', safeRg);
         
         const prevMem2 = militaryCache.get(safeRg) || {};
@@ -435,11 +437,18 @@ async function startServer() {
         db.collection('militaries').onSnapshot((snapshot: any) => {
            let hasChanges = false;
            snapshot.docChanges().forEach((change: any) => {
+              const docRg = normalizeRg(change.doc.id);
+              if (deletedMilitaries && deletedMilitaries.has(docRg)) {
+                 militaryCache.delete(change.doc.id);
+                 militaryCache.delete(docRg);
+                 return;
+              }
               if (change.type === 'added' || change.type === 'modified') {
                  militaryCache.set(change.doc.id, change.doc.data());
                  hasChanges = true;
               } else if (change.type === 'removed') {
                  militaryCache.delete(change.doc.id);
+                 militaryCache.delete(docRg);
                  hasChanges = true;
               }
            });
@@ -464,11 +473,18 @@ async function startServer() {
             onSnapshot(collection(clientDb, 'militaries'), (snapshot) => {
                let hasChanges = false;
                snapshot.docChanges().forEach(change => {
+                  const docRg = normalizeRg(change.doc.id);
+                  if (deletedMilitaries && deletedMilitaries.has(docRg)) {
+                     militaryCache.delete(change.doc.id);
+                     militaryCache.delete(docRg);
+                     return;
+                  }
                   if (change.type === 'added' || change.type === 'modified') {
                      militaryCache.set(change.doc.id, change.doc.data());
                      hasChanges = true;
                   } else if (change.type === 'removed') {
                      militaryCache.delete(change.doc.id);
+                     militaryCache.delete(docRg);
                      hasChanges = true;
                   }
                });
@@ -500,11 +516,18 @@ async function startServer() {
         onSnapshot(collection(clientDb, 'militaries'), (snapshot) => {
            let hasChanges = false;
            snapshot.docChanges().forEach(change => {
+              const docRg = normalizeRg(change.doc.id);
+              if (deletedMilitaries && deletedMilitaries.has(docRg)) {
+                 militaryCache.delete(change.doc.id);
+                 militaryCache.delete(docRg);
+                 return;
+              }
               if (change.type === 'added' || change.type === 'modified') {
                  militaryCache.set(change.doc.id, change.doc.data());
                  hasChanges = true;
               } else if (change.type === 'removed') {
                  militaryCache.delete(change.doc.id);
+                 militaryCache.delete(docRg);
                  hasChanges = true;
               }
            });
@@ -517,6 +540,23 @@ async function startServer() {
       } catch (clientErr: any) {
         console.error('[Cache] Failed to load military cache with Client SDK:', clientErr.message);
       }
+    }
+
+    // Load permanently deleted militaries from Firestore to guarantee they are never resurrected
+    try {
+      if (clientDb) {
+        const delSnap = await getDoc(doc(clientDb, 'config', 'deleted_militaries'));
+        if (delSnap.exists() && Array.isArray(delSnap.data()?.rgs)) {
+          delSnap.data()!.rgs.forEach((rg: string) => {
+            const clean = normalizeRg(rg);
+            deletedMilitaries.add(clean);
+            militaryCache.delete(clean);
+          });
+          console.log(`[Cache] Loaded ${deletedMilitaries.size} permanently deleted military RGs.`);
+        }
+      }
+    } catch (e: any) {
+      console.warn('[Cache] Notice loading deleted_militaries config:', e.message);
     }
 
     if (isCacheLoaded && militaryCache.size === 0 && (db || clientDb)) {
@@ -571,87 +611,105 @@ async function startServer() {
       }
     }
 
-    // One-time injection of requested militaries
-    try {
-      const injected = [
-        // Ala 3
-        { rg: "20955", rank: "SUBTENENTE", name: "ALEX", ala: "3", obm: "10º GBM" },
-        { rg: "23518", rank: "SUBTENENTE", name: "MAGALHAES", ala: "3", obm: "10º GBM" },
-        { rg: "26029", rank: "SUBTENENTE", name: "ALEXSANDRO", ala: "3", obm: "10º GBM" },
-        { rg: "31610", rank: "1º SARGENTO", name: "S JUNIOR", ala: "3", obm: "10º GBM" },
-        { rg: "32102", rank: "1º SARGENTO", name: "LUIS", ala: "3", obm: "10º GBM" },
-        { rg: "42998", rank: "2º SARGENTO", name: "CLEBER", ala: "3", obm: "10º GBM" },
-        { rg: "43427", rank: "2º SARGENTO", name: "THIAGO AZEVEDO", ala: "3", obm: "10º GBM" },
-        { rg: "53754", rank: "SOLDADO", name: "STEINER", ala: "3", obm: "10º GBM" },
-        { rg: "53786", rank: "SOLDADO", name: "KROWN", ala: "3", obm: "10º GBM" },
-        { rg: "53819", rank: "SOLDADO", name: "GRANJA", ala: "3", obm: "10º GBM" },
-        { rg: "54211", rank: "SOLDADO", name: "SALES", ala: "3", obm: "10º GBM" },
-        { rg: "54309", rank: "SOLDADO", name: "L SOBRAL", ala: "3", obm: "10º GBM" },
-        { rg: "54315", rank: "SOLDADO", name: "MACHADO", ala: "3", obm: "10º GBM" },
-        { rg: "54316", rank: "SOLDADO", name: "JULIO CESAR", ala: "3", obm: "10º GBM" },
-        { rg: "54323", rank: "SOLDADO", name: "VALENTIM", ala: "3", obm: "10º GBM" },
-        { rg: "54325", rank: "SOLDADO", name: "L RODRIGUES", ala: "3", obm: "10º GBM" },
-        { rg: "54326", rank: "SOLDADO", name: "TAVARES", ala: "3", obm: "10º GBM" },
-        { rg: "54364", rank: "SOLDADO", name: "THIAGO CARVALHO", ala: "3", obm: "10º GBM" },
-        { rg: "54381", rank: "SOLDADO", name: "PATRICK", ala: "3", obm: "10º GBM" },
-        { rg: "54991", rank: "SOLDADO", name: "MIERS", ala: "3", obm: "10º GBM" },
-        { rg: "61302", rank: "SOLDADO", name: "OLIVEIRA", ala: "3", obm: "10º GBM" },
-        { rg: "61427", rank: "SOLDADO", name: "ELIAS", ala: "3", obm: "10º GBM" },
-        // Ala 4
-        { rg: "20936", rank: "SUBTENENTE", name: "LUCIANO", quadro: "Q00/97", ala: "4", obm: "10º GBM" },
-        { rg: "20960", rank: "SUBTENENTE", name: "GONCALVES", quadro: "Q02/97", ala: "4", obm: "10º GBM" },
-        { rg: "22333", rank: "SUBTENENTE", name: "COUTO", quadro: "Q00/97", ala: "4", obm: "10º GBM" },
-        { rg: "27899", rank: "SUBTENENTE", name: "S OLIVEIRA", quadro: "Q00/00", ala: "4", obm: "10º GBM" },
-        { rg: "31607", rank: "1º SARGENTO", name: "ROSARIO", quadro: "Q08/02", ala: "4", obm: "10º GBM" },
-        { rg: "42374", rank: "2º SARGENTO", name: "SCRIVANO", ala: "4", obm: "10º GBM" },
-        { rg: "49628", rank: "CABO", name: "TEIXEIRA", quadro: "Q00/14", ala: "4", obm: "10º GBM" },
-        { rg: "53759", rank: "SOLDADO", name: "RIBEIRO", quadro: "Q00/21", ala: "4", obm: "10º GBM" },
-        { rg: "54028", rank: "SOLDADO", name: "JOSEPH", quadro: "Q07/24", ala: "4", obm: "10º GBM" },
-        { rg: "54320", rank: "SOLDADO", name: "VICTOR HUGO", quadro: "Q08/24", ala: "4", obm: "10º GBM" },
-        { rg: "54409", rank: "SOLDADO", name: "RENAN GOMES", quadro: "Q08/24", ala: "4", obm: "10º GBM" },
-        { rg: "54429", rank: "SOLDADO", name: "MOISES", quadro: "Q08/24", ala: "4", obm: "10º GBM" },
-        { rg: "54956", rank: "SOLDADO", name: "ARTHUR", quadro: "Q08/25", ala: "4", obm: "10º GBM" },
-        { rg: "61109", rank: "SOLDADO", name: "MATHEUS SANTOS", quadro: "Q02/25", ala: "4", obm: "10º GBM" },
-        { rg: "61385", rank: "SOLDADO", name: "F LOPES", quadro: "Q02/25", ala: "4", obm: "10º GBM" },
-        { rg: "61471", rank: "SOLDADO", name: "FERRAZ", quadro: "Q02/25", ala: "4", obm: "10º GBM" },
-        { rg: "2200839", rank: "SOLDADO", name: "EMMANUEL FERREIRA", quadro: "TEMP/00/22", ala: "4", obm: "10º GBM" },
-        { rg: "2200848", rank: "SOLDADO", name: "GABRIEL", quadro: "TEMP/00/22", ala: "4", obm: "10º GBM" },
-        { rg: "2201179", rank: "SOLDADO", name: "NATÁLIA TAVARES", quadro: "TEMP/00/22", ala: "4", obm: "10º GBM" },
-        { rg: "2201188", rank: "SOLDADO", name: "YAGO VICTOR", quadro: "TEMP/00/22", ala: "4", obm: "10º GBM" },
-        { rg: "61434", rank: "SOLDADO", name: "CAIQUE", quadro: "Q08/25", ala: "4", obm: "10º GBM" }
-      ];
+    // One-time initial seed injection of requested militaries only if database has 0 militaries
+    if (militaryCache.size === 0) {
+      try {
+        const injected = [
+          // Ala 3
+          { rg: "20955", rank: "SUBTENENTE", name: "ALEX", ala: "3", obm: "10º GBM" },
+          { rg: "23518", rank: "SUBTENENTE", name: "MAGALHAES", ala: "3", obm: "10º GBM" },
+          { rg: "26029", rank: "SUBTENENTE", name: "ALEXSANDRO", ala: "3", obm: "10º GBM" },
+          { rg: "31610", rank: "1º SARGENTO", name: "S JUNIOR", ala: "3", obm: "10º GBM" },
+          { rg: "32102", rank: "1º SARGENTO", name: "LUIS", ala: "3", obm: "10º GBM" },
+          { rg: "42998", rank: "2º SARGENTO", name: "CLEBER", ala: "3", obm: "10º GBM" },
+          { rg: "43427", rank: "2º SARGENTO", name: "THIAGO AZEVEDO", ala: "3", obm: "10º GBM" },
+          { rg: "53754", rank: "SOLDADO", name: "STEINER", ala: "3", obm: "10º GBM" },
+          { rg: "53786", rank: "SOLDADO", name: "KROWN", ala: "3", obm: "10º GBM" },
+          { rg: "53819", rank: "SOLDADO", name: "GRANJA", ala: "3", obm: "10º GBM" },
+          { rg: "54211", rank: "SOLDADO", name: "SALES", ala: "3", obm: "10º GBM" },
+          { rg: "54309", rank: "SOLDADO", name: "L SOBRAL", ala: "3", obm: "10º GBM" },
+          { rg: "54315", rank: "SOLDADO", name: "MACHADO", ala: "3", obm: "10º GBM" },
+          { rg: "54316", rank: "SOLDADO", name: "JULIO CESAR", ala: "3", obm: "10º GBM" },
+          { rg: "54323", rank: "SOLDADO", name: "VALENTIM", ala: "3", obm: "10º GBM" },
+          { rg: "54325", rank: "SOLDADO", name: "L RODRIGUES", ala: "3", obm: "10º GBM" },
+          { rg: "54326", rank: "SOLDADO", name: "TAVARES", ala: "3", obm: "10º GBM" },
+          { rg: "54364", rank: "SOLDADO", name: "THIAGO CARVALHO", ala: "3", obm: "10º GBM" },
+          { rg: "54381", rank: "SOLDADO", name: "PATRICK", ala: "3", obm: "10º GBM" },
+          { rg: "54991", rank: "SOLDADO", name: "MIERS", ala: "3", obm: "10º GBM" },
+          { rg: "61302", rank: "SOLDADO", name: "OLIVEIRA", ala: "3", obm: "10º GBM" },
+          { rg: "61427", rank: "SOLDADO", name: "ELIAS", ala: "3", obm: "10º GBM" },
+          // Ala 4
+          { rg: "20936", rank: "SUBTENENTE", name: "LUCIANO", quadro: "Q00/97", ala: "4", obm: "10º GBM" },
+          { rg: "20960", rank: "SUBTENENTE", name: "GONCALVES", quadro: "Q02/97", ala: "4", obm: "10º GBM" },
+          { rg: "22333", rank: "SUBTENENTE", name: "COUTO", quadro: "Q00/97", ala: "4", obm: "10º GBM" },
+          { rg: "27899", rank: "SUBTENENTE", name: "S OLIVEIRA", quadro: "Q00/00", ala: "4", obm: "10º GBM" },
+          { rg: "31607", rank: "1º SARGENTO", name: "ROSARIO", quadro: "Q08/02", ala: "4", obm: "10º GBM" },
+          { rg: "42374", rank: "2º SARGENTO", name: "SCRIVANO", ala: "4", obm: "10º GBM" },
+          { rg: "49628", rank: "CABO", name: "TEIXEIRA", quadro: "Q00/14", ala: "4", obm: "10º GBM" },
+          { rg: "53759", rank: "SOLDADO", name: "RIBEIRO", quadro: "Q00/21", ala: "4", obm: "10º GBM" },
+          { rg: "54028", rank: "SOLDADO", name: "JOSEPH", quadro: "Q07/24", ala: "4", obm: "10º GBM" },
+          { rg: "54320", rank: "SOLDADO", name: "VICTOR HUGO", quadro: "Q08/24", ala: "4", obm: "10º GBM" },
+          { rg: "54409", rank: "SOLDADO", name: "RENAN GOMES", quadro: "Q08/24", ala: "4", obm: "10º GBM" },
+          { rg: "54429", rank: "SOLDADO", name: "MOISES", quadro: "Q08/24", ala: "4", obm: "10º GBM" },
+          { rg: "54956", rank: "SOLDADO", name: "ARTHUR", quadro: "Q08/25", ala: "4", obm: "10º GBM" },
+          { rg: "61109", rank: "SOLDADO", name: "MATHEUS SANTOS", quadro: "Q02/25", ala: "4", obm: "10º GBM" },
+          { rg: "61385", rank: "SOLDADO", name: "F LOPES", quadro: "Q02/25", ala: "4", obm: "10º GBM" },
+          { rg: "61471", rank: "SOLDADO", name: "FERRAZ", quadro: "Q02/25", ala: "4", obm: "10º GBM" },
+          { rg: "2200839", rank: "SOLDADO", name: "EMMANUEL FERREIRA", quadro: "TEMP/00/22", ala: "4", obm: "10º GBM" },
+          { rg: "2200848", rank: "SOLDADO", name: "GABRIEL", quadro: "TEMP/00/22", ala: "4", obm: "10º GBM" },
+          { rg: "2201179", rank: "SOLDADO", name: "NATÁLIA TAVARES", quadro: "TEMP/00/22", ala: "4", obm: "10º GBM" },
+          { rg: "2201188", rank: "SOLDADO", name: "YAGO VICTOR", quadro: "TEMP/00/22", ala: "4", obm: "10º GBM" },
+          { rg: "61434", rank: "SOLDADO", name: "CAIQUE", quadro: "Q08/25", ala: "4", obm: "10º GBM" }
+        ];
 
-      for (const m of injected) {
-        const safeRg = normalizeRg(m.rg);
+        for (const m of injected) {
+          const safeRg = normalizeRg(m.rg);
+          if (deletedMilitaries.has(safeRg)) continue;
+          const data = { ...m, rg: safeRg, warName: m.name, situacao: 'Ativo' };
+          if (!militaryCache.has(safeRg)) {
+            militaryCache.set(safeRg, data);
+            if (clientDb) {
+              setDoc(doc(clientDb, 'militaries', safeRg), data, { merge: true }).catch(() => {});
+            }
+          }
+        }
+        console.log('[Cache] Injected initial seed militaries into empty database.');
+      } catch (e) {}
+    }
+
+    // Garantir aplicação da formação padrão de alas na inicialização (sem sobrescrever personalizações ativas)
+    try {
+      let defaultAlasMap: Record<string, any> = {};
+      // 1. Tentar ler do Firestore primeiro (fonte dinâmica)
+      if (clientDb) {
+        try {
+          const snap = await getDoc(doc(clientDb, 'config', 'default_alas_composition'));
+          if (snap.exists() && snap.data()?.formation) {
+            defaultAlasMap = snap.data()!.formation;
+          }
+        } catch (e) {}
+      }
+      // 2. Fallback para arquivo apenas se o Firestore não possuir
+      if (Object.keys(defaultAlasMap).length === 0) {
+        const defaultAlasPath = path.join(process.cwd(), 'src/server/lib/default_alas_composition.json');
+        if (fs.existsSync(defaultAlasPath)) {
+          defaultAlasMap = JSON.parse(fs.readFileSync(defaultAlasPath, 'utf8'));
+        }
+      }
+
+      let countApplied = 0;
+      for (const [rg, item] of Object.entries(defaultAlasMap as any)) {
+        const safeRg = normalizeRg(rg);
         if (deletedMilitaries.has(safeRg)) continue;
-        const data = { ...m, rg: safeRg, warName: m.name, situacao: 'Ativo' };
-        if (!militaryCache.has(safeRg)) {
-          militaryCache.set(safeRg, data);
-          if (clientDb) {
-            setDoc(doc(clientDb, 'militaries', safeRg), data, { merge: true }).catch(() => {});
-          }
+        const cached = militaryCache.get(safeRg);
+        // Só aplica a Ala se o militar ainda não tiver nenhuma Ala definida no cadastro
+        if (cached && (item as any).ala && !cached.ala) {
+          cached.ala = (item as any).ala;
+          militaryCache.set(safeRg, cached);
+          countApplied++;
         }
       }
-      console.log('[Cache] Injected requested militaries into memory.');
-    } catch (e) {}
-
-    // Garantir aplicação da formação padrão hardcoded de alas na inicialização
-    try {
-      const defaultAlasPath = path.join(process.cwd(), 'src/server/lib/default_alas_composition.json');
-      if (fs.existsSync(defaultAlasPath)) {
-        const defaultAlasMap = JSON.parse(fs.readFileSync(defaultAlasPath, 'utf8'));
-        let countApplied = 0;
-        for (const [rg, item] of Object.entries(defaultAlasMap as any)) {
-          const safeRg = normalizeRg(rg);
-          const cached = militaryCache.get(safeRg);
-          if (cached && (item as any).ala) {
-            cached.ala = (item as any).ala;
-            militaryCache.set(safeRg, cached);
-            countApplied++;
-          }
-        }
-        console.log(`[Cache] Formação oficial padrão das alas consolidada para ${countApplied} militares.`);
-      }
+      console.log(`[Cache] Formação oficial padrão das alas consolidada para ${countApplied} novos militares sem ala.`);
     } catch (e: any) {
       console.warn('[Cache] Erro ao consolidar alas padrão:', e.message);
     }

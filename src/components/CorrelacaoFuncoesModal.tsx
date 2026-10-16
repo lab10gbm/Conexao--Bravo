@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { Settings, X, Save, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { cn } from "../lib/utils";
+import { cn, cleanUndefined, getObmSettingsDocKey, getObmSettingsFallbackKeys } from "../lib/utils";
 import { db } from "../lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { cleanUndefined } from "../lib/utils";
 
 export interface FuncaoConfig {
   name: string;
@@ -78,8 +77,9 @@ export function CorrelacaoFuncoesModal({
       setLoading(true);
 
       try {
-        const docRef = doc(db, "obm_settings", obmContext.replace(/\//g, '_').replace(/\s/g, '_'));
-        const snapshot = await getDoc(docRef);
+        const canonicalKey = getObmSettingsDocKey(obmContext);
+        const docRef = doc(db, "obm_settings", canonicalKey);
+        let snapshot = await getDoc(docRef);
 
         let loadedCorr = snapshot.exists()
           ? snapshot.data()?.escala_regras?.correlation
@@ -87,6 +87,21 @@ export function CorrelacaoFuncoesModal({
         let loadedQtds = snapshot.exists()
           ? snapshot.data()?.escala_regras?.qtds
           : null;
+
+        if (!loadedCorr) {
+          // Check fallbacks and migrate
+          const fallbacks = getObmSettingsFallbackKeys(obmContext).filter(k => k !== canonicalKey);
+          for (const fk of fallbacks) {
+            try {
+              const fbSnap = await getDoc(doc(db, "obm_settings", fk));
+              if (fbSnap.exists() && fbSnap.data()?.escala_regras?.correlation) {
+                loadedCorr = fbSnap.data()?.escala_regras?.correlation;
+                loadedQtds = fbSnap.data()?.escala_regras?.qtds || loadedQtds;
+                break;
+              }
+            } catch(e) {}
+          }
+        }
 
         // Always build defaults
         const initialCorr: Record<string, Record<string, number>> = {};
@@ -134,21 +149,22 @@ export function CorrelacaoFuncoesModal({
   const handleSave = async () => {
     setSaving(true);
     try {
-      const docRef = doc(db, "obm_settings", obmContext.replace(/\//g, '_').replace(/\s/g, '_'));
+      const canonicalKey = getObmSettingsDocKey(obmContext);
+      const docRef = doc(db, "obm_settings", canonicalKey);
       await setDoc(
         docRef,
         cleanUndefined({
-                  escala_regras: {
-                    correlation,
-                    qtds,
-                  },
-                }),
-        { merge: true },
+          escala_regras: {
+            correlation,
+            qtds,
+          },
+        }),
+        { merge: true }
       );
-      onClose(); // Optional: close after save
+      onClose();
     } catch (err) {
       console.error("Failed to save settings:", err);
-      alert("Erro ao salvar.");
+      alert("Erro ao salvar configurações.");
     } finally {
       setSaving(false);
     }

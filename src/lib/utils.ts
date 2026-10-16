@@ -22,6 +22,29 @@ export function normalizeObm(obm?: string): string {
   return clean;
 }
 
+export function getObmSettingsDocKey(obm?: string): string {
+  const norm = normalizeObm(obm);
+  if (!norm || norm === 'GLOBAL') return '10_gbm';
+  return norm.replace(/[º°]/g, '').replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').toLowerCase() || '10_gbm';
+}
+
+export function getObmSettingsFallbackKeys(obm?: string): string[] {
+  const canonical = getObmSettingsDocKey(obm);
+  const norm = normalizeObm(obm);
+  const raw = (obm || '').trim();
+  const list = [
+    canonical,
+    norm.replace(/\//g, '_').replace(/\s/g, '_'),
+    norm.replace(/º/g, '°').replace(/\//g, '_').replace(/\s/g, '_'),
+    norm.replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_'),
+    raw.replace(/\//g, '_').replace(/\s/g, '_'),
+    '10_gbm',
+    '10º_GBM',
+    '10°_GBM'
+  ];
+  return Array.from(new Set(list.filter(Boolean)));
+}
+
 export function normalizeRg(rg?: string | number | null): string {
   if (!rg) return '';
   return String(rg).replace(/\D/g, '').replace(/^0+/, '');

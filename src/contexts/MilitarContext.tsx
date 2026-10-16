@@ -177,8 +177,25 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
     const safeRg = normalizeRgHelper(rg);
     if (!safeRg) return false;
 
-    // 1. Optimistic removal from client memory immediately
-    setMilitars(prev => prev.filter(m => normalizeRgHelper(m.rg) !== safeRg));
+    // 1. Optimistic removal from client memory immediately and keep cache in sync
+    setMilitars(prev => {
+      const next = prev.filter(m => normalizeRgHelper(m.rg) !== safeRg);
+      try {
+        localStorage.setItem('militars_cache_v2', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    // Also clean up militar_profile from localStorage if it matches
+    try {
+      const storedUser = localStorage.getItem('militar_profile');
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        if (normalizeRgHelper(parsed?.rg) === safeRg) {
+          localStorage.removeItem('militar_profile');
+        }
+      }
+    } catch {}
 
     try {
       // 2. Call backend DELETE endpoint (removes from memory cache, updates deleted set, triggers SSE)

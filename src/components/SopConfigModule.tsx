@@ -5,7 +5,7 @@ import { db } from '../lib/firebase';
 import { doc, setDoc, collection, onSnapshot, getDocs, deleteDoc } from 'firebase/firestore';
 import { DEFAULT_SOP_SCHEMA } from '../constants';
 import { UserProfile } from '../types';
-import { cleanUndefined } from "../lib/utils";
+import { cleanUndefined, normalizeRg } from "../lib/utils";
 
 interface SopField {
   id: string;
@@ -106,7 +106,7 @@ export function SopConfigModule({ user, onBack }: { user: UserProfile, onBack: (
     }
     setSaving(true);
     try {
-      const docId = newMilitar.rg.padStart(5, '0');
+      const docId = normalizeRg(newMilitar.rg);
       const militarData = {
         rg: docId,
         name: newMilitar.name.toUpperCase(),

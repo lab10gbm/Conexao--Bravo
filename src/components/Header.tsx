@@ -615,37 +615,22 @@ export function Header({
                 </div>
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em] mt-3 sm:mt-0 px-1 sm:px-0">
-              <div className="flex items-center gap-1.5 font-mono min-w-0">
-                <span className="text-slate-300 shrink-0">Unidade:</span>
-                {availableObms.length > 1 ? (
-                  <select
-                    value={obmContext}
-                    onChange={(e) => setObmContext(e.target.value)}
-                    className="bg-slate-50 border border-slate-200 text-slate-600 font-black rounded px-2 py-1 outline-none focus:border-[var(--color-brand-red)] transition-colors max-w-[120px] sm:max-w-none text-ellipsis"
-                  >
-                    {availableObms.map((obm) => (
-                      <option key={obm} value={obm}>
-                        {obm}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="text-slate-600 font-black truncate">
-                    {obmContext || "10º GBM"}
-                  </span>
-                )}
+            {availableObms && availableObms.length > 1 && setObmContext && (
+              <div className="flex items-center gap-1.5 font-mono text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em] mt-2 px-1 sm:px-0">
+                <span className="text-slate-400 shrink-0">Unidade:</span>
+                <select
+                  value={obmContext}
+                  onChange={(e) => setObmContext(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 text-slate-600 font-black rounded px-2 py-1 outline-none focus:border-[var(--color-brand-red)] transition-colors max-w-[120px] sm:max-w-none text-ellipsis"
+                >
+                  {availableObms.map((obm) => (
+                    <option key={obm} value={obm}>
+                      {obm}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div className="hidden sm:block w-1 h-1 bg-slate-200 rounded-full shrink-0" />
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-slate-300 shrink-0">Escala:</span>
-                <span className="text-slate-600 truncate">
-                  {isExp
-                    ? (userRegime ? `EXPEDIENTE (${userRegime})` : "EXPEDIENTE")
-                    : "24H TRABALHO X 72H FOLGA"}
-                </span>
-              </div>
-            </div>
+            )}
           </div>
 
           <div

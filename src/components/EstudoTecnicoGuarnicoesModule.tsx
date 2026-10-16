@@ -7,7 +7,7 @@ import {
   Truck, Anchor, Calendar
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { cn, getAlaColor, getAlaName, normalizeObm, normalizeAlaField } from '../lib/utils';
+import { cn, getAlaColor, getAlaName, normalizeObm, normalizeAlaField, getObmSettingsDocKey, getObmSettingsFallbackKeys } from '../lib/utils';
 import { motion } from "motion/react";
 
 const DEFAULT_VIATURAS: any[] = [
@@ -43,10 +43,25 @@ export function EstudoTecnicoGuarnicoesModule({ obmContext }: { obmContext: stri
     }
     const loadSettings = async () => {
       try {
-        const docRef = doc(db, "obm_settings", obmContext.replace(/\//g, '_').replace(/\s/g, '_'));
-        const snap = await getDoc(docRef);
-        if (snap.exists()) {
-          const data = snap.data();
+        const canonicalKey = getObmSettingsDocKey(obmContext);
+        const docRef = doc(db, "obm_settings", canonicalKey);
+        let snap = await getDoc(docRef);
+        let data = snap.exists() ? snap.data() : null;
+
+        if (!data) {
+          const fallbacks = getObmSettingsFallbackKeys(obmContext).filter(k => k !== canonicalKey);
+          for (const fk of fallbacks) {
+            try {
+              const fbSnap = await getDoc(doc(db, "obm_settings", fk));
+              if (fbSnap.exists()) {
+                data = fbSnap.data();
+                break;
+              }
+            } catch(e) {}
+          }
+        }
+
+        if (data) {
           if (data.escala_regras) {
             setCorrelation(data.escala_regras.correlation || {});
             setRoleQtds(data.escala_regras.qtds || {});
