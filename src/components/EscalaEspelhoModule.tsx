@@ -18,6 +18,8 @@ import { SentinelasSection } from "./SentinelasSection";
 import { SentinelaSlot } from "../lib/sentinelaUtils";
 import { EscalanteDashboardCalendar } from "./EscalanteDashboardCalendar";
 import { CategoryConfig, DEFAULT_CATEGORIES, getAvailableControlFunctions } from "./ControleCategoriasModal";
+import { SorteioFuncoesModal, SorteioActionBar } from "./SorteioFuncoesModal";
+import { SorteioScope, SorteioResult, SorteioMilitar, clearFunctionsByScope, isPreferredAssignment } from "../lib/sorteioFuncoes";
 import { Calendar as CalendarIcon, CalendarRange, Users, ArrowRightLeft, ArrowRight, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, ChevronLeft, ChevronRight, Check, X, Clock, Printer, Shuffle, Plus, Settings, Activity, TrendingDown, PieChart, BriefcaseBusiness, Download, RotateCcw, ExternalLink, Edit3, Award, Star, UserCheck, Anchor, Stethoscope, HeartPulse, Sparkles, Trash2, Building2, ArrowLeftRight, UserPlus, Loader2, AlertTriangle, Search, Eye, EyeOff } from 'lucide-react';
 
 import { motion } from "motion/react";
@@ -34,33 +36,58 @@ function FuncoesMultiSelect({
   onChange,
   allowedOptions,
   extraOptions,
+  preferredOptions,
+  onlyActiveScaleOptions,
+  overLimitSet,
 }: {
   selected: string[];
   onChange: (v: string[]) => void;
   allowedOptions?: string[];
   extraOptions?: string[];
+  preferredOptions?: string[];
+  onlyActiveScaleOptions?: boolean;
+  overLimitSet?: Set<string>;
 }) {
   const [open, setOpen] = useState(false);
   const [openUp, setOpenUp] = useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
 
+  const isOptPreferred = (opt: string) => {
+    if (!preferredOptions || preferredOptions.length === 0) return false;
+    const oNorm = normalizeFnName(opt);
+    return preferredOptions.some(p => {
+      const pNorm = normalizeFnName(p);
+      return pNorm !== "" && (pNorm === oNorm || oNorm.includes(pNorm) || pNorm.includes(oNorm));
+    });
+  };
+
+  const isOptOverLimit = (opt: string) => {
+    if (!overLimitSet) return false;
+    return overLimitSet.has(normalizeFnName(opt));
+  };
+
+  const hasPreferredSelected = selected.some(isOptPreferred);
+  const hasOverLimitSelected = selected.some(isOptOverLimit);
+
   const allOptions = useMemo(() => {
-    const base = [
-      'ADJUNTO', 'ENCARREGADO DE MOTORISTA', 'CONDUTOR AR', 'CONDUTOR ABSL', 'CONDUTOR ABT', 
-      'CONDUTOR ASE', 'CONDUTOR ARC', 'CHEFE ABSL', 'CHEFE ABT', 'AUXILIAR/CHEFE ARC', 
-      'AUXILIAR ABT', 'AUXILIAR ABSL', 'AUXILIAR ASE', 'ENFERMEIRO', 'MESTRE L', 'MESTRE BIA', 
-      'MARINHEIRO L', 'MARINHEIRO BIA', 'OPERADOR AMA', 'GV AMA', 'AUXILIAR RANCHO', 'TOQUE DE FOGO', 
-      'DIA AO DEPOSITO', 'RESP FAXINA', 'ABASTECEDOR', 'SGT DIA', 'CMT GUARDA', 
-      'CB GUARDA', 'CB DIA', 'COMUNICANTE', 'PRECARIO', 'ESCALANTE', 'PRECARIO ADM', 
-      'SENTINELA'
-    ];
+    const base = onlyActiveScaleOptions
+      ? []
+      : [
+          'ADJUNTO', 'ENCARREGADO DE MOTORISTA', 'CONDUTOR AR', 'CONDUTOR ABSL', 'CONDUTOR ABT', 
+          'CONDUTOR ASE', 'CONDUTOR ARC', 'CHEFE ABSL', 'CHEFE ABT', 'AUXILIAR/CHEFE ARC', 
+          'AUXILIAR ABT', 'AUXILIAR ABSL', 'AUXILIAR ASE', 'ENFERMEIRO', 'MESTRE L', 'MESTRE BIA', 
+          'MARINHEIRO L', 'MARINHEIRO BIA', 'OPERADOR AMA', 'GV AMA', 'AUXILIAR RANCHO', 'TOQUE DE FOGO', 
+          'DIA AO DEPOSITO', 'RESP FAXINA', 'ABASTECEDOR', 'SGT DIA', 'CMT GUARDA', 
+          'CB GUARDA', 'CB DIA', 'COMUNICANTE', 'PRECARIO', 'ESCALANTE', 'PRECARIO ADM', 
+          'SENTINELA'
+        ];
     const set = new Set<string>(base);
-    (extraOptions || []).forEach(o => { if (o?.trim()) set.add(o.trim().toUpperCase()); });
     (allowedOptions || []).forEach(o => { if (o?.trim()) set.add(o.trim().toUpperCase()); });
+    (extraOptions || []).forEach(o => { if (o?.trim()) set.add(o.trim().toUpperCase()); });
     (selected || []).forEach(o => { if (o?.trim()) set.add(o.trim().toUpperCase()); });
     return Array.from(set);
-  }, [extraOptions, allowedOptions, selected]);
+  }, [onlyActiveScaleOptions, extraOptions, allowedOptions, selected]);
 
   const options = search ? allOptions.filter(o => o.toLowerCase().includes(search.toLowerCase())) : allOptions;
 
@@ -91,12 +118,31 @@ function FuncoesMultiSelect({
       <button
         type="button"
         onClick={handleToggle}
-        className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 outline-none text-[9px] font-black uppercase tracking-wider text-slate-700 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 flex items-center justify-between min-w-[140px]"
+        title={
+          hasOverLimitSelected
+            ? "⚠️ Quantidade de militares selecionados excede o limite configurado desta função"
+            : hasPreferredSelected
+            ? "★ Escalado conforme preferência configurada pelo escalante"
+            : undefined
+        }
+        className={cn(
+          "w-full rounded px-2 py-1 outline-none text-[9px] font-black uppercase tracking-wider flex items-center justify-between min-w-[140px] border transition-colors",
+          hasOverLimitSelected
+            ? "bg-red-100 border-red-400 text-red-700 ring-1 ring-red-300/70 focus:border-red-500 focus:ring-2 focus:ring-red-100"
+            : hasPreferredSelected
+            ? "bg-amber-50/80 border-amber-300 text-amber-950 focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+            : "bg-slate-50 border-slate-200 text-slate-700 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+        )}
       >
-        <span className="truncate pr-2">
-          {selected.length === 0 ? "-- SELECIONE --" : selected.join(", ")}
+        <span className="truncate pr-2 flex items-center gap-1">
+          {hasPreferredSelected && (
+            <Star className={cn("w-3 h-3 shrink-0", hasOverLimitSelected ? "fill-red-500 text-red-600" : "fill-amber-400 text-amber-500")} />
+          )}
+          <span className="truncate">
+            {selected.length === 0 ? "-- SELECIONE --" : selected.join(", ")}
+          </span>
         </span>
-        <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
+        <ChevronDown className={cn("w-3 h-3 shrink-0", hasOverLimitSelected ? "text-red-500" : "text-slate-400")} />
       </button>
       {open && (
         <div className={cn(
@@ -118,24 +164,36 @@ function FuncoesMultiSelect({
                  <div className="px-2 py-1 text-[8px] font-black text-emerald-600 bg-emerald-50 rounded uppercase tracking-widest mt-1 mb-1">
                     Qualificado / Atual
                  </div>
-                 {qualifiedOptions.map((opt) => (
-                   <button
-                     key={opt}
-                     onClick={() => {
-                       if (selected.includes(opt))
-                         onChange(selected.filter((x) => x !== opt));
-                       else onChange([...selected, opt]);
-                     }}
-                     className="flex items-center justify-between px-2 py-1.5 hover:bg-slate-50 rounded w-full"
-                   >
-                     <span className="text-[9px] font-black uppercase tracking-wider text-slate-700">
-                       {opt}
-                     </span>
-                     {selected.includes(opt) && (
-                       <Check className="w-3 h-3 text-indigo-600 shrink-0 ml-1" />
-                     )}
-                   </button>
-                 ))}
+                 {qualifiedOptions.map((opt) => {
+                   const isPref = isOptPreferred(opt);
+                   const isSel = selected.includes(opt);
+                   const isOver = isSel && isOptOverLimit(opt);
+                   return (
+                     <button
+                       key={opt}
+                       onClick={() => {
+                         if (isSel)
+                           onChange(selected.filter((x) => x !== opt));
+                         else onChange([...selected, opt]);
+                       }}
+                       className={cn(
+                         "flex items-center justify-between px-2 py-1.5 rounded w-full",
+                         isOver ? "bg-red-50 hover:bg-red-100/80" : "hover:bg-slate-50"
+                       )}
+                     >
+                       <span className={cn(
+                         "text-[9px] font-black uppercase tracking-wider flex items-center gap-1",
+                         isOver ? "text-red-700" : "text-slate-700"
+                       )}>
+                         {isPref && <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-500 shrink-0" />}
+                         {opt}
+                       </span>
+                       {isSel && (
+                         <Check className={cn("w-3 h-3 shrink-0 ml-1", isOver ? "text-red-600" : "text-indigo-600")} />
+                       )}
+                     </button>
+                   );
+                 })}
                </>
             )}
             
@@ -144,24 +202,28 @@ function FuncoesMultiSelect({
                  <div className="px-2 py-1 text-[8px] font-black text-slate-400 bg-slate-50 rounded uppercase tracking-widest mt-2 mb-1">
                     Outras Funções
                  </div>
-                 {otherOptions.map((opt) => (
-                   <button
-                     key={opt}
-                     onClick={() => {
-                       if (selected.includes(opt))
-                         onChange(selected.filter((x) => x !== opt));
-                       else onChange([...selected, opt]);
-                     }}
-                     className="flex items-center justify-between px-2 py-1.5 hover:bg-slate-50 rounded w-full opacity-60 hover:opacity-100 transition-opacity"
-                   >
-                     <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">
-                       {opt}
-                     </span>
-                     {selected.includes(opt) && (
-                       <Check className="w-3 h-3 text-indigo-600 shrink-0 ml-1" />
-                     )}
-                   </button>
-                 ))}
+                 {otherOptions.map((opt) => {
+                   const isPref = isOptPreferred(opt);
+                   return (
+                     <button
+                       key={opt}
+                       onClick={() => {
+                         if (selected.includes(opt))
+                           onChange(selected.filter((x) => x !== opt));
+                         else onChange([...selected, opt]);
+                       }}
+                       className="flex items-center justify-between px-2 py-1.5 hover:bg-slate-50 rounded w-full opacity-60 hover:opacity-100 transition-opacity"
+                     >
+                       <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                         {isPref && <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-500 shrink-0" />}
+                         {opt}
+                       </span>
+                       {selected.includes(opt) && (
+                         <Check className="w-3 h-3 text-indigo-600 shrink-0 ml-1" />
+                       )}
+                     </button>
+                   );
+                 })}
                </>
             )}
           </div>
@@ -552,7 +614,12 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   const [sortearFeedback, setSortearFeedback] = useState<{
     type: 'success' | 'warning' | 'info';
     message: string;
+    undoable?: boolean;
   } | null>(null);
+  // Sorteio dividido (viaturas / administrativas) com modal de prévia
+  const [sorteioScope, setSorteioScope] = useState<SorteioScope | null>(null);
+  const [undoSnapshot, setUndoSnapshot] = useState<Record<string, string[]> | null>(null);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [grdDayRgs, setGrdDayRgs] = useState<string[]>([]);
   const [sentinelaRgs, setSentinelaRgs] = useState<(string | null)[]>(() => [null, null, null, null]);
   const [sentinelaSlots, setSentinelaSlots] = useState<SentinelaSlot[] | null>(null);
@@ -1604,8 +1671,75 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     return funcs.join(", ") || "NÃO CONFIGURADO";
   };
 
-  const getAllowedOptions = (militar: any) => {
-    if (!militar) return undefined;
+  const isVtrType = (vtrName: string, prefix: string) => {
+    const name = (vtrName || "").trim().toUpperCase();
+    const p = prefix.trim().toUpperCase();
+    if (p === 'AR-' || p === 'AR') return (name.startsWith('AR-') || name.startsWith('AR ') || name === 'AR') && !name.startsWith('ARC');
+    if (p === 'L-' || p === 'L') return name.startsWith('L-') || name.startsWith('L ') || name === 'L';
+    if (p === 'BIA-' || p === 'BIA') return name.startsWith('BIA');
+    return name.startsWith(p) || name.includes(p);
+  };
+
+  const isMaritima = (v: any) => {
+    if (v.maritima !== undefined) return v.maritima;
+    return isVtrType(v.vtr, "L-") || isVtrType(v.vtr, "BIA-");
+  };
+
+  const getDefaultName = (v: any, slot: string) => {
+    const vtrName = (v.vtr || "").toUpperCase();
+    const maritima = isMaritima(v);
+    
+    if (slot === 'condutor') {
+      if (maritima) return vtrName.startsWith('BIA') ? 'MESTRE BIA' : 'MESTRE L';
+      if (isVtrType(vtrName, 'AR')) return 'CONDUTOR AR';
+      if (isVtrType(vtrName, 'ABSL')) return 'CONDUTOR ABSL';
+      if (isVtrType(vtrName, 'ABT')) return 'CONDUTOR ABT';
+      if (isVtrType(vtrName, 'ASE')) return 'CONDUTOR ASE';
+      if (isVtrType(vtrName, 'ARC')) return 'CONDUTOR ARC';
+      return 'CONDUTOR';
+    }
+    if (slot === 'cg') {
+      if (isVtrType(vtrName, 'ABSL')) return 'CHEFE ABSL';
+      if (isVtrType(vtrName, 'ABT')) return 'CHEFE ABT';
+      if (isVtrType(vtrName, 'ARC')) return 'AUXILIAR/CHEFE ARC';
+      return 'CHEFE GUA';
+    }
+    // Auxiliares (g1, g2, g3, g4)
+    if (maritima) return vtrName.startsWith('BIA') ? 'MARINHEIRO BIA' : 'MARINHEIRO L';
+    if (isVtrType(vtrName, 'ABSL')) return 'AUXILIAR ABSL';
+    if (isVtrType(vtrName, 'ABT')) return 'AUXILIAR ABT';
+    if (isVtrType(vtrName, 'ASE')) return 'AUXILIAR ASE';
+    if (isVtrType(vtrName, 'ARC')) return 'AUXILIAR/CHEFE ARC';
+    if (isVtrType(vtrName, 'AR')) return 'AUXILIAR AR';
+    return 'AUXILIAR GUA';
+  };
+
+  const getSlotDisplayName = (v: any, slot: string) => {
+    if (v.customNames?.[slot]?.trim()) {
+      const custom = v.customNames[slot].trim().toUpperCase();
+      const sigla = (v.vtr || "").split('-')[0].trim().toUpperCase();
+      const genericPrefixes = ['CONDUTOR', 'AUXILIAR', 'CHEFE', 'MARINHEIRO', 'MESTRE', 'OPERADOR'];
+      if (genericPrefixes.includes(custom) && sigla) {
+        return `${custom} ${sigla}`.trim();
+      }
+      if (custom === 'AUXILIAR / CHEFE ARC') return 'AUXILIAR/CHEFE ARC';
+      if (v.customFunctions?.[slot]) {
+        return custom;
+      }
+      const isKnownControlFn = availableControlFunctions.some(
+        f => f.scaleName === custom || f.name.trim().toUpperCase() === custom
+      );
+      if (isKnownControlFn || custom === 'ENFERMEIRO' || custom === 'AUXILIAR/CHEFE ARC' || custom === 'MESTRE L' || custom === 'MESTRE BIA' || custom.endsWith(sigla)) {
+        return custom;
+      }
+      return `${custom} ${sigla}`.trim();
+    }
+    return getDefaultName(v, slot);
+  };
+
+  // Retorna todas as funções canônicas (scaleName) que o militar possui habilitação no Controle de Função
+  const getRawAllowedOptions = (militar: any): string[] => {
+    if (!militar) return [];
     const allowed = new Set<string>();
     
     if (militar.ativoCondutor) {
@@ -1677,7 +1811,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
       allowed.add('ESCALANTE');
     }
 
-    // Add any functions enabled from Controle de Função (including custom categories/functions)
+    // Adiciona funções habilitadas no Controle de Função usando exclusivamente o scaleName canônico
     categories.forEach(cat => {
       if (cat.id === 'mostruario') return;
       const isCatActive = cat.activeProperty ? getMilitarProp(militar, cat.activeProperty) : true;
@@ -1685,8 +1819,11 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         (cat.functions || []).forEach(fn => {
           if (getMilitarProp(militar, fn.id)) {
             const mapped = availableControlFunctions.find(af => af.id === fn.id);
-            if (mapped) allowed.add(mapped.scaleName);
-            allowed.add(fn.name.trim().toUpperCase());
+            if (mapped) {
+              allowed.add(mapped.scaleName);
+            } else {
+              allowed.add(fn.name.trim().toUpperCase());
+            }
           }
         });
       }
@@ -1695,7 +1832,9 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     const allowedArr = Array.from(allowed);
     viaturasInfo.forEach(v => {
       if (!v.ativa) return;
-      ['condutor', 'g1', 'g2', 'g3', 'g4', 'cg'].forEach(slot => {
+      (['condutor', 'g1', 'g2', 'g3', 'g4', 'cg'] as const).forEach(slot => {
+         if (v.blocked?.includes(slot)) return;
+         if (v[slot] !== true) return;
          const slotDisplayName = getSlotDisplayName(v, slot);
          const explicitFnId = v.customFunctions?.[slot];
          if (explicitFnId) {
@@ -1719,125 +1858,277 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
       });
     });
     return Array.from(allowed);
-
   };
 
-  
-  const isVtrType = (vtrName: string, prefix: string) => {
-    const name = (vtrName || "").trim().toUpperCase();
-    const p = prefix.trim().toUpperCase();
-    if (p === 'AR-' || p === 'AR') return (name.startsWith('AR-') || name.startsWith('AR ') || name === 'AR') && !name.startsWith('ARC');
-    if (p === 'L-' || p === 'L') return name.startsWith('L-') || name.startsWith('L ') || name === 'L';
-    if (p === 'BIA-' || p === 'BIA') return name.startsWith('BIA');
-    return name.startsWith(p) || name.includes(p);
+  const isAdminRoleActive = (roleName: string) => {
+    const norm = normalizeFnName(roleName);
+    return adminRolesVisibility[norm] !== false && adminRolesVisibility[roleName] !== false;
   };
 
-  const isMaritima = (v: any) => {
-    if (v.maritima !== undefined) return v.maritima;
-    return isVtrType(v.vtr, "L-") || isVtrType(v.vtr, "BIA-");
-  };
-
-  const getDefaultName = (v: any, slot: string) => {
-    const vtrName = (v.vtr || "").toUpperCase();
-    const maritima = isMaritima(v);
-    
-    if (slot === 'condutor') {
-      if (maritima) return vtrName.startsWith('BIA') ? 'MESTRE BIA' : 'MESTRE L';
-      if (isVtrType(vtrName, 'AR')) return 'CONDUTOR AR';
-      if (isVtrType(vtrName, 'ABSL')) return 'CONDUTOR ABSL';
-      if (isVtrType(vtrName, 'ABT')) return 'CONDUTOR ABT';
-      if (isVtrType(vtrName, 'ASE')) return 'CONDUTOR ASE';
-      if (isVtrType(vtrName, 'ARC')) return 'CONDUTOR ARC';
-      return 'CONDUTOR';
-    }
-    if (slot === 'cg') {
-      if (isVtrType(vtrName, 'ABSL')) return 'CHEFE ABSL';
-      if (isVtrType(vtrName, 'ABT')) return 'CHEFE ABT';
-      if (isVtrType(vtrName, 'ARC')) return 'AUXILIAR/CHEFE ARC';
-      return 'CHEFE GUA';
-    }
-    // Auxiliares (g1, g2, g3, g4)
-    if (maritima) return vtrName.startsWith('BIA') ? 'MARINHEIRO BIA' : 'MARINHEIRO L';
-    if (isVtrType(vtrName, 'ABSL')) return 'AUXILIAR ABSL';
-    if (isVtrType(vtrName, 'ABT')) return 'AUXILIAR ABT';
-    if (isVtrType(vtrName, 'ASE')) return 'AUXILIAR ASE';
-    if (isVtrType(vtrName, 'AR')) return 'AUXILIAR AR';
-    return 'AUXILIAR GUA';
-  };
-
-  const getSlotDisplayName = (v: any, slot: string) => {
-    if (v.customNames?.[slot]?.trim()) {
-      const custom = v.customNames[slot].trim().toUpperCase();
-      const sigla = (v.vtr || "").split('-')[0].trim().toUpperCase();
-      const genericPrefixes = ['CONDUTOR', 'AUXILIAR', 'CHEFE', 'MARINHEIRO', 'MESTRE', 'OPERADOR'];
-      if (genericPrefixes.includes(custom) && sigla) {
-        return `${custom} ${sigla}`.trim();
-      }
-      if (custom === 'AUXILIAR / CHEFE ARC') return 'AUXILIAR/CHEFE ARC';
-      if (v.customFunctions?.[slot]) {
-        return custom;
-      }
-      const isKnownControlFn = availableControlFunctions.some(
-        f => f.scaleName === custom || f.name.trim().toUpperCase() === custom
-      );
-      if (isKnownControlFn || custom === 'ENFERMEIRO' || custom === 'AUXILIAR/CHEFE ARC' || custom === 'MESTRE L' || custom === 'MESTRE BIA' || custom.endsWith(sigla)) {
-        return custom;
-      }
-      return `${custom} ${sigla}`.trim();
-    }
-    return getDefaultName(v, slot);
-  };
-
-  
-  const dynamicRequirements = useMemo(() => {
-    let reqs: {name: string, genericName: string, req: number, category: string}[] = [
-      { name: "ADJUNTO", genericName: "ADJUNTO", req: roleQtds["ADJUNTO"] ?? 1, category: 'admin' },
-      { name: "ENCARREGADO DE MOTORISTA", genericName: "ENCARREGADO DE MOTORISTA", req: roleQtds["ENCARREGADO DE MOTORISTA"] ?? 1, category: 'admin' },
-    ];
-    
-    const vtrReqs: Record<string, {req: number, category: string, genericName: string}> = {};
-    viaturasInfo.forEach(v => {
-      if (!v.ativa) return;
-      ['condutor', 'g1', 'g2', 'g3', 'g4', 'cg'].forEach(slot => {
-        if (v[slot as keyof typeof v] === true) {
-          const roleName = getSlotDisplayName(v, slot);
-          let cat = 'auxiliar';
-          const isMar = isMaritima(v);
-          if (slot === 'condutor') cat = isMar ? 'condutor_maritimo' : 'condutor';
-          else if (slot === 'cg') cat = isMar ? 'chefe_maritimo' : 'chefe';
-          else cat = isMar ? 'auxiliar_maritimo' : 'auxiliar';
-          
-          const genericName = getDefaultName(v, slot);
-          if (!vtrReqs[roleName]) {
-             vtrReqs[roleName] = { req: 0, category: cat, genericName };
+  const handleToggleOperationalRole = (roleName: string) => {
+    const norm = normalizeFnName(roleName);
+    isViaturasCustomizedForDate.current = true;
+    setViaturasInfo(prev => {
+      let currentlyActiveCount = 0;
+      prev.forEach(v => {
+        if (!v.ativa) return;
+        (['condutor', 'g1', 'g2', 'g3', 'g4', 'cg'] as const).forEach(slot => {
+          if (v.blocked?.includes(slot)) return;
+          if (v[slot] === true && normalizeFnName(getSlotDisplayName(v, slot)) === norm) {
+            currentlyActiveCount++;
           }
+        });
+      });
+
+      if (currentlyActiveCount > 0) {
+        return prev.map(v => {
+          if (!v.ativa) return v;
+          const nextV = { ...v };
+          (['condutor', 'g1', 'g2', 'g3', 'g4', 'cg'] as const).forEach(slot => {
+            if (v.blocked?.includes(slot)) return;
+            if (normalizeFnName(getSlotDisplayName(v, slot)) === norm) {
+              nextV[slot] = false;
+            }
+          });
+          return nextV;
+        });
+      } else {
+        let matchedOnActiveVtr = false;
+        prev.forEach(v => {
+          if (!v.ativa) return;
+          (['condutor', 'g1', 'g2', 'g3', 'g4', 'cg'] as const).forEach(slot => {
+            if (!v.blocked?.includes(slot) && normalizeFnName(getSlotDisplayName(v, slot)) === norm) {
+              matchedOnActiveVtr = true;
+            }
+          });
+        });
+
+        if (matchedOnActiveVtr) {
+          return prev.map(v => {
+            if (!v.ativa) return v;
+            const nextV = { ...v };
+            (['condutor', 'g1', 'g2', 'g3', 'g4', 'cg'] as const).forEach(slot => {
+              if (!v.blocked?.includes(slot) && normalizeFnName(getSlotDisplayName(v, slot)) === norm) {
+                nextV[slot] = true;
+              }
+            });
+            return nextV;
+          });
+        }
+
+        return prev.map(v => {
+          let hasMatch = false;
+          const nextV = { ...v };
+          (['condutor', 'g1', 'g2', 'g3', 'g4', 'cg'] as const).forEach(slot => {
+            if (!v.blocked?.includes(slot) && normalizeFnName(getSlotDisplayName(v, slot)) === norm) {
+              hasMatch = true;
+              nextV[slot] = true;
+            }
+          });
+          if (hasMatch) {
+            nextV.ativa = true;
+          }
+          return nextV;
+        });
+      }
+    });
+  };
+
+  const handleSetAllOperationalRoles = (active: boolean) => {
+    isViaturasCustomizedForDate.current = true;
+    setViaturasInfo(prev =>
+      prev.map(v => {
+        if (!v.ativa) return v;
+        const nextV = { ...v };
+        (['condutor', 'g1', 'g2', 'g3', 'g4', 'cg'] as const).forEach(slot => {
+          if (!v.blocked?.includes(slot)) {
+            nextV[slot] = active;
+          }
+        });
+        return nextV;
+      })
+    );
+  };
+
+  const dynamicRequirements = useMemo(() => {
+    const makeAdminReq = (name: string, defaultReq: number) => {
+      const baseReq = roleQtds[name] ?? defaultReq;
+      const norm = normalizeFnName(name);
+      const active = adminRolesVisibility[norm] !== false && adminRolesVisibility[name] !== false;
+      return {
+        name,
+        genericName: name,
+        req: active ? baseReq : 0,
+        baseReq,
+        active,
+        category: 'admin',
+      };
+    };
+
+    const reqs: {
+      name: string;
+      genericName: string;
+      req: number;
+      baseReq: number;
+      active: boolean;
+      category: string;
+      vtrsActive?: string[];
+      vtrsAll?: string[];
+    }[] = [
+      makeAdminReq("ADJUNTO", 1),
+      makeAdminReq("ENCARREGADO DE MOTORISTA", 1),
+    ];
+
+    const vtrReqs: Record<string, {
+      req: number;
+      baseReq: number;
+      category: string;
+      genericName: string;
+      vtrsActive: Set<string>;
+      vtrsAll: Set<string>;
+    }> = {};
+
+    viaturasInfo.forEach(v => {
+      (['condutor', 'g1', 'g2', 'g3', 'g4', 'cg'] as const).forEach(slot => {
+        if (v.blocked?.includes(slot)) return;
+        const roleName = getSlotDisplayName(v, slot);
+        let cat = 'auxiliar';
+        const isMar = isMaritima(v);
+        if (slot === 'condutor') cat = isMar ? 'condutor_maritimo' : 'condutor';
+        else if (slot === 'cg') cat = isMar ? 'chefe_maritimo' : 'chefe';
+        else cat = isMar ? 'auxiliar_maritimo' : 'auxiliar';
+
+        const genericName = getDefaultName(v, slot);
+        if (!vtrReqs[roleName]) {
+          vtrReqs[roleName] = {
+            req: 0,
+            baseReq: 0,
+            category: cat,
+            genericName,
+            vtrsActive: new Set<string>(),
+            vtrsAll: new Set<string>(),
+          };
+        }
+        vtrReqs[roleName].baseReq += 1;
+        if (v.vtr) vtrReqs[roleName].vtrsAll.add(v.vtr);
+
+        if (v.ativa && v[slot as keyof typeof v] === true) {
           vtrReqs[roleName].req += 1;
+          if (v.vtr) vtrReqs[roleName].vtrsActive.add(v.vtr);
         }
       });
     });
 
     Object.entries(vtrReqs).forEach(([name, data]) => {
-      reqs.push({ name, genericName: data.genericName, req: data.req, category: data.category });
+      reqs.push({
+        name,
+        genericName: data.genericName,
+        req: data.req,
+        baseReq: data.baseReq,
+        active: data.req > 0,
+        category: data.category,
+        vtrsActive: Array.from(data.vtrsActive),
+        vtrsAll: Array.from(data.vtrsAll),
+      });
     });
 
-    reqs.push({ name: "AUXILIAR RANCHO", genericName: "AUXILIAR RANCHO", req: roleQtds["AUXILIAR RANCHO"] ?? 1, category: 'admin' });
-    reqs.push({ name: "TOQUE DE FOGO", genericName: "TOQUE DE FOGO", req: roleQtds["TOQUE DE FOGO"] ?? 1, category: 'admin' });
-    reqs.push({ name: "DIA AO DEPOSITO", genericName: "DIA AO DEPOSITO", req: roleQtds["DIA AO DEPOSITO"] ?? 2, category: 'admin' });
-    reqs.push({ name: "RESP FAXINA", genericName: "RESP FAXINA", req: roleQtds["RESP FAXINA"] ?? 1, category: 'admin' });
-    reqs.push({ name: "ABASTECEDOR", genericName: "ABASTECEDOR", req: roleQtds["ABASTECEDOR"] ?? 1, category: 'admin' });
+    reqs.push(makeAdminReq("AUXILIAR RANCHO", 1));
+    reqs.push(makeAdminReq("TOQUE DE FOGO", 1));
+    reqs.push(makeAdminReq("DIA AO DEPOSITO", 2));
+    reqs.push(makeAdminReq("RESP FAXINA", 1));
+    reqs.push(makeAdminReq("ABASTECEDOR", 1));
 
-    reqs.push({ name: "SGT DIA", genericName: "SGT DIA", req: roleQtds["SGT DIA"] ?? 1, category: 'admin' });
-    reqs.push({ name: "CMT GUARDA", genericName: "CMT GUARDA", req: roleQtds["CMT GUARDA"] ?? 1, category: 'admin' });
-    reqs.push({ name: "CB GUARDA", genericName: "CB GUARDA", req: roleQtds["CB GUARDA"] ?? 1, category: 'admin' });
-    reqs.push({ name: "CB DIA", genericName: "CB DIA", req: roleQtds["CB DIA"] ?? 1, category: 'admin' });
-    reqs.push({ name: "COMUNICANTE", genericName: "COMUNICANTE", req: roleQtds["COMUNICANTE"] ?? 2, category: 'admin' });
-    reqs.push({ name: "ESCALANTE", genericName: "ESCALANTE", req: roleQtds["ESCALANTE"] ?? 1, category: 'admin' });
+    reqs.push(makeAdminReq("SGT DIA", 1));
+    reqs.push(makeAdminReq("CMT GUARDA", 1));
+    reqs.push(makeAdminReq("CB GUARDA", 1));
+    reqs.push(makeAdminReq("CB DIA", 1));
+    reqs.push(makeAdminReq("COMUNICANTE", 2));
+    reqs.push(makeAdminReq("ESCALANTE", 1));
     // SENTINELA é gerenciado exclusivamente na Seção de Sentinelas, removido do sorteio automático conforme solicitado
 
     return reqs;
 
-  }, [viaturasInfo, roleQtds]);
+  }, [viaturasInfo, roleQtds, adminRolesVisibility]);
 
+  // Filtra as habilidades do militar para exibir/permitir apenas funções ATIVAS e CONFIGURADAS na escala atual
+  const getAllowedOptions = (militar: any): string[] | undefined => {
+    if (!militar) return undefined;
+    const rawAllowed = getRawAllowedOptions(militar);
+    const rawSet = new Set(rawAllowed.map(r => normalizeFnName(r)));
+    const activeReqs = dynamicRequirements.filter(r => r.active !== false && r.req > 0);
+
+    const activeAllowed = new Set<string>();
+    activeReqs.forEach(req => {
+      const reqNameNorm = normalizeFnName(req.name);
+      const reqGenNorm = normalizeFnName(req.genericName);
+      if (rawSet.has(reqNameNorm) || rawSet.has(reqGenNorm)) {
+        activeAllowed.add(req.name);
+      } else if (
+        (reqNameNorm === 'AUXILIAR ASE' || reqGenNorm === 'AUXILIAR ASE') &&
+        rawSet.has('ENFERMEIRO')
+      ) {
+        activeAllowed.add(req.name);
+      } else if (
+        (reqNameNorm === 'ENFERMEIRO' || reqGenNorm === 'ENFERMEIRO') &&
+        rawSet.has('AUXILIAR ASE')
+      ) {
+        activeAllowed.add(req.name);
+      }
+    });
+
+    return Array.from(activeAllowed);
+  };
+
+  // Opções ativas na escala atual (usadas na Construção de Escala)
+  const activeScaleFuncOptions = useMemo(() => {
+    return dynamicRequirements
+      .filter(r => r.active !== false && r.req > 0)
+      .map(r => r.name);
+  }, [dynamicRequirements]);
+
+  // Mapa de contagem e limite de vagas por função na escala atual (para destacar excesso em vermelho)
+  const functionUsageStats = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const rosterRgs = new Set(baseRoster.map(m => m.rg || ''));
+    Object.entries(selectedFunctions).forEach(([rg, fns]) => {
+      if (!rosterRgs.has(rg)) return;
+      (fns || []).forEach(fn => {
+        const norm = normalizeFnName(fn);
+        if (!norm) return;
+        counts[norm] = (counts[norm] || 0) + 1;
+      });
+    });
+
+    const limits: Record<string, number> = {};
+    dynamicRequirements.forEach(req => {
+      const normName = normalizeFnName(req.name);
+      const normGen = normalizeFnName(req.genericName);
+      const limit = req.active !== false ? req.req : 0;
+      limits[normName] = limit;
+      if (normGen && limits[normGen] === undefined) {
+        limits[normGen] = limit;
+      }
+    });
+
+    const overLimitSet = new Set<string>();
+    Object.entries(counts).forEach(([normFn, count]) => {
+      const limit = limits[normFn] ?? 1;
+      if (count > limit) {
+        overLimitSet.add(normFn);
+      }
+    });
+
+    return {
+      counts,
+      limits,
+      overLimitSet,
+      isOverLimit: (fnName: string) => overLimitSet.has(normalizeFnName(fnName)),
+      getCount: (fnName: string) => counts[normalizeFnName(fnName)] || 0,
+      getLimit: (fnName: string) => limits[normalizeFnName(fnName)] ?? 1,
+    };
+  }, [baseRoster, selectedFunctions, dynamicRequirements]);
+
+  // Todas as opções da unidade (usadas no modal de Pré-definições Fixas do escalante)
   const extraFuncOptions = useMemo(() => {
     const opts = new Set<string>();
     dynamicRequirements.forEach(r => opts.add(r.name));
@@ -1867,7 +2158,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     }));
 
     const slotOptionsCount = allSlots.map(slot => {
-       const count = militarCapabilities.filter(m => m.allowed.includes(slot.genericName)).length;
+       const count = militarCapabilities.filter(m => m.allowed.includes(slot.name) || m.allowed.includes(slot.genericName)).length;
        return { slot, count };
     });
 
@@ -1899,7 +2190,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
        else if (slot.category === 'auxiliar_maritimo') reqAuxiliaresMaritimos++;
 
        const available = militarCapabilities.filter(m => { 
-          if (!m.allowed.includes(slot.genericName)) return false; 
+          if (!m.allowed.includes(slot.name) && !m.allowed.includes(slot.genericName)) return false; 
           if (m.assignedRoles.includes(slot.genericName)) return false; 
           for (const role of m.assignedRoles) { 
              const isSentinelaAux = (
@@ -2026,254 +2317,74 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
      setViaturasInfo([...viaturasInfo, newVtr]);
   };
 
-  const handleSortear = () => {
-    const newSelected: Record<string, string[]> = { ...selectedFunctions };
-    
-    // 1. Determine all missing slots based on dynamicRequirements (excluindo SENTINELA do sorteio automático)
-    const missingSlots: { name: string; genericName: string; category: string }[] = [];
-    dynamicRequirements.forEach(req => {
-      const normName = normalizeFnName(req.name);
-      const normGeneric = normalizeFnName(req.genericName);
-      if (normName === 'SENTINELA' || normGeneric === 'SENTINELA') return;
-      
-      const currentCount = Object.values(newSelected).flat().filter(f => normalizeFnName(f) === normName).length;
-      if (req.req > currentCount) {
-        for (let i = 0; i < req.req - currentCount; i++) {
-          missingSlots.push({
-            name: req.name,
-            genericName: req.genericName,
-            category: req.category
-          });
-        }
-      }
-    });
+  // ───────── SORTEIO DIVIDIDO (Viaturas / Administrativas) + LIMPAR ─────────
+  // A lógica de sorteio vive em ../lib/sorteioFuncoes (função pura). O modal mostra a
+  // prévia exata do que será aplicado; a SENTINELA nunca participa do sorteio.
 
-    if (missingSlots.length === 0) {
-      setSortearFeedback({
-        type: 'info',
-        message: 'Todas as funções operacionais e administrativas já estão preenchidas para esta data.',
-      });
-      setTimeout(() => setSortearFeedback(null), 4000);
-      return;
-    }
+  const showSorteioFeedback = (fb: { type: 'success' | 'warning' | 'info'; message: string; undoable?: boolean }, ms = 6000) => {
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    setSortearFeedback(fb);
+    feedbackTimerRef.current = setTimeout(() => setSortearFeedback(null), ms);
+  };
 
-    // 2. Build roster with real militars (considering permutas)
-    const availableMilitars = baseRoster.map(m => {
+  // Elenco do dia já considerando permutas (substituto assume a vaga), com as habilitações
+  const sorteioRoster = useMemo<SorteioMilitar[]>(() => {
+    if (!sorteioScope) return [];
+    return baseRoster.map(m => {
       const isSwapped = permutasOut.has(m.rg || '');
       const actualMilitar = isSwapped ? (militars.find(x => x.rg === permutasOut.get(m.rg || '')?.substituteRg) || m) : m;
-      const allowed = getAllowedOptions(actualMilitar) || [];
-      return {
-        rg: m.rg || '',
-        actualMilitar,
-        allowed
-      };
+      return { rg: m.rg || '', militar: actualMilitar, allowed: getAllowedOptions(actualMilitar) || [] };
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sorteioScope, baseRoster, permutasOut, militars, categories, viaturasInfo, availableControlFunctions, dynamicRequirements]);
 
-    // Helper: check if militar is allowed for a slot (supports display name and generic fallback)
-    const isMilitarAllowed = (m: { allowed: string[] }, slotName: string, genericName: string) => {
-      const sNorm = normalizeFnName(slotName);
-      const gNorm = normalizeFnName(genericName);
-      return m.allowed.some(a => {
-        const aNorm = normalizeFnName(a);
-        return aNorm === sNorm || aNorm === gNorm || sNorm.includes(aNorm) || aNorm.includes(sNorm);
-      });
-    };
-
-    // Classificação funcional militar:
-    // A) Chefias & Comando: Adjunto, Chefe ABT/ABSL/ARC/GUA, CMT Guarda, SGT de Dia
-    const isLeadershipRole = (name: string, generic: string, category: string) => {
-      const n = (name + ' ' + generic).toUpperCase();
-      return category === 'chefe' || category === 'chefe_maritimo' ||
-             n.includes('CHEFE') || n.includes('ADJUNTO') || n.includes('SGT DIA') || n.includes('CMT GUARDA');
-    };
-
-    // B) Condutores & Motoristas: Condutores de viaturas, Mestre marítimo, Encarregado de Motorista
-    const isDriverRole = (name: string, generic: string, category: string) => {
-      const n = (name + ' ' + generic).toUpperCase();
-      return category === 'condutor' || category === 'condutor_maritimo' ||
-             n.includes('CONDUTOR') || n.includes('MESTRE') || n.includes('ENCARREGADO DE MOTORISTA');
-    };
-
-    // C) Especialistas Técnicos: Comunicante (Rádio/CAD), Enfermeiro (Resgate), Salvamento Marítimo AMA
-    const isSpecialistRole = (name: string, generic: string) => {
-      const n = (name + ' ' + generic).toUpperCase();
-      return n.includes('COMUNICANTE') || n.includes('ENFERMEIRO') || n.includes('OPERADOR AMA') || n.includes('GV AMA');
-    };
-
-    // D) Encargos Secundários / Concomitantes de Quartel (Rotina interna que não deve desguarnecer a viatura)
-    const isSecondaryChore = (name: string, generic: string) => {
-      const n = (name + ' ' + generic).toUpperCase();
-      return n.includes('FAXINA') || n.includes('RANCHO') || n.includes('TOQUE DE FOGO') ||
-             n.includes('DEPOSITO') || n.includes('DEPÓSITO') || n.includes('ABASTECEDOR') ||
-             n.includes('CB GUARDA') || n.includes('CB DIA');
-    };
-
-    // Checa se o militar já possui posto primário de combate/viatura
-    const hasPrimaryRole = (rg: string) => {
-      const roles = newSelected[rg] || [];
-      return roles.some(r => !isSecondaryChore(r, r));
-    };
-
-    const getAssignedCount = (rg: string) => (newSelected[rg] || []).length;
-
-    let slotsFilledCount = 0;
-    const unfilledRoles: string[] = [];
-
-    // FASE 0: Aplicar Pré-definições Fixas configuradas pelo escalante no modal
-    baseRoster.forEach(m => {
-      const isSwapped = permutasOut.has(m.rg || '');
-      const actualMilitar = isSwapped ? (militars.find(x => x.rg === permutasOut.get(m.rg || '')?.substituteRg) || m) : m;
-      const rg = m.rg || '';
-      const pref = predefinicoes[rg] || [];
-      if ((!newSelected[rg] || newSelected[rg].length === 0) && pref.length > 0) {
-        pref.forEach(p => {
-          const slotIdx = missingSlots.findIndex(s => 
-            (normalizeFnName(s.name) === normalizeFnName(p) || normalizeFnName(s.genericName) === normalizeFnName(p)) &&
-            isMilitarAllowed({ allowed: getAllowedOptions(actualMilitar) || [] }, s.name, s.genericName)
-          );
-          if (slotIdx !== -1) {
-            newSelected[rg] = [...(newSelected[rg] || []), missingSlots[slotIdx].name];
-            missingSlots.splice(slotIdx, 1);
-            slotsFilledCount++;
-          }
-        });
-      }
-    });
-
-    // Função utilitária de preenchimento inteligente de grupos de vagas
-    const fillSlotGroup = (
-      slotsToProcess: typeof missingSlots,
-      candidateFilter: (m: typeof availableMilitars[0], slot: typeof missingSlots[0]) => boolean,
-      candidateSorter: (a: typeof availableMilitars[0], b: typeof availableMilitars[0], slot: typeof missingSlots[0]) => number
-    ) => {
-      for (const slot of slotsToProcess) {
-        const eligible = availableMilitars.filter(m => {
-          if (!isMilitarAllowed(m, slot.name, slot.genericName)) return false;
-          const currentRoles = newSelected[m.rg] || [];
-          if (currentRoles.some(r => normalizeFnName(r) === normalizeFnName(slot.name))) return false;
-          return candidateFilter(m, slot);
-        });
-
-        if (eligible.length === 0) {
-          unfilledRoles.push(slot.name);
-          continue;
-        }
-
-        // Ordenar candidatos pelo critério da fase
-        eligible.sort((a, b) => candidateSorter(a, b, slot));
-
-        // Empate justo: se houver múltiplos com o mesmo score militar, sortear entre eles para rotatividade
-        const bestCandidate = eligible[0];
-        const tiedBest = eligible.filter(cand => candidateSorter(cand, bestCandidate, slot) === 0);
-        const chosen = tiedBest[Math.floor(Math.random() * tiedBest.length)];
-
-        newSelected[chosen.rg] = [...(newSelected[chosen.rg] || []), slot.name];
-        slotsFilledCount++;
-      }
-    };
-
-    // FASE 1: Chefias Operacionais e Adjunto (Mais Antigos Primeiro: Subtenente -> Sargentos -> Cabos antigos)
-    const leadershipSlots = missingSlots.filter(s => isLeadershipRole(s.name, s.genericName, s.category));
-    fillSlotGroup(
-      leadershipSlots,
-      (m) => !hasPrimaryRole(m.rg),
-      (a, b) => {
-        // Hierarquia militar estrita (Subtenente > 1ºSGT > 2ºSGT > 3ºSGT > CB > SD)
-        const seniorityDiff = sortAllBySeniority(a.actualMilitar, b.actualMilitar);
-        if (seniorityDiff !== 0) return seniorityDiff;
-        return getAssignedCount(a.rg) - getAssignedCount(b.rg);
-      }
-    );
-
-    // FASE 2: Condutores e Especialistas Críticos (Garantir motoristas nas viaturas e despacho no CAD)
-    const specialistAndDriverSlots = missingSlots.filter(s => 
-      !isLeadershipRole(s.name, s.genericName, s.category) &&
-      (isDriverRole(s.name, s.genericName, s.category) || isSpecialistRole(s.name, s.genericName))
-    );
-    // Ordenar vagas mais escassas primeiro (ex.: Mestre de Lancha ou Comunicante antes de condutor geral)
-    specialistAndDriverSlots.sort((s1, s2) => {
-      const count1 = availableMilitars.filter(m => isMilitarAllowed(m, s1.name, s1.genericName) && !hasPrimaryRole(m.rg)).length;
-      const count2 = availableMilitars.filter(m => isMilitarAllowed(m, s2.name, s2.genericName) && !hasPrimaryRole(m.rg)).length;
-      return count1 - count2;
-    });
-
-    fillSlotGroup(
-      specialistAndDriverSlots,
-      (m) => !hasPrimaryRole(m.rg),
-      (a, b) => {
-        const countDiff = getAssignedCount(a.rg) - getAssignedCount(b.rg);
-        if (countDiff !== 0) return countDiff;
-        // Para condutor/especialista: preferir praças habilitadas
-        return sortAllBySeniority(b.actualMilitar, a.actualMilitar);
-      }
-    );
-
-    // FASE 3: Combatentes Operacionais e Auxiliares de Viatura (Linha de Fogo, Resgate e Salvamento)
-    const auxiliarySlots = missingSlots.filter(s => 
-      !isLeadershipRole(s.name, s.genericName, s.category) &&
-      !isDriverRole(s.name, s.genericName, s.category) &&
-      !isSpecialistRole(s.name, s.genericName) &&
-      !isSecondaryChore(s.name, s.genericName)
-    );
-
-    fillSlotGroup(
-      auxiliarySlots,
-      (m) => !hasPrimaryRole(m.rg),
-      (a, b) => {
-        const countDiff = getAssignedCount(a.rg) - getAssignedCount(b.rg);
-        if (countDiff !== 0) return countDiff;
-        // Praças mais modernas compondo a guarnição de combate
-        return sortAllBySeniority(b.actualMilitar, a.actualMilitar);
-      }
-    );
-
-    // FASE 4: Encargos Secundários / Concomitantes de Quartel (Faxina, Rancho, Depósito, Toque de Fogo)
-    // Distribuídos de forma justa entre as praças da Ala, sem retirar ninguém do posto de combate
-    const secondarySlots = missingSlots.filter(s => isSecondaryChore(s.name, s.genericName));
-    fillSlotGroup(
-      secondarySlots,
-      (m) => {
-        const roles = newSelected[m.rg] || [];
-        // Não sobrecarregar Adjunto ou Condutor com faxina/rancho se houver outros combatentes
-        const isAdj = roles.some(r => normalizeFnName(r).includes('ADJUNTO'));
-        if (isAdj) return false;
-        // Máximo de 1 encargo secundário por militar para evitar sobrecarga
-        const choreCount = roles.filter(r => isSecondaryChore(r, r)).length;
-        return choreCount === 0;
-      },
-      (a, b) => {
-        const countDiff = getAssignedCount(a.rg) - getAssignedCount(b.rg);
-        if (countDiff !== 0) return countDiff;
-        // Praças mais modernas assumem a rotina interna
-        return sortAllBySeniority(b.actualMilitar, a.actualMilitar);
-      }
-    );
-
-    if (slotsFilledCount > 0) {
-      setSelectedFunctions(newSelected);
-      const uniqueUnfilled = Array.from(new Set(unfilledRoles));
-      if (uniqueUnfilled.length > 0) {
-        setSortearFeedback({
-          type: 'warning',
-          message: `${slotsFilledCount} função(ões) sorteada(s) respeitando a hierarquia militar. Aviso: faltou efetivo habilitado para: ${uniqueUnfilled.join(', ')}.`,
-        });
-      } else {
-        setSortearFeedback({
-          type: 'success',
-          message: `${slotsFilledCount} função(ões) distribuídas com sucesso! Hierarquia, chefias, motoristas e combatentes organizados militarmente.`,
-        });
-      }
-      setTimeout(() => setSortearFeedback(null), 6000);
-    } else {
-      setSortearFeedback({
+  const handleApplySorteio = (newSelected: Record<string, string[]>, result: SorteioResult, presetLabel: string) => {
+    const scopeLabel = sorteioScope === 'administrativas' ? 'administrativa(s)' : 'de viatura';
+    setUndoSnapshot(selectedFunctions);
+    setSelectedFunctions(newSelected);
+    setSorteioScope(null);
+    const semEfetivo = result.vagasSemEfetivo.map(v => v.count > 1 ? `${v.fn} ×${v.count}` : v.fn);
+    if (semEfetivo.length > 0) {
+      showSorteioFeedback({
         type: 'warning',
-        message: 'Nenhuma função pôde ser preenchida. Verifique se os militares da Ala possuem as permissões ativas em seus cadastros.',
-      });
-      setTimeout(() => setSortearFeedback(null), 5000);
+        message: `${result.novas.length} função(ões) ${scopeLabel} aplicada(s) [${presetLabel}]. Faltou efetivo habilitado para: ${semEfetivo.join(', ')}.`,
+        undoable: true,
+      }, 9000);
+    } else {
+      showSorteioFeedback({
+        type: 'success',
+        message: `${result.novas.length} função(ões) ${scopeLabel} aplicada(s) com sucesso [${presetLabel}].`,
+        undoable: true,
+      }, 8000);
     }
   };
 
+  const handleLimparFuncoes = (scope: SorteioScope | 'tudo') => {
+    const next = clearFunctionsByScope(selectedFunctions, dynamicRequirements, scope);
+    const countFns = (rec: Record<string, string[]>) => Object.values(rec).reduce((s, f) => s + (f?.length || 0), 0);
+    const removed = countFns(selectedFunctions) - countFns(next);
+    const label = scope === 'viaturas' ? 'de viatura' : scope === 'administrativas' ? 'administrativas' : '';
+    if (removed <= 0) {
+      showSorteioFeedback({ type: 'info', message: `Não há funções ${label} para limpar.`.replace('  ', ' ') }, 3500);
+      return;
+    }
+    setUndoSnapshot(selectedFunctions);
+    setSelectedFunctions(next);
+    showSorteioFeedback({
+      type: 'info',
+      message: scope === 'tudo'
+        ? `${removed} função(ões) removida(s). As sentinelas foram preservadas.`
+        : `${removed} função(ões) ${label} removida(s).`,
+      undoable: true,
+    }, 8000);
+  };
 
+  const handleUndoFuncoes = () => {
+    if (!undoSnapshot) return;
+    setSelectedFunctions(undoSnapshot);
+    setUndoSnapshot(null);
+    showSorteioFeedback({ type: 'success', message: 'Alteração desfeita. As funções anteriores foram restauradas.' }, 3500);
+  };
 
   const addRasMenuOptions = useMemo(() => {
     if (addRasMilitarSearch.length < 2) return [];
@@ -2871,34 +2982,12 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
               <span>Gerar Permuta</span>
             </button>
 
-            {/* Botão Sortear Funções + Configurações (Cluster Integrado) */}
-            <div className="flex items-center rounded-lg shadow-2xs border border-amber-500/40 overflow-hidden shrink-0">
-              <button
-                onClick={handleSortear}
-                className="h-8 px-3 py-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-black uppercase tracking-wider text-[10.5px] flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
-                title="Sortear funções operacionais automaticamente"
-              >
-                <Shuffle className="w-3.5 h-3.5" />
-                <span>Sortear Funções</span>
-              </button>
-              <button
-                onClick={() => setIsPreferenciasModalOpen(true)}
-                className="h-8 px-2 bg-orange-600 hover:bg-orange-500 text-white border-l border-orange-400/40 flex items-center justify-center transition-colors cursor-pointer"
-                title="Pré-definições e Configurações de Sorteio"
-              >
-                <Settings className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            {/* Botão Limpar */}
-            <button
-              onClick={() => setSelectedFunctions({})}
-              className="h-8 px-3 py-1 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-200 font-black uppercase tracking-wider text-[10.5px] shadow-2xs transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer shrink-0"
-              title="Limpar todas as funções selecionadas na escala"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-rose-500" />
-              <span>Limpar</span>
-            </button>
+            {/* Sorteio dividido (Viaturas | Administrativas | ⚙) + Limpar ▾ */}
+            <SorteioActionBar
+              onSortear={setSorteioScope}
+              onConfig={() => setIsPreferenciasModalOpen(true)}
+              onLimpar={handleLimparFuncoes}
+            />
 
             {/* Botão Principal: Gerar Escala */}
             <button
@@ -4040,13 +4129,22 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
         {/* SECTION 2: TAB_PERMUTA (Escala Espelho Base) */}
         <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-visible relative z-30">
-          <div className="bg-indigo-50 rounded-t-2xl border-b border-indigo-100 py-2 px-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="bg-indigo-50 rounded-t-2xl border-b border-indigo-100 py-2 px-3.5 flex flex-col xl:flex-row xl:items-center justify-between gap-2">
             <h3 className="text-[11px] font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2 shrink-0">
               <Users className="w-3.5 h-3.5 text-indigo-600" />
               CONSTRUÇÃO DE ESCALA
             </h3>
             
-            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto xl:justify-end">
+              {/* Sortear (Viaturas | Administrativas | ⚙) + Limpar ▾ */}
+              <SorteioActionBar
+                compact
+                onSortear={setSorteioScope}
+                onConfig={() => setIsPreferenciasModalOpen(true)}
+                onLimpar={handleLimparFuncoes}
+              />
+              <span className="hidden sm:block w-px h-5 bg-indigo-200 shrink-0" />
+
               {/* Botão de Transferência Direta / Receber Militar do CBA VII */}
               {normalizeObm(obmContext) !== 'GLOBAL' && (
                 <button
@@ -4195,13 +4293,21 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                             </span>
                             <span
                               className={cn(
-                                "text-xs font-black leading-none mb-0.5 uppercase tracking-tight",
+                                "text-xs font-black leading-none mb-0.5 uppercase tracking-tight flex items-center gap-1",
                                 isSwapped
                                   ? "text-slate-600 line-through"
                                   : "text-slate-800",
                               )}
                             >
-                              {militar.warName?.toUpperCase() || formatMilitaryName(militar.name || "")}
+                              <span>{militar.warName?.toUpperCase() || formatMilitaryName(militar.name || "")}</span>
+                              {!isSwapped && (selectedFunctions[rg] || []).some(fn => isPreferredAssignment(predefinicoes, rg, fn)) && (
+                                <span
+                                  title="★ Escalado conforme preferência configurada pelo escalante"
+                                  className="inline-flex items-center"
+                                >
+                                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 shrink-0 drop-shadow-2xs" />
+                                </span>
+                              )}
                             </span>
                             <div className="flex items-center gap-1.5 mt-0.5">
                               <span className="text-[8.5px] text-slate-400 font-mono tracking-widest leading-none">
@@ -4307,7 +4413,10 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                         <FuncoesMultiSelect
                           selected={selectedFunctions[rg] || []}
                           allowedOptions={getAllowedOptions(isSwapped ? (militars.find(m => m.rg === permuta.substituteRg) || militar) : militar)}
-                          extraOptions={extraFuncOptions}
+                          extraOptions={activeScaleFuncOptions}
+                          onlyActiveScaleOptions={true}
+                          preferredOptions={predefinicoes[rg] || []}
+                          overLimitSet={functionUsageStats.overLimitSet}
                           onChange={(newVal) =>
                             setSelectedFunctions((prev) => ({
                               ...prev,
@@ -4322,9 +4431,26 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                              const actualMilitar = isSwapped ? (militars.find(m => m.rg === permuta.substituteRg) || militar) : militar;
                              const allowed = getAllowedOptions(actualMilitar);
                              const selected = selectedFunctions[rg] || [];
-                             if (!allowed || allowed.length === 0) return <span className="text-slate-400">NÃO CONFIGURADO</span>;
+                             if (!allowed || allowed.length === 0) {
+                               const rawSkills = getRawAllowedOptions(actualMilitar);
+                               if (rawSkills.length > 0) {
+                                 return (
+                                   <span
+                                     className="text-slate-400 italic"
+                                     title={`Habilitações inativas nesta escala: ${rawSkills.join(', ')}`}
+                                   >
+                                     SEM FUNÇÃO ATIVA NA ESCALA
+                                   </span>
+                                 );
+                               }
+                               return <span className="text-slate-400">NÃO CONFIGURADO</span>;
+                             }
                              return allowed.map(opt => {
-                                const isSelected = selected.includes(opt);
+                                const isSelected = selected.some(s => normalizeFnName(s) === normalizeFnName(opt));
+                                const isPref = isPreferredAssignment(predefinicoes, rg, opt);
+                                const isOverLimit = isSelected && functionUsageStats.isOverLimit(opt);
+                                const currCount = functionUsageStats.getCount(opt);
+                                const currLimit = functionUsageStats.getLimit(opt);
                                 return (
                                   <button
                                     key={opt}
@@ -4332,9 +4458,9 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                                     onClick={() => {
                                       setSelectedFunctions((prev) => {
                                         const curr = prev[rg] || [];
-                                        const exists = curr.includes(opt);
+                                        const exists = curr.some(f => normalizeFnName(f) === normalizeFnName(opt));
                                         const next = exists
-                                          ? curr.filter((f) => f !== opt)
+                                          ? curr.filter((f) => normalizeFnName(f) !== normalizeFnName(opt))
                                           : [...curr, opt];
                                         return {
                                           ...prev,
@@ -4343,13 +4469,35 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                                       });
                                     }}
                                     className={cn(
-                                      "px-1.5 py-0.5 rounded uppercase tracking-tighter whitespace-nowrap transition-all cursor-pointer active:scale-95 border",
+                                      "px-1.5 py-0.5 rounded uppercase tracking-tighter whitespace-nowrap transition-all cursor-pointer active:scale-95 border inline-flex items-center gap-0.5",
                                       isSelected
-                                        ? "bg-indigo-100 text-indigo-700 font-black border-indigo-300 ring-1 ring-indigo-200/70 shadow-2xs"
+                                        ? isOverLimit
+                                          ? "bg-red-100 hover:bg-red-200/80 text-red-700 font-black border-red-400 ring-1 ring-red-300/80 shadow-2xs"
+                                          : isPref
+                                          ? "bg-amber-100 text-amber-900 font-black border-amber-400 ring-1 ring-amber-300/70 shadow-2xs"
+                                          : "bg-indigo-100 text-indigo-700 font-black border-indigo-300 ring-1 ring-indigo-200/70 shadow-2xs"
+                                        : isPref
+                                        ? "bg-amber-50/70 hover:bg-amber-100/80 text-amber-800 font-bold border-amber-200"
                                         : "bg-slate-100 hover:bg-indigo-50/70 text-slate-500 hover:text-indigo-600 font-bold border-slate-200/80 hover:border-indigo-200"
                                     )}
-                                    title={isSelected ? `Clique para desativar ${opt}` : `Clique para ativar ${opt}`}
+                                    title={
+                                      isOverLimit
+                                        ? `⚠️ Limite excedido em ${opt}: ${currCount} militares selecionados para o limite de ${currLimit} vaga(s) (clique para desativar)`
+                                        : isPref
+                                        ? `★ Preferência configurada pelo escalante (${isSelected ? "clique para desativar" : "clique para ativar"})`
+                                        : isSelected
+                                        ? `Clique para desativar ${opt}`
+                                        : `Clique para ativar ${opt}`
+                                    }
                                   >
+                                    {isPref && (
+                                      <Star
+                                        className={cn(
+                                          "w-2.5 h-2.5 shrink-0",
+                                          isOverLimit ? "fill-red-500 text-red-600" : "fill-amber-400 text-amber-500"
+                                        )}
+                                      />
+                                    )}
                                     {opt}
                                   </button>
                                 );
@@ -4427,10 +4575,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
             {(() => {
               const adminReqs = dynamicRequirements.filter(f => f.category === 'admin');
-              const activeAdminCount = adminReqs.filter(f => {
-                const norm = normalizeFnName(f.name);
-                return adminRolesVisibility[norm] !== false && adminRolesVisibility[f.name] !== false;
-              }).length;
+              const activeAdminCount = adminReqs.filter(f => f.active !== false).length;
               const hasAnyVisibleAdmin = activeAdminCount > 0;
 
               return (
@@ -4490,7 +4635,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                     </button>
                   </div>
 
-                  {/* Botão Ativar/Desativar Todas Gerar Escala */}
+                  {/* Botão Ativar/Desativar Todas no Sistema & Sorteio */}
                   <button
                     type="button"
                     onClick={() => handleSetAllAdminRolesVisibility(!hasAnyVisibleAdmin)}
@@ -4500,19 +4645,30 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                         ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/30"
                         : "bg-rose-500/20 text-rose-300 border-rose-500/30 hover:bg-rose-500/30"
                     )}
-                    title="Ativar ou desativar todas as funções administrativas no arquivo Gerar Escala"
+                    title="Ativar ou desativar todas as funções administrativas no Sistema, Sorteio e Gerar Escala (funções inativas não apitam déficit)"
                   >
                     {hasAnyVisibleAdmin ? (
                       <>
                         <Eye className="w-3 h-3 text-emerald-400" />
-                        <span>Gerar Escala: Ativas ({activeAdminCount}/{adminReqs.length})</span>
+                        <span>Sistema / Sorteio: Ativas ({activeAdminCount}/{adminReqs.length})</span>
                       </>
                     ) : (
                       <>
                         <EyeOff className="w-3 h-3 text-rose-400" />
-                        <span>Gerar Escala: Ocultas</span>
+                        <span>Sistema / Sorteio: Inativas</span>
                       </>
                     )}
+                  </button>
+
+                  {/* Atalho direto para Sortear Funções Administrativas */}
+                  <button
+                    type="button"
+                    onClick={() => setSorteioScope('administrativas')}
+                    className="px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white border border-orange-400/40 shadow-2xs"
+                    title="Abrir janela de sorteio de funções administrativas (somente funções ativas serão sorteadas)"
+                  >
+                    <Shuffle className="w-2.5 h-2.5" />
+                    <span>Sortear Admin.</span>
                   </button>
                 </div>
               );
@@ -4525,10 +4681,13 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
               const adminFunctions = adminReqs
                 .map(f => {
                   const currentCount = Object.values(selectedFunctions).flat().filter((v) => normalizeFnName(v) === normalizeFnName(f.name)).length;
-                  return { ...f, currentCount, isOk: currentCount >= f.req };
+                  const isActive = f.active !== false;
+                  const isOk = !isActive || currentCount >= f.req;
+                  return { ...f, currentCount, isActive, isOk };
                 })
-                .filter(f => f.req > 0 || f.currentCount > 0)
+                .filter(f => (f.baseReq ?? f.req) > 0 || f.currentCount > 0)
                 .sort((a, b) => {
+                  if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
                   if (a.isOk === b.isOk) return 0;
                   return a.isOk ? 1 : -1;
                 });
@@ -4537,8 +4696,9 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
               const group1List = adminFunctions.filter(f => group1Names.includes(normalizeFnName(f.name)));
               const group2List = adminFunctions.filter(f => !group1Names.includes(normalizeFnName(f.name)));
 
-              const defList = adminFunctions.filter(f => !f.isOk);
-              const okList = adminFunctions.filter(f => f.isOk);
+              const defList = adminFunctions.filter(f => f.isActive && !f.isOk);
+              const okList = adminFunctions.filter(f => f.isActive && f.isOk);
+              const inactiveList = adminFunctions.filter(f => !f.isActive);
 
               const renderAdminTable = (items: typeof adminFunctions) => (
                 <div className="overflow-x-auto flex-1">
@@ -4547,35 +4707,62 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                       <tr>
                         <th className="py-1.5 px-3 font-black">Função</th>
                         <th className="py-1.5 px-2 w-14 text-center font-black">Atual</th>
-                        <th className="py-1.5 px-2 w-14 text-center font-black">Nec.</th>
-                        <th className="py-1.5 px-2 w-16 text-center font-black">Status</th>
-                        <th className="py-1.5 px-2 w-24 text-center font-black">Gerar Escala</th>
+                        <th className="py-1.5 px-2 w-16 text-center font-black">Nec.</th>
+                        <th className="py-1.5 px-2 w-20 text-center font-black">Status</th>
+                        <th className="py-1.5 px-2 w-28 text-center font-black" title="Ativa ou desativa a função no Sistema, Sorteio e Gerar Escala">Sistema / Sorteio</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {items.map(funcao => {
                         const currentCount = funcao.currentCount;
+                        const isActive = funcao.isActive;
                         const isOk = funcao.isOk;
-                        const norm = normalizeFnName(funcao.name);
-                        const isVisibleInGerarEscala = adminRolesVisibility[norm] !== false && adminRolesVisibility[funcao.name] !== false;
                         return (
-                          <tr key={funcao.name} className="hover:bg-slate-50 transition-colors">
+                          <tr
+                            key={funcao.name}
+                            className={cn(
+                              "transition-colors",
+                              isActive ? "hover:bg-slate-50" : "bg-slate-50/70 opacity-65 hover:opacity-90"
+                            )}
+                          >
                             <td className="py-1.5 px-3 tracking-tighter text-slate-800 text-[10.5px] font-black">
-                              {funcao.name}
+                              <span className={cn(!isActive && "line-through decoration-slate-300 text-slate-500")}>
+                                {funcao.name}
+                              </span>
                             </td>
                             <td className="py-1.5 px-2 text-center">
-                              <span className={cn(
-                                "px-1.5 py-0.5 rounded text-[9.5px] font-black inline-block min-w-[20px]",
-                                currentCount > 0 ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400"
-                              )}>
+                              <span
+                                className={cn(
+                                  "px-1.5 py-0.5 rounded text-[9.5px] font-black inline-block min-w-[20px]",
+                                  currentCount > funcao.req
+                                    ? "bg-red-100 text-red-700 border border-red-300"
+                                    : currentCount > 0
+                                    ? "bg-indigo-100 text-indigo-700"
+                                    : "bg-slate-100 text-slate-400"
+                                )}
+                                title={currentCount > funcao.req ? `Limite excedido: ${currentCount} selecionados para ${funcao.req} vaga(s)` : undefined}
+                              >
                                 {currentCount}
                               </span>
                             </td>
                             <td className="py-1.5 px-2 text-center text-slate-500 font-black text-[10.5px]">
-                              {funcao.req}
+                              {isActive ? (
+                                funcao.req
+                              ) : (
+                                <span className="text-slate-400" title={`Necessidade padrão quando ativa: ${funcao.baseReq ?? 1}`}>
+                                  0 <span className="text-[8.5px] font-bold">({funcao.baseReq ?? 1})</span>
+                                </span>
+                              )}
                             </td>
                             <td className="py-1.5 px-2 text-center">
-                              {isOk ? (
+                              {!isActive ? (
+                                <span
+                                  className="text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded font-black inline-flex items-center justify-center gap-0.5 text-[8.5px]"
+                                  title="Função desativada manualmente — não gera déficit nem entra no sorteio"
+                                >
+                                  INATIVA
+                                </span>
+                              ) : isOk ? (
                                 <span className="text-emerald-500 font-black inline-flex items-center justify-center gap-0.5 text-[10px]">
                                   <CheckCircle2 className="w-3 h-3 stroke-[3]" /> OK
                                 </span>
@@ -4591,13 +4778,17 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                                 onClick={() => handleToggleAdminRoleVisibility(funcao.name)}
                                 className={cn(
                                   "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[8.5px] font-black uppercase tracking-wider transition-all cursor-pointer border shadow-2xs",
-                                  isVisibleInGerarEscala
+                                  isActive
                                     ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                                    : "bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200 hover:text-slate-600"
+                                    : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 hover:text-slate-700"
                                 )}
-                                title={isVisibleInGerarEscala ? `Função ${funcao.name} ativa no Gerar Escala (clique para desativar)` : `Função ${funcao.name} desativada no Gerar Escala (clique para ativar)`}
+                                title={
+                                  isActive
+                                    ? `Função ${funcao.name} ATIVA no sistema, sorteio e impressão (clique para desativar e silenciar alertas)`
+                                    : `Função ${funcao.name} INATIVA no sistema, sorteio e impressão (clique para ativar)`
+                                }
                               >
-                                {isVisibleInGerarEscala ? (
+                                {isActive ? (
                                   <>
                                     <Eye className="w-2.5 h-2.5 text-emerald-600" />
                                     <span>Ativa</span>
@@ -4605,7 +4796,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                                 ) : (
                                   <>
                                     <EyeOff className="w-2.5 h-2.5 text-slate-400" />
-                                    <span>Oculta</span>
+                                    <span>Inativa</span>
                                   </>
                                 )}
                               </button>
@@ -4642,11 +4833,16 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                               {group1List.length} Funções
                             </span>
                             <span className="text-[9px] font-black text-emerald-300 bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/30">
-                              {group1List.filter(f => f.isOk).length} OK
+                              {group1List.filter(f => f.isActive && f.isOk).length} OK
                             </span>
-                            {group1List.filter(f => !f.isOk).length > 0 && (
+                            {group1List.filter(f => f.isActive && !f.isOk).length > 0 && (
                               <span className="text-[9px] font-black text-rose-300 bg-rose-500/20 px-1.5 py-0.5 rounded border border-rose-500/30">
-                                {group1List.filter(f => !f.isOk).length} DEF
+                                {group1List.filter(f => f.isActive && !f.isOk).length} DEF
+                              </span>
+                            )}
+                            {group1List.filter(f => !f.isActive).length > 0 && (
+                              <span className="text-[9px] font-bold text-slate-300 bg-slate-700 px-1.5 py-0.5 rounded">
+                                {group1List.filter(f => !f.isActive).length} INAT
                               </span>
                             )}
                           </div>
@@ -4666,11 +4862,16 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                               {group2List.length} Funções
                             </span>
                             <span className="text-[9px] font-black text-emerald-300 bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/30">
-                              {group2List.filter(f => f.isOk).length} OK
+                              {group2List.filter(f => f.isActive && f.isOk).length} OK
                             </span>
-                            {group2List.filter(f => !f.isOk).length > 0 && (
+                            {group2List.filter(f => f.isActive && !f.isOk).length > 0 && (
                               <span className="text-[9px] font-black text-rose-300 bg-rose-500/20 px-1.5 py-0.5 rounded border border-rose-500/30">
-                                {group2List.filter(f => !f.isOk).length} DEF
+                                {group2List.filter(f => f.isActive && !f.isOk).length} DEF
+                              </span>
+                            )}
+                            {group2List.filter(f => !f.isActive).length > 0 && (
+                              <span className="text-[9px] font-bold text-slate-300 bg-slate-700 px-1.5 py-0.5 rounded">
+                                {group2List.filter(f => !f.isActive).length} INAT
                               </span>
                             )}
                           </div>
@@ -4687,7 +4888,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                         <div className="bg-rose-950 text-white py-2 px-3 flex items-center justify-between border-b border-rose-800">
                           <div className="flex items-center gap-2">
                             <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
-                            <span className="text-[10.5px] font-black uppercase tracking-wider">Funções com Déficit (Necessitam Militar)</span>
+                            <span className="text-[10.5px] font-black uppercase tracking-wider">Funções Ativas com Déficit (Necessitam Militar)</span>
                           </div>
                           <span className="text-[9px] font-black text-rose-200 bg-rose-800/80 px-2 py-0.5 rounded border border-rose-700">
                             {defList.length} Funções com Lacuna
@@ -4696,18 +4897,25 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                         {renderAdminTable(defList)}
                       </div>
 
-                      {/* BLOCO 2: FUNÇÕES REGULARES */}
+                      {/* BLOCO 2: FUNÇÕES REGULARES E INATIVAS */}
                       <div className="bg-white rounded-xl border border-emerald-200 overflow-hidden shadow-2xs flex flex-col h-full">
                         <div className="bg-emerald-950 text-white py-2 px-3 flex items-center justify-between border-b border-emerald-800">
                           <div className="flex items-center gap-2">
                             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                            <span className="text-[10.5px] font-black uppercase tracking-wider">Funções Regularizadas (Efetivo Completo)</span>
+                            <span className="text-[10.5px] font-black uppercase tracking-wider">Funções Regularizadas & Inativas</span>
                           </div>
-                          <span className="text-[9px] font-black text-emerald-200 bg-emerald-800/80 px-2 py-0.5 rounded border border-emerald-700">
-                            {okList.length} Funções Cobertas
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] font-black text-emerald-200 bg-emerald-800/80 px-2 py-0.5 rounded border border-emerald-700">
+                              {okList.length} Cobertas
+                            </span>
+                            {inactiveList.length > 0 && (
+                              <span className="text-[9px] font-bold text-slate-200 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700">
+                                {inactiveList.length} Inativas
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        {renderAdminTable(okList)}
+                        {renderAdminTable([...okList, ...inactiveList])}
                       </div>
                     </>
                   )}
@@ -4722,7 +4930,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                             <span className="text-[10.5px] font-black uppercase tracking-wider">Tabela de Funções Administrativas</span>
                           </div>
                           <span className="text-[9px] font-bold text-slate-300 bg-slate-700/60 px-2 py-0.5 rounded">
-                            {adminFunctions.length} Funções
+                            {adminFunctions.filter(f => f.isActive).length} Ativas / {adminFunctions.length} Total
                           </span>
                         </div>
                         {renderAdminTable(adminFunctions)}
@@ -4744,7 +4952,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                           {/* Medidor de Déficit */}
                           <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
                             <div className="flex justify-between items-end mb-1">
-                              <span className="text-[9.5px] font-bold text-slate-500 uppercase tracking-widest">Global Administrativo</span>
+                              <span className="text-[9.5px] font-bold text-slate-500 uppercase tracking-widest">Global Administrativo (Funções Ativas)</span>
                               <span className={cn("text-[10.5px] font-black", estudoTecnico.efetivoAdministrativo.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
                                 {estudoTecnico.efetivoAdministrativo.chance}% Vazio
                               </span>
@@ -4757,21 +4965,26 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                             </div>
                             <div className="flex justify-between mt-1 text-[9px] text-slate-500 font-bold">
                               <span>Lacunas: {estudoTecnico.efetivoAdministrativo.deficit}</span>
-                              <span>Necessidade: {estudoTecnico.efetivoAdministrativo.req}</span>
+                              <span>Necessidade Ativa: {estudoTecnico.efetivoAdministrativo.req}</span>
                             </div>
                           </div>
 
                           {/* Balanço de Regularidade */}
-                          <div className="grid grid-cols-2 gap-2.5">
+                          <div className="grid grid-cols-3 gap-2">
                             <div className="bg-emerald-50 border border-emerald-200 p-2 rounded-lg text-center">
                               <span className="text-[9px] font-bold text-emerald-700 uppercase tracking-wider block">Regularizadas</span>
                               <span className="text-lg font-black text-emerald-800">{okList.length}</span>
-                              <span className="text-[8.5px] text-emerald-600 block">funções atendidas</span>
+                              <span className="text-[8.5px] text-emerald-600 block">ativas OK</span>
                             </div>
                             <div className="bg-rose-50 border border-rose-200 p-2 rounded-lg text-center">
                               <span className="text-[9px] font-bold text-rose-700 uppercase tracking-wider block">Em Déficit</span>
                               <span className="text-lg font-black text-rose-800">{defList.length}</span>
-                              <span className="text-[8.5px] text-rose-600 block">precisam de militar</span>
+                              <span className="text-[8.5px] text-rose-600 block">ativas s/ militar</span>
+                            </div>
+                            <div className="bg-slate-100 border border-slate-200 p-2 rounded-lg text-center">
+                              <span className="text-[9px] font-bold text-slate-600 uppercase tracking-wider block">Inativas</span>
+                              <span className="text-lg font-black text-slate-700">{inactiveList.length}</span>
+                              <span className="text-[8.5px] text-slate-500 block">desativadas</span>
                             </div>
                           </div>
 
@@ -4825,73 +5038,223 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
         {/* SECTION 3B: PRONTIDÃO OPERACIONAL (QUANT_MILITARES1) */}
         <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-visible relative z-20">
-          <div className="bg-amber-50 rounded-t-2xl border-b border-amber-100 py-2 px-3.5 flex items-center justify-between">
+          <div className="bg-amber-50 rounded-t-2xl border-b border-amber-100 py-2 px-3.5 flex items-center justify-between flex-wrap gap-2">
             <h3 className="text-[11px] font-black text-amber-900 uppercase tracking-widest flex items-center gap-2">
               <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
               Prontidão Operacional (Quant_Militares1)
             </h3>
-            <span className="text-[9.5px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
-              Resumo Automático
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[9.5px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                Sincronizado com Distribuição de Viaturas
+              </span>
+              <button
+                type="button"
+                onClick={() => setSorteioScope('viaturas')}
+                className="px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white border border-amber-400/40 shadow-2xs"
+                title="Abrir janela de sorteio de funções de viatura (baseada nas viaturas e vagas ativas)"
+              >
+                <Shuffle className="w-2.5 h-2.5" />
+                <span>Sortear Viaturas</span>
+              </button>
+            </div>
           </div>
           <div className="p-3 sm:p-4 bg-slate-50 relative">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 max-w-7xl mx-auto items-start">
                 
                 {/* OPERACIONAIS (VERTICAL) */}
                 <div>
-                  <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                    <Shield className="w-3.5 h-3.5 text-indigo-500" />
-                    Funções Operacionais
-                  </h4>
-                  <table className="w-full text-left text-[10px] font-bold uppercase tracking-wider bg-white rounded-lg overflow-hidden border border-slate-200 shadow-2xs">
-                    <thead className="bg-[#1e293b] text-white text-[10px]">
-                      <tr>
-                        <th className="py-1.5 px-3 border-b border-slate-700">Função</th>
-                        <th className="py-1.5 px-3 border-b border-slate-700 w-16 text-center">Atual</th>
-                        <th className="py-1.5 px-3 border-b border-slate-700 w-16 text-center">Nec.</th>
-                        <th className="py-1.5 px-3 border-b border-slate-700 w-16 text-center">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {dynamicRequirements
-                        .filter(f => f.category !== 'admin')
-                        .map(f => {
-                          const currentCount = Object.values(selectedFunctions).flat().filter((v) => normalizeFnName(v) === normalizeFnName(f.name)).length;
-                          return { ...f, currentCount, isOk: currentCount >= f.req };
-                        })
-                        .filter(f => f.req > 0 || f.currentCount > 0)
-                        .sort((a, b) => {
-                          if (a.isOk === b.isOk) return 0;
-                          return a.isOk ? 1 : -1;
-                        })
-                        .map((funcao) => {
-                        const currentCount = funcao.currentCount;
-                        const isOk = funcao.isOk;
-                        return (
-                          <tr key={funcao.name} className="hover:bg-slate-50 transition-colors">
-                            <td className="py-1.5 px-3 tracking-tighter text-slate-800 text-[10.5px]">{funcao.name}</td>
-                            <td className="py-1.5 px-3 text-center">
-                              <span className={cn("px-1.5 py-0.5 rounded text-[9.5px] font-black", currentCount > 0 ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400")}>
-                                {currentCount}
-                              </span>
-                            </td>
-                            <td className="py-1.5 px-3 text-center text-slate-500 font-black">{funcao.req}</td>
-                            <td className="py-1.5 px-3 text-center">
-                              {isOk ? (
-                                <span className="text-emerald-500 font-black flex items-center justify-center gap-0.5 text-[10px]">
-                                  <CheckCircle2 className="w-3 h-3 stroke-[3]" /> OK
-                                </span>
-                              ) : (
-                                <span className="text-rose-500 font-black flex items-center justify-center gap-0.5 text-[10px]">
-                                  <AlertCircle className="w-3 h-3 stroke-[3]" /> DEF
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                  {(() => {
+                    const opFunctions = dynamicRequirements
+                      .filter(f => f.category !== 'admin')
+                      .map(f => {
+                        const currentCount = Object.values(selectedFunctions).flat().filter((v) => normalizeFnName(v) === normalizeFnName(f.name)).length;
+                        const isActive = f.active !== false && f.req > 0;
+                        const isOk = !isActive || currentCount >= f.req;
+                        return { ...f, currentCount, isActive, isOk };
+                      })
+                      .filter(f => (f.baseReq ?? f.req) > 0 || f.currentCount > 0)
+                      .sort((a, b) => {
+                        if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+                        if (a.isOk === b.isOk) return 0;
+                        return a.isOk ? 1 : -1;
+                      });
+
+                    const activeOpCount = opFunctions.filter(f => f.isActive).length;
+                    const hasAnyActiveOp = activeOpCount > 0;
+
+                    return (
+                      <>
+                        <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                          <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
+                            <Shield className="w-3.5 h-3.5 text-indigo-500" />
+                            Funções Operacionais
+                            <span className="text-[9px] font-bold text-slate-500 bg-slate-200/80 px-1.5 py-0.5 rounded">
+                              {activeOpCount}/{opFunctions.length} Ativas
+                            </span>
+                          </h4>
+                          <button
+                            type="button"
+                            onClick={() => handleSetAllOperationalRoles(!hasAnyActiveOp)}
+                            className={cn(
+                              "px-2 py-0.5 rounded-md text-[8.5px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer border",
+                              hasAnyActiveOp
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                            )}
+                            title="Marcar ou desmarcar todas as funções nas viaturas ativas"
+                          >
+                            {hasAnyActiveOp ? (
+                              <>
+                                <Eye className="w-2.5 h-2.5 text-emerald-600" />
+                                <span>Viaturas Ativas: Todas Marcadas</span>
+                              </>
+                            ) : (
+                              <>
+                                <EyeOff className="w-2.5 h-2.5 text-slate-400" />
+                                <span>Reativar Vagas nas Viaturas</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <table className="w-full text-left text-[10px] font-bold uppercase tracking-wider bg-white rounded-lg overflow-hidden border border-slate-200 shadow-2xs">
+                          <thead className="bg-[#1e293b] text-white text-[10px]">
+                            <tr>
+                              <th className="py-1.5 px-3 border-b border-slate-700">Função / Viaturas</th>
+                              <th className="py-1.5 px-2 border-b border-slate-700 w-14 text-center">Atual</th>
+                              <th className="py-1.5 px-2 border-b border-slate-700 w-16 text-center">Nec.</th>
+                              <th className="py-1.5 px-2 border-b border-slate-700 w-20 text-center">Status</th>
+                              <th className="py-1.5 px-2 border-b border-slate-700 w-24 text-center" title="Ativa ou desativa a função diretamente na Distribuição de Viaturas e no Sorteio">Viatura / Sorteio</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {opFunctions.map((funcao) => {
+                              const currentCount = funcao.currentCount;
+                              const isActive = funcao.isActive;
+                              const isOk = funcao.isOk;
+                              const activeVtrSet = new Set(funcao.vtrsActive || []);
+                              const allVtrs = funcao.vtrsAll || [];
+                              return (
+                                <tr
+                                  key={funcao.name}
+                                  className={cn(
+                                    "transition-colors",
+                                    isActive ? "hover:bg-slate-50" : "bg-slate-50/70 opacity-65 hover:opacity-95"
+                                  )}
+                                >
+                                  <td className="py-1.5 px-3 tracking-tighter text-slate-800 text-[10.5px]">
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className={cn("font-black", !isActive && "line-through decoration-slate-300 text-slate-500")}>
+                                        {funcao.name}
+                                      </span>
+                                      {allVtrs.length > 0 && (
+                                        <div className="flex flex-wrap gap-1">
+                                          {allVtrs.map(vtrName => {
+                                            const vtrIsContributing = activeVtrSet.has(vtrName);
+                                            return (
+                                              <span
+                                                key={vtrName}
+                                                className={cn(
+                                                  "text-[8px] font-black px-1 py-0.2 rounded border",
+                                                  vtrIsContributing
+                                                    ? "bg-amber-50 text-amber-800 border-amber-200"
+                                                    : "bg-slate-100 text-slate-400 border-slate-200"
+                                                )}
+                                                title={vtrIsContributing ? `Vaga ativa na viatura ${vtrName}` : `Vaga desmarcada ou viatura ${vtrName} inativa`}
+                                              >
+                                                {vtrName}
+                                              </span>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="py-1.5 px-2 text-center">
+                                    <span
+                                      className={cn(
+                                        "px-1.5 py-0.5 rounded text-[9.5px] font-black inline-block min-w-[20px]",
+                                        currentCount > funcao.req
+                                          ? "bg-red-100 text-red-700 border border-red-300"
+                                          : currentCount > 0
+                                          ? "bg-indigo-100 text-indigo-700"
+                                          : "bg-slate-100 text-slate-400"
+                                      )}
+                                      title={currentCount > funcao.req ? `Limite excedido: ${currentCount} selecionados para ${funcao.req} vaga(s)` : undefined}
+                                    >
+                                      {currentCount}
+                                    </span>
+                                  </td>
+                                  <td className="py-1.5 px-2 text-center text-slate-500 font-black">
+                                    {isActive ? (
+                                      <>
+                                        {funcao.req}
+                                        {funcao.baseReq && funcao.baseReq > funcao.req && (
+                                          <span className="text-[8.5px] text-slate-400 font-bold ml-0.5" title={`Capacidade máxima na frota: ${funcao.baseReq}`}>
+                                            /{funcao.baseReq}
+                                          </span>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <span className="text-slate-400" title={`Capacidade na frota quando ativa: ${funcao.baseReq ?? 1}`}>
+                                        0 <span className="text-[8.5px] font-bold">({funcao.baseReq ?? 1})</span>
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-1.5 px-2 text-center">
+                                    {!isActive ? (
+                                      <span
+                                        className="text-slate-400 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded font-black inline-flex items-center justify-center gap-0.5 text-[8.5px]"
+                                        title="Função desativada nas viaturas — não gera déficit nem entra no sorteio"
+                                      >
+                                        INATIVA
+                                      </span>
+                                    ) : isOk ? (
+                                      <span className="text-emerald-500 font-black flex items-center justify-center gap-0.5 text-[10px]">
+                                        <CheckCircle2 className="w-3 h-3 stroke-[3]" /> OK
+                                      </span>
+                                    ) : (
+                                      <span className="text-rose-500 font-black flex items-center justify-center gap-0.5 text-[10px]">
+                                        <AlertCircle className="w-3 h-3 stroke-[3]" /> DEF
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="py-1.5 px-2 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleOperationalRole(funcao.name)}
+                                      className={cn(
+                                        "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[8.5px] font-black uppercase tracking-wider transition-all cursor-pointer border shadow-2xs",
+                                        isActive
+                                          ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                          : "bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 hover:text-slate-700"
+                                      )}
+                                      title={
+                                        isActive
+                                          ? `Função ${funcao.name} ativa nas viaturas (${(funcao.vtrsActive || []).join(', ')}) — clique para desmarcar na distribuição de viaturas`
+                                          : `Função ${funcao.name} inativa — clique para ativar nas viaturas (${(funcao.vtrsAll || []).join(', ')})`
+                                      }
+                                    >
+                                      {isActive ? (
+                                        <>
+                                          <Eye className="w-2.5 h-2.5 text-emerald-600" />
+                                          <span>Ativa</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <EyeOff className="w-2.5 h-2.5 text-slate-400" />
+                                          <span>Inativa</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* ESTUDO TÉCNICO / PREVISÃO ALGORÍTMICA (VERTICAL) */}
@@ -5453,8 +5816,34 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         {/* SECTION 5: AFASTAMENTOS DA ALA */}
       </div>
 
+      {sorteioScope && (
+        <SorteioFuncoesModal
+          key={sorteioScope}
+          scope={sorteioScope}
+          onClose={() => setSorteioScope(null)}
+          onApply={handleApplySorteio}
+          requirements={dynamicRequirements}
+          roster={sorteioRoster}
+          selectedFunctions={selectedFunctions}
+          predefinicoes={predefinicoes}
+          viaturasInfo={viaturasInfo}
+          getSlotDisplayName={getSlotDisplayName}
+          onOpenPredefinicoes={() => setIsPreferenciasModalOpen(true)}
+          onToggleRoleActive={(roleName) =>
+            sorteioScope === 'administrativas'
+              ? handleToggleAdminRoleVisibility(roleName)
+              : handleToggleOperationalRole(roleName)
+          }
+          onSetAllRolesActive={(active) =>
+            sorteioScope === 'administrativas'
+              ? handleSetAllAdminRolesVisibility(active)
+              : handleSetAllOperationalRoles(active)
+          }
+        />
+      )}
+
       {isPreferenciasModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
               <div>
@@ -5505,7 +5894,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                       <td className="p-3 px-4 relative" style={{ overflow: 'visible' }}>
                          <FuncoesMultiSelect
                             selected={predefinicoes[militar.rg || ''] || []}
-                            allowedOptions={getAllowedOptions(militar)}
+                            allowedOptions={getRawAllowedOptions(militar)}
                             extraOptions={extraFuncOptions}
                             onChange={async (newVal) => {
                                const newPref = { ...predefinicoes, [militar.rg || '']: newVal };
@@ -5557,7 +5946,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           militars={militars}
           selectedFunctions={selectedFunctions}
           viaturasInfo={viaturasInfo}
-          rasApplications={rasApplications}
+          rasApplications={visibleRasApplications}
           expedienteMilitars={expedienteMilitars}
           grdRgs={grdDayRgs}
           sentinelaRgs={sentinelaRgs}
@@ -5818,7 +6207,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
       {sortearFeedback && (
         <div className={cn(
-          "fixed bottom-6 right-6 z-50 max-w-md p-4 rounded-2xl shadow-2xl border backdrop-blur-md transition-all animate-in fade-in slide-in-from-bottom-5",
+          "fixed bottom-6 right-6 z-[90] max-w-md p-4 rounded-2xl shadow-2xl border backdrop-blur-md transition-all animate-in fade-in slide-in-from-bottom-5",
           sortearFeedback.type === 'success' ? "bg-slate-900/95 border-emerald-500/50 text-white" :
           sortearFeedback.type === 'warning' ? "bg-slate-900/95 border-amber-500/50 text-white" :
           "bg-slate-900/95 border-indigo-500/50 text-white"
@@ -5829,6 +6218,14 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
              <AlertCircle className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />}
             <div className="flex-1 text-xs">
               <p className="font-bold leading-relaxed">{sortearFeedback.message}</p>
+              {sortearFeedback.undoable && undoSnapshot && (
+                <button
+                  onClick={handleUndoFuncoes}
+                  className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer"
+                >
+                  <RotateCcw className="w-3 h-3" /> Desfazer
+                </button>
+              )}
             </div>
             <button onClick={() => setSortearFeedback(null)} className="p-1 hover:bg-white/10 rounded-lg text-white/60 hover:text-white transition-colors cursor-pointer">
               <X className="w-4 h-4" />
