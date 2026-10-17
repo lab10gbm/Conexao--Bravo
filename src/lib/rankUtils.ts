@@ -3,11 +3,12 @@ export function parseRank(r?: string): string {
   const up = r.toUpperCase().trim();
   
   if (up === 'CEL' || up === 'CORONEL') return 'CORONEL';
-  if (up.includes('TEN') && (up.includes('CEL') || up.includes('CORONEL'))) return 'TENENTE CORONEL';
+  if (up === 'TC' || (up.includes('TEN') && (up.includes('CEL') || up.includes('CORONEL')))) return 'TENENTE CORONEL';
   if (up === 'MAJ' || up === 'MAJOR') return 'MAJOR';
   if (up.includes('CAP') || up === 'CAPITÃO' || up === 'CAPITAO') return 'CAPITÃO';
   if ((up.includes('1') && up.includes('TEN')) || up === '1TEN' || up === '1º TEN') return '1º TENENTE';
   if ((up.includes('2') && up.includes('TEN')) || up === '2TEN' || up === '2º TEN') return '2º TENENTE';
+  if (up === 'TEN' || up === 'TENENTE') return '1º TENENTE';
   if (up.includes('ASP') && up.includes('OF')) return 'ASP OF';
   if (up.includes('ASP')) return 'ASP OF'; // fallback for just 'ASP'
 

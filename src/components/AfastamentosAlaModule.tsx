@@ -4,11 +4,30 @@ import { useMilitars } from '../contexts/MilitarContext';
 import { db } from '../lib/firebase';
 import { collection, query, getDocs, setDoc, doc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { Plus, Trash2, Calendar, Loader2, Edit2, Check, X, Search, Filter, AlertCircle, Clock, CheckCircle2, CalendarDays } from 'lucide-react';
-import { parseRank, sortAllBySeniority } from '../lib/rankUtils';
+import { parseRank, sortAllBySeniority, isOfficer, isPraca } from '../lib/rankUtils';
 
 export function normalizeRg(rg: string | number | undefined) {
   if (!rg) return '';
   return String(rg).replace(/^0+/, '').replace(/\D/g, '');
+}
+
+function isPracaForAla(m: any): boolean {
+  if (!m) return false;
+  if (m.isOfficer) return false;
+  const parsed = parseRank(m.rank || '');
+  if (isOfficer(parsed)) return false;
+  const quadroUp = (m.quadro || '').trim().toUpperCase();
+  if (quadroUp.startsWith('QO')) return false;
+  const combinedUp = `${m.rank || ''} ${m.name || ''}`.toUpperCase();
+  if (
+    /\b(CORONEL|CEL|TENENTE[\s-]*CORONEL|TEN[\s.]*CEL|TC|MAJOR|MAJ|CAPIT[ÃA]O|CAP|1[º°]?\s*TENENTE|2[º°]?\s*TENENTE|1[º°]?\s*TEN|2[º°]?\s*TEN|ASPIRANTE|ASP\s*OF)\b/.test(combinedUp) &&
+    !combinedUp.includes('SUBTEN') &&
+    !combinedUp.includes('SUB TEN')
+  ) {
+    return false;
+  }
+  if (parsed) return isPraca(parsed);
+  return true;
 }
 
 function parseDdMmYyyyToIso(dateStr?: string): string | null {
@@ -64,7 +83,7 @@ function SearchableMilitarSelect({
 
   const allowedObms = getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL');
   const filteredMilitars = militars
-    .filter(m => !m.obm || allowedObms.includes(normalizeObm(m.obm)) || normalizeObm(obmContext) === 'GLOBAL')
+    .filter(m => isPracaForAla(m) && (!m.obm || allowedObms.includes(normalizeObm(m.obm)) || normalizeObm(obmContext) === 'GLOBAL'))
     .sort(sortAllBySeniority);
 
   const selectedMilitar = filteredMilitars.find(m => normalizeRg(m.rg) === value);
@@ -516,15 +535,15 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
 
     return (
       <tr key={a.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0">
-        <td className="px-4 py-3 border-r border-slate-100 font-mono font-bold text-slate-700 text-xs">
+        <td className="px-3 py-1.5 border-r border-slate-100 font-mono font-bold text-slate-700 text-[11px]">
           {formatDateBr(a.inicio)}
         </td>
-        <td className="px-4 py-3 border-r border-slate-100 font-mono font-bold text-slate-700 text-xs">
+        <td className="px-3 py-1.5 border-r border-slate-100 font-mono font-bold text-slate-700 text-[11px]">
           {formatDateBr(a.retorno)}
         </td>
-        <td className="px-3 py-3 border-r border-slate-100 text-center">
+        <td className="px-2.5 py-1.5 border-r border-slate-100 text-center">
           <span className={cn(
-            "px-2 py-1 rounded-md text-[10px] font-black uppercase",
+            "px-1.5 py-0.5 rounded text-[9.5px] font-black uppercase",
             a.ala === '1' ? 'bg-emerald-100 text-emerald-800' :
             a.ala === '2' ? 'bg-rose-100 text-rose-800' :
             a.ala === '3' ? 'bg-blue-100 text-blue-800' :
@@ -534,40 +553,38 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
             ALA {a.ala || '—'}
           </span>
         </td>
-        <td className="px-4 py-3 border-r border-slate-100">
-          <div className="flex flex-col">
-            <span className="font-black text-slate-800 text-xs">
+        <td className="px-3 py-1.5 border-r border-slate-100">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-black text-slate-800 text-[11px]">
               {militar ? `${parseRank(militar.rank)} ${militar.warName || militar.name}` : `Militar RG: ${a.rg}`}
             </span>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="font-mono text-[10px] font-bold text-slate-400">RG {a.rg}</span>
-              {militar?.obm && <span className="text-[9px] font-bold bg-slate-100 text-slate-500 px-1 rounded">{militar.obm}</span>}
-              {a.source === 'dgp' && <span className="text-[9px] font-bold bg-sky-50 text-sky-600 border border-sky-200 px-1 rounded">DGP</span>}
-            </div>
+            <span className="font-mono text-[9.5px] font-bold text-slate-400">RG {a.rg}</span>
+            {militar?.obm && <span className="text-[8.5px] font-bold bg-slate-100 text-slate-500 px-1 rounded">{militar.obm}</span>}
+            {a.source === 'dgp' && <span className="text-[8.5px] font-bold bg-sky-50 text-sky-600 border border-sky-200 px-1 rounded">DGP</span>}
           </div>
         </td>
-        <td className="px-4 py-3 border-r border-slate-100">
-          <div className="flex items-center gap-2">
+        <td className="px-3 py-1.5 border-r border-slate-100">
+          <div className="flex items-center gap-1.5">
             {getSituacaoBadge(a.situacao)}
             {getStatusBadge(a)}
           </div>
         </td>
-        <td className="px-4 py-3 border-r border-slate-100 font-medium text-[11px] text-slate-600 max-w-[220px] truncate" title={a.obs}>
+        <td className="px-3 py-1.5 border-r border-slate-100 font-medium text-[11px] text-slate-600 max-w-[220px] truncate" title={a.obs}>
           {a.obs || '—'}
         </td>
-        <td className="px-3 py-3 text-center">
+        <td className="px-2.5 py-1.5 text-center">
           <div className="flex items-center justify-center gap-1">
             {a.source !== 'dgp' ? (
               <>
-                <button onClick={() => startEditing(a)} className="text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 p-1.5 rounded-lg transition-colors" title="Editar">
-                  <Edit2 className="w-3.5 h-3.5" />
+                <button onClick={() => startEditing(a)} className="text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 p-1 rounded-md transition-colors" title="Editar">
+                  <Edit2 className="w-3 h-3" />
                 </button>
-                <button onClick={() => handleDelete(a.id, a.source)} className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded-lg transition-colors" title="Excluir">
-                  <Trash2 className="w-3.5 h-3.5" />
+                <button onClick={() => handleDelete(a.id, a.source)} className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1 rounded-md transition-colors" title="Excluir">
+                  <Trash2 className="w-3 h-3" />
                 </button>
               </>
             ) : (
-              <span className="text-[10px] text-slate-400 font-bold italic" title="Importado via DGP Férias">DGP</span>
+              <span className="text-[9.5px] text-slate-400 font-bold italic" title="Importado via DGP Férias">DGP</span>
             )}
           </div>
         </td>
@@ -576,56 +593,51 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
   };
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col mb-6">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
       {/* Header com gradiente sutil e informações */}
-      <div className="p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-indigo-50/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-rose-100 text-rose-700 rounded-2xl shadow-sm">
-            <Calendar className="w-5 h-5" />
+      <div className="py-2 px-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-indigo-50/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5">
+          <div className="p-1.5 bg-rose-100 text-rose-700 rounded-xl shadow-xs">
+            <Calendar className="w-4 h-4" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-black uppercase tracking-wider text-slate-800">
-                Afastamentos e Férias
-              </h3>
-              <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full uppercase tracking-widest">
-                {obmContext}
-              </span>
-            </div>
-            <p className="text-[11px] font-medium text-slate-500 mt-0.5">
-              Controle unificado de férias, licenças e cursos operacionais com histórico completo.
-            </p>
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
+              Afastamentos e Férias
+            </h3>
+            <span className="text-[9.5px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full uppercase tracking-widest">
+              {obmContext}
+            </span>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowAddForm(!showAddForm)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm active:scale-95"
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-black uppercase tracking-wider transition-all shadow-xs active:scale-95"
           >
-            {showAddForm ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+            {showAddForm ? <X className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
             {showAddForm ? 'Fechar Cadastro' : 'Novo Afastamento'}
           </button>
         </div>
       </div>
 
       {saveSuccessMsg && (
-        <div className="px-5 py-2.5 bg-emerald-50 border-b border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+        <div className="px-3.5 py-1.5 bg-emerald-50 border-b border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
           {saveSuccessMsg}
         </div>
       )}
 
       {/* Formulário Retrátil para Adicionar Afastamento */}
       {showAddForm && (
-        <div className="p-4 sm:p-5 bg-indigo-50/40 border-b border-indigo-100 animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="text-xs font-black uppercase tracking-wider text-indigo-900 mb-3 flex items-center gap-2">
-            <CalendarDays className="w-4 h-4 text-indigo-600" />
+        <div className="p-3 bg-indigo-50/40 border-b border-indigo-100 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="text-[11px] font-black uppercase tracking-wider text-indigo-900 mb-2 flex items-center gap-1.5">
+            <CalendarDays className="w-3.5 h-3.5 text-indigo-600" />
             Cadastrar Novo Afastamento / Férias
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-2.5">
             <div className="md:col-span-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Militar</label>
+              <label className="text-[9.5px] font-black uppercase tracking-widest text-slate-500 block mb-0.5">Militar</label>
               <SearchableMilitarSelect
                 value={newRg}
                 onChange={setNewRg}
@@ -638,31 +650,31 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
             </div>
 
             <div>
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Início</label>
+              <label className="text-[9.5px] font-black uppercase tracking-widest text-slate-500 block mb-0.5">Início</label>
               <input
                 type="date"
                 value={newInicio}
                 onChange={e => setNewInicio(e.target.value)}
-                className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none"
+                className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded px-2 py-1 text-xs font-bold text-slate-700 outline-none"
               />
             </div>
 
             <div>
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Retorno</label>
+              <label className="text-[9.5px] font-black uppercase tracking-widest text-slate-500 block mb-0.5">Retorno</label>
               <input
                 type="date"
                 value={newRetorno}
                 onChange={e => setNewRetorno(e.target.value)}
-                className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded px-2.5 py-1.5 text-xs font-bold text-slate-700 outline-none"
+                className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded px-2 py-1 text-xs font-bold text-slate-700 outline-none"
               />
             </div>
 
             <div>
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Ala Operacional</label>
+              <label className="text-[9.5px] font-black uppercase tracking-widest text-slate-500 block mb-0.5">Ala Operacional</label>
               <select
                 value={newAla}
                 onChange={e => setNewAla(e.target.value)}
-                className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded px-2.5 py-1.5 text-xs font-black uppercase text-slate-700 outline-none"
+                className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded px-2 py-1 text-xs font-black uppercase text-slate-700 outline-none"
               >
                 <option value="1">ALA 1</option>
                 <option value="2">ALA 2</option>
@@ -673,24 +685,24 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
             </div>
 
             <div>
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Motivo / Situação</label>
+              <label className="text-[9.5px] font-black uppercase tracking-widest text-slate-500 block mb-0.5">Motivo / Situação</label>
               <select
                 value={newSituacao}
                 onChange={e => setNewSituacao(e.target.value)}
-                className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded px-2.5 py-1.5 text-xs font-black uppercase text-slate-700 outline-none"
+                className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded px-2 py-1 text-xs font-black uppercase text-slate-700 outline-none"
               >
                 {SITUACOES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
 
             <div className="md:col-span-5">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Observações (Opcional)</label>
+              <label className="text-[9.5px] font-black uppercase tracking-widest text-slate-500 block mb-0.5">Observações (Opcional)</label>
               <input
                 type="text"
                 placeholder="Ex: Portaria nº 123, Curso de Salvamento Marítimo, etc."
                 value={newObs}
                 onChange={e => setNewObs(e.target.value)}
-                className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded px-2.5 py-1.5 text-xs font-medium text-slate-700 outline-none"
+                className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded px-2 py-1 text-xs font-medium text-slate-700 outline-none"
               />
             </div>
 
@@ -698,9 +710,9 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
               <button
                 onClick={handleAdd}
                 disabled={isAdding}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded px-3 py-2 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded px-3 py-1.5 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-colors shadow-xs"
               >
-                {isAdding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                {isAdding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                 Salvar
               </button>
             </div>
@@ -709,20 +721,20 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
       )}
 
       {/* Barra de Abas e Filtros de Pesquisa */}
-      <div className="p-3 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        <div className="flex items-center gap-1 bg-white p-1 rounded-2xl border border-slate-200 overflow-x-auto">
+      <div className="py-1.5 px-3 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
+        <div className="flex items-center gap-1 bg-white p-0.5 rounded-xl border border-slate-200 overflow-x-auto">
           <button
             onClick={() => setActiveTab('atuais')}
             className={cn(
-              "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 whitespace-nowrap",
+              "px-2.5 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1 whitespace-nowrap",
               activeTab === 'atuais'
-                ? "bg-rose-600 text-white shadow-sm"
+                ? "bg-rose-600 text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
             )}
           >
             Atuais
             <span className={cn(
-              "px-1.5 py-0.2 rounded-full text-[10px] font-black",
+              "px-1.5 py-0.2 rounded-full text-[9.5px] font-black",
               activeTab === 'atuais' ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
             )}>
               {atuais.length}
@@ -732,15 +744,15 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
           <button
             onClick={() => setActiveTab('proximos')}
             className={cn(
-              "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 whitespace-nowrap",
+              "px-2.5 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1 whitespace-nowrap",
               activeTab === 'proximos'
-                ? "bg-indigo-600 text-white shadow-sm"
+                ? "bg-indigo-600 text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
             )}
           >
             Próximos
             <span className={cn(
-              "px-1.5 py-0.2 rounded-full text-[10px] font-black",
+              "px-1.5 py-0.2 rounded-full text-[9.5px] font-black",
               activeTab === 'proximos' ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
             )}>
               {proximos.length}
@@ -750,15 +762,15 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
           <button
             onClick={() => setActiveTab('passados')}
             className={cn(
-              "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 whitespace-nowrap",
+              "px-2.5 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1 whitespace-nowrap",
               activeTab === 'passados'
-                ? "bg-slate-700 text-white shadow-sm"
+                ? "bg-slate-700 text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
             )}
           >
             Histórico
             <span className={cn(
-              "px-1.5 py-0.2 rounded-full text-[10px] font-black",
+              "px-1.5 py-0.2 rounded-full text-[9.5px] font-black",
               activeTab === 'passados' ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
             )}>
               {passados.length}
@@ -768,15 +780,15 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
           <button
             onClick={() => setActiveTab('todos')}
             className={cn(
-              "px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 whitespace-nowrap",
+              "px-2.5 py-1 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all flex items-center gap-1 whitespace-nowrap",
               activeTab === 'todos'
-                ? "bg-teal-700 text-white shadow-sm"
+                ? "bg-teal-700 text-white shadow-xs"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
             )}
           >
             Todos
             <span className={cn(
-              "px-1.5 py-0.2 rounded-full text-[10px] font-black",
+              "px-1.5 py-0.2 rounded-full text-[9.5px] font-black",
               activeTab === 'todos' ? "bg-white/20 text-white" : "bg-slate-200 text-slate-700"
             )}>
               {allCombinedAfastamentos.length}
@@ -789,7 +801,7 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
           <select
             value={filterSituacao}
             onChange={(e) => setFilterSituacao(e.target.value)}
-            className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-[11px] font-black uppercase text-slate-600 outline-none"
+            className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10.5px] font-black uppercase text-slate-600 outline-none"
           >
             <option value="TODAS">TODOS MOTIVOS</option>
             {SITUACOES.map(s => <option key={s} value={s}>{s}</option>)}
@@ -797,13 +809,13 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
 
           {/* Busca por Militar */}
           <div className="relative">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search className="w-3 h-3 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               placeholder="Buscar militar ou RG..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 pr-3 py-1.5 bg-white border border-slate-200 focus:border-indigo-400 rounded-xl text-xs font-bold text-slate-700 outline-none w-48 sm:w-56"
+              className="pl-7 pr-2.5 py-1 bg-white border border-slate-200 focus:border-indigo-400 rounded-lg text-xs font-bold text-slate-700 outline-none w-44 sm:w-52"
             />
           </div>
         </div>
@@ -811,25 +823,25 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
 
       {/* Banner se Atuais estiver vazio */}
       {activeTab === 'atuais' && atuais.length === 0 && !loading && (
-        <div className="p-4 bg-amber-50/70 border-b border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-amber-800 text-xs font-bold">
-            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+        <div className="py-2 px-3.5 bg-amber-50/70 border-b border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-amber-800 text-[11px] font-bold">
+            <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
             <span>
-              Nenhum militar em afastamento ativo hoje ({formatDateBr(now)}). Existem <strong className="font-black text-indigo-700">{proximos.length} agendados</strong> para o futuro e <strong className="font-black text-slate-700">{passados.length} no histórico</strong>.
+              Nenhum militar em afastamento ativo hoje ({formatDateBr(now)}). Existem <strong className="font-black text-indigo-700">{proximos.length} agendados</strong> e <strong className="font-black text-slate-700">{passados.length} no histórico</strong>.
             </span>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             {proximos.length > 0 && (
               <button
                 onClick={() => setActiveTab('proximos')}
-                className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors shadow-xs"
+                className="px-2.5 py-0.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[9.5px] font-black uppercase tracking-wider transition-colors shadow-xs"
               >
                 Ver Próximos ({proximos.length})
               </button>
             )}
             <button
               onClick={() => setActiveTab('todos')}
-              className="px-3 py-1 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors shadow-xs"
+              className="px-2.5 py-0.5 bg-slate-700 hover:bg-slate-800 text-white rounded text-[9.5px] font-black uppercase tracking-wider transition-colors shadow-xs"
             >
               Ver Todos ({allCombinedAfastamentos.length})
             </button>
@@ -841,29 +853,29 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
       <div className="p-0 overflow-x-auto">
         <table className="w-full text-left border-collapse min-w-[760px]">
           <thead>
-            <tr className="bg-slate-100/90 text-slate-500 uppercase tracking-widest text-[10px] font-black border-b border-slate-200">
-              <th className="px-4 py-3 border-r border-slate-200 w-28">Início</th>
-              <th className="px-4 py-3 border-r border-slate-200 w-28">Retorno</th>
-              <th className="px-3 py-3 border-r border-slate-200 text-center w-24">ALA</th>
-              <th className="px-4 py-3 border-r border-slate-200">Militar / RG</th>
-              <th className="px-4 py-3 border-r border-slate-200 w-52">Situação & Status</th>
-              <th className="px-4 py-3 border-r border-slate-200">Observações</th>
-              <th className="px-3 py-3 w-16 text-center">Ações</th>
+            <tr className="bg-slate-100/90 text-slate-500 uppercase tracking-widest text-[9.5px] font-black border-b border-slate-200">
+              <th className="px-3 py-1.5 border-r border-slate-200 w-24">Início</th>
+              <th className="px-3 py-1.5 border-r border-slate-200 w-24">Retorno</th>
+              <th className="px-2.5 py-1.5 border-r border-slate-200 text-center w-20">ALA</th>
+              <th className="px-3 py-1.5 border-r border-slate-200">Militar / RG</th>
+              <th className="px-3 py-1.5 border-r border-slate-200 w-48">Situação & Status</th>
+              <th className="px-3 py-1.5 border-r border-slate-200">Observações</th>
+              <th className="px-2.5 py-1.5 w-14 text-center">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs">
             {loading ? (
               <tr>
-                <td colSpan={7} className="p-8 text-center text-slate-400 font-bold uppercase tracking-widest">
+                <td colSpan={7} className="p-4 text-center text-slate-400 font-bold uppercase tracking-widest">
                   <div className="flex items-center justify-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
                     Carregando registros de afastamentos...
                   </div>
                 </td>
               </tr>
             ) : displayedList.length === 0 ? (
               <tr>
-                <td colSpan={7} className="p-8 text-center text-slate-400 font-bold uppercase tracking-widest">
+                <td colSpan={7} className="p-4 text-center text-slate-400 font-bold uppercase tracking-widest text-[11px]">
                   {searchTerm
                     ? `Nenhum afastamento encontrado para o termo "${searchTerm}".`
                     : `Nenhum afastamento na categoria ${activeTab.toUpperCase()}.`}

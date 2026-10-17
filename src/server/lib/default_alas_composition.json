@@ -112,7 +112,7 @@
     "name": "ANGELITO FORTUNATO DA CUNHA",
     "warName": "FORTUNATO",
     "rank": "SUBTENENTE",
-    "ala": null,
+    "ala": "4",
     "obm": "3/10",
     "quadro": "Q00/91"
   },
@@ -121,7 +121,7 @@
     "name": "GILSON VIEIRA DA SILVA",
     "warName": "GILSON",
     "rank": "SUBTENENTE",
-    "ala": null,
+    "ala": "4",
     "obm": "1/10",
     "quadro": "Q02/91"
   },
@@ -184,7 +184,7 @@
     "name": "IVAMAR PEREIRA ROSA",
     "warName": "IVAMAR",
     "rank": "SUBTENENTE",
-    "ala": null,
+    "ala": "4",
     "obm": "2/10",
     "quadro": "Q05/97"
   },
@@ -346,7 +346,7 @@
     "name": "ROGERIO FERREIRA BREVES DA LUZ",
     "warName": "BREVES",
     "rank": "SUBTENENTE",
-    "ala": null,
+    "ala": "4",
     "obm": "4/10",
     "quadro": "Q10/97"
   },
@@ -364,7 +364,7 @@
     "name": "CARLOS MARQUES CARDOSO",
     "warName": "CARDOSO",
     "rank": "SUBTENENTE",
-    "ala": null,
+    "ala": "4",
     "obm": "2/10",
     "quadro": "Q10/97"
   },
@@ -454,7 +454,7 @@
     "name": "RICARDO VICENTE DA CONCEIÇÃO",
     "warName": "VICENTE",
     "rank": "SUBTENENTE",
-    "ala": null,
+    "ala": "4",
     "obm": "1/10",
     "quadro": "Q00/97"
   },
@@ -760,7 +760,7 @@
     "name": "SUBTENENTE ALEXSANDRO",
     "warName": "ALEXSANDRO",
     "rank": "SUBTENENTE",
-    "ala": "3",
+    "ala": null,
     "obm": "10º GBM",
     "quadro": "Q02/99"
   },
@@ -787,7 +787,7 @@
     "name": "LEANDRO MONTEIRO DA SILVA",
     "warName": "MONTEIRO",
     "rank": "SUBTENENTE",
-    "ala": null,
+    "ala": "4",
     "obm": "4/10",
     "quadro": "Q00/00"
   },
@@ -814,7 +814,7 @@
     "name": "OZIEL FERREIRA MARTINS",
     "warName": "OZIEL",
     "rank": "SUBTENENTE",
-    "ala": null,
+    "ala": "EXP",
     "obm": "10º GBM",
     "quadro": "Q00/00"
   },
@@ -823,7 +823,7 @@
     "name": "WEBERTON DA PAZ SILVA",
     "warName": "PAZ",
     "rank": "SUBTENENTE",
-    "ala": null,
+    "ala": "4",
     "obm": "4/10",
     "quadro": "Q00/00"
   },
@@ -994,7 +994,7 @@
     "name": "PRISCILLA MOZZER DE SOUZA SENAS",
     "warName": "PRISCILLA SOUZA",
     "rank": "1º SARGENTO",
-    "ala": null,
+    "ala": "4",
     "obm": "4/10",
     "quadro": "Q08/02"
   },
@@ -1048,7 +1048,7 @@
     "name": "CLAUDINEI DA SILVA CLAUDINO",
     "warName": "CLAUDINEI",
     "rank": "1º SARGENTO",
-    "ala": null,
+    "ala": "4",
     "obm": "3/10",
     "quadro": "Q02/02"
   },
@@ -1093,7 +1093,7 @@
     "name": "ROBISON VIEIRA FREITAS DOS SANTOS",
     "warName": "ROBISON",
     "rank": "1º SARGENTO",
-    "ala": null,
+    "ala": "4",
     "obm": "1/10",
     "quadro": "Q08/02"
   },
@@ -1201,7 +1201,7 @@
     "name": "MARCIO SILVA SARDINHA",
     "warName": "MARCIO SARDINHA",
     "rank": "2º SARGENTO",
-    "ala": null,
+    "ala": "4",
     "obm": "1/10",
     "quadro": "Q02/08"
   },
@@ -1282,7 +1282,7 @@
     "name": "CHARLES PIRES MAIA",
     "warName": "MAIA",
     "rank": "2º SARGENTO",
-    "ala": null,
+    "ala": "4",
     "obm": "2/10",
     "quadro": "Q00/08"
   },
@@ -1318,7 +1318,7 @@
     "name": "ANDERSON NASCIMENTO DE ASSUNCAO",
     "warName": "NASCIMENTO",
     "rank": "2º SARGENTO",
-    "ala": null,
+    "ala": "4",
     "obm": "2/10",
     "quadro": "Q10/08"
   },
@@ -1336,7 +1336,7 @@
     "name": "MARCOS BERNARDO DO NASCIMENTO",
     "warName": "BERNARDO",
     "rank": "3º SARGENTO",
-    "ala": null,
+    "ala": "4",
     "obm": "4/10",
     "quadro": "Q00/10"
   },
@@ -1597,7 +1597,7 @@
     "name": "LUIZ ALBERTO OLIVEIRA DE SOUZA",
     "warName": "LUIZ SOUZA",
     "rank": "CABO",
-    "ala": null,
+    "ala": "4",
     "obm": "2/10",
     "quadro": "Q10/19"
   },
@@ -1606,7 +1606,7 @@
     "name": "HUGO ALVES MULLER",
     "warName": "MULLER",
     "rank": "CABO",
-    "ala": null,
+    "ala": "4",
     "obm": "2/10",
     "quadro": "Q10/19"
   },
@@ -1876,8 +1876,8 @@
     "name": "DIEGO TAVARES FERREIRA DA CONCEIÇÃO",
     "warName": "DIEGO TAVARES",
     "rank": "SOLDADO",
-    "ala": null,
-    "obm": "3/10",
+    "ala": "2",
+    "obm": "10º GBM",
     "quadro": "Q08/24"
   },
   "54325": {
@@ -2020,7 +2020,7 @@
     "name": "VICTOR LUIS SIQUEIRA DOS SANTOS",
     "warName": "VICTOR LUIS",
     "rank": "SOLDADO",
-    "ala": null,
+    "ala": "4",
     "obm": "2/10",
     "quadro": "Q08/24"
   },
@@ -2053,7 +2053,7 @@
   },
   "54444": {
     "rg": "54444",
-    "name": "LUCAS ADRIANO SANTOS BERNARDO",
+    "name": "BERNARDO",
     "warName": "BERNARDO",
     "rank": "SOLDADO",
     "ala": "EXP",
@@ -2128,7 +2128,7 @@
     "name": "LUCAS DE FRANÇA FARIAS",
     "warName": "FARIAS",
     "rank": "SOLDADO",
-    "ala": "2",
+    "ala": null,
     "obm": "10º GBM",
     "quadro": "Q08/25"
   },
@@ -2272,7 +2272,7 @@
     "name": "JOÃO VITOR MARTINS DA SILVA",
     "warName": "VITOR MARTINS",
     "rank": "SOLDADO",
-    "ala": null,
+    "ala": "4",
     "obm": "3/10",
     "quadro": "TEMP/00/22"
   },
@@ -2317,7 +2317,7 @@
     "name": "NATHAN MEDEIROS DA SILVA",
     "warName": "MEDEIROS",
     "rank": "SOLDADO",
-    "ala": null,
+    "ala": "4",
     "obm": "3/10",
     "quadro": "TEMP/00/22"
   },

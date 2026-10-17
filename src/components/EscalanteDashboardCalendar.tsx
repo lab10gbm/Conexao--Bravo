@@ -63,6 +63,11 @@ export interface EscalanteDashboardCalendarProps {
   nauticoOficialValue?: string;
   medicoOficialValue?: string;
   estudoTecnico?: any;
+  isExpanded?: boolean;
+  onToggleExpanded?: () => void;
+  currentMonth?: Date;
+  onMonthChange?: (newMonth: Date) => void;
+  hideHeader?: boolean;
 }
 
 export function EscalanteDashboardCalendar({
@@ -80,12 +85,22 @@ export function EscalanteDashboardCalendar({
   nauticoOficialValue = '',
   medicoOficialValue = '',
   estudoTecnico,
+  isExpanded: externalIsExpanded,
+  onToggleExpanded,
+  currentMonth: externalCurrentMonth,
+  onMonthChange,
+  hideHeader = false,
 }: EscalanteDashboardCalendarProps) {
   // Estado de expansão do dashboard (ao iniciar o módulo escala 24h, começa recolhido conforme solicitado)
-  const [isExpanded, setIsExpanded] = useState<boolean>(false);
+  const [internalExpanded, setInternalExpanded] = useState<boolean>(false);
+  const isExpanded = externalIsExpanded !== undefined ? externalIsExpanded : internalExpanded;
 
   const toggleExpanded = () => {
-    setIsExpanded((prev) => !prev);
+    if (onToggleExpanded) {
+      onToggleExpanded();
+    } else {
+      setInternalExpanded((prev) => !prev);
+    }
   };
 
   // Mês de visualização no calendário
@@ -97,7 +112,17 @@ export function EscalanteDashboardCalendar({
     }
   }, [selectedDate]);
 
-  const [currentMonth, setCurrentMonth] = useState<Date>(() => startOfMonth(selectedDateObj));
+  const [internalMonth, setInternalMonth] = useState<Date>(() => startOfMonth(selectedDateObj));
+  const currentMonth = externalCurrentMonth !== undefined ? externalCurrentMonth : internalMonth;
+
+  const setCurrentMonth = (updater: Date | ((prev: Date) => Date)) => {
+    const nextVal = typeof updater === 'function' ? updater(currentMonth) : updater;
+    if (onMonthChange) {
+      onMonthChange(nextVal);
+    } else {
+      setInternalMonth(nextVal);
+    }
+  };
 
   // Sincroniza mês se a data selecionada mudar de mês
   useEffect(() => {
@@ -111,11 +136,6 @@ export function EscalanteDashboardCalendar({
 
   const nextMonth = () => setCurrentMonth((prev) => addMonths(prev, 1));
   const prevMonth = () => setCurrentMonth((prev) => subMonths(prev, 1));
-  const goToToday = () => {
-    const today = new Date();
-    setCurrentMonth(startOfMonth(today));
-    onSelectDate(format(today, 'yyyy-MM-dd'));
-  };
 
   // Carrega em tempo real os dados de expediente do mês (selections, expedienteDays, preferencesDetails)
   const [monthExpedienteData, setMonthExpedienteData] = useState<{
@@ -320,128 +340,61 @@ export function EscalanteDashboardCalendar({
     }
   };
 
-  return (
-    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col mb-6 transition-all">
-      {/* BARRA SUPERIOR DO DASHBOARD (HEADER EXPANSÍVEL) */}
-      <div className="p-4 sm:p-5 border-b border-slate-200 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center text-indigo-300 shrink-0 shadow-inner">
-            <CalendarRange className="w-6 h-6 text-indigo-300" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-sm sm:text-base font-black uppercase tracking-wider text-white">
-                Dashboard Mensal do Escalante • Escala 24h
-              </h2>
-              <span className="text-[9px] font-black uppercase px-2.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 tracking-widest flex items-center gap-1">
-                <Sparkles className="w-2.5 h-2.5 text-indigo-300" />
-                Inteligência Operacional
-              </span>
-            </div>
-            <p className="text-[10px] sm:text-[11px] text-slate-300 font-bold uppercase tracking-wide mt-0.5">
-              {obmContext || '10º GBM'} • Visão Mensal Completa, Acompanhamento de Efetivo & Sincronização Diária
-            </p>
-          </div>
-        </div>
+  if (hideHeader && !isExpanded) {
+    return null;
+  }
 
-        {/* NAVEGAÇÃO DE MÊS & BOTÃO DE EXPANDIR / RECOLHER */}
-        <div className="flex items-center gap-2 flex-wrap self-end sm:self-auto">
-          {/* Navegador de Mês */}
-          <div className="flex items-center bg-slate-800/80 rounded-xl p-1 border border-slate-700/80 shadow-xs">
+  return (
+    <div className={cn(
+      "bg-white overflow-hidden flex flex-col transition-all",
+      hideHeader ? "rounded-xl border border-slate-200 mt-1" : "rounded-2xl border border-slate-200 shadow-xs"
+    )}>
+      {/* BARRA SUPERIOR COMPACTA DO DASHBOARD (QUANDO NÃO UNIFICADA) */}
+      {!hideHeader && (
+        <div className="py-2 px-3.5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex flex-wrap items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={toggleExpanded}
+            className="flex items-center gap-2 text-left hover:opacity-90 transition-opacity cursor-pointer"
+          >
+            <div className="w-7 h-7 rounded-lg bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center text-indigo-300 shrink-0 shadow-inner">
+              <CalendarRange className="w-4 h-4 text-indigo-300" />
+            </div>
+            <h2 className="text-xs sm:text-sm font-black uppercase tracking-wider text-white flex items-center gap-1.5">
+              <span>DASHBOARD MENSAL</span>
+              <ChevronDown className={cn("w-4 h-4 text-indigo-300 transition-transform", isExpanded && "rotate-180")} />
+            </h2>
+          </button>
+
+          {/* NAVEGAÇÃO DE MÊS */}
+          <div className="flex items-center bg-slate-800/80 rounded-lg p-0.5 border border-slate-700/80 shadow-xs">
             <button
               onClick={prevMonth}
-              className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700/80 transition-colors cursor-pointer"
+              className="p-1 rounded-md text-slate-300 hover:text-white hover:bg-slate-700/80 transition-colors cursor-pointer"
               title="Mês anterior"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-3.5 h-3.5" />
             </button>
-            <span className="px-3 text-[11px] font-black uppercase tracking-widest text-slate-200 min-w-[130px] text-center select-none font-mono">
+            <span className="px-2.5 text-[10px] font-black uppercase tracking-widest text-slate-200 min-w-[110px] text-center select-none font-mono">
               {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
             </span>
             <button
               onClick={nextMonth}
-              className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700/80 transition-colors cursor-pointer"
+              className="p-1 rounded-md text-slate-300 hover:text-white hover:bg-slate-700/80 transition-colors cursor-pointer"
               title="Próximo mês"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
-
-          <button
-            onClick={goToToday}
-            className="px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors cursor-pointer"
-            title="Ir para o dia de hoje"
-          >
-            Hoje
-          </button>
-
-          {/* Toggle Expandir / Recolher */}
-          <button
-            onClick={toggleExpanded}
-            className="px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm flex items-center gap-1.5 transition-all cursor-pointer border border-indigo-400/40"
-          >
-            {isExpanded ? (
-              <>
-                <ChevronUp className="w-4 h-4" />
-                <span className="hidden sm:inline">Recolher</span>
-              </>
-            ) : (
-              <>
-                <ChevronDown className="w-4 h-4" />
-                <span className="hidden sm:inline">Expandir Dashboard</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* MINI BARRA RESUMO QUANDO RECOLHIDO */}
-      {!isExpanded && (
-        <div className="p-3 px-5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Data Ativa:
-              </span>
-              <span className="font-mono font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200">
-                {selectedDate.split('-').reverse().join('/')}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Ala:
-              </span>
-              <span
-                className={cn(
-                  'px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider',
-                  getAlaLightColor(selectedAlaNumber)
-                )}
-              >
-                {selectedAlaStr} ({getAlaThemeName(selectedAlaNumber)})
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Efetivo Total:
-              </span>
-              <span className="font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
-                {selectedDayIntelligence.totalGeral} Militares
-              </span>
-            </div>
-          </div>
-
-          <button
-            onClick={toggleExpanded}
-            className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-800 tracking-wider flex items-center gap-1 cursor-pointer"
-          >
-            Abrir Visualização Mensal Completa <ArrowRight className="w-3.5 h-3.5" />
-          </button>
         </div>
       )}
 
       {/* CORPO EXPANDIDO DO DASHBOARD: CALENDÁRIO À ESQUERDA + INTELIGÊNCIA À DIREITA */}
       {isExpanded && (
-        <div className="p-4 sm:p-6 bg-slate-100/60 flex flex-col lg:flex-row gap-6">
+        <div className={cn(
+          "p-3 sm:p-4 bg-slate-100/60 flex flex-col lg:flex-row gap-4",
+          !hideHeader && "border-t border-slate-200"
+        )}>
           {/* COLUNA DO CALENDÁRIO MENSAL (LADO ESQUERDO) */}
           <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
             {/* CABEÇALHO DO CALENDÁRIO (DIAS DA SEMANA) */}

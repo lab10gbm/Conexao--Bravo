@@ -69,34 +69,29 @@ export function ExpedienteDiaModule({
   }, [enrichedList, selectedSector]);
 
   return (
-    <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden flex flex-col mb-6">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
       {/* CABEÇALHO DA SEÇÃO */}
-      <div className="p-4 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-sky-50/70 border-sky-100">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-sky-100 flex items-center justify-center text-sky-600 shrink-0 shadow-sm border border-sky-200/60">
-            <BriefcaseBusiness className="w-5 h-5 text-sky-600" />
+      <div className="py-2 px-3.5 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-sky-50/70 border-sky-100">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-xl bg-sky-100 flex items-center justify-center text-sky-600 shrink-0 shadow-2xs border border-sky-200/60">
+            <BriefcaseBusiness className="w-4 h-4 text-sky-600" />
           </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-sm font-black uppercase tracking-widest text-sky-900">
-                Militares de Expediente no Dia (Atuais)
-              </h3>
-              {formattedDate && (
-                <span className="text-[10px] font-bold text-sky-700 bg-sky-100/90 border border-sky-200 px-2.5 py-0.5 rounded-full font-mono">
-                  {formattedDate}
-                </span>
-              )}
-            </div>
-            <p className="text-[10px] text-sky-600 font-bold tracking-tight">
-              Escalação de expediente administrativo e serviço semanal sincronizada em tempo real
-            </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-xs font-black uppercase tracking-widest text-sky-900">
+              Militares de Expediente no Dia (Atuais)
+            </h3>
+            {formattedDate && (
+              <span className="text-[9.5px] font-bold text-sky-700 bg-sky-100/90 border border-sky-200 px-2 py-0.5 rounded-full font-mono">
+                {formattedDate}
+              </span>
+            )}
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <span
             className={cn(
-              "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+              "px-2.5 py-0.5 rounded-full text-[9.5px] font-black uppercase tracking-wider",
               enrichedList.length > 0
                 ? "bg-sky-100 text-sky-800 border border-sky-200"
                 : "bg-slate-100 text-slate-500 border border-slate-200"
@@ -109,15 +104,15 @@ export function ExpedienteDiaModule({
 
       {/* BARRA DE TAGS DE SETORES (SE HOUVER MAIS DE UM SETOR) */}
       {sectorsList.length > 1 && (
-        <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200/70 flex items-center gap-1.5 flex-wrap">
-          <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-slate-400 mr-1.5">
+        <div className="px-3.5 py-1.5 bg-slate-50 border-b border-slate-200/70 flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center gap-1 text-[9.5px] font-black uppercase tracking-wider text-slate-400 mr-1">
             <Tag className="w-3 h-3 text-slate-400" />
             <span>Filtrar Setor:</span>
           </div>
           <button
             onClick={() => setSelectedSector('TODOS')}
             className={cn(
-              "px-2.5 py-1 rounded-lg text-[9.5px] font-black uppercase tracking-wider transition-all cursor-pointer border",
+              "px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer border",
               selectedSector === 'TODOS'
                 ? "bg-sky-600 text-white border-sky-600 shadow-xs"
                 : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
@@ -133,7 +128,7 @@ export function ExpedienteDiaModule({
                 key={sec}
                 onClick={() => setSelectedSector(isSelected ? 'TODOS' : sec)}
                 className={cn(
-                  "px-2.5 py-1 rounded-lg text-[9.5px] font-black uppercase tracking-wider transition-all cursor-pointer border",
+                  "px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer border",
                   isSelected
                     ? "bg-sky-600 text-white border-sky-600 shadow-xs"
                     : "bg-white text-slate-600 border-slate-200 hover:border-sky-300"
@@ -147,28 +142,28 @@ export function ExpedienteDiaModule({
       )}
 
       {/* CORPO: MILITARES LADO A LADO (SEM COLUNAS DE TABELA) */}
-      <div className="p-4 sm:p-5 bg-slate-50/40">
+      <div className="p-2.5 sm:p-3 bg-slate-50/40">
         {loading ? (
-          <div className="p-8 text-center text-slate-400 font-bold uppercase tracking-widest animate-pulse text-xs">
+          <div className="p-4 text-center text-slate-400 font-bold uppercase tracking-widest animate-pulse text-xs">
             Carregando militares do expediente...
           </div>
         ) : filteredList.length === 0 ? (
-          <div className="p-8 text-center flex flex-col items-center justify-center gap-2 text-slate-400">
-            <BriefcaseBusiness className="w-8 h-8 text-slate-300 stroke-[1.5]" />
-            <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
+          <div className="p-4 text-center flex items-center justify-center gap-2 text-slate-400">
+            <BriefcaseBusiness className="w-4 h-4 text-slate-300 stroke-[1.5]" />
+            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
               {selectedSector === 'TODOS'
                 ? `Nenhum militar de expediente escalado para esta data (${formattedDate})`
                 : `Nenhum militar do setor "${selectedSector}" escalado nesta data.`}
             </span>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
             {filteredList.map((item) => {
               return (
                 <div
                   key={item.rg}
                   className={cn(
-                    "bg-white border rounded-xl p-2 shadow-xs hover:shadow-sm transition-all flex flex-col justify-center",
+                    "bg-white border rounded-xl p-2 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-center",
                     item.is24h
                       ? "border-amber-200/90 hover:border-amber-300 bg-gradient-to-b from-white to-amber-50/20"
                       : "border-slate-200/90 hover:border-sky-300"
@@ -176,12 +171,12 @@ export function ExpedienteDiaModule({
                 >
                   {/* IDENTIFICAÇÃO DO MILITAR COM INSÍGNIA, POSTO/GRAD, GUERRA, RG E TAG DO SETOR AO LADO */}
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
                       <div className="shrink-0">
-                        <RankInsignia rankStr={item.rank} className="w-4 h-4 shrink-0" />
+                        <RankInsignia rankStr={item.rank} className="w-3.5 h-3.5 shrink-0" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="font-bold text-slate-800 uppercase text-xs tracking-tight truncate leading-tight">
+                        <div className="font-bold text-slate-800 uppercase text-[11px] tracking-tight truncate leading-tight">
                           {parseRank(item.rank)} {item.displayName}
                         </div>
                         <div className="flex items-center gap-1.5 mt-0.5 whitespace-nowrap min-w-0">

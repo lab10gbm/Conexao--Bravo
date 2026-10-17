@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Truck, Plus, Trash2, Save, RotateCcw, Edit2, Check, X, BookmarkCheck, Star, ShieldCheck, Info, Sparkles } from 'lucide-react';
 import { doc, onSnapshot, updateDoc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { cn, normalizeObm, getObmSettingsDocKey, getObmSettingsFallbackKeys } from '../lib/utils';
 import { motion } from 'motion/react';
+import { CategoryConfig, DEFAULT_CATEGORIES, getAvailableControlFunctions } from './ControleCategoriasModal';
 
 interface ControleViaturasModuleProps {
   obmContext: string;
@@ -26,6 +27,14 @@ export interface ViaturaConfig {
   cg: boolean | null;
   blocked: string[];
   customNames?: {
+    condutor?: string;
+    g1?: string;
+    g2?: string;
+    g3?: string;
+    g4?: string;
+    cg?: string;
+  };
+  customFunctions?: {
     condutor?: string;
     g1?: string;
     g2?: string;
@@ -74,11 +83,20 @@ function cleanUndefined(obj: any): any {
   return obj;
 }
 
+export interface VtrModalFunctionRow {
+  uid: string;
+  fnId: string; // ID from Controle de Função, or '__CUSTOM__' for custom name
+  customName: string;
+  maxQty: number; // 1 for Condutor/Chefe, 1..4 for Auxiliar/Marinheiro/etc.
+}
+
 export function ControleViaturasModule({ obmContext }: ControleViaturasModuleProps) {
   const [viaturas, setViaturas] = useState<ViaturaConfig[]>([]);
+  const [categories, setCategories] = useState<CategoryConfig[]>(DEFAULT_CATEGORIES);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editingVtr, setEditingVtr] = useState<ViaturaConfig | null>(null);
+  const [modalFunctions, setModalFunctions] = useState<VtrModalFunctionRow[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -87,6 +105,261 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
   const [customDefault, setCustomDefault] = useState<ViaturaConfig[] | null>(null);
   const [customDefaultDate, setCustomDefaultDate] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const availableFunctions = useMemo(() => getAvailableControlFunctions(categories), [categories]);
+  const groupedFunctions = useMemo(() => {
+    const groups: { categoryId: string; categoryName: string; items: typeof availableFunctions }[] = [];
+    for (const fn of availableFunctions) {
+      let grp = groups.find(g => g.categoryId === fn.categoryId);
+      if (!grp) {
+        grp = { categoryId: fn.categoryId, categoryName: fn.categoryName, items: [] };
+        groups.push(grp);
+      }
+      grp.items.push(fn);
+    }
+    return groups;
+  }, [availableFunctions]);
+
+  const getFunctionRoleCategory = (fnId: string, customName?: string): 'condutor' | 'chefe' | 'auxiliar' => {
+    if (fnId && fnId !== '__CUSTOM__') {
+      const fn = availableFunctions.find(f => f.id === fnId);
+      if (fn) {
+        const sName = fn.scaleName.toUpperCase();
+        if (
+          fn.categoryId === 'condutores' ||
+          fn.id.startsWith('viaturas.') ||
+          fn.id === 'ativoCondutor' ||
+          fn.id === 'mestreAl' ||
+          fn.id === 'mestreBia' ||
+          fn.id === 'opAma' ||
+          sName.startsWith('CONDUTOR') ||
+          sName.startsWith('MESTRE')
+        ) {
+          return 'condutor';
+        }
+        if (
+          fn.categoryId === 'chefes' ||
+          fn.id === 'chefeAbt' ||
+          fn.id === 'chefeAbsl' ||
+          fn.id === 'ativoChefeGua' ||
+          sName.startsWith('CHEFE')
+        ) {
+          return 'chefe';
+        }
+        return 'auxiliar';
+      }
+    }
+    const upper = (customName || '').trim().toUpperCase();
+    if (upper.startsWith('CONDUTOR') || upper.startsWith('MESTRE') || upper.startsWith('MOTORISTA') || upper.startsWith('OPERADOR')) {
+      return 'condutor';
+    }
+    if (upper.startsWith('CHEFE')) {
+      return 'chefe';
+    }
+    return 'auxiliar';
+  };
+
+  const inferDefaultFnIdForSlot = (v: ViaturaConfig, slotGroup: 'condutor' | 'auxiliar' | 'chefe'): string => {
+    const vtrName = (v.vtr || '').trim().toUpperCase();
+    const rawSigla = vtrName.split(/[-_\s]/)[0] || '';
+    const sigla = (rawSigla.startsWith('AR') && rawSigla !== 'ARC') ? 'AR' : rawSigla;
+    const isMar = Boolean(v.maritima || sigla === 'L' || sigla === 'BIA');
+
+    if (slotGroup === 'condutor') {
+      if (isMar) return sigla === 'BIA' ? 'mestreBia' : 'mestreAl';
+      if (sigla === 'ABT') return 'viaturas.ABT';
+      if (sigla === 'ABSL') return 'viaturas.ABSL';
+      if (sigla === 'ASE') return 'viaturas.ASE';
+      if (sigla === 'ARC') return 'viaturas.ARC';
+      if (sigla === 'AR') return 'viaturas.AR';
+      return 'viaturas.ABT';
+    }
+    if (slotGroup === 'chefe') {
+      if (sigla === 'ABT') return 'chefeAbt';
+      if (sigla === 'ABSL') return 'chefeAbsl';
+      return 'chefeAbt';
+    }
+    // auxiliar
+    if (isMar) return 'marinheiros';
+    if (sigla === 'ABT') return 'auxAbt';
+    if (sigla === 'ABSL') return 'auxAbsl';
+    if (sigla === 'ASE') return 'auxAse';
+    if (sigla === 'ARC') return 'auxArc';
+    return 'auxAbt';
+  };
+
+  const buildModalFunctionsFromVtr = (v: ViaturaConfig): VtrModalFunctionRow[] => {
+    const rows: VtrModalFunctionRow[] = [];
+
+    const resolveSlotFn = (slot: 'condutor' | 'g1' | 'g2' | 'g3' | 'g4' | 'cg', fallbackGroup: 'condutor' | 'auxiliar' | 'chefe') => {
+      let explicitId = v.customFunctions?.[slot];
+      // Normalize legacy category-level IDs so Marítimos (Geral) is never shown instead of Marinheiro
+      if (explicitId === 'ativoMaritimo') explicitId = 'marinheiros';
+      if (explicitId === 'ativoCondutor') explicitId = inferDefaultFnIdForSlot(v, 'condutor');
+      if (explicitId === 'ativoAuxiliar') explicitId = inferDefaultFnIdForSlot(v, 'auxiliar');
+      if (explicitId === 'ativoChefeGua') explicitId = inferDefaultFnIdForSlot(v, 'chefe');
+
+      if (explicitId && availableFunctions.some(f => f.id === explicitId)) {
+        return { fnId: explicitId, customName: v.customNames?.[slot] || '' };
+      }
+      const cName = v.customNames?.[slot]?.trim();
+      if (cName) {
+        const upper = cName.toUpperCase();
+        // Map generic single-word labels to the specific vehicle function (e.g. "MESTRE" on L-09 -> "MESTRE L", "MARINHEIROS" -> "MARINHEIRO")
+        if (upper === 'MESTRE' || upper === 'CONDUTOR') {
+          const defId = inferDefaultFnIdForSlot(v, 'condutor');
+          if (availableFunctions.some(f => f.id === defId)) {
+            return { fnId: defId, customName: '' };
+          }
+        }
+        if (upper === 'MARINHEIRO' || upper === 'MARINHEIROS' || upper === 'MARITIMO' || upper === 'MARÍTIMOS' || upper.includes('MARÍTIMOS (GERAL)')) {
+          if (availableFunctions.some(f => f.id === 'marinheiros')) {
+            return { fnId: 'marinheiros', customName: '' };
+          }
+        }
+        if (upper === 'AUXILIAR' || upper === 'AUXILIARES') {
+          const defId = inferDefaultFnIdForSlot(v, 'auxiliar');
+          if (availableFunctions.some(f => f.id === defId)) {
+            return { fnId: defId, customName: '' };
+          }
+        }
+        if (upper === 'CHEFE' || upper === 'CHEFE GUA' || upper === 'CHEFE DE GUARNIÇÃO') {
+          const defId = inferDefaultFnIdForSlot(v, 'chefe');
+          if (availableFunctions.some(f => f.id === defId)) {
+            return { fnId: defId, customName: '' };
+          }
+        }
+        const match = availableFunctions.find(f => f.scaleName === upper || f.name.trim().toUpperCase() === upper);
+        if (match) {
+          return { fnId: match.id, customName: cName };
+        }
+        return { fnId: '__CUSTOM__', customName: cName };
+      }
+      const defId = inferDefaultFnIdForSlot(v, fallbackGroup);
+      const foundDef = availableFunctions.find(f => f.id === defId);
+      return { fnId: foundDef ? foundDef.id : (availableFunctions[0]?.id || ''), customName: '' };
+    };
+
+    // 1. Condutor / Mestre (sempre 1 vaga)
+    if (!v.blocked.includes('condutor') && v.condutor !== null) {
+      const { fnId, customName } = resolveSlotFn('condutor', 'condutor');
+      rows.push({
+        uid: 'fn-condutor',
+        fnId,
+        customName,
+        maxQty: 1,
+      });
+    }
+
+    // 2. Auxiliares / Marinheiros / Guarnição (até 1..4 vagas)
+    const gSlots = (['g1', 'g2', 'g3', 'g4'] as const).filter(s => !v.blocked.includes(s) && v[s] !== null);
+    if (gSlots.length > 0) {
+      const activeG = gSlots.filter(s => v[s] === true);
+      const effectiveSlots = activeG.length > 0 ? activeG : gSlots;
+      // Group by resolved function in case there are distinct functions in g1..g4
+      const groupedG: { fnId: string; customName: string; count: number }[] = [];
+      for (const s of effectiveSlots) {
+        const resolved = resolveSlotFn(s, 'auxiliar');
+        const last = groupedG[groupedG.length - 1];
+        if (last && last.fnId === resolved.fnId && (resolved.fnId !== '__CUSTOM__' || last.customName === resolved.customName)) {
+          last.count += 1;
+        } else {
+          groupedG.push({ ...resolved, count: 1 });
+        }
+      }
+      groupedG.forEach((grp, idx) => {
+        if (rows.length < 3) {
+          rows.push({
+            uid: `fn-aux-${idx}-${Date.now()}`,
+            fnId: grp.fnId,
+            customName: grp.customName,
+            maxQty: Math.max(1, Math.min(4, grp.count)),
+          });
+        }
+      });
+    }
+
+    // 3. Chefe de Guarnição (sempre 1 vaga)
+    if (rows.length < 3 && !v.blocked.includes('cg') && v.cg !== null) {
+      const { fnId, customName } = resolveSlotFn('cg', 'chefe');
+      rows.push({
+        uid: 'fn-chefe',
+        fnId,
+        customName,
+        maxQty: 1,
+      });
+    }
+
+    return rows;
+  };
+
+  const syncModalFunctionsToVtr = (baseVtr: ViaturaConfig, rows: VtrModalFunctionRow[]): ViaturaConfig => {
+    const nextBlocked = new Set<string>(['condutor', 'g1', 'g2', 'g3', 'g4', 'cg']);
+    const nextCustomFunctions: NonNullable<ViaturaConfig['customFunctions']> = {};
+    const nextCustomNames: NonNullable<ViaturaConfig['customNames']> = {};
+    const nextSlots: Record<'condutor' | 'g1' | 'g2' | 'g3' | 'g4' | 'cg', boolean | null> = {
+      condutor: null,
+      g1: null,
+      g2: null,
+      g3: null,
+      g4: null,
+      cg: null,
+    };
+
+    const slotActiveVal = baseVtr.ativa !== false;
+    let condutorUsed = false;
+    let cgUsed = false;
+    let gIndex = 0;
+
+    for (const row of rows) {
+      if (!row.fnId) continue;
+      const roleCat = getFunctionRoleCategory(row.fnId, row.customName);
+      const foundFn = availableFunctions.find(f => f.id === row.fnId);
+      const resolvedScaleName = row.fnId === '__CUSTOM__'
+        ? row.customName.trim().toUpperCase()
+        : (foundFn?.scaleName || '');
+
+      if (roleCat === 'condutor' && !condutorUsed) {
+        condutorUsed = true;
+        nextSlots.condutor = slotActiveVal;
+        nextBlocked.delete('condutor');
+        if (row.fnId !== '__CUSTOM__') nextCustomFunctions.condutor = row.fnId;
+        if (resolvedScaleName) nextCustomNames.condutor = resolvedScaleName;
+      } else if (roleCat === 'chefe' && !cgUsed) {
+        cgUsed = true;
+        nextSlots.cg = slotActiveVal;
+        nextBlocked.delete('cg');
+        if (row.fnId !== '__CUSTOM__') nextCustomFunctions.cg = row.fnId;
+        if (resolvedScaleName) nextCustomNames.cg = resolvedScaleName;
+      } else {
+        // Auxiliar / Marinheiro / Enfermeiro (até N vagas)
+        if (gIndex < 4) {
+          const qty = Math.max(1, Math.min(4 - gIndex, row.maxQty || 1));
+          for (let k = 0; k < qty; k++) {
+            const gSlot = (['g1', 'g2', 'g3', 'g4'] as const)[gIndex++];
+            nextSlots[gSlot] = slotActiveVal;
+            nextBlocked.delete(gSlot);
+            if (row.fnId !== '__CUSTOM__') nextCustomFunctions[gSlot] = row.fnId;
+            if (resolvedScaleName) nextCustomNames[gSlot] = resolvedScaleName;
+          }
+        } else if (!cgUsed) {
+          cgUsed = true;
+          nextSlots.cg = slotActiveVal;
+          nextBlocked.delete('cg');
+          if (row.fnId !== '__CUSTOM__') nextCustomFunctions.cg = row.fnId;
+          if (resolvedScaleName) nextCustomNames.cg = resolvedScaleName;
+        }
+      }
+    }
+
+    return {
+      ...baseVtr,
+      ...nextSlots,
+      blocked: Array.from(nextBlocked),
+      customFunctions: nextCustomFunctions,
+      customNames: nextCustomNames,
+    };
+  };
 
   useEffect(() => {
     if (!successMessage) return;
@@ -127,21 +400,44 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
       let data = docSnap.exists() ? docSnap.data() : null;
 
       // Fallback para outras chaves conhecidas se a chave direta não existir
-      if (!data) {
+      if (!data || !data.categorias_funcoes) {
         const fallbackKeys = getObmSettingsFallbackKeys(obmContext);
         for (const fk of fallbackKeys) {
           if (fk === docKey) continue;
           try {
             const snapFallback = await getDoc(doc(db, "obm_settings", fk));
             if (snapFallback.exists()) {
-              data = snapFallback.data();
-              break;
+              const fbData = snapFallback.data();
+              data = { ...fbData, ...(data || {}) };
+              if (data?.categorias_funcoes && (data?.viaturas_config || data?.viaturas_custom_default)) {
+                break;
+              }
             }
           } catch {}
         }
       }
 
       if (data) {
+        if (data.categorias_funcoes && Array.isArray(data.categorias_funcoes)) {
+          const migrated = data.categorias_funcoes.map((cat: any) => {
+            if (cat.activeProperty !== undefined) return cat;
+            let activeProp = `dynamicFunctions.ativo_${cat.id}`;
+            const newFunctions = [...(cat.functions || [])];
+            const ativoIndex = newFunctions.findIndex((f: any) => f.name.toLowerCase() === "ativo");
+            if (ativoIndex >= 0) {
+              activeProp = newFunctions[ativoIndex].id;
+              newFunctions.splice(ativoIndex, 1);
+            } else {
+              const defCat = DEFAULT_CATEGORIES.find(d => d.id === cat.id);
+              if (defCat) activeProp = defCat.activeProperty;
+            }
+            return { ...cat, activeProperty: activeProp, functions: newFunctions };
+          });
+          setCategories(migrated);
+        } else {
+          setCategories(DEFAULT_CATEGORIES);
+        }
+
         if (data.viaturas_custom_default && Array.isArray(data.viaturas_custom_default)) {
           const loadedDef: ViaturaConfig[] = data.viaturas_custom_default;
           setCustomDefault(loadedDef);
@@ -167,6 +463,7 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
           setViaturas(localDef || DEFAULT_VIATURAS);
         }
       } else {
+        setCategories(DEFAULT_CATEGORIES);
         setViaturas(localDef || DEFAULT_VIATURAS);
       }
       setLoading(false);
@@ -405,7 +702,7 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
   };
 
   const handleOpenAddVtr = () => {
-    setEditingVtr({
+    const newVtr: ViaturaConfig = {
       id: Date.now().toString(),
       vtr: '',
       ativa: true,
@@ -416,13 +713,16 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
       maritima: false,
       condutor: true,
       g1: true,
-      g2: false,
-      g3: false,
-      g4: false,
+      g2: true,
+      g3: true,
+      g4: null,
       cg: true,
-      blocked: [],
-      customNames: {}
-    });
+      blocked: ['g4'],
+      customNames: {},
+      customFunctions: {}
+    };
+    setEditingVtr(newVtr);
+    setModalFunctions(buildModalFunctionsFromVtr(newVtr));
     setIsAdding(true);
   };
 
@@ -482,8 +782,8 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
               <th className="p-3 px-2 border-b border-r border-[#334155] text-center w-20">
                 Situação
               </th>
-              <th className="p-3 px-2 border-b border-r border-[#334155] text-center w-16">
-                Condutor
+              <th className="p-3 px-2 border-b border-r border-[#334155] text-center w-20" title="Condutor (Viatura Terrestre) ou Mestre (Embarcação Marítima)">
+                Cond. / Mestre
               </th>
               <th className="p-3 px-2 border-b border-r border-[#334155] text-center w-12">
                 G1
@@ -646,9 +946,27 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
                     )}
                   </td>
 
-                  {/* Viatura Nome */}
-                  <td className="p-2 border-r border-slate-200 text-center font-black text-slate-800">
-                    {vtr.vtr}
+                  {/* Viatura Nome + Resumo de Funções */}
+                  <td className="p-2 border-r border-slate-200 text-center">
+                    <div className="font-black text-slate-800">{vtr.vtr}</div>
+                    <div className="flex flex-col items-center justify-center gap-1 mt-1">
+                      {buildModalFunctionsFromVtr(vtr).map((fnRow) => {
+                        const found = availableFunctions.find(f => f.id === fnRow.fnId);
+                        const label = fnRow.fnId === '__CUSTOM__'
+                          ? (fnRow.customName || 'CUSTOM')
+                          : (found?.scaleName || found?.name || 'FUNÇÃO');
+                        const roleCat = getFunctionRoleCategory(fnRow.fnId, fnRow.customName);
+                        const qtyLabel = roleCat === 'auxiliar' ? `ATÉ ${fnRow.maxQty}` : '1';
+                        return (
+                          <span
+                            key={fnRow.uid}
+                            className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-[8px] font-bold text-slate-700 uppercase leading-tight whitespace-nowrap"
+                          >
+                            {label} ({qtyLabel})
+                          </span>
+                        );
+                      })}
+                    </div>
                   </td>
 
                   {/* OBM */}
@@ -721,6 +1039,7 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
                       <button
                         onClick={() => {
                           setEditingVtr(vtr);
+                          setModalFunctions(buildModalFunctionsFromVtr(vtr));
                           setIsAdding(false);
                         }}
                         className="p-1.5 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
@@ -1053,38 +1372,190 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
                   </label>
                 </div>
               </div>
-              <div className="pt-2 border-t border-slate-100">
-                <h3 className="text-xs font-black uppercase text-slate-700 mb-2">Nomes Customizados das Funções</h3>
-                <p className="text-[10px] text-slate-400 mb-4">
-                  O texto escrito será somado à sigla da viatura. Ex: (ABT-999) a função de G1 preenchida como "AUXILIAR" será lida como "AUXILIAR ABT". O chefe preenchido como "CHEFE" será lido como "CHEFE-ABT". Se deixado em branco, o sistema usará o nome padrão.
+              <div className="pt-3 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-1">
+                  <h3 className="text-xs font-black uppercase text-slate-700">
+                    Funções da Viatura
+                  </h3>
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">
+                    {modalFunctions.length} de 3 funções
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-400 mb-3 leading-relaxed">
+                  Adicione até <strong>3 funções</strong> cadastradas no <strong>Controle de Função</strong>. Condutor/Mestre e Chefe possuem <strong>1 vaga fixa</strong>; Auxiliares e Marinheiros permitem escolher a quantidade (ex: <strong>até 3 militares</strong>).
                 </p>
-                
-                {['condutor', 'g1', 'g2', 'g3', 'g4', 'cg'].map(slot => {
-                  if (editingVtr.blocked.includes(slot)) return null;
-                  
-                  let ph = slot.toUpperCase();
-                  if (slot === 'condutor') ph = 'CONDUTOR, MESTRE, OPERADOR, ETC';
-                  else if (slot === 'g1') ph = 'AUXILIAR, MARINHEIRO, ENFERMEIRO';
-                  else if (['g2', 'g3', 'g4'].includes(slot)) ph = 'AUXILIAR, MARINHEIRO, ETC';
-                  else if (slot === 'cg') ph = 'CHEFE';
 
-                  return (
-                    <div key={slot} className="mb-3">
-                      <label className="text-[10px] font-bold text-slate-500 uppercase">Nome p/ {slot === 'cg' ? 'Chefe Guarnição' : slot}</label>
-                      <input 
-                        type="text" 
-                        value={editingVtr.customNames?.[slot as keyof typeof editingVtr.customNames] || ''}
-                        onChange={(e) => {
-                          const newNames = { ...(editingVtr.customNames || {}) };
-                          newNames[slot as keyof typeof newNames] = e.target.value.toUpperCase();
-                          setEditingVtr({...editingVtr, customNames: newNames});
-                        }}
-                        placeholder={`Ex: ${ph}`}
-                        className="w-full p-2 mt-1 bg-slate-50 border border-slate-200 rounded-lg text-xs uppercase outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
-                      />
+                <div className="space-y-2.5">
+                  {modalFunctions.map((row, idx) => {
+                    const roleCat = getFunctionRoleCategory(row.fnId, row.customName);
+                    const isSingleRole = roleCat === 'condutor' || roleCat === 'chefe';
+                    const matchedFn = availableFunctions.find(f => f.id === row.fnId);
+
+                    const updateRow = (patch: Partial<VtrModalFunctionRow>) => {
+                      const nextRows = modalFunctions.map((r, i) => (i === idx ? { ...r, ...patch } : r));
+                      setModalFunctions(nextRows);
+                      setEditingVtr(prev => (prev ? syncModalFunctionsToVtr(prev, nextRows) : null));
+                    };
+
+                    const removeRow = () => {
+                      const nextRows = modalFunctions.filter((_, i) => i !== idx);
+                      setModalFunctions(nextRows);
+                      setEditingVtr(prev => (prev ? syncModalFunctionsToVtr(prev, nextRows) : null));
+                    };
+
+                    return (
+                      <div
+                        key={row.uid}
+                        className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5 transition-all"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-5 h-5 rounded-full bg-slate-800 text-white text-[10px] font-black flex items-center justify-center">
+                              {idx + 1}
+                            </span>
+                            <span className="text-[10px] font-black uppercase text-slate-700 tracking-wider">
+                              {roleCat === 'condutor'
+                                ? 'Condução / Mestre'
+                                : roleCat === 'chefe'
+                                ? 'Chefia de Guarnição'
+                                : 'Guarnição / Auxiliar'}
+                            </span>
+                            {matchedFn && (
+                              <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[9px] font-bold uppercase">
+                                {matchedFn.categoryName}
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={removeRow}
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-[9px] font-bold uppercase"
+                            title="Remover esta função da viatura"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Remover</span>
+                          </button>
+                        </div>
+
+                        <div className="flex gap-2 items-end">
+                          {/* Seletor da Função */}
+                          <div className="flex-1">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">
+                              Função (Controle de Função)
+                            </label>
+                            <select
+                              value={row.fnId}
+                              onChange={(e) => {
+                                const newFnId = e.target.value;
+                                const newRoleCat = getFunctionRoleCategory(newFnId, row.customName);
+                                const nextQty =
+                                  newRoleCat === 'condutor' || newRoleCat === 'chefe'
+                                    ? 1
+                                    : row.maxQty > 1
+                                    ? row.maxQty
+                                    : 3;
+                                updateRow({
+                                  fnId: newFnId,
+                                  maxQty: nextQty,
+                                });
+                              }}
+                              className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 uppercase outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all cursor-pointer"
+                            >
+                              <option value="">-- Selecione a Função --</option>
+                              {groupedFunctions.map(group => (
+                                <optgroup key={group.categoryId} label={group.categoryName.toUpperCase()}>
+                                  {group.items.map(fn => (
+                                    <option key={fn.id} value={fn.id}>
+                                      {fn.name.toUpperCase()} {fn.scaleName !== fn.name.toUpperCase() ? `(${fn.scaleName})` : ''}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              ))}
+                              <optgroup label="PERSONALIZADO">
+                                <option value="__CUSTOM__">+ DIGITAR NOME PERSONALIZADO...</option>
+                              </optgroup>
+                            </select>
+                          </div>
+
+                          {/* Seletor de Quantidade (1 fixo p/ Condutor/Chefe, Até 1..4 p/ Auxiliar/Marinheiro) */}
+                          <div className="w-36 shrink-0">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">
+                              Quantidade (Vagas)
+                            </label>
+                            {isSingleRole ? (
+                              <div
+                                className="w-full p-2 bg-slate-200/70 border border-slate-200 rounded-xl text-xs font-black text-slate-600 uppercase text-center select-none"
+                                title="Funções de Condutor, Mestre e Chefe possuem sempre 1 militar por viatura"
+                              >
+                                1 Militar (Fixo)
+                              </div>
+                            ) : (
+                              <select
+                                value={row.maxQty}
+                                onChange={(e) => updateRow({ maxQty: Number(e.target.value) })}
+                                className="w-full p-2 bg-indigo-50/70 border border-indigo-200 rounded-xl text-xs font-black text-indigo-700 uppercase outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all cursor-pointer"
+                              >
+                                <option value={1}>Até 1 Militar</option>
+                                <option value={2}>Até 2 Militares</option>
+                                <option value={3}>Até 3 Militares</option>
+                                <option value={4}>Até 4 Militares</option>
+                              </select>
+                            )}
+                          </div>
+                        </div>
+
+                        {row.fnId === '__CUSTOM__' && (
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">
+                              Digite o Nome da Função
+                            </label>
+                            <input
+                              type="text"
+                              value={row.customName}
+                              onChange={(e) => updateRow({ customName: e.target.value.toUpperCase() })}
+                              placeholder="Ex: AUXILIAR, MARINHEIRO, SOCORRISTA, CHEFE..."
+                              className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold uppercase outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {modalFunctions.length === 0 && (
+                    <div className="p-4 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-xs text-slate-400 font-bold uppercase">
+                      Nenhuma função adicionada nesta viatura.
                     </div>
-                  );
-                })}
+                  )}
+                </div>
+
+                {modalFunctions.length < 3 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const hasCond = modalFunctions.some(r => getFunctionRoleCategory(r.fnId, r.customName) === 'condutor');
+                      const hasAux = modalFunctions.some(r => getFunctionRoleCategory(r.fnId, r.customName) === 'auxiliar');
+                      const nextGroup: 'condutor' | 'auxiliar' | 'chefe' = !hasCond ? 'condutor' : !hasAux ? 'auxiliar' : 'chefe';
+                      const suggestedFnId = inferDefaultFnIdForSlot(editingVtr, nextGroup);
+                      const validFnId = availableFunctions.some(f => f.id === suggestedFnId)
+                        ? suggestedFnId
+                        : (availableFunctions[0]?.id || '');
+                      const newRow: VtrModalFunctionRow = {
+                        uid: `fn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                        fnId: validFnId,
+                        customName: '',
+                        maxQty: nextGroup === 'auxiliar' ? 3 : 1,
+                      };
+                      const nextRows = [...modalFunctions, newRow];
+                      setModalFunctions(nextRows);
+                      setEditingVtr(prev => (prev ? syncModalFunctionsToVtr(prev, nextRows) : null));
+                    }}
+                    className="mt-3 w-full py-2.5 px-4 rounded-xl border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-indigo-50/40 hover:bg-indigo-50 text-indigo-700 font-black uppercase text-xs tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Adicionar Função ({modalFunctions.length}/3)
+                  </button>
+                )}
               </div>
             </div>
             <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
@@ -1098,15 +1569,16 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
                     alert("Já existe outra viatura com este nome.");
                     return;
                   }
+                  const syncedVtr = syncModalFunctionsToVtr(editingVtr, modalFunctions);
                   if (isAdding) {
-                    setViaturas(prev => [...prev, editingVtr]);
+                    setViaturas(prev => [...prev, syncedVtr]);
                   } else {
-                    setViaturas(prev => prev.map(v => v.id === editingVtr.id ? editingVtr : v));
+                    setViaturas(prev => prev.map(v => v.id === syncedVtr.id ? syncedVtr : v));
                   }
                   setEditingVtr(null);
                   setIsAdding(false);
                 }}
-                className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold uppercase text-xs tracking-widest hover:bg-indigo-700 transition-colors"
+                className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold uppercase text-xs tracking-widest hover:bg-indigo-700 transition-colors cursor-pointer"
               >
                 {isAdding ? "Adicionar" : "Salvar Alterações"}
               </button>

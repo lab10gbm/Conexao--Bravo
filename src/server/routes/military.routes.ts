@@ -582,6 +582,20 @@ app.post('/api/militar/role', async (req, res) => {
 
       const existing = militaryCache.get(safeRg) || {};
       militaryCache.set(safeRg, { ...existing, [role]: value });
+
+      if (role === 'ala') {
+        try {
+          const hardcodedPath = path.join(process.cwd(), 'src/server/lib/default_alas_composition.json');
+          if (fs.existsSync(hardcodedPath)) {
+            const fileData = JSON.parse(fs.readFileSync(hardcodedPath, 'utf8'));
+            if (fileData[safeRg]) {
+              fileData[safeRg].ala = value || null;
+              fs.writeFileSync(hardcodedPath, JSON.stringify(fileData, null, 2), 'utf8');
+            }
+          }
+        } catch (e) {}
+      }
+
       if (cacheEvents) cacheEvents.emit('update', incrementCacheVersion ? incrementCacheVersion() : Date.now());
       return res.json({ success: true });
     } catch (e) {

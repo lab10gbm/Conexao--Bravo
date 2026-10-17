@@ -3,7 +3,7 @@ import { useMilitars } from "../contexts/MilitarContext";
 import { PermutaRequest, PermutaStatus } from "../types";
 import { collection, query, where, onSnapshot, updateDoc, doc, serverTimestamp, getDoc, setDoc, getDocs, addDoc, deleteDoc } from "firebase/firestore";
 import { db, auth } from "../lib/firebase";
-import { format, parseISO, addDays, subDays, startOfToday } from "date-fns";
+import { format, parseISO, addDays, subDays, startOfToday, startOfMonth, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 
@@ -17,7 +17,8 @@ import { GrdDiaModule } from "./GrdDiaModule";
 import { SentinelasSection } from "./SentinelasSection";
 import { SentinelaSlot } from "../lib/sentinelaUtils";
 import { EscalanteDashboardCalendar } from "./EscalanteDashboardCalendar";
-import { Calendar as CalendarIcon, Users, ArrowRightLeft, ArrowRight, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, ChevronLeft, ChevronRight, Check, X, Clock, Printer, Shuffle, Plus, Settings, Activity, TrendingDown, PieChart, BriefcaseBusiness, Download, RotateCcw, ExternalLink, Edit3, Award, Star, UserCheck, Anchor, Stethoscope, HeartPulse, Sparkles, Trash2, Building2, ArrowLeftRight, UserPlus, Loader2, AlertTriangle, Search, Eye, EyeOff } from 'lucide-react';
+import { CategoryConfig, DEFAULT_CATEGORIES, getAvailableControlFunctions } from "./ControleCategoriasModal";
+import { Calendar as CalendarIcon, CalendarRange, Users, ArrowRightLeft, ArrowRight, Shield, CheckCircle2, AlertCircle, Truck, ChevronDown, ChevronLeft, ChevronRight, Check, X, Clock, Printer, Shuffle, Plus, Settings, Activity, TrendingDown, PieChart, BriefcaseBusiness, Download, RotateCcw, ExternalLink, Edit3, Award, Star, UserCheck, Anchor, Stethoscope, HeartPulse, Sparkles, Trash2, Building2, ArrowLeftRight, UserPlus, Loader2, AlertTriangle, Search, Eye, EyeOff } from 'lucide-react';
 
 import { motion } from "motion/react";
 import { cleanUndefined, getUserObmAccess, normalizeObm, getAlaForDate, cn, getAlaColor, getAlaName, formatMilitaryName, normalizeAlaField, normalizeRg, getObmSettingsDocKey, getObmSettingsFallbackKeys } from '../lib/utils';
@@ -32,25 +33,34 @@ function FuncoesMultiSelect({
   selected,
   onChange,
   allowedOptions,
+  extraOptions,
 }: {
   selected: string[];
   onChange: (v: string[]) => void;
   allowedOptions?: string[];
+  extraOptions?: string[];
 }) {
   const [open, setOpen] = useState(false);
   const [openUp, setOpenUp] = useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
 
-  const allOptions = [
-    'ADJUNTO', 'ENCARREGADO DE MOTORISTA', 'CONDUTOR AR', 'CONDUTOR ABSL', 'CONDUTOR ABT', 
-    'CONDUTOR ASE', 'CONDUTOR ARC', 'CHEFE ABSL', 'CHEFE ABT', 'AUXILIAR/CHEFE ARC', 
-    'AUXILIAR ABT', 'AUXILIAR ABSL', 'ENFERMEIRO', 'MESTRE L', 'MESTRE BIA', 
-    'MARINHEIRO L', 'MARINHEIRO BIA', 'OPERADOR AMA', 'GV AMA', 'AUXILIAR RANCHO', 'TOQUE DE FOGO', 
-    'DIA AO DEPOSITO', 'RESP FAXINA', 'ABASTECEDOR', 'SGT DIA', 'CMT GUARDA', 
-    'CB GUARDA', 'CB DIA', 'COMUNICANTE', 'PRECARIO', 'ESCALANTE', 'PRECARIO ADM', 
-    'SENTINELA'
-  ];
+  const allOptions = useMemo(() => {
+    const base = [
+      'ADJUNTO', 'ENCARREGADO DE MOTORISTA', 'CONDUTOR AR', 'CONDUTOR ABSL', 'CONDUTOR ABT', 
+      'CONDUTOR ASE', 'CONDUTOR ARC', 'CHEFE ABSL', 'CHEFE ABT', 'AUXILIAR/CHEFE ARC', 
+      'AUXILIAR ABT', 'AUXILIAR ABSL', 'AUXILIAR ASE', 'ENFERMEIRO', 'MESTRE L', 'MESTRE BIA', 
+      'MARINHEIRO L', 'MARINHEIRO BIA', 'OPERADOR AMA', 'GV AMA', 'AUXILIAR RANCHO', 'TOQUE DE FOGO', 
+      'DIA AO DEPOSITO', 'RESP FAXINA', 'ABASTECEDOR', 'SGT DIA', 'CMT GUARDA', 
+      'CB GUARDA', 'CB DIA', 'COMUNICANTE', 'PRECARIO', 'ESCALANTE', 'PRECARIO ADM', 
+      'SENTINELA'
+    ];
+    const set = new Set<string>(base);
+    (extraOptions || []).forEach(o => { if (o?.trim()) set.add(o.trim().toUpperCase()); });
+    (allowedOptions || []).forEach(o => { if (o?.trim()) set.add(o.trim().toUpperCase()); });
+    (selected || []).forEach(o => { if (o?.trim()) set.add(o.trim().toUpperCase()); });
+    return Array.from(set);
+  }, [extraOptions, allowedOptions, selected]);
 
   const options = search ? allOptions.filter(o => o.toLowerCase().includes(search.toLowerCase())) : allOptions;
 
@@ -537,6 +547,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   const [correlation, setCorrelation] = useState<Record<string, Record<string, number>>>({});
   const [roleQtds, setRoleQtds] = useState<Record<string, number>>({});
   const [predefinicoes, setPredefinicoes] = useState<Record<string, string[]>>({});
+  const [categories, setCategories] = useState<CategoryConfig[]>(DEFAULT_CATEGORIES);
   const [isPreferenciasModalOpen, setIsPreferenciasModalOpen] = useState(false);
   const [sortearFeedback, setSortearFeedback] = useState<{
     type: 'success' | 'warning' | 'info';
@@ -589,7 +600,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
       let data = snap.exists() ? snap.data() : null;
 
       // Se o documento canônico ainda não tiver todas as configurações, verifica chaves legadas e migra
-      if (!data?.escala_regras || !data?.escala_preferencias) {
+      if (!data?.escala_regras || !data?.escala_preferencias || !data?.categorias_funcoes) {
         const fallbacks = getObmSettingsFallbackKeys(obmContext).filter(k => k !== canonicalKey);
         for (const fk of fallbacks) {
           try {
@@ -613,6 +624,26 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
       }
 
       if (data) {
+        if (data.categorias_funcoes && Array.isArray(data.categorias_funcoes)) {
+          const migrated = data.categorias_funcoes.map((cat: any) => {
+            if (cat.activeProperty !== undefined) return cat;
+            let activeProp = `dynamicFunctions.ativo_${cat.id}`;
+            const newFunctions = [...(cat.functions || [])];
+            const ativoIndex = newFunctions.findIndex((f: any) => f.name.toLowerCase() === "ativo");
+            if (ativoIndex >= 0) {
+              activeProp = newFunctions[ativoIndex].id;
+              newFunctions.splice(ativoIndex, 1);
+            } else {
+              const defCat = DEFAULT_CATEGORIES.find(d => d.id === cat.id);
+              if (defCat) activeProp = defCat.activeProperty;
+            }
+            return { ...cat, activeProperty: activeProp, functions: newFunctions };
+          });
+          setCategories(migrated);
+        } else {
+          setCategories(DEFAULT_CATEGORIES);
+        }
+
         if (data.escala_regras) {
           setCorrelation(data.escala_regras.correlation || {});
           setRoleQtds(data.escala_regras.qtds || {});
@@ -626,6 +657,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           setPredefinicoes({});
         }
       } else {
+        setCategories(DEFAULT_CATEGORIES);
         setCorrelation({});
         setRoleQtds({});
         setPredefinicoes({});
@@ -853,6 +885,8 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                                g3: saved.g3 !== undefined ? saved.g3 : base.g3,
                                g4: saved.g4 !== undefined ? saved.g4 : base.g4,
                                cg: saved.cg !== undefined ? saved.cg : base.cg,
+                               customNames: base.customNames || saved.customNames,
+                               customFunctions: base.customFunctions || saved.customFunctions,
                            };
                        }
                        return base;
@@ -1368,6 +1402,19 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   const identifiedAla = getAlaForDate(targetDateObj);
   const identifiedAlaStr = identifiedAla.toString();
 
+  // Estado unificado do Dashboard Mensal no cabeçalho superior
+  const [isDashboardExpanded, setIsDashboardExpanded] = useState(false);
+  const [dashboardMonth, setDashboardMonth] = useState<Date>(() => startOfMonth(targetDateObj));
+
+  useEffect(() => {
+    if (targetDateObj && !isNaN(targetDateObj.getTime())) {
+      const mStart = startOfMonth(targetDateObj);
+      if (mStart.getTime() !== dashboardMonth.getTime()) {
+        setDashboardMonth(mStart);
+      }
+    }
+  }, [selectedDate]);
+
   // Navegação rápida: lista dos próximos dias com cálculo automático de alas
   const upcomingDays = useMemo(() => {
     try {
@@ -1380,7 +1427,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         let label = '';
         if (i === 0) label = 'Hoje';
         else if (i === 1) label = 'Amanhã';
-        else label = format(d, 'EEE', { locale: ptBR }).replace('.', '').toUpperCase();
+        else label = format(d, 'EEEE', { locale: ptBR }).split('-')[0].toUpperCase();
 
         list.push({
           date: d,
@@ -1468,9 +1515,24 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     return map;
   }, [permutas]);
 
+  const availableControlFunctions = useMemo(() => getAvailableControlFunctions(categories), [categories]);
+
+  const getMilitarProp = (militar: any, path: string): boolean => {
+    if (!militar || !path) return false;
+    if (path.startsWith("viaturas.")) {
+      const key = path.split(".")[1];
+      return Boolean(militar.viaturas?.[key]);
+    }
+    if (path.startsWith("dynamicFunctions.")) {
+      const key = path.split(".")[1];
+      return Boolean(militar.dynamicFunctions?.[key]);
+    }
+    return Boolean(militar[path]);
+  };
+
   // Mostruario Generator
   const getMostruario = (militar: any) => {
-    const funcs = [];
+    const funcs: string[] = [];
     
     if (militar.ativoCondutor) {
       funcs.push("CONDUTOR");
@@ -1530,6 +1592,14 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     if (militar.ativoComunicante) {
       funcs.push("COMUNICANTE");
     }
+
+    availableControlFunctions.forEach(fn => {
+      if (fn.id.startsWith("dynamicFunctions.") && getMilitarProp(militar, fn.id)) {
+        if (!funcs.includes(fn.scaleName)) {
+          funcs.push(fn.scaleName);
+        }
+      }
+    });
 
     return funcs.join(", ") || "NÃO CONFIGURADO";
   };
@@ -1607,15 +1677,43 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
       allowed.add('ESCALANTE');
     }
 
-    
+    // Add any functions enabled from Controle de Função (including custom categories/functions)
+    categories.forEach(cat => {
+      if (cat.id === 'mostruario') return;
+      const isCatActive = cat.activeProperty ? getMilitarProp(militar, cat.activeProperty) : true;
+      if (isCatActive) {
+        (cat.functions || []).forEach(fn => {
+          if (getMilitarProp(militar, fn.id)) {
+            const mapped = availableControlFunctions.find(af => af.id === fn.id);
+            if (mapped) allowed.add(mapped.scaleName);
+            allowed.add(fn.name.trim().toUpperCase());
+          }
+        });
+      }
+    });
+
     const allowedArr = Array.from(allowed);
     viaturasInfo.forEach(v => {
       if (!v.ativa) return;
       ['condutor', 'g1', 'g2', 'g3', 'g4', 'cg'].forEach(slot => {
-         if (v.customNames?.[slot]?.trim()) {
-            const baseName = getDefaultName(v, slot);
-            if (allowedArr.includes(baseName)) {
-               allowed.add(getSlotDisplayName(v, slot));
+         const slotDisplayName = getSlotDisplayName(v, slot);
+         const explicitFnId = v.customFunctions?.[slot];
+         if (explicitFnId) {
+            if (getMilitarProp(militar, explicitFnId)) {
+               allowed.add(slotDisplayName);
+            }
+         } else if (v.customNames?.[slot]?.trim()) {
+            const customUpper = v.customNames[slot].trim().toUpperCase();
+            const matchedFn = availableControlFunctions.find(
+              f => f.scaleName === customUpper || f.name.trim().toUpperCase() === customUpper
+            );
+            if (matchedFn && getMilitarProp(militar, matchedFn.id)) {
+               allowed.add(slotDisplayName);
+            } else {
+               const baseName = getDefaultName(v, slot);
+               if (allowedArr.includes(baseName) || allowedArr.includes(customUpper) || allowedArr.includes(slotDisplayName)) {
+                  allowed.add(slotDisplayName);
+               }
             }
          }
       });
@@ -1670,12 +1768,21 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   const getSlotDisplayName = (v: any, slot: string) => {
     if (v.customNames?.[slot]?.trim()) {
       const custom = v.customNames[slot].trim().toUpperCase();
-      const sigla = (v.vtr || "").split('-')[0].trim();
-      if (custom === 'ENFERMEIRO') return 'ENFERMEIRO';
-      if (custom === 'AUXILIAR/CHEFE ARC' || custom === 'AUXILIAR / CHEFE ARC') return 'AUXILIAR/CHEFE ARC';
-      if (custom === 'MESTRE L' || custom === 'MESTRE BIA') return custom;
-      if (custom.endsWith(sigla)) return custom;
-      if (slot === 'cg' && custom === 'CHEFE') return `CHEFE ${sigla}`;
+      const sigla = (v.vtr || "").split('-')[0].trim().toUpperCase();
+      const genericPrefixes = ['CONDUTOR', 'AUXILIAR', 'CHEFE', 'MARINHEIRO', 'MESTRE', 'OPERADOR'];
+      if (genericPrefixes.includes(custom) && sigla) {
+        return `${custom} ${sigla}`.trim();
+      }
+      if (custom === 'AUXILIAR / CHEFE ARC') return 'AUXILIAR/CHEFE ARC';
+      if (v.customFunctions?.[slot]) {
+        return custom;
+      }
+      const isKnownControlFn = availableControlFunctions.some(
+        f => f.scaleName === custom || f.name.trim().toUpperCase() === custom
+      );
+      if (isKnownControlFn || custom === 'ENFERMEIRO' || custom === 'AUXILIAR/CHEFE ARC' || custom === 'MESTRE L' || custom === 'MESTRE BIA' || custom.endsWith(sigla)) {
+        return custom;
+      }
       return `${custom} ${sigla}`.trim();
     }
     return getDefaultName(v, slot);
@@ -1730,6 +1837,13 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     return reqs;
 
   }, [viaturasInfo, roleQtds]);
+
+  const extraFuncOptions = useMemo(() => {
+    const opts = new Set<string>();
+    dynamicRequirements.forEach(r => opts.add(r.name));
+    availableControlFunctions.forEach(f => opts.add(f.scaleName));
+    return Array.from(opts);
+  }, [dynamicRequirements, availableControlFunctions]);
 
   
   const estudoTecnico = useMemo(() => {
@@ -2580,33 +2694,33 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
   return (
     <div className="flex flex-col bg-slate-50 relative">
-      {/* Top Control Bar */}
-      <div className="bg-white border-b-2 border-slate-200 p-3 sm:p-4 shrink-0 flex flex-col gap-3 z-10 shadow-sm relative">
-        {/* BANNER ESCURO DA ALA: Data da Escala, Controles < >, Ala em Serviço, Militares Base, Permutas e Nuvem */}
-        <div className="w-full flex items-center flex-wrap xl:flex-nowrap justify-between bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-2.5 px-3 sm:px-4 border border-slate-800 shadow-md gap-3 sm:gap-4 overflow-x-auto no-scrollbar">
+      {/* Top Control Bar Compacta */}
+      <div className="bg-white border-b border-slate-200 p-2.5 sm:p-3 shrink-0 flex flex-col gap-2 z-10 shadow-xs relative">
+        {/* LINHA 1: BANNER ESCURO DA ALA: Data da Escala, Controles < >, Ala em Serviço, Militares Base, Permutas e Nuvem */}
+        <div className="w-full flex items-center flex-wrap xl:flex-nowrap justify-between bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-xl py-2 px-3 border border-slate-800 shadow-sm gap-2 sm:gap-3 overflow-x-auto no-scrollbar">
           
-          <div className="flex items-center flex-wrap sm:flex-nowrap gap-3 sm:gap-4 divide-y sm:divide-y-0 sm:divide-x divide-slate-800/80">
+          <div className="flex items-center flex-wrap sm:flex-nowrap gap-2 sm:gap-3 divide-y sm:divide-y-0 sm:divide-x divide-slate-800/80">
             {/* Segmento: Data da Escala + Botões < > */}
-            <div className="flex items-center gap-2 pr-1 sm:pr-3 shrink-0">
-              <div className="bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 rounded-xl p-1.5 px-3 shadow-inner flex items-center gap-2.5 transition-colors">
-                <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center shrink-0">
-                  <CalendarIcon className="w-4 h-4" />
+            <div className="flex items-center gap-1.5 pr-1 sm:pr-2.5 shrink-0">
+              <div className="bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 rounded-lg py-1 px-2.5 shadow-inner flex items-center gap-2 transition-colors">
+                <div className="w-6 h-6 rounded-md bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center shrink-0">
+                  <CalendarIcon className="w-3.5 h-3.5" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[9px] font-black text-indigo-300 uppercase tracking-widest leading-none">
+                  <span className="text-[8.5px] font-black text-indigo-300 uppercase tracking-widest leading-none">
                     Data da Escala
                   </span>
                   <input
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    className="bg-transparent border-none outline-none text-xs sm:text-sm font-black text-white tracking-wider cursor-pointer mt-0.5 [color-scheme:dark]"
+                    className="bg-transparent border-none outline-none text-xs font-black text-white tracking-wider cursor-pointer mt-0.5 [color-scheme:dark]"
                   />
                 </div>
               </div>
 
               {/* Setas de navegação rápida dia anterior / próximo */}
-              <div className="flex items-center bg-slate-800/90 rounded-xl p-1 border border-slate-700/80 shrink-0">
+              <div className="flex items-center bg-slate-800/90 rounded-lg p-0.5 border border-slate-700/80 shrink-0">
                 <button
                   onClick={() => {
                     try {
@@ -2614,10 +2728,10 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                       setSelectedDate(format(prev, "yyyy-MM-dd"));
                     } catch {}
                   }}
-                  className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700/80 transition-colors cursor-pointer"
+                  className="p-1 rounded-md text-slate-300 hover:text-white hover:bg-slate-700/80 transition-colors cursor-pointer"
                   title="Dia anterior (-1d)"
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={() => {
@@ -2626,39 +2740,39 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                       setSelectedDate(format(next, "yyyy-MM-dd"));
                     } catch {}
                   }}
-                  className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700/80 transition-colors cursor-pointer"
+                  className="p-1 rounded-md text-slate-300 hover:text-white hover:bg-slate-700/80 transition-colors cursor-pointer"
                   title="Próximo dia (+1d)"
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
 
             {/* Segmento 1: Ala de Serviço com Insígnia e Cor */}
-            <div className="flex items-center gap-2.5 pl-3 sm:pl-4 pr-1 sm:pr-3 shrink-0">
+            <div className="flex items-center gap-2 pl-2.5 sm:pl-3 pr-1 sm:pr-2.5 shrink-0">
               <div
                 className={cn(
-                  "w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs shadow-md shrink-0 transition-transform",
-                  identifiedAla === 1 && "bg-emerald-500 text-slate-950 shadow-emerald-500/30 ring-2 ring-emerald-400/40",
-                  identifiedAla === 2 && "bg-rose-500 text-white shadow-rose-500/30 ring-2 ring-rose-400/40",
-                  identifiedAla === 3 && "bg-sky-500 text-slate-950 shadow-sky-500/30 ring-2 ring-sky-400/40",
-                  identifiedAla === 4 && "bg-amber-400 text-slate-950 shadow-amber-400/30 ring-2 ring-amber-300/40",
+                  "w-7 h-7 rounded-lg flex items-center justify-center font-black text-xs shadow-sm shrink-0 transition-transform",
+                  identifiedAla === 1 && "bg-emerald-500 text-slate-950 shadow-emerald-500/30 ring-1 ring-emerald-400/40",
+                  identifiedAla === 2 && "bg-rose-500 text-white shadow-rose-500/30 ring-1 ring-rose-400/40",
+                  identifiedAla === 3 && "bg-sky-500 text-slate-950 shadow-sky-500/30 ring-1 ring-sky-400/40",
+                  identifiedAla === 4 && "bg-amber-400 text-slate-950 shadow-amber-400/30 ring-1 ring-amber-300/40",
                   typeof identifiedAla !== "number" && "bg-slate-700 text-white"
                 )}
               >
-                <Shield className="w-5 h-5 fill-current/20" />
+                <Shield className="w-4 h-4 fill-current/20" />
               </div>
               <div className="flex flex-col">
-                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none">
+                <span className="text-[8.5px] font-black uppercase tracking-widest text-slate-400 leading-none">
                   Ala em Serviço
                 </span>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="text-sm font-black tracking-tight text-white uppercase font-mono">
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-xs sm:text-sm font-black tracking-tight text-white uppercase font-mono">
                     {getAlaName(identifiedAla)}
                   </span>
                   <span
                     className={cn(
-                      "text-[8px] font-black uppercase px-2 py-0.5 rounded tracking-widest font-mono",
+                      "text-[8px] font-black uppercase px-1.5 py-0.5 rounded tracking-widest font-mono",
                       identifiedAla === 1 && "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30",
                       identifiedAla === 2 && "bg-rose-500/20 text-rose-300 border border-rose-500/30",
                       identifiedAla === 3 && "bg-sky-500/20 text-sky-300 border border-sky-500/30",
@@ -2680,19 +2794,19 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
             </div>
 
             {/* Segmento 2: Militares na Ala Base */}
-            <div className="flex items-center gap-2.5 pl-3 sm:pl-4 pr-1 sm:pr-3 shrink-0">
-              <div className="w-8 h-8 rounded-xl bg-sky-500/15 border border-sky-400/30 flex items-center justify-center text-sky-300 shrink-0">
-                <Users className="w-4 h-4" />
+            <div className="flex items-center gap-2 pl-2.5 sm:pl-3 pr-1 sm:pr-2.5 shrink-0">
+              <div className="w-7 h-7 rounded-lg bg-sky-500/15 border border-sky-400/30 flex items-center justify-center text-sky-300 shrink-0">
+                <Users className="w-3.5 h-3.5" />
               </div>
               <div className="flex flex-col">
-                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none">
+                <span className="text-[8.5px] font-black uppercase tracking-widest text-slate-400 leading-none">
                   Militares na Ala Base
                 </span>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="text-sm font-black tracking-tight text-sky-300 font-mono">
+                <div className="flex items-center gap-1 mt-0.5">
+                  <span className="text-xs sm:text-sm font-black tracking-tight text-sky-300 font-mono">
                     {baseRoster.length}
                   </span>
-                  <span className="text-[9px] font-bold text-slate-400 uppercase">
+                  <span className="text-[8.5px] font-bold text-slate-400 uppercase">
                     efetivo
                   </span>
                 </div>
@@ -2700,21 +2814,21 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
             </div>
 
             {/* Segmento 3: Quantidade de Permutas Solicitadas */}
-            <div className="flex items-center gap-2.5 pl-3 sm:pl-4 shrink-0">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center text-emerald-300 shrink-0">
-                <ArrowRightLeft className="w-4 h-4" />
+            <div className="flex items-center gap-2 pl-2.5 sm:pl-3 shrink-0">
+              <div className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center text-emerald-300 shrink-0">
+                <ArrowRightLeft className="w-3.5 h-3.5" />
               </div>
               <div className="flex flex-col">
-                <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 leading-none">
+                <span className="text-[8.5px] font-black uppercase tracking-widest text-slate-400 leading-none">
                   Permutas Solicitadas
                 </span>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="text-sm font-black tracking-tight text-emerald-400 font-mono">
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-xs sm:text-sm font-black tracking-tight text-emerald-400 font-mono">
                     {permutas.length}
                   </span>
                   <span
                     className={cn(
-                      "text-[8px] font-black uppercase px-2 py-0.5 rounded tracking-widest font-mono",
+                      "text-[8px] font-black uppercase px-1.5 py-0.5 rounded tracking-widest font-mono",
                       permutas.length > 0
                         ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
                         : "bg-slate-800 text-slate-400 border border-slate-700"
@@ -2728,30 +2842,29 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           </div>
 
           {/* Status Nuvem */}
-          <div className="flex items-center gap-2 pl-3 sm:pl-4 shrink-0">
+          <div className="flex items-center gap-1.5 pl-2 shrink-0">
             {savingState === "saving" && (
-              <div className="flex items-center gap-1.5 text-amber-400 shrink-0">
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-                <span className="text-[9px] font-bold uppercase tracking-widest">Salvando...</span>
+              <div className="flex items-center gap-1 text-amber-400 shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span>
+                <span className="text-[8.5px] font-bold uppercase tracking-widest">Salvando...</span>
               </div>
             )}
             {savingState === "saved" && (
-              <div className="flex items-center gap-1.5 text-emerald-400 shrink-0">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400">Salvo ✓</span>
+              <div className="flex items-center gap-1 text-emerald-400 shrink-0">
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                <span className="text-[8.5px] font-bold uppercase tracking-widest text-emerald-400">Salvo ✓</span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Linha abaixo do banner: Botões Operacionais + Navegação Rápida com os Próximos Dias */}
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 pt-1">
-          {/* Linha dos Botões Operacionais: Gerar Permuta, Sortear Funções, Limpar e Gerar Escala */}
-          <div className="flex items-center flex-wrap gap-2 sm:gap-2.5 shrink-0">
+        {/* LINHA 2: Botões Operacionais à esquerda + Controles Unificados do Dashboard Mensal à direita */}
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center flex-wrap gap-2">
             {/* Botão Gerar Permuta */}
             <button
               onClick={() => setIsPermutaModalOpen(true)}
-              className="h-9 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-wider text-[11px] shadow-sm hover:shadow flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shrink-0"
+              className="h-8 px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-wider text-[10.5px] shadow-2xs hover:shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer shrink-0"
               title="Abrir solicitação e gestão de permutas"
             >
               <ArrowRightLeft className="w-3.5 h-3.5" />
@@ -2759,10 +2872,10 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
             </button>
 
             {/* Botão Sortear Funções + Configurações (Cluster Integrado) */}
-            <div className="flex items-center rounded-xl shadow-sm border border-amber-500/40 overflow-hidden shrink-0">
+            <div className="flex items-center rounded-lg shadow-2xs border border-amber-500/40 overflow-hidden shrink-0">
               <button
                 onClick={handleSortear}
-                className="h-9 px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-black uppercase tracking-wider text-[11px] flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                className="h-8 px-3 py-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-black uppercase tracking-wider text-[10.5px] flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
                 title="Sortear funções operacionais automaticamente"
               >
                 <Shuffle className="w-3.5 h-3.5" />
@@ -2770,7 +2883,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
               </button>
               <button
                 onClick={() => setIsPreferenciasModalOpen(true)}
-                className="h-9 px-2 bg-orange-600 hover:bg-orange-500 text-white border-l border-orange-400/40 flex items-center justify-center transition-colors cursor-pointer"
+                className="h-8 px-2 bg-orange-600 hover:bg-orange-500 text-white border-l border-orange-400/40 flex items-center justify-center transition-colors cursor-pointer"
                 title="Pré-definições e Configurações de Sorteio"
               >
                 <Settings className="w-3.5 h-3.5" />
@@ -2780,7 +2893,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
             {/* Botão Limpar */}
             <button
               onClick={() => setSelectedFunctions({})}
-              className="h-9 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-200 font-black uppercase tracking-wider text-[11px] shadow-2xs transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer shrink-0"
+              className="h-8 px-3 py-1 rounded-lg bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-200 font-black uppercase tracking-wider text-[10.5px] shadow-2xs transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer shrink-0"
               title="Limpar todas as funções selecionadas na escala"
             >
               <RotateCcw className="w-3.5 h-3.5 text-rose-500" />
@@ -2790,56 +2903,112 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
             {/* Botão Principal: Gerar Escala */}
             <button
               onClick={handleGerarEscala}
-              className="h-9 px-4 sm:px-5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-slate-900 hover:from-indigo-500 hover:via-indigo-600 hover:to-slate-800 text-white font-black uppercase tracking-widest text-[11px] shadow-md hover:shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95 ring-2 ring-indigo-500/20 cursor-pointer shrink-0"
+              className="h-8 px-4 py-1 rounded-lg bg-gradient-to-r from-indigo-600 via-indigo-700 to-slate-900 hover:from-indigo-500 hover:via-indigo-600 hover:to-slate-800 text-white font-black uppercase tracking-widest text-[10.5px] shadow-sm hover:shadow flex items-center justify-center gap-1.5 transition-all active:scale-95 ring-1 ring-indigo-500/20 cursor-pointer shrink-0"
               title="Gerar e Imprimir Escala de Serviço 24h"
             >
-              <Printer className="w-4 h-4 text-indigo-200" />
+              <Printer className="w-3.5 h-3.5 text-indigo-200" />
               <span>Gerar Escala</span>
             </button>
           </div>
 
-          {/* Faixa de Navegação Rápida com os Próximos Dias */}
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0 max-w-full">
-            <div className="flex items-center gap-1.5 text-slate-400 shrink-0 pr-1">
-              <Clock className="w-3.5 h-3.5 text-indigo-500" />
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                Próximos Dias:
-              </span>
-            </div>
+          {/* Controles Unificados do Dashboard Mensal: Botão "DASHBOARD MENSAL v" + Seletor de Mês */}
+          <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+            <button
+              type="button"
+              onClick={() => setIsDashboardExpanded((prev) => !prev)}
+              className={cn(
+                "h-8 px-3 py-1 rounded-lg font-black uppercase tracking-wider text-[10.5px] shadow-2xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shrink-0 border",
+                isDashboardExpanded
+                  ? "bg-indigo-600 text-white border-indigo-500 ring-2 ring-indigo-500/20"
+                  : "bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 hover:from-slate-800 hover:to-slate-800 text-white border-slate-800"
+              )}
+              title={isDashboardExpanded ? "Recolher Dashboard Mensal" : "Expandir Dashboard Mensal"}
+            >
+              <CalendarRange className="w-3.5 h-3.5 text-indigo-300 shrink-0" />
+              <span>DASHBOARD MENSAL</span>
+              <ChevronDown
+                className={cn(
+                  "w-3.5 h-3.5 text-indigo-300 transition-transform duration-200 shrink-0",
+                  isDashboardExpanded && "rotate-180"
+                )}
+              />
+            </button>
 
-            <div className="flex items-center gap-1.5 shrink-0">
-              {upcomingDays.map((item) => {
-                const isSelected = item.iso === selectedDate;
-                return (
-                  <button
-                    key={item.iso}
-                    onClick={() => setSelectedDate(item.iso)}
+            {/* Seletor de Mês */}
+            <div className="h-8 flex items-center bg-slate-900 rounded-lg p-0.5 border border-slate-800 shadow-2xs shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setDashboardMonth((prev) => subMonths(prev, 1));
+                  if (!isDashboardExpanded) setIsDashboardExpanded(true);
+                }}
+                className="p-1 rounded-md text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Mês anterior"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <span className="px-2 text-[10px] font-black uppercase tracking-widest text-slate-100 min-w-[105px] text-center select-none font-mono">
+                {format(dashboardMonth, "MMMM yyyy", { locale: ptBR })}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setDashboardMonth((prev) => addMonths(prev, 1));
+                  if (!isDashboardExpanded) setIsDashboardExpanded(true);
+                }}
+                className="p-1 rounded-md text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Próximo mês"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* LINHA 3 (ABAIXO DOS BOTÕES): Faixa de Navegação Rápida com os Próximos Dias (Dia Semanal em cima da Data + A#) */}
+        <div className="flex items-center gap-2 pt-1.5 border-t border-slate-100 overflow-x-auto no-scrollbar max-w-full">
+          <div className="flex items-center gap-1.5 text-slate-400 shrink-0 pr-1">
+            <Clock className="w-3.5 h-3.5 text-indigo-500" />
+            <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-500">
+              Próximos Dias:
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            {upcomingDays.map((item) => {
+              const isSelected = item.iso === selectedDate;
+              return (
+                <button
+                  key={item.iso}
+                  onClick={() => setSelectedDate(item.iso)}
+                  className={cn(
+                    "px-2.5 py-1 rounded-xl flex flex-col items-center justify-center gap-0.5 border transition-all cursor-pointer active:scale-95 shrink-0 min-w-[74px]",
+                    isSelected
+                      ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs ring-1 ring-indigo-400/40"
+                      : "bg-slate-50 hover:bg-indigo-50/50 text-slate-700 border-slate-200/90 hover:border-indigo-200"
+                  )}
+                  title={`Ir para ${item.label} (${item.dayNumber}) - Ala ${item.alaNum}`}
+                >
+                  {/* Linha de Cima: Dia Semanal */}
+                  <span
                     className={cn(
-                      "px-2.5 py-1.5 rounded-xl text-left flex items-center gap-2 border transition-all cursor-pointer active:scale-95 shrink-0",
-                      isSelected
-                        ? "bg-indigo-600 text-white border-indigo-600 shadow-sm ring-2 ring-indigo-400/40"
-                        : "bg-slate-50 hover:bg-indigo-50/50 text-slate-700 border-slate-200/90 hover:border-indigo-200"
+                      "text-[8px] font-black uppercase tracking-wider leading-none",
+                      isSelected ? "text-indigo-200" : "text-slate-400"
                     )}
-                    title={`Ir para ${item.label} (${item.dayNumber}) - Ala ${item.alaNum}`}
                   >
-                    <div className="flex flex-col leading-none">
-                      <span
-                        className={cn(
-                          "text-[9px] font-black uppercase tracking-wider",
-                          isSelected ? "text-indigo-200" : "text-slate-400"
-                        )}
-                      >
-                        {item.label}
-                      </span>
-                      <span
-                        className={cn(
-                          "text-xs font-black font-mono mt-0.5",
-                          isSelected ? "text-white" : "text-slate-800"
-                        )}
-                      >
-                        {item.dayNumber}
-                      </span>
-                    </div>
+                    {item.label}
+                  </span>
+
+                  {/* Linha de Baixo: Data + (A#) */}
+                  <div className="flex items-center gap-1.5 leading-none mt-0.5">
+                    <span
+                      className={cn(
+                        "text-[11px] font-black font-mono",
+                        isSelected ? "text-white" : "text-slate-800"
+                      )}
+                    >
+                      {item.dayNumber}
+                    </span>
 
                     {/* Mini Badge de Ala */}
                     <span
@@ -2853,16 +3022,14 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                     >
                       A{item.alaNum}
                     </span>
-                  </button>
-                );
-              })}
-            </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
-      </div>
 
-      <div className="p-4 sm:p-6 space-y-6">
-        {/* DASHBOARD MENSAL DO ESCALANTE COM INTELIGÊNCIA OPERACIONAL */}
+        {/* DASHBOARD MENSAL UNIFICADO (EXPANDE DENTRO DESTA MESMA SEÇÃO) */}
         <EscalanteDashboardCalendar
           selectedDate={selectedDate}
           onSelectDate={(newDate) => setSelectedDate(newDate)}
@@ -2878,18 +3045,26 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           nauticoOficialValue={nauticoOficialValue}
           medicoOficialValue={medicoOficialValue}
           estudoTecnico={estudoTecnico}
+          isExpanded={isDashboardExpanded}
+          onToggleExpanded={() => setIsDashboardExpanded((prev) => !prev)}
+          currentMonth={dashboardMonth}
+          onMonthChange={setDashboardMonth}
+          hideHeader
         />
+      </div>
+
+      <div className="p-3 sm:p-4 space-y-3">
 
         {/* SEÇÃO CONEXÃO DE ESCALAS DE OFICIAIS: SERVIÇO & GRD, NÚCLEO NÁUTICO, OFICIAIS MÉDICOS (COMPACTO) */}
         <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden relative">
           {/* Header Compacto da Seção */}
-          <div className="bg-slate-900 border-b border-slate-800 p-2.5 px-3.5 sm:px-4 flex flex-wrap items-center justify-between gap-2 text-white">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-amber-500/20 to-indigo-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400 shadow-inner shrink-0">
-                <Shield className="w-3.5 h-3.5" />
+          <div className="bg-slate-900 border-b border-slate-800 py-1.5 px-3 sm:px-3.5 flex flex-wrap items-center justify-between gap-2 text-white">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-5 h-5 rounded-md bg-gradient-to-br from-amber-500/20 to-indigo-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400 shadow-inner shrink-0">
+                <Shield className="w-3 h-3" />
               </div>
               <div className="flex items-center gap-2 min-w-0">
-                <h3 className="text-xs font-black uppercase tracking-wider text-white truncate">
+                <h3 className="text-[11px] font-black uppercase tracking-wider text-white truncate">
                   Oficiais de Dia & Serviços Operacionais (24h)
                 </h3>
                 <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[7.5px] font-black uppercase px-1.5 py-0.5 rounded tracking-widest flex items-center gap-1 shrink-0">
@@ -2914,7 +3089,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                 type="button"
                 onClick={() => handleToggleOfficerVisibility('showSection')}
                 className={cn(
-                  "px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer border shadow-2xs",
+                  "px-2 py-0.5 rounded-md text-[8.5px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer border shadow-2xs",
                   officerVisibility.showSection !== false && (officerVisibility.showOficialDia || officerVisibility.showOficialNautica || officerVisibility.showOficialMedico)
                     ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30"
                     : "bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30"
@@ -2942,7 +3117,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
               <button
                 type="button"
                 onClick={() => setIsOfficerSectionExpanded(!isOfficerSectionExpanded)}
-                className="p-1 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white transition-colors flex items-center gap-1 text-[9px] font-black uppercase cursor-pointer"
+                className="p-1 hover:bg-slate-800 rounded-md text-slate-300 hover:text-white transition-colors flex items-center gap-1 text-[9px] font-black uppercase cursor-pointer"
                 title={isOfficerSectionExpanded ? "Recolher painel de oficiais" : "Expandir painel de oficiais"}
               >
                 <span>{isOfficerSectionExpanded ? "Recolher" : "Expandir"}</span>
@@ -2953,8 +3128,8 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
           {/* Conteúdo Compacto dos 3 Cards Operacionais */}
           {isOfficerSectionExpanded && (
-            <div className="p-2.5 sm:p-3 bg-slate-50/40">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5">
+            <div className="p-2 bg-slate-50/40">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
                 
                 {/* CARD 1: SERVIÇO & GRD (OFICIAL DE DIA) */}
                 <div className="rounded-xl border border-slate-200 bg-white flex flex-col justify-between overflow-hidden shadow-2xs hover:border-amber-300 transition-colors">
@@ -3479,23 +3654,23 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         </div>
 
         {/* SECTION 1: IMPORT_PERMUTA (Permutas Deferidas) */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative z-50">
-          <div className="bg-emerald-50 rounded-t-2xl border-b border-emerald-100 p-3 px-4 flex items-center justify-between">
-            <h3 className="text-xs font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
-              <ArrowRightLeft className="w-4 h-4 text-emerald-600" />
-              Import Permuta (Substituições Aprovadas)
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-visible relative z-50">
+          <div className="bg-emerald-50 rounded-t-2xl border-b border-emerald-100 py-2 px-3.5 flex items-center justify-between">
+            <h3 className="text-[11px] font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
+              <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-600" />
+              SOLICITAÇÕES DE PERMUTAS
             </h3>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setIsPermutaModalOpen(true)}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-widest text-[10px] px-3 py-1.5 rounded shadow-sm flex items-center gap-1 transition-colors"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-widest text-[9.5px] px-2.5 py-1 rounded shadow-2xs flex items-center gap-1 transition-colors cursor-pointer"
               >
                 <Plus className="w-3 h-3" />
                 Nova Permuta
               </button>
             </div>
             {loadingPermutas && (
-              <span className="text-[10px] font-bold text-emerald-600 animate-pulse uppercase tracking-widest">
+              <span className="text-[9.5px] font-bold text-emerald-600 animate-pulse uppercase tracking-widest">
                 Sincronizando...
               </span>
             )}
@@ -3513,15 +3688,15 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                 <col className="w-[40px]" />
               </colgroup>
               <thead className="bg-[#1e293b] text-white">
-                 <tr className="bg-[#ced6e3] text-slate-900 border-b border-slate-900 text-[10px] font-black italic">
-                    <th className="border-r border-slate-900 py-1.5 text-center px-0">✓</th>
-                    <th className="border-r border-slate-900 py-1.5 text-center px-1">SAI</th>
-                    <th className="border-r border-slate-900 py-1.5 text-center uppercase text-[12px] font-black px-0">X</th>
-                    <th className="border-r border-slate-900 py-1.5 text-center px-1">ENTRA</th>
-                    <th className="border-r border-slate-900 py-1.5 text-center px-0">✓</th>
-                    <th className="border-r border-slate-900 py-1.5 text-center px-1">FUNÇÃO</th>
-                    <th className="border-r border-slate-900 py-1.5 tracking-tighter text-center px-1">STATUS</th>
-                    <th className="py-1.5 text-center px-1">RESP.</th>
+                 <tr className="bg-[#ced6e3] text-slate-900 border-b border-slate-900 text-[9.5px] font-black italic">
+                    <th className="border-r border-slate-900 py-1 text-center px-0">✓</th>
+                    <th className="border-r border-slate-900 py-1 text-center px-1">SAI</th>
+                    <th className="border-r border-slate-900 py-1 text-center uppercase text-[11px] font-black px-0">X</th>
+                    <th className="border-r border-slate-900 py-1 text-center px-1">ENTRA</th>
+                    <th className="border-r border-slate-900 py-1 text-center px-0">✓</th>
+                    <th className="border-r border-slate-900 py-1 text-center px-1">FUNÇÃO</th>
+                    <th className="border-r border-slate-900 py-1 tracking-tighter text-center px-1">STATUS</th>
+                    <th className="py-1 text-center px-1">RESP.</th>
                  </tr>
               </thead>
               <tbody>
@@ -3587,11 +3762,11 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                     <tr
                       key={p.id}
                       className={cn(
-                        "border-b border-slate-300 hover:opacity-80 transition-colors h-12",
+                        "border-b border-slate-300 hover:opacity-80 transition-colors h-9",
                         getRowBgColor()
                       )}
                     >
-                      <td className="border-r border-slate-300 px-0.5 py-1 text-center">
+                      <td className="border-r border-slate-300 px-0.5 py-0.5 text-center">
                         {p.requesterSigned ? (
                           <div className="w-4 h-4 bg-slate-900 rounded flex items-center justify-center mx-auto shadow-sm">
                              <Check className="w-3 h-3 text-white stroke-[3]" />
@@ -3602,19 +3777,19 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                           </div>
                         )}
                       </td>
-                      <td className="border-r border-slate-300 p-2 align-middle">
+                      <td className="border-r border-slate-300 p-1 align-middle">
                         <div className="flex text-left justify-center items-center gap-2 max-w-[200px] mx-auto opacity-75">
                           {reqRank && (
                             <div className="origin-left shrink-0">
                               <RankInsignia rankStr={reqRank} />
                             </div>
                           )}
-                          <div className="flex flex-col text-left justify-center py-1 min-w-0">
-                            <span className="text-[11px] font-black uppercase text-indigo-500 tracking-widest leading-none mb-0.5 whitespace-nowrap">{reqRank || 'MIL'}</span>
-                            <span className="text-[15px] font-black uppercase tracking-tight text-slate-800 leading-none truncate block mt-0.5">{displayReqName}</span>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 font-mono leading-none whitespace-nowrap">RG: {p.requesterRg}</span>
-                              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-1.5 py-0.5 rounded leading-none">
+                          <div className="flex flex-col text-left justify-center py-0.5 min-w-0">
+                            <span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest leading-none whitespace-nowrap">{reqRank || 'MIL'}</span>
+                            <span className="text-xs font-black uppercase tracking-tight text-slate-800 leading-none truncate block mt-0.5">{displayReqName}</span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[9.5px] font-bold uppercase tracking-widest text-slate-400 font-mono leading-none whitespace-nowrap">RG: {p.requesterRg}</span>
+                              <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-1 py-0.2 rounded leading-none">
                                 {requesterData?.quadro?.split('/')[0] || 'S/Q'}
                               </span>
                             </div>
@@ -3622,30 +3797,30 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                         </div>
                       </td>
                       <td className="border-r border-slate-300 p-1 text-center bg-transparent mix-blend-multiply align-middle">
-                        <div className="flex items-center justify-center w-full h-full min-h-[32px]">
-                          <X className="w-4 h-4 text-red-600 opacity-60 font-black stroke-[3]" />
+                        <div className="flex items-center justify-center w-full h-full">
+                          <X className="w-3.5 h-3.5 text-red-600 opacity-60 font-black stroke-[3]" />
                         </div>
                       </td>
-                      <td className="border-r border-slate-300 p-2 align-middle">
+                      <td className="border-r border-slate-300 p-1 align-middle">
                         <div className="flex text-left justify-center items-center gap-2 max-w-[200px] mx-auto">
                           {subRank && (
                             <div className="origin-left shrink-0">
                               <RankInsignia rankStr={subRank} />
                             </div>
                           )}
-                          <div className="flex flex-col text-left justify-center py-1 min-w-0">
-                            <span className="text-[11px] font-black uppercase text-indigo-500 tracking-widest leading-none mb-0.5 whitespace-nowrap">{subRank || 'MIL'}</span>
-                            <span className="text-[15px] font-black uppercase tracking-tight text-slate-800 leading-none truncate block mt-0.5">{displaySubName}</span>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 font-mono leading-none whitespace-nowrap">RG: {p.substituteRg}</span>
-                              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest bg-emerald-50 px-1.5 py-0.5 rounded leading-none">
+                          <div className="flex flex-col text-left justify-center py-0.5 min-w-0">
+                            <span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest leading-none whitespace-nowrap">{subRank || 'MIL'}</span>
+                            <span className="text-xs font-black uppercase tracking-tight text-slate-800 leading-none truncate block mt-0.5">{displaySubName}</span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[9.5px] font-bold uppercase tracking-widest text-slate-400 font-mono leading-none whitespace-nowrap">RG: {p.substituteRg}</span>
+                              <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest bg-emerald-50 px-1 py-0.2 rounded leading-none">
                                 {substituteData?.quadro?.split('/')[0] || 'S/Q'}
                               </span>
                             </div>
                           </div>
                         </div>
                       </td>
-                      <td className="border-r border-slate-300 px-0.5 py-1 text-center relative group">
+                      <td className="border-r border-slate-300 px-0.5 py-0.5 text-center relative group">
                         {p.substituteSigned ? (
                           <div className="w-4 h-4 bg-slate-900 rounded flex items-center justify-center mx-auto shadow-sm">
                              <Check className="w-3 h-3 text-white stroke-[3]" />
@@ -3676,7 +3851,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                       <td className="border-r border-slate-300 p-1 px-2 text-center align-middle">
                              <select 
                                className={cn(
-                                 "w-[120px] border-2 rounded px-1 py-1 text-[8px] font-black uppercase outline-none focus:border-slate-500 cursor-pointer mx-auto block mt-1",
+                                 "w-[120px] border-2 rounded px-1 py-0.5 text-[8px] font-black uppercase outline-none focus:border-slate-500 cursor-pointer mx-auto block",
                                  getSelectBgColor()
                                )}
                                value={(p.status === 'pending' || p.status === 'scheduled') ? p.status : p.status}
@@ -3714,7 +3889,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                   <tr>
                     <td
                       colSpan={8}
-                      className="p-5 text-center text-slate-400 font-bold text-xs uppercase tracking-wider bg-slate-50/70"
+                      className="p-2.5 text-center text-slate-400 font-bold text-[11px] uppercase tracking-wider bg-slate-50/70"
                     >
                       Nenhuma permuta cadastrada para esta data
                     </td>
@@ -3727,20 +3902,20 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
         
         {/* SECTION 1.5: RAS_MODULE */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative z-40 mb-6">
-          <div className="bg-amber-50 rounded-t-2xl border-b border-amber-100 p-3 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h3 className="text-xs font-black text-amber-900 uppercase tracking-widest flex items-center gap-2 shrink-0">
-              <BriefcaseBusiness className="w-4 h-4 text-amber-600" />
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-visible relative z-40">
+          <div className="bg-amber-50 rounded-t-2xl border-b border-amber-100 py-2 px-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <h3 className="text-[11px] font-black text-amber-900 uppercase tracking-widest flex items-center gap-2 shrink-0">
+              <BriefcaseBusiness className="w-3.5 h-3.5 text-amber-600" />
               RAS (Regime Adicional de Serviço)
             </h3>
             
 
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
-              <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 w-full sm:w-auto">
                 <select
                   value={rasDuration}
                   onChange={(e) => setRasDuration(Number(e.target.value) as 12 | 24)}
-                  className="bg-white border border-amber-200 rounded px-2 py-1.5 text-xs text-amber-900 font-bold outline-none cursor-pointer"
+                  className="bg-white border border-amber-200 rounded px-2 py-1 text-[11px] text-amber-900 font-bold outline-none cursor-pointer"
                   title="Horas do RAS"
                 >
                   <option value={12}>12h</option>
@@ -3756,7 +3931,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                     setShowAddRasMenu(true);
                   }}
                   onFocus={() => setShowAddRasMenu(true)}
-                  className="w-full text-xs bg-white border border-amber-200 rounded px-3 py-1.5 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 placeholder:text-slate-400 text-slate-800 font-bold"
+                  className="w-full text-[11px] bg-white border border-amber-200 rounded px-2.5 py-1 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 placeholder:text-slate-400 text-slate-800 font-bold"
                 />
                 {showAddRasMenu && addRasMilitarSearch.length >= 2 && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-xl max-h-48 overflow-y-auto">
@@ -3764,24 +3939,24 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                         <button
                           key={m.rg}
                           onClick={() => handleAddMilitarToRas(m)}
-                          className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 border-b border-slate-100 last:border-0"
+                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 border-b border-slate-100 last:border-0"
                         >
                           <div className="font-bold text-slate-800">{m.rank} {m.warName || m.name}</div>
                           <div className="text-[10px] text-slate-500">{m.rg}</div>
                         </button>
                     ))}
                     {addRasMenuOptions.length === 0 && (
-                       <div className="p-3 text-center text-slate-500 text-xs">Nenhum militar encontrado.</div>
+                       <div className="p-2 text-center text-slate-500 text-xs">Nenhum militar encontrado.</div>
                     )}
                   </div>
                 )}
               </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={handleFetchRas}
-                  className="bg-amber-600 hover:bg-amber-500 text-white font-black uppercase tracking-widest text-[10px] px-3 py-1.5 rounded shadow-sm flex items-center gap-1 transition-colors"
+                  className="bg-amber-600 hover:bg-amber-500 text-white font-black uppercase tracking-widest text-[9.5px] px-2.5 py-1 rounded shadow-2xs flex items-center gap-1 transition-colors cursor-pointer"
                 >
                   <Download className="w-3 h-3" />
                   Buscar
@@ -3789,7 +3964,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                 {visibleRasApplications.length > 0 && (
                   <button
                     onClick={handleAddAllRas}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-widest text-[10px] px-3 py-1.5 rounded shadow-sm flex items-center gap-1 transition-colors"
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-widest text-[9.5px] px-2.5 py-1 rounded shadow-2xs flex items-center gap-1 transition-colors cursor-pointer"
                   >
                     <Check className="w-3 h-3" />
                     Incluir Todos
@@ -3800,13 +3975,13 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           </div>
           
           {visibleRasApplications.length > 0 && (
-            <div className="p-4 sm:p-6">
+            <div className="p-2.5 sm:p-3">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-200">
-                    <th className="p-2 font-black text-slate-500 uppercase tracking-widest">Militar</th>
-                    <th className="p-2 font-black text-slate-500 uppercase tracking-widest text-center">Status</th>
-                    <th className="p-2 font-black text-slate-500 uppercase tracking-widest text-center w-36">Ação</th>
+                    <th className="p-1.5 font-black text-slate-500 uppercase tracking-widest text-[10px]">Militar</th>
+                    <th className="p-1.5 font-black text-slate-500 uppercase tracking-widest text-center text-[10px]">Status</th>
+                    <th className="p-1.5 font-black text-slate-500 uppercase tracking-widest text-center w-32 text-[10px]">Ação</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3814,28 +3989,28 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                     const isInScale = baseRoster.some(br => br.rg === app.militarRg);
                     return (
                       <tr key={app.id || app.militarRg} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td className="p-2 font-bold text-slate-800">
+                        <td className="p-1.5 font-bold text-slate-800 text-[11px]">
                           {app.militarRank} {app.militarWarName || app.militarName} <span className="text-slate-400 font-normal">({app.militarRg})</span>
                         </td>
-                        <td className="p-2 text-center">
+                        <td className="p-1.5 text-center">
                           {isInScale ? (
-                            <span className="bg-emerald-100 text-emerald-700 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest inline-flex items-center gap-1">
+                            <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-[9.5px] font-bold uppercase tracking-widest inline-flex items-center gap-1">
                               <Check className="w-3 h-3 text-emerald-600 stroke-[3]" />
                               Na Escala
                             </span>
                           ) : (
-                            <span className="bg-amber-100 text-amber-800 px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest">
+                            <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-[9.5px] font-bold uppercase tracking-widest">
                               Aguardando
                             </span>
                           )}
                         </td>
-                        <td className="p-2 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
+                        <td className="p-1.5 text-center">
+                          <div className="flex items-center justify-center gap-1">
                             {!isInScale && (
                               <button
                                 type="button"
                                 onClick={() => handleAddSingleRas(app)}
-                                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold px-2 py-1 rounded text-[10px] uppercase tracking-widest transition-colors flex-1"
+                                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold px-2 py-0.5 rounded text-[9.5px] uppercase tracking-widest transition-colors flex-1"
                               >
                                 Incluir
                               </button>
@@ -3846,7 +4021,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                                 e.stopPropagation();
                                 handleRemoveRasMilitar(app);
                               }}
-                              className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-200 cursor-pointer"
+                              className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors border border-transparent hover:border-red-200 cursor-pointer"
                               title="Excluir militar do RAS e da listagem de efetivo"
                               aria-label={`Excluir ${app.militarWarName || app.militarName || app.militarRg} do RAS e da escala`}
                             >
@@ -3864,14 +4039,14 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         </div>
 
         {/* SECTION 2: TAB_PERMUTA (Escala Espelho Base) */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative z-30">
-          <div className="bg-indigo-50 rounded-t-2xl border-b border-indigo-100 p-3 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h3 className="text-xs font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2 shrink-0">
-              <Users className="w-4 h-4 text-indigo-600" />
-              Tab Permuta (Construção da Escala)
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-visible relative z-30">
+          <div className="bg-indigo-50 rounded-t-2xl border-b border-indigo-100 py-2 px-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <h3 className="text-[11px] font-black text-indigo-900 uppercase tracking-widest flex items-center gap-2 shrink-0">
+              <Users className="w-3.5 h-3.5 text-indigo-600" />
+              CONSTRUÇÃO DE ESCALA
             </h3>
             
-            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full sm:w-auto">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
               {/* Botão de Transferência Direta / Receber Militar do CBA VII */}
               {normalizeObm(obmContext) !== 'GLOBAL' && (
                 <button
@@ -3881,16 +4056,16 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                     setTransferModalSelectedMilitar(null);
                     setTransferModalTargetAla(identifiedAlaStr || '1');
                   }}
-                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-colors shadow-xs shrink-0 cursor-pointer"
+                  className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10.5px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-colors shadow-2xs shrink-0 cursor-pointer"
                   title={`Receber e transferir militar de qualquer unidade do CBA VII para o ${obmContext}`}
                 >
-                  <ArrowLeftRight className="w-3.5 h-3.5" />
+                  <ArrowLeftRight className="w-3 h-3" />
                   <span className="hidden md:inline">Transferir para {obmContext}</span>
                   <span className="md:hidden">Transferir</span>
                 </button>
               )}
 
-              <div className="relative w-full sm:w-64 z-20" ref={addMenuRef}>
+              <div className="relative w-full sm:w-60 z-20" ref={addMenuRef}>
                 <input
                   type="text"
                   placeholder="Buscar militar de qualquer unidade..."
@@ -3900,7 +4075,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                     setShowAddMenu(true);
                   }}
                   onFocus={() => setShowAddMenu(true)}
-                  className="w-full text-xs bg-white border border-indigo-200 rounded px-3 py-1.5 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 placeholder:text-slate-400 text-slate-800 font-bold"
+                  className="w-full text-[11px] bg-white border border-indigo-200 rounded px-2.5 py-1 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 placeholder:text-slate-400 text-slate-800 font-bold"
                 />
                 {showAddMenu && addMilitarSearch.length >= 2 && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded shadow-xl max-h-56 overflow-y-auto">
@@ -3943,12 +4118,12 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                   </div>
                 )}
               </div>
-              <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full uppercase tracking-widest shrink-0">
+              <span className="text-[9.5px] font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full uppercase tracking-widest shrink-0">
                 {baseRoster.length} Militares
               </span>
             </div>
           </div>
-          <div className=" relative min-h-[300px] pb-48">
+          <div className="relative min-h-[200px] pb-20 overflow-x-auto no-scrollbar">
             {militarsLoading && (
               <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex items-center justify-center">
                 <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest animate-pulse">
@@ -3960,21 +4135,21 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
               <thead className="bg-[#1e293b] text-white">
                 <tr>
                   <th
-                    className="p-3 px-4 border-r border-slate-700 w-12 text-center"
+                    className="py-2 px-1.5 border-r border-slate-700 w-[1%] text-center normal-case tracking-tight"
                     title="Substituído por Permuta?"
                   >
-                    S.Perm
+                    S.Pm
                   </th>
-                  <th className="p-3 px-4 border-r border-slate-700 w-64">
+                  <th className="py-2 px-2.5 border-r border-slate-700 w-[1%]">
                     Escalado Origem
                   </th>
-                  <th className="p-3 px-4 border-r border-slate-700 w-64 text-indigo-300 bg-indigo-900/20">
+                  <th className="py-2 px-2.5 border-r border-slate-700 w-[1%] text-indigo-300 bg-indigo-900/20">
                     Substituto (Permuta)
                   </th>
-                  <th className="p-3 px-4 border-r border-slate-700 w-48 text-center">
+                  <th className="py-2 px-2.5 border-r border-slate-700 w-[1%] text-center">
                     Função Desempenhada
                   </th>
-                  <th className="p-3 px-4 text-center">
+                  <th className="py-2 px-3 text-left">
                     Mostruário de Habilidades
                   </th>
                 </tr>
@@ -3993,7 +4168,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                         isSwapped ? "bg-amber-50" : "hover:bg-slate-50",
                       )}
                     >
-                      <td className="p-2 border-r border-slate-100 text-center align-middle">
+                      <td className="py-1.5 px-1 border-r border-slate-100 text-center align-middle w-[1%]">
                         {isSwapped ? (
                           <div className="w-4 h-4 bg-amber-500 rounded text-white flex items-center justify-center mx-auto shadow-sm">
                             ✓
@@ -4003,24 +4178,24 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                         )}
                       </td>
 
-                      <td className="p-2 px-4 border-r border-slate-100 relative group">
+                      <td className="py-1.5 px-2.5 border-r border-slate-100 relative group w-[1%] whitespace-nowrap">
                         <div
                           className={cn(
-                            "flex items-center gap-3",
+                            "flex items-center gap-2 pr-1",
                             isSwapped ? "opacity-40" : "",
                           )}
                         >
                           <RankInsignia
                             rankStr={militar.rank}
-                            className="w-5 h-5 flex-shrink-0"
+                            className="w-4 h-4 flex-shrink-0"
                           />
                           <div className="flex flex-col text-left">
-                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">
+                            <span className="text-[8.5px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-0.5">
                               {parseRank(militar.rank)}
                             </span>
                             <span
                               className={cn(
-                                "text-[14px] font-black leading-none mb-1 uppercase tracking-tight",
+                                "text-xs font-black leading-none mb-0.5 uppercase tracking-tight",
                                 isSwapped
                                   ? "text-slate-600 line-through"
                                   : "text-slate-800",
@@ -4028,25 +4203,25 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                             >
                               {militar.warName?.toUpperCase() || formatMilitaryName(militar.name || "")}
                             </span>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-[9px] text-slate-400 font-mono tracking-widest leading-none">
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[8.5px] text-slate-400 font-mono tracking-widest leading-none">
                                 RG: {rg}
                               </span>
-                              <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-1.5 py-0.5 rounded">
+                              <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-1 py-0.2 rounded">
                                 {militar.quadro?.split('/')[0] || 'S/Q'}
                               </span>
+                              {expedienteRgs.includes(rg) && (
+                                <span className="text-[7.5px] font-bold text-orange-600 bg-orange-100 px-1 py-0.2 rounded uppercase tracking-widest">
+                                  EXPEDIENTE
+                                </span>
+                              )}
+                              {visibleRasApplications.some(a => a.militarRg === rg) && (
+                                <span className="text-[7.5px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-1 py-0.2 rounded uppercase tracking-widest flex items-center gap-0.5 shadow-2xs">
+                                  <BriefcaseBusiness className="w-2.5 h-2.5 text-amber-600" />
+                                  RAS {visibleRasApplications.find(a => a.militarRg === rg)?.oppDuration ? `(${visibleRasApplications.find(a => a.militarRg === rg)?.oppDuration}h)` : ''}
+                                </span>
+                              )}
                             </div>
-                            {expedienteRgs.includes(rg) && (
-                              <span className="mt-1 text-[8px] font-bold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded w-max uppercase tracking-widest">
-                                EXPEDIENTE
-                              </span>
-                            )}
-                            {visibleRasApplications.some(a => a.militarRg === rg) && (
-                              <span className="mt-1 text-[8px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded w-max uppercase tracking-widest flex items-center gap-1 shadow-xs">
-                                <BriefcaseBusiness className="w-2.5 h-2.5 text-amber-600" />
-                                RAS {visibleRasApplications.find(a => a.militarRg === rg)?.oppDuration ? `(${visibleRasApplications.find(a => a.militarRg === rg)?.oppDuration}h)` : ''}
-                              </span>
-                            )}
                           </div>
                         </div>
                         {(manuallyAddedRgs[selectedDate]?.includes(rg) || visibleRasApplications.some(a => a.militarRg === rg)) && (
@@ -4084,41 +4259,40 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                                 setTimeout(() => setActionNotice(null), 3000);
                               }
                             }}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded shadow-sm opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                            className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded shadow-sm opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
                             title={visibleRasApplications.some(a => a.militarRg === rg) ? "Excluir militar do RAS e da escala" : "Remover Adição Manual"}
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash2 className="w-3 h-3" />
                           </button>
                         )}
                       </td>
 
                       <td
                         className={cn(
-                          "p-2 px-4 border-r border-slate-100",
+                          "py-1.5 px-2.5 border-r border-slate-100 w-[1%] whitespace-nowrap",
                           !isSwapped && "bg-slate-50/50",
                         )}
                       >
                         {isSwapped ? (
-                          <div className="flex items-center gap-3">
-                            {/* TODO: If you have substitute rank stored in permuta, use it. Usually it's not stored securely.  If you have it, pass it. Let's assume we don't have it easily or use a default one for now or just the text.*/}
-                            <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-500">
-                              <ArrowRightLeft className="w-3 h-3" />
+                          <div className="flex items-center gap-2 pr-1">
+                            <div className="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-500 shrink-0">
+                              <ArrowRightLeft className="w-2.5 h-2.5" />
                             </div>
                             <div className="flex flex-col text-left">
-                              <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-widest leading-none mb-1">
+                              <span className="text-[8.5px] font-bold text-indigo-400 uppercase tracking-widest leading-none mb-0.5">
                                 SUBSTITUTO
                               </span>
-                              <span className="text-[14px] font-black text-indigo-700 leading-none mb-1 uppercase tracking-tight">
+                              <span className="text-xs font-black text-indigo-700 leading-none mb-0.5 uppercase tracking-tight">
                                 {(()=>{
                                   const subData = militars.find(m => m.rg === permuta.substituteRg);
                                   return subData?.warName?.toUpperCase() || formatMilitaryName(permuta.substituteName || "");
                                 })()}
                               </span>
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="text-[9px] text-indigo-400/80 font-mono tracking-widest leading-none">
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[8.5px] text-indigo-400/80 font-mono tracking-widest leading-none">
                                   RG: {permuta.substituteRg}
                                 </span>
-                                <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-100/50 px-1.5 py-0.5 rounded">
+                                <span className="text-[7.5px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-100/50 px-1 py-0.2 rounded">
                                   {militars.find(m => m.rg === permuta.substituteRg)?.quadro?.split('/')[0] || 'S/Q'}
                                 </span>
                               </div>
@@ -4129,10 +4303,11 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                         )}
                       </td>
 
-                      <td className="p-2 border-r border-slate-100 bg-white">
+                      <td className="py-1.5 px-2 border-r border-slate-100 bg-white w-[1%] whitespace-nowrap">
                         <FuncoesMultiSelect
                           selected={selectedFunctions[rg] || []}
                           allowedOptions={getAllowedOptions(isSwapped ? (militars.find(m => m.rg === permuta.substituteRg) || militar) : militar)}
+                          extraOptions={extraFuncOptions}
                           onChange={(newVal) =>
                             setSelectedFunctions((prev) => ({
                               ...prev,
@@ -4141,19 +4316,42 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                           }
                         />
                       </td>
-                      <td className="p-2 px-4 text-[8px] text-slate-500 max-w-[200px]">
+                      <td className="py-1.5 px-2.5 text-[8.5px] text-slate-500 whitespace-normal">
                         <div className="flex flex-wrap gap-1">
                           {(() => {
                              const actualMilitar = isSwapped ? (militars.find(m => m.rg === permuta.substituteRg) || militar) : militar;
                              const allowed = getAllowedOptions(actualMilitar);
                              const selected = selectedFunctions[rg] || [];
-                             if (!allowed || allowed.length === 0) return <span>NÃO CONFIGURADO</span>;
+                             if (!allowed || allowed.length === 0) return <span className="text-slate-400">NÃO CONFIGURADO</span>;
                              return allowed.map(opt => {
                                 const isSelected = selected.includes(opt);
                                 return (
-                                  <span key={opt} className={cn("px-1.5 py-0.5 rounded uppercase tracking-tighter whitespace-nowrap", isSelected ? "bg-indigo-100 text-indigo-700 font-black border border-indigo-200" : "bg-slate-100 text-slate-500 font-medium")}>
+                                  <button
+                                    key={opt}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedFunctions((prev) => {
+                                        const curr = prev[rg] || [];
+                                        const exists = curr.includes(opt);
+                                        const next = exists
+                                          ? curr.filter((f) => f !== opt)
+                                          : [...curr, opt];
+                                        return {
+                                          ...prev,
+                                          [rg]: next,
+                                        };
+                                      });
+                                    }}
+                                    className={cn(
+                                      "px-1.5 py-0.5 rounded uppercase tracking-tighter whitespace-nowrap transition-all cursor-pointer active:scale-95 border",
+                                      isSelected
+                                        ? "bg-indigo-100 text-indigo-700 font-black border-indigo-300 ring-1 ring-indigo-200/70 shadow-2xs"
+                                        : "bg-slate-100 hover:bg-indigo-50/70 text-slate-500 hover:text-indigo-600 font-bold border-slate-200/80 hover:border-indigo-200"
+                                    )}
+                                    title={isSelected ? `Clique para desativar ${opt}` : `Clique para ativar ${opt}`}
+                                  >
                                     {opt}
-                                  </span>
+                                  </button>
                                 );
                              });
                           })()}
@@ -4166,7 +4364,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                   <tr>
                     <td
                       colSpan={5}
-                      className="p-8 text-center text-slate-400 font-black text-xs uppercase tracking-widest"
+                      className="p-4 text-center text-slate-400 font-black text-xs uppercase tracking-widest"
                     >
                       NENHUM MILITAR CADASTRADO NESTA ALA
                     </td>
@@ -4215,14 +4413,14 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         />
 
         {/* SEÇÃO 3A: FUNÇÕES ADMINISTRATIVAS (2 BLOCOS) */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative z-20">
-          <div className="bg-slate-800 text-white rounded-t-2xl border-b border-slate-700 p-3 px-4 flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2.5">
-              <Printer className="w-4 h-4 text-slate-300" />
-              <h3 className="text-xs font-black uppercase tracking-widest text-white">
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-visible relative z-20">
+          <div className="bg-slate-800 text-white rounded-t-2xl border-b border-slate-700 py-2 px-3.5 flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Printer className="w-3.5 h-3.5 text-slate-300" />
+              <h3 className="text-[11px] font-black uppercase tracking-widest text-white">
                 Funções Administrativas
               </h3>
-              <span className="text-[10px] font-bold text-slate-300 bg-slate-700/60 px-2 py-0.5 rounded-full uppercase tracking-wider">
+              <span className="text-[9px] font-bold text-slate-300 bg-slate-700/60 px-2 py-0.5 rounded-full uppercase tracking-wider">
                 Prontidão Administrativa (2 Blocos)
               </span>
             </div>
@@ -4236,9 +4434,9 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
               const hasAnyVisibleAdmin = activeAdminCount > 0;
 
               return (
-                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
                   {/* Resumo Global Administrativo */}
-                  <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-700 px-2.5 py-1 rounded-lg text-[10px]">
+                  <div className="flex items-center gap-1.5 bg-slate-900/60 border border-slate-700 px-2 py-0.5 rounded-lg text-[9.5px]">
                     <span className="text-slate-400 font-bold uppercase tracking-wider">Global:</span>
                     <span className={cn("font-black", estudoTecnico.efetivoAdministrativo.chance > 0 ? "text-rose-400" : "text-emerald-400")}>
                       {estudoTecnico.efetivoAdministrativo.chance}% Vazio
@@ -4255,7 +4453,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                       type="button"
                       onClick={() => setAdminTwoBlockMode('categories')}
                       className={cn(
-                        "px-2.5 py-1 rounded text-[9.5px] font-black uppercase tracking-wider transition-all cursor-pointer",
+                        "px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer",
                         adminTwoBlockMode === 'categories'
                           ? "bg-slate-700 text-white shadow-2xs"
                           : "text-slate-400 hover:text-slate-200"
@@ -4268,7 +4466,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                       type="button"
                       onClick={() => setAdminTwoBlockMode('status')}
                       className={cn(
-                        "px-2.5 py-1 rounded text-[9.5px] font-black uppercase tracking-wider transition-all cursor-pointer",
+                        "px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer",
                         adminTwoBlockMode === 'status'
                           ? "bg-slate-700 text-white shadow-2xs"
                           : "text-slate-400 hover:text-slate-200"
@@ -4281,7 +4479,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                       type="button"
                       onClick={() => setAdminTwoBlockMode('table_analytics')}
                       className={cn(
-                        "px-2.5 py-1 rounded text-[9.5px] font-black uppercase tracking-wider transition-all cursor-pointer",
+                        "px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer",
                         adminTwoBlockMode === 'table_analytics'
                           ? "bg-slate-700 text-white shadow-2xs"
                           : "text-slate-400 hover:text-slate-200"
@@ -4297,7 +4495,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                     type="button"
                     onClick={() => handleSetAllAdminRolesVisibility(!hasAnyVisibleAdmin)}
                     className={cn(
-                      "px-2.5 py-1 rounded-lg text-[9.5px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer border shadow-2xs",
+                      "px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer border shadow-2xs",
                       hasAnyVisibleAdmin
                         ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/30"
                         : "bg-rose-500/20 text-rose-300 border-rose-500/30 hover:bg-rose-500/30"
@@ -4306,12 +4504,12 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                   >
                     {hasAnyVisibleAdmin ? (
                       <>
-                        <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                        <Eye className="w-3 h-3 text-emerald-400" />
                         <span>Gerar Escala: Ativas ({activeAdminCount}/{adminReqs.length})</span>
                       </>
                     ) : (
                       <>
-                        <EyeOff className="w-3.5 h-3.5 text-rose-400" />
+                        <EyeOff className="w-3 h-3 text-rose-400" />
                         <span>Gerar Escala: Ocultas</span>
                       </>
                     )}
@@ -4321,7 +4519,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
             })()}
           </div>
 
-          <div className="p-4 sm:p-6 bg-slate-50 relative">
+          <div className="p-3 sm:p-4 bg-slate-50 relative">
             {(() => {
               const adminReqs = dynamicRequirements.filter(f => f.category === 'admin');
               const adminFunctions = adminReqs
@@ -4345,13 +4543,13 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
               const renderAdminTable = (items: typeof adminFunctions) => (
                 <div className="overflow-x-auto flex-1">
                   <table className="w-full text-left text-[10px] font-bold uppercase tracking-wider bg-white">
-                    <thead className="bg-slate-100/90 text-slate-700 text-[10.5px] border-b border-slate-200">
+                    <thead className="bg-slate-100/90 text-slate-700 text-[10px] border-b border-slate-200">
                       <tr>
-                        <th className="p-2.5 px-4 font-black">Função</th>
-                        <th className="p-2.5 px-3 w-16 text-center font-black">Atual</th>
-                        <th className="p-2.5 px-3 w-16 text-center font-black">Nec.</th>
-                        <th className="p-2.5 px-3 w-20 text-center font-black">Status</th>
-                        <th className="p-2.5 px-3 w-28 text-center font-black">Gerar Escala</th>
+                        <th className="py-1.5 px-3 font-black">Função</th>
+                        <th className="py-1.5 px-2 w-14 text-center font-black">Atual</th>
+                        <th className="py-1.5 px-2 w-14 text-center font-black">Nec.</th>
+                        <th className="py-1.5 px-2 w-16 text-center font-black">Status</th>
+                        <th className="py-1.5 px-2 w-24 text-center font-black">Gerar Escala</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -4362,37 +4560,37 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                         const isVisibleInGerarEscala = adminRolesVisibility[norm] !== false && adminRolesVisibility[funcao.name] !== false;
                         return (
                           <tr key={funcao.name} className="hover:bg-slate-50 transition-colors">
-                            <td className="p-2.5 px-4 tracking-tighter text-slate-800 text-[11px] font-black">
+                            <td className="py-1.5 px-3 tracking-tighter text-slate-800 text-[10.5px] font-black">
                               {funcao.name}
                             </td>
-                            <td className="p-2.5 px-3 text-center">
+                            <td className="py-1.5 px-2 text-center">
                               <span className={cn(
-                                "px-2 py-0.5 rounded-md text-[10px] font-black inline-block min-w-[20px]",
+                                "px-1.5 py-0.5 rounded text-[9.5px] font-black inline-block min-w-[20px]",
                                 currentCount > 0 ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400"
                               )}>
                                 {currentCount}
                               </span>
                             </td>
-                            <td className="p-2.5 px-3 text-center text-slate-500 font-black text-[11px]">
+                            <td className="py-1.5 px-2 text-center text-slate-500 font-black text-[10.5px]">
                               {funcao.req}
                             </td>
-                            <td className="p-2.5 px-3 text-center">
+                            <td className="py-1.5 px-2 text-center">
                               {isOk ? (
-                                <span className="text-emerald-500 font-black inline-flex items-center justify-center gap-1">
-                                  <CheckCircle2 className="w-3.5 h-3.5 stroke-[3]" /> OK
+                                <span className="text-emerald-500 font-black inline-flex items-center justify-center gap-0.5 text-[10px]">
+                                  <CheckCircle2 className="w-3 h-3 stroke-[3]" /> OK
                                 </span>
                               ) : (
-                                <span className="text-rose-500 font-black inline-flex items-center justify-center gap-1">
-                                  <AlertCircle className="w-3.5 h-3.5 stroke-[3]" /> DEF
+                                <span className="text-rose-500 font-black inline-flex items-center justify-center gap-0.5 text-[10px]">
+                                  <AlertCircle className="w-3 h-3 stroke-[3]" /> DEF
                                 </span>
                               )}
                             </td>
-                            <td className="p-2.5 px-3 text-center">
+                            <td className="py-1.5 px-2 text-center">
                               <button
                                 type="button"
                                 onClick={() => handleToggleAdminRoleVisibility(funcao.name)}
                                 className={cn(
-                                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer border shadow-2xs",
+                                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[8.5px] font-black uppercase tracking-wider transition-all cursor-pointer border shadow-2xs",
                                   isVisibleInGerarEscala
                                     ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
                                     : "bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200 hover:text-slate-600"
@@ -4401,12 +4599,12 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                               >
                                 {isVisibleInGerarEscala ? (
                                   <>
-                                    <Eye className="w-3 h-3 text-emerald-600" />
+                                    <Eye className="w-2.5 h-2.5 text-emerald-600" />
                                     <span>Ativa</span>
                                   </>
                                 ) : (
                                   <>
-                                    <EyeOff className="w-3 h-3 text-slate-400" />
+                                    <EyeOff className="w-2.5 h-2.5 text-slate-400" />
                                     <span>Oculta</span>
                                   </>
                                 )}
@@ -4417,7 +4615,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                       })}
                       {items.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="p-6 text-center text-slate-400 text-xs font-bold uppercase tracking-wider">
+                          <td colSpan={5} className="p-4 text-center text-slate-400 text-[11px] font-bold uppercase tracking-wider">
                             Nenhuma função administrativa neste bloco
                           </td>
                         </tr>
@@ -4428,26 +4626,26 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
               );
 
               return (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-7xl mx-auto items-start">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 max-w-7xl mx-auto items-start">
                   {/* SELEÇÃO DO BLOCO 1 E BLOCO 2 CONFORME O MODO */}
                   {adminTwoBlockMode === 'categories' && (
                     <>
                       {/* BLOCO 1: GESTÃO & GUARDA */}
-                      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs flex flex-col h-full">
-                        <div className="bg-[#1e293b] text-white p-3 px-4 flex items-center justify-between border-b border-slate-700">
+                      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs flex flex-col h-full">
+                        <div className="bg-[#1e293b] text-white py-2 px-3 flex items-center justify-between border-b border-slate-700">
                           <div className="flex items-center gap-2">
-                            <Shield className="w-4 h-4 text-indigo-400" />
-                            <span className="text-[11px] font-black uppercase tracking-wider">Supervisão, Comando & Guarda</span>
+                            <Shield className="w-3.5 h-3.5 text-indigo-400" />
+                            <span className="text-[10.5px] font-black uppercase tracking-wider">Supervisão, Comando & Guarda</span>
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[9.5px] font-bold text-slate-300 bg-slate-700/60 px-2 py-0.5 rounded-md">
+                            <span className="text-[9px] font-bold text-slate-300 bg-slate-700/60 px-1.5 py-0.5 rounded">
                               {group1List.length} Funções
                             </span>
-                            <span className="text-[9.5px] font-black text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-md border border-emerald-500/30">
+                            <span className="text-[9px] font-black text-emerald-300 bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/30">
                               {group1List.filter(f => f.isOk).length} OK
                             </span>
                             {group1List.filter(f => !f.isOk).length > 0 && (
-                              <span className="text-[9.5px] font-black text-rose-300 bg-rose-500/20 px-2 py-0.5 rounded-md border border-rose-500/30">
+                              <span className="text-[9px] font-black text-rose-300 bg-rose-500/20 px-1.5 py-0.5 rounded border border-rose-500/30">
                                 {group1List.filter(f => !f.isOk).length} DEF
                               </span>
                             )}
@@ -4457,21 +4655,21 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                       </div>
 
                       {/* BLOCO 2: APOIO & LOGÍSTICA */}
-                      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs flex flex-col h-full">
-                        <div className="bg-[#1e293b] text-white p-3 px-4 flex items-center justify-between border-b border-slate-700">
+                      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs flex flex-col h-full">
+                        <div className="bg-[#1e293b] text-white py-2 px-3 flex items-center justify-between border-b border-slate-700">
                           <div className="flex items-center gap-2">
-                            <BriefcaseBusiness className="w-4 h-4 text-amber-400" />
-                            <span className="text-[11px] font-black uppercase tracking-wider">Apoio Operacional, Rancho & Logística</span>
+                            <BriefcaseBusiness className="w-3.5 h-3.5 text-amber-400" />
+                            <span className="text-[10.5px] font-black uppercase tracking-wider">Apoio Operacional, Rancho & Logística</span>
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[9.5px] font-bold text-slate-300 bg-slate-700/60 px-2 py-0.5 rounded-md">
+                            <span className="text-[9px] font-bold text-slate-300 bg-slate-700/60 px-1.5 py-0.5 rounded">
                               {group2List.length} Funções
                             </span>
-                            <span className="text-[9.5px] font-black text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-md border border-emerald-500/30">
+                            <span className="text-[9px] font-black text-emerald-300 bg-emerald-500/20 px-1.5 py-0.5 rounded border border-emerald-500/30">
                               {group2List.filter(f => f.isOk).length} OK
                             </span>
                             {group2List.filter(f => !f.isOk).length > 0 && (
-                              <span className="text-[9.5px] font-black text-rose-300 bg-rose-500/20 px-2 py-0.5 rounded-md border border-rose-500/30">
+                              <span className="text-[9px] font-black text-rose-300 bg-rose-500/20 px-1.5 py-0.5 rounded border border-rose-500/30">
                                 {group2List.filter(f => !f.isOk).length} DEF
                               </span>
                             )}
@@ -4485,13 +4683,13 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                   {adminTwoBlockMode === 'status' && (
                     <>
                       {/* BLOCO 1: FUNÇÕES EM DÉFICIT */}
-                      <div className="bg-white rounded-xl border border-rose-200 overflow-hidden shadow-xs flex flex-col h-full">
-                        <div className="bg-rose-950 text-white p-3 px-4 flex items-center justify-between border-b border-rose-800">
+                      <div className="bg-white rounded-xl border border-rose-200 overflow-hidden shadow-2xs flex flex-col h-full">
+                        <div className="bg-rose-950 text-white py-2 px-3 flex items-center justify-between border-b border-rose-800">
                           <div className="flex items-center gap-2">
-                            <AlertCircle className="w-4 h-4 text-rose-400" />
-                            <span className="text-[11px] font-black uppercase tracking-wider">Funções com Déficit (Necessitam Militar)</span>
+                            <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                            <span className="text-[10.5px] font-black uppercase tracking-wider">Funções com Déficit (Necessitam Militar)</span>
                           </div>
-                          <span className="text-[9.5px] font-black text-rose-200 bg-rose-800/80 px-2.5 py-0.5 rounded-md border border-rose-700">
+                          <span className="text-[9px] font-black text-rose-200 bg-rose-800/80 px-2 py-0.5 rounded border border-rose-700">
                             {defList.length} Funções com Lacuna
                           </span>
                         </div>
@@ -4499,13 +4697,13 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                       </div>
 
                       {/* BLOCO 2: FUNÇÕES REGULARES */}
-                      <div className="bg-white rounded-xl border border-emerald-200 overflow-hidden shadow-xs flex flex-col h-full">
-                        <div className="bg-emerald-950 text-white p-3 px-4 flex items-center justify-between border-b border-emerald-800">
+                      <div className="bg-white rounded-xl border border-emerald-200 overflow-hidden shadow-2xs flex flex-col h-full">
+                        <div className="bg-emerald-950 text-white py-2 px-3 flex items-center justify-between border-b border-emerald-800">
                           <div className="flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                            <span className="text-[11px] font-black uppercase tracking-wider">Funções Regularizadas (Efetivo Completo)</span>
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            <span className="text-[10.5px] font-black uppercase tracking-wider">Funções Regularizadas (Efetivo Completo)</span>
                           </div>
-                          <span className="text-[9.5px] font-black text-emerald-200 bg-emerald-800/80 px-2.5 py-0.5 rounded-md border border-emerald-700">
+                          <span className="text-[9px] font-black text-emerald-200 bg-emerald-800/80 px-2 py-0.5 rounded border border-emerald-700">
                             {okList.length} Funções Cobertas
                           </span>
                         </div>
@@ -4517,13 +4715,13 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                   {adminTwoBlockMode === 'table_analytics' && (
                     <>
                       {/* BLOCO 1: TABELA GERAL */}
-                      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs flex flex-col h-full">
-                        <div className="bg-[#1e293b] text-white p-3 px-4 flex items-center justify-between border-b border-slate-700">
+                      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs flex flex-col h-full">
+                        <div className="bg-[#1e293b] text-white py-2 px-3 flex items-center justify-between border-b border-slate-700">
                           <div className="flex items-center gap-2">
-                            <Printer className="w-4 h-4 text-slate-300" />
-                            <span className="text-[11px] font-black uppercase tracking-wider">Tabela de Funções Administrativas</span>
+                            <Printer className="w-3.5 h-3.5 text-slate-300" />
+                            <span className="text-[10.5px] font-black uppercase tracking-wider">Tabela de Funções Administrativas</span>
                           </div>
-                          <span className="text-[9.5px] font-bold text-slate-300 bg-slate-700/60 px-2 py-0.5 rounded-md">
+                          <span className="text-[9px] font-bold text-slate-300 bg-slate-700/60 px-2 py-0.5 rounded">
                             {adminFunctions.length} Funções
                           </span>
                         </div>
@@ -4531,61 +4729,61 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                       </div>
 
                       {/* BLOCO 2: DIAGNÓSTICO E INTELIGÊNCIA ADMINISTRATIVA */}
-                      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs flex flex-col h-full">
-                        <div className="bg-slate-800 text-white p-3 px-4 flex items-center justify-between border-b border-slate-700">
+                      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs flex flex-col h-full">
+                        <div className="bg-slate-800 text-white py-2 px-3 flex items-center justify-between border-b border-slate-700">
                           <div className="flex items-center gap-2">
-                            <Activity className="w-4 h-4 text-amber-400" />
-                            <span className="text-[11px] font-black uppercase tracking-wider">Diagnóstico & Gestão do Administrativo</span>
+                            <Activity className="w-3.5 h-3.5 text-amber-400" />
+                            <span className="text-[10.5px] font-black uppercase tracking-wider">Diagnóstico & Gestão do Administrativo</span>
                           </div>
-                          <span className="text-[9.5px] font-bold text-slate-300 bg-slate-700/60 px-2 py-0.5 rounded-md">
+                          <span className="text-[9px] font-bold text-slate-300 bg-slate-700/60 px-2 py-0.5 rounded">
                             Resumo OBM
                           </span>
                         </div>
 
-                        <div className="p-4 space-y-4 flex-1 bg-white">
+                        <div className="p-3 space-y-3 flex-1 bg-white">
                           {/* Medidor de Déficit */}
-                          <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                          <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
                             <div className="flex justify-between items-end mb-1">
-                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Global Administrativo</span>
-                              <span className={cn("text-[11px] font-black", estudoTecnico.efetivoAdministrativo.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                              <span className="text-[9.5px] font-bold text-slate-500 uppercase tracking-widest">Global Administrativo</span>
+                              <span className={cn("text-[10.5px] font-black", estudoTecnico.efetivoAdministrativo.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
                                 {estudoTecnico.efetivoAdministrativo.chance}% Vazio
                               </span>
                             </div>
-                            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                            <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
                               <div
                                 className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.efetivoAdministrativo.chance > 0 ? "bg-rose-500" : "bg-emerald-500")}
                                 style={{ width: `${estudoTecnico.efetivoAdministrativo.chance}%` }}
                               />
                             </div>
-                            <div className="flex justify-between mt-1 text-[9.5px] text-slate-500 font-bold">
+                            <div className="flex justify-between mt-1 text-[9px] text-slate-500 font-bold">
                               <span>Lacunas: {estudoTecnico.efetivoAdministrativo.deficit}</span>
                               <span>Necessidade: {estudoTecnico.efetivoAdministrativo.req}</span>
                             </div>
                           </div>
 
                           {/* Balanço de Regularidade */}
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg text-center">
-                              <span className="text-[9.5px] font-bold text-emerald-700 uppercase tracking-wider block">Regularizadas</span>
-                              <span className="text-xl font-black text-emerald-800">{okList.length}</span>
-                              <span className="text-[9px] text-emerald-600 block mt-0.5">funções atendidas</span>
+                          <div className="grid grid-cols-2 gap-2.5">
+                            <div className="bg-emerald-50 border border-emerald-200 p-2 rounded-lg text-center">
+                              <span className="text-[9px] font-bold text-emerald-700 uppercase tracking-wider block">Regularizadas</span>
+                              <span className="text-lg font-black text-emerald-800">{okList.length}</span>
+                              <span className="text-[8.5px] text-emerald-600 block">funções atendidas</span>
                             </div>
-                            <div className="bg-rose-50 border border-rose-200 p-3 rounded-lg text-center">
-                              <span className="text-[9.5px] font-bold text-rose-700 uppercase tracking-wider block">Em Déficit</span>
-                              <span className="text-xl font-black text-rose-800">{defList.length}</span>
-                              <span className="text-[9px] text-rose-600 block mt-0.5">precisam de militar</span>
+                            <div className="bg-rose-50 border border-rose-200 p-2 rounded-lg text-center">
+                              <span className="text-[9px] font-bold text-rose-700 uppercase tracking-wider block">Em Déficit</span>
+                              <span className="text-lg font-black text-rose-800">{defList.length}</span>
+                              <span className="text-[8.5px] text-rose-600 block">precisam de militar</span>
                             </div>
                           </div>
 
                           {/* Militares Escalados no Administrativo */}
                           <div>
-                            <span className="text-[10px] font-black text-slate-700 uppercase tracking-widest block mb-2">
+                            <span className="text-[9.5px] font-black text-slate-700 uppercase tracking-widest block mb-1.5">
                               Militares Escalados no Administrativo ({militars.filter(m => {
                                 const fns = selectedFunctions[m.rg] || [];
                                 return fns.some(fn => adminFunctions.some(af => normalizeFnName(af.name) === normalizeFnName(fn)));
                               }).length})
                             </span>
-                            <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto pr-1">
+                            <div className="flex flex-wrap gap-1 max-h-36 overflow-y-auto pr-1">
                               {militars
                                 .filter(m => {
                                   const fns = selectedFunctions[m.rg] || [];
@@ -4597,7 +4795,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                                   return (
                                     <div
                                       key={m.rg}
-                                      className="inline-flex items-center gap-1.5 bg-slate-100 border border-slate-200 text-slate-800 text-[10px] px-2 py-1 rounded-md font-bold"
+                                      className="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 text-slate-800 text-[9.5px] px-2 py-0.5 rounded font-bold"
                                     >
                                       <span>{m.warName?.toUpperCase() || formatMilitaryName(m.name || "")}</span>
                                       <span className="text-slate-400">→</span>
@@ -4609,7 +4807,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                                 const fns = selectedFunctions[m.rg] || [];
                                 return fns.some(fn => adminFunctions.some(af => normalizeFnName(af.name) === normalizeFnName(fn)));
                               }).length === 0 && (
-                                <span className="text-[10px] text-slate-400 italic">
+                                <span className="text-[9.5px] text-slate-400 italic">
                                   Nenhum militar alocado em função administrativa nesta escala ainda.
                                 </span>
                               )}
@@ -4626,32 +4824,32 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         </div>
 
         {/* SECTION 3B: PRONTIDÃO OPERACIONAL (QUANT_MILITARES1) */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative z-20">
-          <div className="bg-amber-50 rounded-t-2xl border-b border-amber-100 p-3 px-4 flex items-center justify-between">
-            <h3 className="text-xs font-black text-amber-900 uppercase tracking-widest flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-600" />
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-visible relative z-20">
+          <div className="bg-amber-50 rounded-t-2xl border-b border-amber-100 py-2 px-3.5 flex items-center justify-between">
+            <h3 className="text-[11px] font-black text-amber-900 uppercase tracking-widest flex items-center gap-2">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
               Prontidão Operacional (Quant_Militares1)
             </h3>
-            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
+            <span className="text-[9.5px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full uppercase tracking-widest">
               Resumo Automático
             </span>
           </div>
-          <div className="p-4 sm:p-6 bg-slate-50 relative">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-7xl mx-auto items-start">
+          <div className="p-3 sm:p-4 bg-slate-50 relative">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 max-w-7xl mx-auto items-start">
                 
                 {/* OPERACIONAIS (VERTICAL) */}
                 <div>
-                  <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest mb-3 flex items-center gap-2">
-                    <Shield className="w-4 h-4 text-indigo-500" />
+                  <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5 text-indigo-500" />
                     Funções Operacionais
                   </h4>
-                  <table className="w-full text-left text-[10px] font-bold uppercase tracking-wider bg-white rounded-lg overflow-hidden border border-slate-200 shadow-sm">
-                    <thead className="bg-[#1e293b] text-white text-[11px]">
+                  <table className="w-full text-left text-[10px] font-bold uppercase tracking-wider bg-white rounded-lg overflow-hidden border border-slate-200 shadow-2xs">
+                    <thead className="bg-[#1e293b] text-white text-[10px]">
                       <tr>
-                        <th className="p-2.5 px-4 border-b border-slate-700">Função</th>
-                        <th className="p-2.5 px-4 border-b border-slate-700 w-20 text-center">Atual</th>
-                        <th className="p-2.5 px-4 border-b border-slate-700 w-20 text-center">Nec.</th>
-                        <th className="p-2.5 px-4 border-b border-slate-700 w-20 text-center">Status</th>
+                        <th className="py-1.5 px-3 border-b border-slate-700">Função</th>
+                        <th className="py-1.5 px-3 border-b border-slate-700 w-16 text-center">Atual</th>
+                        <th className="py-1.5 px-3 border-b border-slate-700 w-16 text-center">Nec.</th>
+                        <th className="py-1.5 px-3 border-b border-slate-700 w-16 text-center">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -4671,21 +4869,21 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                         const isOk = funcao.isOk;
                         return (
                           <tr key={funcao.name} className="hover:bg-slate-50 transition-colors">
-                            <td className="p-2.5 px-4 tracking-tighter text-slate-800 text-[11px]">{funcao.name}</td>
-                            <td className="p-2.5 px-4 text-center">
-                              <span className={cn("px-2 py-1 rounded-md text-[10px] font-black", currentCount > 0 ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400")}>
+                            <td className="py-1.5 px-3 tracking-tighter text-slate-800 text-[10.5px]">{funcao.name}</td>
+                            <td className="py-1.5 px-3 text-center">
+                              <span className={cn("px-1.5 py-0.5 rounded text-[9.5px] font-black", currentCount > 0 ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400")}>
                                 {currentCount}
                               </span>
                             </td>
-                            <td className="p-2.5 px-4 text-center text-slate-500 font-black">{funcao.req}</td>
-                            <td className="p-2.5 px-4 text-center">
+                            <td className="py-1.5 px-3 text-center text-slate-500 font-black">{funcao.req}</td>
+                            <td className="py-1.5 px-3 text-center">
                               {isOk ? (
-                                <span className="text-emerald-500 font-black flex items-center justify-center gap-1">
-                                  <CheckCircle2 className="w-3.5 h-3.5 stroke-[3]" /> OK
+                                <span className="text-emerald-500 font-black flex items-center justify-center gap-0.5 text-[10px]">
+                                  <CheckCircle2 className="w-3 h-3 stroke-[3]" /> OK
                                 </span>
                               ) : (
-                                <span className="text-rose-500 font-black flex items-center justify-center gap-1">
-                                  <AlertCircle className="w-3.5 h-3.5 stroke-[3]" /> DEF
+                                <span className="text-rose-500 font-black flex items-center justify-center gap-0.5 text-[10px]">
+                                  <AlertCircle className="w-3 h-3 stroke-[3]" /> DEF
                                 </span>
                               )}
                             </td>
@@ -4698,62 +4896,62 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
                 {/* ESTUDO TÉCNICO / PREVISÃO ALGORÍTMICA (VERTICAL) */}
                 <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-xs font-black text-slate-700 uppercase tracking-widest flex items-center gap-2">
-                      <Activity className="w-4 h-4 text-rose-500" />
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-[11px] font-black text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
+                      <Activity className="w-3.5 h-3.5 text-rose-500" />
                       Previsão Algorítmica
                     </h4>
                     <button 
                       onClick={() => navigate('/estudo-tecnico-guarnicoes')}
-                      className="flex items-center gap-1.5 px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-md text-[10px] font-bold tracking-wider transition-colors"
+                      className="flex items-center gap-1 px-2.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-white rounded text-[9.5px] font-bold tracking-wider transition-colors cursor-pointer"
                     >
                       Estudo Plurianual <ArrowRight className="w-3 h-3" />
                     </button>
                   </div>
-                  <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-sm flex flex-col h-full">
-                     <div className="p-4 bg-slate-800 text-white flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
-                           <TrendingDown className="w-4 h-4 text-rose-400" />
+                  <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-2xs flex flex-col h-full">
+                     <div className="py-2 px-3 bg-slate-800 text-white flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5">
+                           <TrendingDown className="w-3.5 h-3.5 text-rose-400" />
                            Risco de Déficit
                         </span>
-                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-slate-700/50">
+                        <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-slate-700/50">
                            PREVISÃO
                         </span>
                      </div>
-                     <div className="p-4 space-y-4 flex-1">
+                     <div className="p-3 space-y-2.5 flex-1">
                         {/* Efetivo Global */}
                         <div>
-                          <div className="flex justify-between items-end mb-1">
-                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Efetivo Global (Total)</span>
-                             <span className={cn("text-[11px] font-black", estudoTecnico.efetivo.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                          <div className="flex justify-between items-end mb-0.5">
+                             <span className="text-[9.5px] font-bold text-slate-500 uppercase tracking-widest">Efetivo Global (Total)</span>
+                             <span className={cn("text-[10px] font-black", estudoTecnico.efetivo.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
                                {estudoTecnico.efetivo.chance}% Vazio
                              </span>
                           </div>
                           <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                              <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.efetivo.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.efetivo.chance}%` }} />
                           </div>
-                          <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                          <div className="flex justify-between mt-0.5 text-[8.5px] text-slate-400 font-bold">
                              <span>Lacunas: {estudoTecnico.efetivo.deficit}</span>
                              <span>Nec: {estudoTecnico.efetivo.req}</span>
                           </div>
                         </div>
 
-                        <div className="pt-2">
-                          <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest border-b border-slate-200 block w-full pb-1 mb-2">Funções Operacionais</span>
+                        <div className="pt-1">
+                          <span className="text-[9.5px] font-black text-slate-800 uppercase tracking-widest border-b border-slate-200 block w-full pb-0.5 mb-1">Funções Operacionais</span>
                         </div>
                         
                         {/* Efetivo Operacional */}
                         <div>
-                          <div className="flex justify-between items-end mb-1">
-                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Global Operacional</span>
-                             <span className={cn("text-[11px] font-black", estudoTecnico.efetivoOperacional.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                          <div className="flex justify-between items-end mb-0.5">
+                             <span className="text-[9.5px] font-bold text-slate-500 uppercase tracking-widest">Global Operacional</span>
+                             <span className={cn("text-[10px] font-black", estudoTecnico.efetivoOperacional.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
                                {estudoTecnico.efetivoOperacional.chance}% Vazio
                              </span>
                           </div>
                           <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                              <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.efetivoOperacional.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.efetivoOperacional.chance}%` }} />
                           </div>
-                          <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                          <div className="flex justify-between mt-0.5 text-[8.5px] text-slate-400 font-bold">
                              <span>Lacunas: {estudoTecnico.efetivoOperacional.deficit}</span>
                              <span>Nec: {estudoTecnico.efetivoOperacional.req}</span>
                           </div>
@@ -4761,16 +4959,16 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                         
                         {/* Condutores */}
                         <div>
-                          <div className="flex justify-between items-end mb-1">
-                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Condutores</span>
-                             <span className={cn("text-[11px] font-black", estudoTecnico.condutores.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                          <div className="flex justify-between items-end mb-0.5">
+                             <span className="text-[9.5px] font-bold text-slate-500 uppercase tracking-widest">Condutores</span>
+                             <span className={cn("text-[10px] font-black", estudoTecnico.condutores.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
                                {estudoTecnico.condutores.chance}% Vazio
                              </span>
                           </div>
                           <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                              <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.condutores.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.condutores.chance}%` }} />
                           </div>
-                          <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                          <div className="flex justify-between mt-0.5 text-[8.5px] text-slate-400 font-bold">
                              <span>Lacunas: {estudoTecnico.condutores.deficit}</span>
                              <span>Nec: {estudoTecnico.condutores.req}</span>
                           </div>
@@ -4778,16 +4976,16 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
                         {estudoTecnico.condutores_maritimos.req > 0 && (
                         <div>
-                          <div className="flex justify-between items-end mb-1">
-                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Mestres (Marítimo)</span>
-                             <span className={cn("text-[11px] font-black", estudoTecnico.condutores_maritimos.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                          <div className="flex justify-between items-end mb-0.5">
+                             <span className="text-[9.5px] font-bold text-slate-500 uppercase tracking-widest">Mestres (Marítimo)</span>
+                             <span className={cn("text-[10px] font-black", estudoTecnico.condutores_maritimos.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
                                {estudoTecnico.condutores_maritimos.chance}% Vazio
                              </span>
                           </div>
                           <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                              <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.condutores_maritimos.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.condutores_maritimos.chance}%` }} />
                           </div>
-                          <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                          <div className="flex justify-between mt-0.5 text-[8.5px] text-slate-400 font-bold">
                              <span>Lacunas: {estudoTecnico.condutores_maritimos.deficit}</span>
                              <span>Nec: {estudoTecnico.condutores_maritimos.req}</span>
                           </div>
@@ -4796,16 +4994,16 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
                         {/* Chefes */}
                         <div>
-                          <div className="flex justify-between items-end mb-1">
-                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Chefes de Guarnição</span>
-                             <span className={cn("text-[11px] font-black", estudoTecnico.chefes.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                          <div className="flex justify-between items-end mb-0.5">
+                             <span className="text-[9.5px] font-bold text-slate-500 uppercase tracking-widest">Chefes de Guarnição</span>
+                             <span className={cn("text-[10px] font-black", estudoTecnico.chefes.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
                                {estudoTecnico.chefes.chance}% Vazio
                              </span>
                           </div>
                           <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                              <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.chefes.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.chefes.chance}%` }} />
                           </div>
-                          <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                          <div className="flex justify-between mt-0.5 text-[8.5px] text-slate-400 font-bold">
                              <span>Lacunas: {estudoTecnico.chefes.deficit}</span>
                              <span>Nec: {estudoTecnico.chefes.req}</span>
                           </div>
@@ -4813,16 +5011,16 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
                         {estudoTecnico.chefes_maritimos.req > 0 && (
                         <div>
-                          <div className="flex justify-between items-end mb-1">
-                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Chefes (Marítimo)</span>
-                             <span className={cn("text-[11px] font-black", estudoTecnico.chefes_maritimos.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                          <div className="flex justify-between items-end mb-0.5">
+                             <span className="text-[9.5px] font-bold text-slate-500 uppercase tracking-widest">Chefes (Marítimo)</span>
+                             <span className={cn("text-[10px] font-black", estudoTecnico.chefes_maritimos.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
                                {estudoTecnico.chefes_maritimos.chance}% Vazio
                              </span>
                           </div>
                           <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                              <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.chefes_maritimos.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.chefes_maritimos.chance}%` }} />
                           </div>
-                          <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                          <div className="flex justify-between mt-0.5 text-[8.5px] text-slate-400 font-bold">
                              <span>Lacunas: {estudoTecnico.chefes_maritimos.deficit}</span>
                              <span>Nec: {estudoTecnico.chefes_maritimos.req}</span>
                           </div>
@@ -4831,16 +5029,16 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
                         {/* Auxiliares */}
                         <div>
-                          <div className="flex justify-between items-end mb-1">
-                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Auxiliares / Geral</span>
-                             <span className={cn("text-[11px] font-black", estudoTecnico.auxiliares.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                          <div className="flex justify-between items-end mb-0.5">
+                             <span className="text-[9.5px] font-bold text-slate-500 uppercase tracking-widest">Auxiliares / Geral</span>
+                             <span className={cn("text-[10px] font-black", estudoTecnico.auxiliares.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
                                {estudoTecnico.auxiliares.chance}% Vazio
                              </span>
                           </div>
                           <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                              <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.auxiliares.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.auxiliares.chance}%` }} />
                           </div>
-                          <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                          <div className="flex justify-between mt-0.5 text-[8.5px] text-slate-400 font-bold">
                              <span>Lacunas: {estudoTecnico.auxiliares.deficit}</span>
                              <span>Nec: {estudoTecnico.auxiliares.req}</span>
                           </div>
@@ -4848,38 +5046,38 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
                         {estudoTecnico.auxiliares_maritimos.req > 0 && (
                         <div>
-                          <div className="flex justify-between items-end mb-1">
-                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Marinheiros (Marítimo)</span>
-                             <span className={cn("text-[11px] font-black", estudoTecnico.auxiliares_maritimos.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                          <div className="flex justify-between items-end mb-0.5">
+                             <span className="text-[9.5px] font-bold text-slate-500 uppercase tracking-widest">Marinheiros (Marítimo)</span>
+                             <span className={cn("text-[10px] font-black", estudoTecnico.auxiliares_maritimos.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
                                {estudoTecnico.auxiliares_maritimos.chance}% Vazio
                              </span>
                           </div>
                           <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                              <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.auxiliares_maritimos.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.auxiliares_maritimos.chance}%` }} />
                           </div>
-                          <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                          <div className="flex justify-between mt-0.5 text-[8.5px] text-slate-400 font-bold">
                              <span>Lacunas: {estudoTecnico.auxiliares_maritimos.deficit}</span>
                              <span>Nec: {estudoTecnico.auxiliares_maritimos.req}</span>
                           </div>
                         </div>
                         )}
 
-                        <div className="pt-4">
-                          <span className="text-[10px] font-black text-slate-800 uppercase tracking-widest border-b border-slate-200 block w-full pb-1 mb-2">Funções Administrativas</span>
+                        <div className="pt-1.5">
+                          <span className="text-[9.5px] font-black text-slate-800 uppercase tracking-widest border-b border-slate-200 block w-full pb-0.5 mb-1">Funções Administrativas</span>
                         </div>
 
                         {/* Efetivo Administrativo */}
                         <div>
-                          <div className="flex justify-between items-end mb-1">
-                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Global Administrativo</span>
-                             <span className={cn("text-[11px] font-black", estudoTecnico.efetivoAdministrativo.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
+                          <div className="flex justify-between items-end mb-0.5">
+                             <span className="text-[9.5px] font-bold text-slate-500 uppercase tracking-widest">Global Administrativo</span>
+                             <span className={cn("text-[10px] font-black", estudoTecnico.efetivoAdministrativo.chance > 0 ? "text-rose-500" : "text-emerald-500")}>
                                {estudoTecnico.efetivoAdministrativo.chance}% Vazio
                              </span>
                           </div>
                           <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
                              <div className={cn("h-full rounded-full transition-all duration-500", estudoTecnico.efetivoAdministrativo.chance > 0 ? "bg-rose-500" : "bg-emerald-500")} style={{ width: `${estudoTecnico.efetivoAdministrativo.chance}%` }} />
                           </div>
-                          <div className="flex justify-between mt-1 text-[9px] text-slate-400 font-bold">
+                          <div className="flex justify-between mt-0.5 text-[8.5px] text-slate-400 font-bold">
                              <span>Lacunas: {estudoTecnico.efetivoAdministrativo.deficit}</span>
                              <span>Nec: {estudoTecnico.efetivoAdministrativo.req}</span>
                           </div>
@@ -4895,84 +5093,84 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         </div>
 
         {/* SECTION 4: CONTROLE DE VIATURAS */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-visible relative z-10">
-          <div className="bg-slate-800 rounded-t-2xl border-b border-slate-700 p-3 px-4 flex items-center justify-between">
-            <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center gap-2">
-              <Truck className="w-4 h-4 text-slate-400" />
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-visible relative z-10">
+          <div className="bg-slate-800 rounded-t-2xl border-b border-slate-700 py-2 px-3.5 flex items-center justify-between">
+            <h3 className="text-[11px] font-black text-white uppercase tracking-widest flex items-center gap-2">
+              <Truck className="w-3.5 h-3.5 text-slate-400" />
               Distribuição (Viaturas)
             </h3>
-            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               {patternAppliedMessage && (
-                <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-1 rounded-md animate-in fade-in">
+                <span className="text-[9.5px] font-bold text-emerald-300 bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 rounded animate-in fade-in">
                   {patternAppliedMessage}
                 </span>
               )}
               <button 
                 type="button"
                 onClick={handleApplyObmPattern}
-                className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 rounded-md transition-colors border border-amber-400/20 cursor-pointer shadow-2xs"
+                className="flex items-center gap-1 px-2 py-0.5 text-[9.5px] font-black uppercase tracking-wider text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 rounded transition-colors border border-amber-400/20 cursor-pointer shadow-2xs"
                 title="Recarregar e aplicar o Novo Padrão de Viaturas da OBM definido no Controle de Viaturas para esta data"
               >
-                <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                <RotateCcw className="w-3 h-3 text-amber-400" />
                 Aplicar Padrão da OBM
               </button>
               <button 
                 onClick={handleAddViaturaExtra}
-                className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-400/10 hover:bg-emerald-400/20 rounded-md transition-colors border border-emerald-400/20 cursor-pointer"
+                className="flex items-center gap-1 px-2 py-0.5 text-[9.5px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-400/10 hover:bg-emerald-400/20 rounded transition-colors border border-emerald-400/20 cursor-pointer"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus className="w-3 h-3" />
                 Adicionar VTR Extra
               </button>
-              <span className="text-[10px] font-bold text-slate-300 bg-slate-700 px-2 py-0.5 rounded-full uppercase tracking-widest">
+              <span className="text-[9.5px] font-bold text-slate-300 bg-slate-700 px-2 py-0.5 rounded-full uppercase tracking-widest">
                 Manual
               </span>
             </div>
           </div>
 
-          <div className=" p-4 sm:p-6 bg-slate-50 relative">
-            <table className="w-full text-left text-[10px] font-bold uppercase tracking-wider bg-white rounded-lg overflow-hidden border border-slate-200 shadow-sm min-w-[700px]">
-              <thead className="bg-[#1e293b] text-white text-[11px]">
+          <div className="p-3 sm:p-4 bg-slate-50 relative">
+            <table className="w-full text-left text-[10px] font-bold uppercase tracking-wider bg-white rounded-lg overflow-hidden border border-slate-200 shadow-2xs min-w-[700px]">
+              <thead className="bg-[#1e293b] text-white text-[10px]">
                 <tr>
                   <th
-                    className="p-3 px-2 border-b border-r border-[#334155] w-14 text-center"
+                    className="py-2 px-2 border-b border-r border-[#334155] w-14 text-center"
                     title="Alterar ordem da viatura na escala (mover para esquerda ou direita no arquivo gerado)"
                   >
                     Ordem
                   </th>
                   <th
-                    className="p-3 px-2 border-b border-r border-[#334155] w-36 text-center"
+                    className="py-2 px-2 border-b border-r border-[#334155] w-36 text-center"
                     title="Exibir VTR na escala gerada e definir espaço (1, 1/2 ou 1/3)"
                   >
                     Exibição
                   </th>
                   <th
-                    className="p-3 px-2 border-b border-r border-[#334155] w-12 text-center"
+                    className="py-2 px-2 border-b border-r border-[#334155] w-12 text-center"
                     title="Ativar VTR?"
                   >
                     Ativar
                   </th>
-                  <th className="p-3 px-2 border-b border-r border-[#334155] text-center w-24">
+                  <th className="py-2 px-2 border-b border-r border-[#334155] text-center w-24">
                     Viaturas
                   </th>
-                  <th className="p-3 px-2 border-b border-r border-[#334155] text-center w-20">
+                  <th className="py-2 px-2 border-b border-r border-[#334155] text-center w-20">
                     Situação
                   </th>
-                  <th className="p-3 px-2 border-b border-r border-[#334155] text-center w-16">
+                  <th className="py-2 px-2 border-b border-r border-[#334155] text-center w-16">
                     Condutor
                   </th>
-                  <th className="p-3 px-2 border-b border-r border-[#334155] text-center w-12">
+                  <th className="py-2 px-2 border-b border-r border-[#334155] text-center w-12">
                     G1
                   </th>
-                  <th className="p-3 px-2 border-b border-r border-[#334155] text-center w-12">
+                  <th className="py-2 px-2 border-b border-r border-[#334155] text-center w-12">
                     G2
                   </th>
-                  <th className="p-3 px-2 border-b border-r border-[#334155] text-center w-12">
+                  <th className="py-2 px-2 border-b border-r border-[#334155] text-center w-12">
                     G3
                   </th>
-                  <th className="p-3 px-2 border-b border-r border-[#334155] text-center w-12">
+                  <th className="py-2 px-2 border-b border-r border-[#334155] text-center w-12">
                     G4
                   </th>
-                  <th className="p-3 px-2 border-b border-[#334155] text-center w-12">
+                  <th className="py-2 px-2 border-b border-[#334155] text-center w-12">
                     CG
                   </th>
                 </tr>
@@ -5308,6 +5506,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                          <FuncoesMultiSelect
                             selected={predefinicoes[militar.rg || ''] || []}
                             allowedOptions={getAllowedOptions(militar)}
+                            extraOptions={extraFuncOptions}
                             onChange={async (newVal) => {
                                const newPref = { ...predefinicoes, [militar.rg || '']: newVal };
                                setPredefinicoes(newPref);

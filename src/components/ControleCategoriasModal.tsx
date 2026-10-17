@@ -119,6 +119,113 @@ export const DEFAULT_CATEGORIES: CategoryConfig[] = [
   }
 ];
 
+export interface SelectableControlFunction {
+  id: string;
+  name: string;
+  scaleName: string;
+  categoryId: string;
+  categoryName: string;
+  isCategoryLevel?: boolean;
+}
+
+export function mapFunctionIdToScaleName(fnId: string, fnName: string, categoryId?: string): string {
+  const cleanName = (fnName || "").trim().toUpperCase();
+  const map: Record<string, string> = {
+    "viaturas.ABT": "CONDUTOR ABT",
+    "viaturas.ABSL": "CONDUTOR ABSL",
+    "viaturas.ASE": "CONDUTOR ASE",
+    "viaturas.AR": "CONDUTOR AR",
+    "viaturas.ARC": "CONDUTOR ARC",
+    "ativoCondutor": "CONDUTOR",
+    "ativoEncarregado": "ENCARREGADO DE MOTORISTA",
+    "ativoAbastecedor": "ABASTECEDOR",
+    "ativoChefeGua": "CHEFE",
+    "chefeAbt": "CHEFE ABT",
+    "chefeAbsl": "CHEFE ABSL",
+    "ativoAuxiliar": "AUXILIAR",
+    "auxAbt": "AUXILIAR ABT",
+    "auxAbsl": "AUXILIAR ABSL",
+    "auxArc": "AUXILIAR/CHEFE ARC",
+    "auxAse": "AUXILIAR ASE",
+    "disponivelAux": "DISPONIVEL AUX",
+    "ativoMaritimo": "MARINHEIRO",
+    "mestreAl": "MESTRE L",
+    "mestreBia": "MESTRE BIA",
+    "opAma": "OPERADOR AMA",
+    "gvAma": "GV AMA",
+    "marinheiros": "MARINHEIRO",
+    "ativoEnfermeiro": "ENFERMEIRO",
+    "ativoComunicante": "COMUNICANTE",
+    "ativoGraduado": "GRADUADO",
+    "adjunto": "ADJUNTO",
+    "sgtDia": "SGT DIA",
+    "cmtGuarda": "CMT GUARDA",
+    "disponivel1": "DISPONIVEL 1",
+    "disponivel2": "DISPONIVEL 2",
+    "ativoCbsSds": "CB/SD",
+    "faxina": "RESP FAXINA",
+    "sentinela": "SENTINELA",
+    "deposito": "DIA AO DEPOSITO",
+    "toqueDeFogo": "TOQUE DE FOGO",
+    "auxRancho": "AUXILIAR RANCHO",
+    "cbGuarda": "CB GUARDA",
+    "cbDia": "CB DIA",
+    "disponivelCbsSds": "DISPONIVEL CBS/SDS",
+  };
+
+  if (map[fnId]) return map[fnId];
+
+  if (categoryId === "condutores" && cleanName && !cleanName.startsWith("CONDUTOR") && !cleanName.startsWith("ENC") && !cleanName.startsWith("ABAST")) {
+    return `CONDUTOR ${cleanName}`;
+  }
+  if (categoryId === "chefes" && cleanName && !cleanName.startsWith("CHEFE")) {
+    return `CHEFE ${cleanName}`;
+  }
+  if (categoryId === "auxiliares" && cleanName && !cleanName.startsWith("AUX")) {
+    return `AUXILIAR ${cleanName}`;
+  }
+  if (cleanName.startsWith("AUX ")) {
+    return cleanName.replace(/^AUX\s+/, "AUXILIAR ");
+  }
+
+  return cleanName;
+}
+
+export function getAvailableControlFunctions(categories: CategoryConfig[] = DEFAULT_CATEGORIES): SelectableControlFunction[] {
+  const source = categories && categories.length > 0 ? categories : DEFAULT_CATEGORIES;
+  const result: SelectableControlFunction[] = [];
+
+  for (const cat of source) {
+    if (cat.id === "mostruario") continue;
+
+    // Only include category-level function when the category has no sub-functions of its own (e.g. Enfermeiros, Comunicantes)
+    if (cat.activeProperty && (!cat.functions || cat.functions.length === 0)) {
+      const catScaleName = mapFunctionIdToScaleName(cat.activeProperty, cat.name, cat.id);
+      result.push({
+        id: cat.activeProperty,
+        name: catScaleName,
+        scaleName: catScaleName,
+        categoryId: cat.id,
+        categoryName: cat.name,
+        isCategoryLevel: true,
+      });
+    }
+
+    for (const fn of cat.functions || []) {
+      const scaleName = mapFunctionIdToScaleName(fn.id, fn.name, cat.id);
+      result.push({
+        id: fn.id,
+        name: scaleName,
+        scaleName,
+        categoryId: cat.id,
+        categoryName: cat.name,
+      });
+    }
+  }
+
+  return result;
+}
+
 interface ControleCategoriasModalProps {
   isOpen: boolean;
   onClose: () => void;

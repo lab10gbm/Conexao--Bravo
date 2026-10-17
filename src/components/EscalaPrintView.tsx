@@ -599,12 +599,17 @@ export function EscalaPrintView({
      if (!v) return defaultName;
      if (v.customNames?.[slot]?.trim()) {
         const custom = v.customNames[slot].trim().toUpperCase();
-        const sigla = (v.vtr || "").split('-')[0].trim();
+        const sigla = (v.vtr || "").split('-')[0].trim().toUpperCase();
+        const genericPrefixes = ['CONDUTOR', 'AUXILIAR', 'CHEFE', 'MARINHEIRO', 'MESTRE', 'OPERADOR'];
+        if (genericPrefixes.includes(custom) && sigla) {
+           return `${custom} ${sigla}`.trim();
+        }
         if (custom === 'ENFERMEIRO') return 'ENFERMEIRO';
         if (custom === 'AUXILIAR/CHEFE ARC' || custom === 'AUXILIAR / CHEFE ARC') return 'AUXILIAR/CHEFE ARC';
         if (custom === 'MESTRE L' || custom === 'MESTRE BIA') return custom;
+        if (v.customFunctions?.[slot]) return custom;
         if (custom.endsWith(sigla)) return custom;
-        if (slot === 'cg' && (custom === 'CHEFE' || custom === 'CHEFE DE GUARNIÇÃO' || custom === 'CHEFE GUA')) return `CHEFE ${sigla}`;
+        if (slot === 'cg' && (custom === 'CHEFE DE GUARNIÇÃO' || custom === 'CHEFE GUA')) return `CHEFE ${sigla}`;
         return `${custom} ${sigla}`.trim();
      }
      return defaultName;
@@ -1733,8 +1738,8 @@ export function EscalaPrintView({
             // 1. Chefe (cg)
             const defaultCg = sigla === 'ABSL' ? 'CHEFE ABSL' : sigla === 'ABT' ? 'CHEFE ABT' : sigla === 'ARC' ? 'AUXILIAR/CHEFE ARC' : sigla === 'ASE' ? 'CHEFE ASE' : 'CHEFE GUA';
             const fallbackCg = sigla === 'ARC' ? 'AUXILIAR/CHEFE' : 'CHEFE';
-            const forceCg = sigla === 'ABT' || sigla === 'ABSL';
-            const hasChefe = (v.cg === true || forceCg) && (forceCg || !v.blocked?.includes('cg'));
+            const forceCg = (sigla === 'ABT' || sigla === 'ABSL') && v.cg === undefined;
+            const hasChefe = (v.cg === true || forceCg) && !v.blocked?.includes('cg');
 
             // 2. Auxiliares (g1..g4)
             const getAuxDefault = (slot: string) => {
@@ -1755,36 +1760,40 @@ export function EscalaPrintView({
             const fallbackCondutor = isMaritima ? 'MESTRE' : 'CONDUTOR';
             const hasCondutor = v.condutor === true && !v.blocked?.includes('condutor');
 
+            const formatHeaderTitle = (raw: string, fallback: string, isPlural: boolean = false) => {
+              let clean = (raw || fallback).trim().toUpperCase().replace(/:$/, '');
+              // Strip trailing sigla or GUA/L/BIA if it starts with a standard role prefix
+              const roleRoots = ['CONDUTOR', 'MESTRE', 'CHEFE', 'AUXILIAR', 'MARINHEIRO', 'ENFERMEIRO', 'AUXILIAR/CHEFE'];
+              for (const root of roleRoots) {
+                if (clean === root || clean.startsWith(`${root} `)) {
+                  const suffix = clean.slice(root.length).trim();
+                  if (!suffix || suffix === sigla || suffix === 'GUA' || suffix === 'DE GUARNIÇÃO' || suffix === 'L' || suffix === 'BIA' || suffix === 'ABT' || suffix === 'ABSL' || suffix === 'ASE' || suffix === 'AR' || suffix === 'ARC') {
+                    clean = root;
+                    break;
+                  }
+                }
+              }
+              if (isPlural) {
+                if (clean === 'AUXILIAR') clean = 'AUXILIARES';
+                else if (clean === 'MARINHEIRO') clean = 'MARINHEIROS';
+                else if (clean === 'ENFERMEIRO') clean = 'ENFERMEIROS';
+                else if (clean === 'AUXILIAR/CHEFE') clean = 'AUXILIARES/CHEFES';
+              }
+              return `${clean}:`;
+            };
+
             // Rótulo Chefe
             const rawChefe = v?.customNames?.['cg']?.trim() || fallbackCg;
-            const chefeLabel = rawChefe.endsWith(':') ? rawChefe : `${rawChefe}:`;
+            const chefeLabel = formatHeaderTitle(rawChefe, fallbackCg, false);
 
-            // Rótulo Auxiliares (se mais de 1, usa plural AUXILIARES)
-            let auxHeaderLabel = 'AUXILIARES:';
-            if (auxSlots.length > 1) {
-              if (isMaritima) auxHeaderLabel = 'MARINHEIROS:';
-              else if (sigla === 'ASE') auxHeaderLabel = 'ENFERMEIROS:';
-              else if (sigla === 'ARC') auxHeaderLabel = 'AUXILIARES/CHEFES:';
-              else auxHeaderLabel = 'AUXILIARES:';
-            } else if (auxSlots.length === 1) {
-              const singleSlot = auxSlots[0];
-              const custom = v?.customNames?.[singleSlot]?.trim();
-              if (custom) {
-                auxHeaderLabel = custom.endsWith(':') ? custom : `${custom}:`;
-              } else if (isMaritima) {
-                auxHeaderLabel = 'MARINHEIRO:';
-              } else if (sigla === 'ASE') {
-                auxHeaderLabel = 'ENFERMEIRO:';
-              } else if (sigla === 'ARC') {
-                auxHeaderLabel = 'AUXILIAR/CHEFE:';
-              } else {
-                auxHeaderLabel = 'AUXILIAR:';
-              }
-            }
+            // Rótulo Auxiliares (se mais de 1, usa plural)
+            const firstAuxSlot = auxSlots[0] || 'g1';
+            const rawAux = v?.customNames?.[firstAuxSlot]?.trim() || (isMaritima ? 'MARINHEIRO' : sigla === 'ASE' ? 'ENFERMEIRO' : sigla === 'ARC' ? 'AUXILIAR/CHEFE' : 'AUXILIAR');
+            const auxHeaderLabel = formatHeaderTitle(rawAux, 'AUXILIAR', auxSlots.length > 1);
 
             // Rótulo Condutor
             const rawCondutor = v?.customNames?.['condutor']?.trim() || fallbackCondutor;
-            const condutorLabel = rawCondutor.endsWith(':') ? rawCondutor : `${rawCondutor}:`;
+            const condutorLabel = formatHeaderTitle(rawCondutor, fallbackCondutor, false);
 
             // Militares
             const mChefe = hasChefe ? getVtrSlotMilitar(v, 'cg', defaultCg, forceCg) : null;

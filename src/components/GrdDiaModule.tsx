@@ -238,7 +238,7 @@ export function GrdDiaModule({
   }, [militars, filterAla, searchTerm]);
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col mb-4 transition-all">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden flex flex-col transition-all">
       {/* HEADER COMPACTO DA SEÇÃO DE GRD */}
       <div className="p-2 sm:p-2.5 px-3 sm:px-4 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-gradient-to-r from-slate-900 via-cyan-950 to-slate-900 text-white">
         {/* Lado Esquerdo: Título e Status Resumido */}
