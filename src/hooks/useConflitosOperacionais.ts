@@ -111,7 +111,13 @@ export function useConflitosOperacionais({ obmContext, selectedDate }: UseConfli
 
   // Checagem sob demanda para qualquer militar e data
   const checarConflito = useCallback(
-    (militarRg: string | number | null | undefined, dataAlvo: string, permutaAtualId?: string): ConflitoOperacional[] => {
+    (
+      militarRg: string | number | null | undefined,
+      dataAlvo: string,
+      permutaAtualId?: string,
+      militarAla?: string | number | null,
+      verificarPlantaoRegular?: boolean
+    ): ConflitoOperacional[] => {
       if (!militarRg || !dataAlvo) return [];
 
       const targetIso = parseDateToIso(dataAlvo) || dataAlvo;
@@ -120,12 +126,14 @@ export function useConflitosOperacionais({ obmContext, selectedDate }: UseConfli
 
       return verificarConflitosMilitar({
         militarRg,
+        militarAla,
         dataAlvo: targetIso,
         vacations,
         afastamentos,
         grdRgs,
         permutasDoDia,
         permutaAtualId,
+        verificarPlantaoRegular,
       });
     },
     [afastamentos, vacations, grdMonthDays, permutasDoMes]

@@ -2,14 +2,15 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, RasOpportunity, RasApplication } from '../types';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
-import { Plus, BriefcaseBusiness, Calendar, Clock, Users, ChevronDown, CheckCircle2, XCircle, Edit, Trash2, Settings, ArrowRight, Check, Sparkles, ExternalLink } from 'lucide-react';
+import { Plus, BriefcaseBusiness, Calendar, Clock, Users, ChevronDown, CheckCircle2, XCircle, Edit, Trash2, Settings, ArrowRight, Check, Sparkles, ExternalLink, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { createPortal } from 'react-dom';
-import { cn, normalizeObm, getUserObmAccess } from '../lib/utils';
+import { cn, normalizeObm, getUserObmAccess, normalizeRg } from '../lib/utils';
 import { parsePromotionDate, ALL_RANKS_IN_ORDER, parseRank, sortAllBySeniority } from '../lib/rankUtils';
 import { useMilitars } from '../contexts/MilitarContext';
 import { RankInsignia } from './RankInsignia';
 import { RAS_FUNCTION_MAP, DEFAULT_VIATURAS } from '../constants';
+import { useConflitosOperacionais } from '../hooks/useConflitosOperacionais';
 
 interface RasManagerModuleProps {
   obmContext: string;
@@ -18,6 +19,8 @@ interface RasManagerModuleProps {
 }
 
 export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasManagerModuleProps) {
+  const { militars, addOrUpdateMilitar } = useMilitars();
+  const { checarConflito } = useConflitosOperacionais({ obmContext });
   const [opportunities, setOpportunities] = useState<RasOpportunity[]>([]);
   const [applications, setApplications] = useState<Record<string, RasApplication[]>>({});
   const [isCreating, setIsCreating] = useState(false);
@@ -211,6 +214,19 @@ export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasMa
 
   const handleApplicationStatus = async (app: RasApplication, opp: RasOpportunity, newStatus: 'selected' | 'rejected' | 'applied') => {
     try {
+      if (newStatus === 'selected') {
+        const milObj = militars.find(m => normalizeRg(m.rg) === normalizeRg(app.militarRg));
+        const conflitos = checarConflito(app.militarRg, opp.date, undefined, milObj?.ala, true);
+        const bloqueios = conflitos.filter(c => c.bloqueante);
+        if (bloqueios.length > 0) {
+          const motivos = bloqueios.map(c => `• ${c.titulo}: ${c.descricao}`).join('\n');
+          const confirmou = window.confirm(
+            `ALERTA OPERACIONAL DO ESCALANTE:\nO militar ${app.militarRank} ${app.militarName} possui impedimentos detectados para ${opp.date.split('-').reverse().join('/')}:\n\n${motivos}\n\nDeseja contemplar e inserir na Escala 24h mesmo assim por ordem superior?`
+          );
+          if (!confirmou) return;
+        }
+      }
+
       const prevStatus = app.status;
       await updateDoc(doc(db, 'ras_applications', app.id!), {
         status: newStatus,
@@ -361,8 +377,6 @@ export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasMa
       console.error(e);
     }
   };
-
-  const { militars, addOrUpdateMilitar } = useMilitars();
 
   const bancoDeHoras = useMemo(() => {
     const hoursMap: Record<string, { nome: string, rank: string, quadro: string, rg: string, horas: number, numServicos: number, militarObj?: UserProfile }> = {};
@@ -847,6 +861,10 @@ export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasMa
                                   const isSelected = app.status === 'selected';
                                   const isRejected = app.status === 'rejected';
 
+                                  const milObj = militars.find(m => normalizeRg(m.rg) === normalizeRg(app.militarRg));
+                                  const appConflitos = checarConflito(app.militarRg, opp.date, undefined, milObj?.ala, true);
+                                  const hasBloqueio = appConflitos.some(c => c.bloqueante);
+
                                   return (
                                     <div 
                                       key={app.id} 
@@ -856,9 +874,11 @@ export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasMa
                                           ? "bg-emerald-50/90 border-emerald-400 shadow-emerald-100" 
                                           : isRejected 
                                             ? "bg-rose-50/50 border-rose-200 opacity-60" 
-                                            : isPreviaEleito 
-                                              ? "bg-amber-50/70 border-amber-300 hover:bg-amber-50" 
-                                              : "bg-white border-slate-200 hover:bg-slate-50"
+                                            : hasBloqueio
+                                              ? "bg-rose-50/30 border-rose-300 hover:bg-rose-50/60"
+                                              : isPreviaEleito 
+                                                ? "bg-amber-50/70 border-amber-300 hover:bg-amber-50" 
+                                                : "bg-white border-slate-200 hover:bg-slate-50"
                                       )}
                                     >
                                       {isPreviaEleito && (
@@ -899,6 +919,25 @@ export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasMa
                                               </>
                                             )}
                                           </div>
+
+                                          {/* Conflitos do Militar na data */}
+                                          {appConflitos.length > 0 && (
+                                            <div className="flex flex-wrap gap-1 mt-1.5">
+                                              {appConflitos.map((c, i) => (
+                                                <span
+                                                  key={i}
+                                                  title={c.descricao}
+                                                  className={cn(
+                                                    "text-[8px] font-black uppercase px-2 py-0.5 rounded flex items-center gap-1 shadow-2xs",
+                                                    c.bloqueante ? "bg-rose-100 text-rose-800 border border-rose-300" : "bg-amber-100 text-amber-800 border border-amber-300"
+                                                  )}
+                                                >
+                                                  <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+                                                  {c.titulo}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
                                       
@@ -913,14 +952,25 @@ export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasMa
                                          <div className="flex items-center gap-2">
                                            {app.status === 'applied' && (
                                              <>
-                                               <button 
-                                                 onClick={() => handleApplicationStatus(app, opp, 'selected')} 
-                                                 className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl transition-all shadow-sm font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 active:scale-95" 
-                                                 title="Deferir e incluir na Escala 24h"
-                                               >
-                                                 <CheckCircle2 className="w-4 h-4" />
-                                                 Deferir / Contemplar
-                                               </button>
+                                               {hasBloqueio ? (
+                                                 <button 
+                                                   onClick={() => handleApplicationStatus(app, opp, 'selected')} 
+                                                   className="px-3 py-1.5 bg-rose-600 text-white hover:bg-rose-700 rounded-xl transition-all shadow-sm font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 active:scale-95" 
+                                                   title="Atenção: Conflito detectado na escala. Clique para avaliar e confirmar."
+                                                 >
+                                                   <AlertTriangle className="w-4 h-4 shrink-0" />
+                                                   Deferir (Conflito)
+                                                 </button>
+                                               ) : (
+                                                 <button 
+                                                   onClick={() => handleApplicationStatus(app, opp, 'selected')} 
+                                                   className="px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 rounded-xl transition-all shadow-sm font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 active:scale-95" 
+                                                   title="Deferir e incluir na Escala 24h"
+                                                 >
+                                                   <CheckCircle2 className="w-4 h-4" />
+                                                   Deferir / Contemplar
+                                                 </button>
+                                               )}
                                                <button 
                                                  onClick={() => handleApplicationStatus(app, opp, 'rejected')} 
                                                  className="p-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl transition-colors font-bold" 

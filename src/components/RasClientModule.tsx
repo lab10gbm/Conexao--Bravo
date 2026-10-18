@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile, RasOpportunity, RasApplication } from '../types';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot, addDoc, getDocs } from 'firebase/firestore';
-import { BriefcaseBusiness, Clock, Users, ArrowRight, CheckCircle2, History, ChevronDown, XCircle } from 'lucide-react';
+import { BriefcaseBusiness, Clock, Users, ArrowRight, CheckCircle2, History, ChevronDown, XCircle, AlertTriangle } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { getAuth } from 'firebase/auth';
 import { parsePromotionDate, ALL_RANKS_IN_ORDER, parseRank } from '../lib/rankUtils';
+import { useConflitosOperacionais } from '../hooks/useConflitosOperacionais';
 
 const availableFunctions = [
   { id: 'condutorAbt', label: 'Condutor ABT' },
@@ -40,6 +41,7 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
   const [opportunities, setOpportunities] = useState<RasOpportunity[]>([]);
   const [applicationsByRas, setApplicationsByRas] = useState<Record<string, RasApplication[]>>({});
   const [myApplications, setMyApplications] = useState<RasApplication[]>([]);
+  const { checarConflito } = useConflitosOperacionais({ obmContext });
 
   useEffect(() => {
     // Fetch open opportunities
@@ -92,6 +94,15 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
   const handleApply = async (opp: RasOpportunity, functionId: string) => {
     // Basic validation to check if already applied for this specific function
     if (myApplications.some(app => app.rasId === opp.id && app.functionId === functionId)) return;
+
+    // Checagem de Conflitos Operacionais (Férias, Afastamentos, GRD, Plantão Regular na Ala)
+    const conflitos = checarConflito(user.rg, opp.date, undefined, user.ala, true);
+    const bloqueios = conflitos.filter(c => c.bloqueante);
+    if (bloqueios.length > 0) {
+      const motivos = bloqueios.map(c => `• ${c.titulo}: ${c.descricao}`).join('\n');
+      alert(`ATENÇÃO:\nVocê não pode se voluntariar para esta vaga de RAS devido a impedimento operacional na sua escala:\n\n${motivos}`);
+      return;
+    }
 
     try {
       await addDoc(collection(db, 'ras_applications'), {
@@ -178,6 +189,8 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
           <div className="space-y-4">
             {opportunities.map(opp => {
               const oppApps = applicationsByRas[opp.id!] || [];
+              const oppConflitos = checarConflito(user.rg, opp.date, undefined, user.ala, true);
+              const hasBloqueio = oppConflitos.some(c => c.bloqueante);
               
               return (
                 <div key={opp.id} className="bg-white border-2 border-slate-100 rounded-2xl p-5 sm:p-6 shadow-sm hover:border-amber-100 hover:shadow-md transition-all group">
@@ -211,6 +224,13 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
                           </div>
                         )}
                       </div>
+
+                      {hasBloqueio && (
+                        <div className="mt-4 p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-800 text-xs font-bold shadow-xs">
+                          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span>Incompatível com sua escala: {oppConflitos.map(c => c.titulo).join(', ')}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -241,6 +261,15 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
                                   <XCircle className="w-4 h-4" />
                                   <span className="text-[9px] font-black uppercase tracking-widest">Prazo Encerrado</span>
                                 </div>
+                              ) : hasBloqueio ? (
+                                <button 
+                                  onClick={() => handleApply(opp, f)}
+                                  className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 rounded-lg hover:bg-rose-100 transition-colors shadow-xs"
+                                  title="Conflito de Escala Detectado"
+                                >
+                                  <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                                  <span className="text-[9px] font-black uppercase tracking-widest">Conflito Escala</span>
+                                </button>
                               ) : (
                                 <button 
                                   onClick={() => handleApply(opp, f)}

@@ -1,7 +1,7 @@
-import { normalizeRg } from './utils';
+import { normalizeRg, normalizeAlaField, getAlaForDate } from './utils';
 
 export interface ConflitoOperacional {
-  tipo: 'FERIAS' | 'GRD' | 'AFASTAMENTO' | 'PERMUTA';
+  tipo: 'FERIAS' | 'GRD' | 'AFASTAMENTO' | 'PERMUTA' | 'ESCALA_REGULAR';
   bloqueante: boolean; // Se true, impede ou adverte fortemente a operação
   titulo: string;
   descricao: string;
@@ -38,26 +38,30 @@ export function parseDateToIso(dateStr?: string | null): string | null {
 
 export interface VerificarConflitosParams {
   militarRg?: string | number | null;
+  militarAla?: string | number | null;
   dataAlvo: string; // YYYY-MM-DD
   vacations?: any[];
   afastamentos?: any[];
   grdRgs?: string[];
   permutasDoDia?: any[];
   permutaAtualId?: string; // Para ignorar a própria permuta em edição
+  verificarPlantaoRegular?: boolean; // Se true, detecta se coincide com a escala de 24h regular do militar
 }
 
 /**
  * Matriz Central de Conflitos Operacionais:
- * Cruza em tempo real Férias DGP, GRD, Afastamentos de Ala e Permutas Simultâneas
+ * Cruza em tempo real Férias DGP, GRD, Afastamentos de Ala, Permutas Simultâneas e Plantão Regular 24h
  */
 export function verificarConflitosMilitar({
   militarRg,
+  militarAla,
   dataAlvo,
   vacations = [],
   afastamentos = [],
   grdRgs = [],
   permutasDoDia = [],
   permutaAtualId,
+  verificarPlantaoRegular = false,
 }: VerificarConflitosParams): ConflitoOperacional[] {
   const conflitos: ConflitoOperacional[] = [];
   const cleanRg = normalizeRg(militarRg);
@@ -158,6 +162,25 @@ export function verificarConflitosMilitar({
           militarRg: cleanRg,
         });
         break;
+      }
+    }
+  }
+
+  // 5. VERIFICAÇÃO DE PLANTÃO REGULAR DA ALA (Para RAS e Vagas Extras)
+  if (verificarPlantaoRegular && militarAla) {
+    const userAlaNum = normalizeAlaField(militarAla);
+    if (userAlaNum && userAlaNum !== 'EXP') {
+      const [y, m, d] = targetIso.split('-').map(Number);
+      const dateObj = new Date(y, m - 1, d);
+      const alaDoDia = getAlaForDate(dateObj);
+      if (userAlaNum === String(alaDoDia)) {
+        conflitos.push({
+          tipo: 'ESCALA_REGULAR',
+          bloqueante: true,
+          titulo: `Plantão Regular 24h (Ala ${alaDoDia})`,
+          descricao: `Militar está de serviço regular na Ala ${alaDoDia} nesta data. Proibido RAS concomitante.`,
+          militarRg: cleanRg,
+        });
       }
     }
   }
