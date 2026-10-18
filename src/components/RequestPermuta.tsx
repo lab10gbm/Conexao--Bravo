@@ -10,6 +10,7 @@ import { Send, CalendarIcon, X, ArrowLeftRight, Equal, ArrowUp, AlertTriangle, R
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppConfig } from '../contexts/ConfigContext';
 import { useMilitars } from '../contexts/MilitarContext';
+import { parseDateToIso } from '../lib/conflitosOperacionais';
 
 interface RequestPermutaProps {
   user: UserProfile;
@@ -238,6 +239,37 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
       } catch (err) {
         console.error("Erro ao verificar GRD:", err);
       }
+    }
+
+    // Validação de Férias DGP: nenhum dos dois militares pode estar de férias
+    try {
+      const qVac = query(collection(db, 'vacations'));
+      const snapVac = await getDocs(qVac);
+      const targetIso = parseDateToIso(date) || date;
+      const rClean = normalizeRg(requesterRg);
+      const sClean = normalizeRg(substituteRg);
+
+      for (const docSnap of snapVac.docs) {
+        const v = docSnap.data();
+        if (v.status === 'cancelado' || v.status === 'rejeitado') continue;
+        const vRg = normalizeRg(v.militarRg);
+        const isoIni = parseDateToIso(v.dataInicio);
+        const isoFim = parseDateToIso(v.dataRetorno);
+        if (isoIni && isoFim && targetIso >= isoIni && targetIso <= isoFim) {
+          if (!isRequesterMissing && rClean && vRg === rClean) {
+            setError(`O militar que sai (${requesterName || requesterRg}) está em período de FÉRIAS regulamentares (DGP).`);
+            setLoading(false);
+            return;
+          }
+          if (!isSubstituteMissing && sClean && vRg === sClean) {
+            setError(`O militar que entra (${substituteName || substituteRg}) está em período de FÉRIAS regulamentares (DGP).`);
+            setLoading(false);
+            return;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Erro ao verificar férias DGP:", err);
     }
 
     // Validação de duplicidade: não permite solicitar mais de uma vez no mesmo dia

@@ -13,6 +13,7 @@ import { useMilitars } from '../contexts/MilitarContext';
 import { RankInsignia } from './RankInsignia';
 import { useAppConfig } from '../contexts/ConfigContext';
 import { parseRank } from '../lib/rankUtils';
+import { parseDateToIso } from '../lib/conflitosOperacionais';
 
 
 interface PermutaBoardProps {
@@ -126,7 +127,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
         clearTimeout(timer);
         if (unsubSnapshot) unsubSnapshot();
     };
-  }, [user?.uid, user?.isAdmin, user?.rg]);
+  }, [user?.uid, user?.isAdmin, user?.rg, obmContext, adminMode]);
 
   // Refresh manual function
   const handleManualRefresh = async () => {
@@ -260,6 +261,30 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
       } catch (err) {
          console.error("Error checking GRD status:", err);
       }
+    }
+
+    // Validação de Férias DGP ao pegar vaga aberta
+    try {
+      const qVac = query(collection(db, 'vacations'));
+      const snapVac = await getDocs(qVac);
+      const targetIso = parseDateToIso(permuta.date) || permuta.date;
+      const userClean = normalizeRg(user.rg);
+
+      const emFerias = snapVac.docs.some(docSnap => {
+        const v = docSnap.data();
+        if (v.status === 'cancelado' || v.status === 'rejeitado') return false;
+        if (normalizeRg(v.militarRg) !== userClean) return false;
+        const isoIni = parseDateToIso(v.dataInicio);
+        const isoFim = parseDateToIso(v.dataRetorno);
+        return Boolean(isoIni && isoFim && targetIso >= isoIni && targetIso <= isoFim);
+      });
+
+      if (emFerias) {
+        alert("Você está em período regulamentar de FÉRIAS (DGP) nesta data. Não é permitido assumir vaga de permuta.");
+        return;
+      }
+    } catch (err) {
+      console.warn("Erro ao checar férias:", err);
     }
 
     try {
