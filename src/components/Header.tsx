@@ -25,7 +25,9 @@ import {
   CalendarDays,
   Hourglass,
   FileClock,
+  FileCheck,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { UserProfile, PermutaRequest, PermutaStatus } from "../types";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { getAlaForDate, getAlaColor, cn, getThemeColors, normalizeRg } from "../lib/utils";
@@ -55,6 +57,7 @@ export function Header({
   availableObms,
   isOfficerMode = false,
 }: HeaderProps) {
+  const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(false);
   const [activePermutas, setActivePermutas] = useState<PermutaRequest[]>([]);
   const [notifications, setNotifications] = useState<PermutaRequest[]>([]);
@@ -76,10 +79,15 @@ export function Header({
     return [now.getMonth(), now.getMonth() === 11 ? 0 : now.getMonth() + 1];
   });
 
-  const dismissNotif = (id: string) => {
-    const next = [...dismissedNotifs, id];
+  const dismissNotif = (id: string, statusKey?: string) => {
+    const key = statusKey ? `${id}_${statusKey}` : id;
+    const next = [...dismissedNotifs, key, id];
     setDismissedNotifs(next);
-    localStorage.setItem("dismissed_notifs", JSON.stringify(next));
+    try {
+      localStorage.setItem("dismissed_notifs", JSON.stringify(next));
+    } catch {
+      // ignore
+    }
     setNotifications((prev) => prev.filter((p) => p.id !== id));
   };
 
@@ -189,9 +197,12 @@ export function Header({
     }
 
     function processPermutasData(data: PermutaRequest[]) {
+      const myCleanRg = normalizeRg(profile.rg);
       const active = data.filter((p) => {
         if (p.status === PermutaStatus.CANCELLED) return false;
-        if (p.requesterRg !== profile.rg && p.substituteRg !== profile.rg)
+        const reqRg = normalizeRg(p.requesterRg);
+        const subRg = normalizeRg(p.substituteRg);
+        if (reqRg !== myCleanRg && subRg !== myCleanRg)
           return false;
         const pDate = (p.date as any).toDate
           ? (p.date as any).toDate()
@@ -201,12 +212,47 @@ export function Header({
       setActivePermutas(active);
 
       const notifs = data.filter((p) => {
-        if (p.requesterRg !== profile.rg && p.substituteRg !== profile.rg)
+        const reqRg = normalizeRg(p.requesterRg);
+        const subRg = normalizeRg(p.substituteRg);
+        const isReq = reqRg === myCleanRg;
+        const isSub = subRg === myCleanRg;
+        if (!isReq && !isSub) return false;
+
+        const needsMySign =
+          p.status === PermutaStatus.PENDING &&
+          ((isSub && !p.substituteSigned) || (isReq && !p.requesterSigned));
+
+        // Se requer ação (assinatura pendente do militar), SEMPRE exibe!
+        if (needsMySign) return true;
+
+        const notifKey = `${p.id}_${p.status}`;
+        if (dismissedNotifs.includes(notifKey) || dismissedNotifs.includes(p.id!)) {
           return false;
-        if (p.status === PermutaStatus.PENDING) return false;
-        if (dismissedNotifs.includes(p.id!)) return false;
+        }
+
+        // Mostra permutas aceitas, indeferidas, canceladas, agendadas ou em análise do escalante
         return true;
       });
+
+      // Prioridade: assinaturas pendentes do militar no topo
+      notifs.sort((a, b) => {
+        const aReq = normalizeRg(a.requesterRg) === myCleanRg;
+        const aSub = normalizeRg(a.substituteRg) === myCleanRg;
+        const aNeedsSign =
+          a.status === PermutaStatus.PENDING &&
+          ((aSub && !a.substituteSigned) || (aReq && !a.requesterSigned));
+
+        const bReq = normalizeRg(b.requesterRg) === myCleanRg;
+        const bSub = normalizeRg(b.substituteRg) === myCleanRg;
+        const bNeedsSign =
+          b.status === PermutaStatus.PENDING &&
+          ((bSub && !b.substituteSigned) || (bReq && !b.requesterSigned));
+
+        if (aNeedsSign && !bNeedsSign) return -1;
+        if (!aNeedsSign && bNeedsSign) return 1;
+        return 0;
+      });
+
       setNotifications(notifs);
     }
 
@@ -414,11 +460,12 @@ export function Header({
         const isGrdDay = grdDays.includes(dStr);
         const naturallyScheduled = isAla || isExpDay || isGrdDay;
 
+        const myCleanRg = normalizeRg(profile.rg);
         const hasPermutaAsSubstitute = activePermutas.some((p) => {
           const pDate = new Date(p.date + "T00:00:00");
           return (
             pDate.getTime() === d.getTime() &&
-            p.substituteRg === profile.rg &&
+            normalizeRg(p.substituteRg) === myCleanRg &&
             p.status !== "cancelled"
           );
         });
@@ -426,7 +473,7 @@ export function Header({
           const pDate = new Date(p.date + "T00:00:00");
           return (
             pDate.getTime() === d.getTime() &&
-            p.requesterRg === profile.rg &&
+            normalizeRg(p.requesterRg) === myCleanRg &&
             p.status !== "cancelled"
           );
         });
@@ -509,6 +556,16 @@ export function Header({
     return fullName;
   };
 
+  const myCleanRg = normalizeRg(profile.rg);
+  const pendingActionCount = notifications.filter((n) => {
+    const isReq = normalizeRg(n.requesterRg) === myCleanRg;
+    const isSub = normalizeRg(n.substituteRg) === myCleanRg;
+    return (
+      n.status === PermutaStatus.PENDING &&
+      ((isSub && !n.substituteSigned) || (isReq && !n.requesterSigned))
+    );
+  }).length;
+
   return (
     <div
       id="header"
@@ -527,21 +584,34 @@ export function Header({
                 <button
                   onClick={() => setIsExpanded(!isExpanded)}
                   className={cn(
-                    "px-2 py-1.5 rounded flex items-center gap-1 sm:gap-2 transition-colors relative shadow-sm",
-                    notifications.length > 0 || epiRequestActive
-                      ? "text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200"
-                      : "text-[var(--color-brand-red)] bg-red-50 hover:bg-red-100 border border-red-100",
+                    "px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 sm:gap-2 transition-all relative shadow-xs cursor-pointer",
+                    pendingActionCount > 0
+                      ? "text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 ring-2 ring-amber-400/50"
+                      : notifications.length > 0 || epiRequestActive
+                        ? "text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200"
+                        : "text-[var(--color-brand-red)] bg-red-50 hover:bg-red-100 border border-red-100",
                   )}
-                  title="Expandir Resumo e Notificações"
+                  title={
+                    pendingActionCount > 0
+                      ? `Você tem ${pendingActionCount} assinatura(s) pendente(s)!`
+                      : "Expandir Resumo e Notificações"
+                  }
                 >
                   <div className="relative">
-                    <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <Bell className={cn("w-4 h-4 sm:w-5 sm:h-5", pendingActionCount > 0 && "animate-bounce text-amber-700")} />
                     {(notifications.length > 0 || epiRequestActive) && (
                       <motion.span
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        className="absolute -top-1 -right-1 w-2 h-2 sm:w-2.5 sm:h-2.5 bg-red-500 border-2 border-white rounded-full"
-                      />
+                        className={cn(
+                          "absolute -top-1.5 -right-2 min-w-4 h-4 px-1 flex items-center justify-center text-[9px] font-black rounded-full border border-white leading-none",
+                          pendingActionCount > 0
+                            ? "bg-amber-600 text-white animate-pulse"
+                            : "bg-red-500 text-white"
+                        )}
+                      >
+                        {notifications.length + (epiRequestActive ? 1 : 0)}
+                      </motion.span>
                     )}
                   </div>
                   <motion.div animate={{ rotate: isExpanded ? 180 : 0 }}>
@@ -821,7 +891,7 @@ export function Header({
                         : theme.text;
 
                       if (p) {
-                        const isRequester = p.requesterRg === profile.rg;
+                        const isRequester = normalizeRg(p.requesterRg) === myCleanRg;
                         if (isRequester && p.status === "accepted") {
                           isCrossedOut = true;
                           bgColor = "bg-slate-50 border-slate-200 opacity-50";
@@ -939,7 +1009,7 @@ export function Header({
                 {activePermutas.length > 0 ? (
                   <div className="flex flex-col gap-2 max-h-[240px] overflow-y-auto pr-1 custom-scrollbar">
                     {activePermutas.slice(0, 5).map((p) => {
-                      const isRequester = p.requesterRg === profile.rg;
+                      const isRequester = normalizeRg(p.requesterRg) === myCleanRg;
                       const otherMilitar = isRequester
                         ? p.substituteName || ""
                         : p.requesterName || "";
@@ -1066,16 +1136,22 @@ export function Header({
                     theme.title,
                   )}
                 >
-                  <Bell className="w-4 h-4" /> Notificações
+                  <Bell className="w-4 h-4" /> Notificações & Avisos
                   {(notifications.length > 0 || epiRequestActive) && (
-                    <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded ml-auto">
-                      {notifications.length + (epiRequestActive ? 1 : 0)}{" "}
-                      nova(s)
+                    <span
+                      className={cn(
+                        "text-[10px] font-bold px-2 py-0.5 rounded ml-auto",
+                        pendingActionCount > 0
+                          ? "bg-amber-100 text-amber-800 border border-amber-300"
+                          : "bg-slate-100 text-slate-700",
+                      )}
+                    >
+                      {notifications.length + (epiRequestActive ? 1 : 0)} nova(s)
                     </span>
                   )}
                 </h4>
                 {notifications.length > 0 || epiRequestActive ? (
-                  <div className="flex flex-col max-h-[240px] overflow-y-auto pr-1 custom-scrollbar border rounded shadow-sm bg-white overflow-hidden">
+                  <div className="flex flex-col max-h-[260px] overflow-y-auto pr-1 custom-scrollbar border rounded shadow-sm bg-white overflow-hidden">
                     {epiRequestActive && (
                       <div className="p-3 relative group transition-colors bg-amber-50 hover:bg-amber-100 border-b last:border-b-0 border-amber-200">
                         <div className="flex gap-3">
@@ -1094,26 +1170,61 @@ export function Header({
                       </div>
                     )}
                     {notifications.map((n) => {
-                      const isRequester = n.requesterRg === profile.rg;
+                      const isRequester = normalizeRg(n.requesterRg) === myCleanRg;
+                      const isSubstitute = normalizeRg(n.substituteRg) === myCleanRg;
                       const otherName = isRequester
-                        ? n.substituteName
-                        : n.requesterName;
+                        ? n.substituteName || "Militar"
+                        : n.requesterName || "Militar";
                       const pDate = new Date(n.date + "T00:00:00");
+                      const formattedDate = format(pDate, "dd/MM/yyyy");
+
+                      const needsMySignature =
+                        n.status === PermutaStatus.PENDING &&
+                        ((isSubstitute && !n.substituteSigned) ||
+                          (isRequester && !n.requesterSigned));
+
+                      const isWaitingOther =
+                        n.status === PermutaStatus.PENDING &&
+                        ((isRequester && !n.substituteSigned) ||
+                          (isSubstitute && !n.requesterSigned));
+
+                      const isWaitingEscalante =
+                        n.status === PermutaStatus.PENDING &&
+                        n.requesterSigned &&
+                        n.substituteSigned;
 
                       return (
                         <div
                           key={n.id}
-                          className="p-3 relative group transition-colors hover:bg-slate-50 border-b last:border-b-0 border-slate-100"
+                          className={cn(
+                            "p-3 relative group transition-all border-b last:border-b-0",
+                            needsMySignature
+                              ? "bg-amber-50/90 hover:bg-amber-100/90 border-amber-200"
+                              : n.status === PermutaStatus.ACCEPTED
+                                ? "bg-emerald-50/40 hover:bg-emerald-50/70 border-emerald-100"
+                                : "hover:bg-slate-50 border-slate-100",
+                          )}
                         >
-                          <button
-                            onClick={() => dismissNotif(n.id!)}
-                            className="absolute top-2 right-2 text-slate-300 hover:text-red-500 transition-opacity opacity-0 group-hover:opacity-100 bg-white shadow-sm ring-1 ring-slate-900/5 rounded-full p-1 z-10"
-                            title="Descartar notificação"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
+                          {!needsMySignature && (
+                            <button
+                              onClick={() => dismissNotif(n.id!, n.status)}
+                              className="absolute top-2 right-2 text-slate-300 hover:text-red-500 transition-opacity opacity-0 group-hover:opacity-100 bg-white shadow-sm ring-1 ring-slate-900/5 rounded-full p-1 z-10 cursor-pointer"
+                              title="Descartar notificação"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <div className="flex gap-3">
-                            <div className="mt-0.5">
+                            <div className="mt-0.5 shrink-0">
+                              {needsMySignature && (
+                                <AlertCircle className="w-5 h-5 text-amber-600 animate-pulse" />
+                              )}
+                              {!needsMySignature && isWaitingOther && (
+                                <Clock className="w-5 h-5 text-amber-500" />
+                              )}
+                              {isWaitingEscalante && (
+                                <Hourglass className="w-5 h-5 text-indigo-500" />
+                              )}
                               {n.status === PermutaStatus.ACCEPTED && (
                                 <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                               )}
@@ -1124,46 +1235,101 @@ export function Header({
                                 <AlertCircle className="w-5 h-5 text-slate-400" />
                               )}
                               {n.status === PermutaStatus.SCHEDULED && (
-                                <Clock className="w-5 h-5 text-amber-500" />
+                                <CalendarDays className="w-5 h-5 text-blue-500" />
                               )}
                             </div>
                             <div className="flex-1 pr-4">
-                              <div className="text-xs text-slate-700 leading-relaxed font-medium">
-                                Sua permuta com <strong>{otherName}</strong> no
-                                dia{" "}
-                                <strong>{format(pDate, "dd/MM/yyyy")}</strong>{" "}
-                                foi{" "}
+                              <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                                {needsMySignature && (
+                                  <span className="text-[9px] font-black uppercase tracking-wider bg-amber-600 text-white px-1.5 py-0.5 rounded shadow-xs">
+                                    Assinatura Obrigatória
+                                  </span>
+                                )}
+                                {!needsMySignature && isWaitingOther && (
+                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">
+                                    Aguardando Outro Militar
+                                  </span>
+                                )}
+                                {isWaitingEscalante && (
+                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded">
+                                    Na Mesa do Escalante
+                                  </span>
+                                )}
                                 {n.status === PermutaStatus.ACCEPTED && (
-                                  <span className="font-bold text-emerald-600">
-                                    ACEITA
+                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+                                    Deferida / Homologada
                                   </span>
                                 )}
                                 {n.status === PermutaStatus.REJECTED && (
-                                  <span className="font-bold text-red-600">
-                                    INDEFIRIDA
+                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-red-100 text-red-800 px-1.5 py-0.5 rounded">
+                                    Indeferida
                                   </span>
                                 )}
                                 {n.status === PermutaStatus.CANCELLED && (
-                                  <span className="font-bold text-slate-600">
-                                    CANCELADA
+                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                                    Cancelada
                                   </span>
                                 )}
-                                {n.status === PermutaStatus.SCHEDULED && (
-                                  <span className="font-bold text-amber-600">
-                                    AGENDADA
-                                  </span>
-                                )}
-                                .
                               </div>
+
+                              <div className="text-xs text-slate-700 leading-relaxed font-medium">
+                                {needsMySignature ? (
+                                  <>
+                                    <strong>{otherName}</strong> solicitou permuta com você para o dia{" "}
+                                    <strong>{formattedDate}</strong>. Sua assinatura é obrigatória para validar!
+                                  </>
+                                ) : isWaitingOther ? (
+                                  <>
+                                    Sua permuta com <strong>{otherName}</strong> para o dia{" "}
+                                    <strong>{formattedDate}</strong> aguarda assinatura dele(a).
+                                  </>
+                                ) : isWaitingEscalante ? (
+                                  <>
+                                    Permuta com <strong>{otherName}</strong> para o dia{" "}
+                                    <strong>{formattedDate}</strong> já possui ambas assinaturas e aguarda homologação do Escalante.
+                                  </>
+                                ) : n.status === PermutaStatus.ACCEPTED ? (
+                                  <>
+                                    Sua permuta com <strong>{otherName}</strong> para o dia{" "}
+                                    <strong>{formattedDate}</strong> foi{" "}
+                                    <span className="font-bold text-emerald-600">DEFERIDA</span> pelo Escalante.
+                                  </>
+                                ) : n.status === PermutaStatus.REJECTED ? (
+                                  <>
+                                    Sua permuta com <strong>{otherName}</strong> para o dia{" "}
+                                    <strong>{formattedDate}</strong> foi{" "}
+                                    <span className="font-bold text-red-600">INDEFERIDA</span> pelo Escalante.
+                                  </>
+                                ) : n.status === PermutaStatus.CANCELLED ? (
+                                  <>
+                                    A permuta com <strong>{otherName}</strong> para o dia{" "}
+                                    <strong>{formattedDate}</strong> foi cancelada.
+                                  </>
+                                ) : (
+                                  <>
+                                    Permuta com <strong>{otherName}</strong> para o dia{" "}
+                                    <strong>{formattedDate}</strong> ({n.status.toUpperCase()}).
+                                  </>
+                                )}
+                              </div>
+
+                              {needsMySignature && (
+                                <button
+                                  onClick={() => {
+                                    setIsExpanded(false);
+                                    navigate("/permutas");
+                                  }}
+                                  className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-black uppercase tracking-wider rounded-md shadow-xs transition active:scale-95 cursor-pointer"
+                                >
+                                  <FileCheck className="w-3.5 h-3.5" />
+                                  Assinar no Quadro de Permutas →
+                                </button>
+                              )}
+
                               <div className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">
-                                {n.status === PermutaStatus.ACCEPTED ||
-                                n.status === PermutaStatus.REJECTED
+                                {n.status === PermutaStatus.ACCEPTED || n.status === PermutaStatus.REJECTED
                                   ? `Decisão por: Escalante (${n.acceptedById || ""})`
-                                  : n.status === PermutaStatus.SCHEDULED
-                                    ? `Área de Permutas Futuras`
-                                    : n.status === PermutaStatus.CANCELLED
-                                      ? `Cancelado por RG: ${n.cancelledByRg || "USUÁRIO"}`
-                                      : `Cancelado por: Usuário`}
+                                  : `Ref: ${n.id?.slice(0, 8) || "PERMUTA"}`}
                               </div>
                             </div>
                           </div>
