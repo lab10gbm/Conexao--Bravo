@@ -11,7 +11,6 @@ import { DEFAULT_SOP_SCHEMA } from '../constants';
 import { useMilitars } from '../contexts/MilitarContext';
 import { LETTER_SIZES, NUMERIC_SIZES } from '../constants';
 import { MultiSelectFilter } from './ui/MultiSelectFilter';
-import { useNavigate } from 'react-router-dom';
 import { exportToExcel } from '../lib/exportUtils';
 import { ManualRgModal } from './ManualRgModal';
 import { EditableSopCell } from './EditableSopCell';
@@ -21,11 +20,18 @@ interface SopMedidasModuleProps {
   user: UserProfile;
   militars: UserProfile[];
   onBack: () => void;
+  onNavigate?: (path: string) => void;
 }
 
-export function SopMedidasModule({ user, militars, onBack }: SopMedidasModuleProps) {
+export function SopMedidasModule({ user, militars, onBack, onNavigate }: SopMedidasModuleProps) {
   const { militars: globalMilitars } = useMilitars();
-  const navigate = useNavigate();
+  const handleNavigate = (path: string) => {
+    if (onNavigate) {
+      onNavigate(path);
+    } else if (typeof window !== 'undefined') {
+      window.location.href = path;
+    }
+  };
   const [config, setConfig] = useState<{ areas: { id: string, label: string, fields: { id: string, label: string, type?: string }[], targetQBMPs?: string, targetRGs?: string }[] } | null>(null);
   const [allMilitars, setAllMilitars] = useState<UserProfile[]>([]);
   const [sopRoster, setSopRoster] = useState<UserProfile[]>([]);
@@ -528,7 +534,7 @@ export function SopMedidasModule({ user, militars, onBack }: SopMedidasModulePro
               </button>
 
               <button 
-                onClick={() => navigate('/sop-config')}
+                onClick={() => handleNavigate('/sop-config')}
                 className="flex flex-1 lg:flex-none items-center justify-center gap-2 lg:gap-3 bg-slate-900 hover:bg-slate-800 text-white px-5 lg:px-8 py-4 lg:py-5 rounded-2xl font-black uppercase text-[9px] lg:text-[10px] tracking-[0.2em] transition-all shadow-xl shadow-slate-200 active:scale-95 group"
               >
                 <Settings className="w-4 h-4 group-hover:rotate-90 transition-transform duration-500" />

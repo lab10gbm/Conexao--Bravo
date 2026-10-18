@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
   Shield, CheckCircle2, ChevronDown, Eye, EyeOff, ExternalLink, 
   Award, Edit3, Plus, Anchor, Stethoscope 
@@ -36,6 +35,7 @@ export interface EscalaOficiaisSectionProps {
   availableMedicalOfficers: any[];
   onSaveMedicoOficial: (name: string) => Promise<void>;
   savingMedico: boolean;
+  onNavigate?: (path: string) => void;
 }
 
 export function EscalaOficiaisSection({
@@ -65,8 +65,15 @@ export function EscalaOficiaisSection({
   availableMedicalOfficers,
   onSaveMedicoOficial,
   savingMedico,
+  onNavigate,
 }: EscalaOficiaisSectionProps) {
-  const navigate = useNavigate();
+  const handleNavigate = (path: string) => {
+    if (onNavigate) {
+      onNavigate(path);
+    } else if (typeof window !== 'undefined') {
+      window.location.href = path;
+    }
+  };
 
   const [isEditingOficialDia, setIsEditingOficialDia] = useState(false);
   const [selectedOfficerInput, setSelectedOfficerInput] = useState('');
@@ -195,7 +202,7 @@ export function EscalaOficiaisSection({
                   </button>
                   <button
                     type="button"
-                    onClick={() => navigate('/servicos-grd')}
+                    onClick={() => handleNavigate('/servicos-grd')}
                     className="p-1 hover:bg-white rounded text-slate-500 hover:text-amber-700 transition-colors text-[8px] font-black uppercase flex items-center gap-0.5 border border-transparent hover:border-amber-200 cursor-pointer"
                     title="Acessar módulo de Serviços & GRD"
                   >
@@ -367,7 +374,7 @@ export function EscalaOficiaisSection({
                   </button>
                   <button
                     type="button"
-                    onClick={() => navigate('/nucleo-nautico')}
+                    onClick={() => handleNavigate('/nucleo-nautico')}
                     className="p-1 hover:bg-white rounded text-slate-500 hover:text-cyan-700 transition-colors text-[8px] font-black uppercase flex items-center gap-0.5 border border-transparent hover:border-cyan-200 cursor-pointer"
                     title="Acessar módulo Núcleo Náutico"
                   >
@@ -539,7 +546,7 @@ export function EscalaOficiaisSection({
                   </button>
                   <button
                     type="button"
-                    onClick={() => navigate('/oficiais-medicos')}
+                    onClick={() => handleNavigate('/oficiais-medicos')}
                     className="p-1 hover:bg-white rounded text-slate-500 hover:text-rose-700 transition-colors text-[8px] font-black uppercase flex items-center gap-0.5 border border-transparent hover:border-rose-200 cursor-pointer"
                     title="Acessar módulo Oficiais Médicos"
                   >

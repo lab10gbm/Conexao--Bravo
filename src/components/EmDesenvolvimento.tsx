@@ -1,10 +1,15 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { Hammer, ArrowLeft } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 
-export function EmDesenvolvimento() {
-  const navigate = useNavigate();
+export function EmDesenvolvimento({ onBack }: { onBack?: () => void }) {
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else if (typeof window !== 'undefined') {
+      window.location.href = '/';
+    }
+  };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 p-6 animate-in fade-in slide-in-from-bottom-4 duration-700 text-center">
@@ -19,7 +24,7 @@ export function EmDesenvolvimento() {
       </p>
 
       <button
-        onClick={() => navigate('/')}
+        onClick={handleBack}
         className="mt-8 flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-xl font-bold uppercase tracking-widest text-[10px] hover:bg-slate-800 transition-colors shadow-lg active:scale-95"
       >
         <ArrowLeft className="w-4 h-4" />

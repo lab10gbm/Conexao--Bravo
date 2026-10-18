@@ -6,7 +6,6 @@ import {
   ArrowLeft, Activity, TrendingDown, Users, Shield, ShieldAlert,
   Truck, Anchor, Calendar
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { cn, getAlaColor, getAlaName, normalizeObm, normalizeAlaField, getObmSettingsDocKey, getObmSettingsFallbackKeys } from '../lib/utils';
 import { motion } from "motion/react";
 
@@ -22,8 +21,24 @@ const DEFAULT_VIATURAS: any[] = [
   { id: "ABT-12", vtr: "ABT-12", ativa: false, exibir: false, espaco: "1", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: false, g1: false, g2: false, g3: false, g4: false, cg: false, blocked: [] },
 ];
 
-export function EstudoTecnicoGuarnicoesModule({ obmContext }: { obmContext: string }) {
-  const navigate = useNavigate();
+export function EstudoTecnicoGuarnicoesModule({
+  obmContext,
+  onBack,
+  onNavigate,
+}: {
+  obmContext: string;
+  onBack?: () => void;
+  onNavigate?: (path: string) => void;
+}) {
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else if (onNavigate) {
+      onNavigate('/');
+    } else if (typeof window !== 'undefined') {
+      window.location.href = '/';
+    }
+  };
   const { militars, loading: militarsLoading } = useMilitars();
 
   const [viaturasInfo, setViaturasInfo] = useState<any[]>(DEFAULT_VIATURAS);
@@ -590,7 +605,7 @@ export function EstudoTecnicoGuarnicoesModule({ obmContext }: { obmContext: stri
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8 gap-4">
         <div>
           <button 
-            onClick={() => navigate('/escala')}
+            onClick={handleBack}
             className="flex items-center gap-2 text-slate-500 hover:text-slate-900 mb-4 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />

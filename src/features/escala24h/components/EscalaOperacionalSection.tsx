@@ -1,5 +1,4 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
   AlertCircle, Shuffle, Shield, Eye, EyeOff, CheckCircle2, 
   Activity, ArrowRight, TrendingDown 
@@ -14,6 +13,7 @@ export interface EscalaOperacionalSectionProps {
   onToggleOperationalRole: (roleName: string) => void;
   onSetAllOperationalRoles: (active: boolean) => void;
   onOpenSorteioViaturas: () => void;
+  onNavigate?: (path: string) => void;
 }
 
 export function EscalaOperacionalSection({
@@ -23,8 +23,15 @@ export function EscalaOperacionalSection({
   onToggleOperationalRole,
   onSetAllOperationalRoles,
   onOpenSorteioViaturas,
+  onNavigate,
 }: EscalaOperacionalSectionProps) {
-  const navigate = useNavigate();
+  const handleNavigate = (path: string) => {
+    if (onNavigate) {
+      onNavigate(path);
+    } else if (typeof window !== 'undefined') {
+      window.location.href = path;
+    }
+  };
 
   const opFunctions = dynamicRequirements
     .filter(f => f.category !== 'admin')
@@ -250,7 +257,7 @@ export function EscalaOperacionalSection({
               </h4>
               <button 
                 type="button"
-                onClick={() => navigate('/estudo-tecnico-guarnicoes')}
+                onClick={() => handleNavigate('/estudo-tecnico-guarnicoes')}
                 className="flex items-center gap-1 px-2.5 py-0.5 bg-slate-800 hover:bg-slate-700 text-white rounded text-[9.5px] font-bold tracking-wider transition-colors cursor-pointer"
               >
                 Estudo Plurianual <ArrowRight className="w-3 h-3" />

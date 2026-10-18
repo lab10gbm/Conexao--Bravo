@@ -2,7 +2,6 @@ import { buildUnifiedTampermonkeyScript, buildUnifiedBookmarkletScript } from '.
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, Users, CheckCircle2, AlertCircle, FileJson, Table as TableIcon, TrendingUp, Download, ExternalLink, UserIcon, FileText } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { UserProfile, Vacation } from '../types';
 import { db } from '../lib/firebase';
 import { collection, query, limit, getDocs, orderBy, setDoc, doc } from 'firebase/firestore';
@@ -13,7 +12,6 @@ interface DgpSyncModuleProps {
 }
 
 export function DgpSyncModule({ user, onBack }: DgpSyncModuleProps) {
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'ferias' | 'pessoal'>('ferias');
   const [syncedData, setSyncedData] = useState<any[]>([]);
 

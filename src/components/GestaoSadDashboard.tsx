@@ -1,16 +1,31 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, Settings2, Users, CalendarOff, BriefcaseBusiness, ChevronRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { UserProfile } from '../types';
 import { cn } from '../lib/utils';
 
 interface GestaoSadDashboardProps {
   user: UserProfile;
+  onNavigate?: (path: string) => void;
+  onBack?: () => void;
 }
 
-export function GestaoSadDashboard({ user }: GestaoSadDashboardProps) {
-  const navigate = useNavigate();
+export function GestaoSadDashboard({ user, onNavigate, onBack }: GestaoSadDashboardProps) {
+  const handleNavigate = (path: string) => {
+    if (onNavigate) {
+      onNavigate(path);
+    } else if (typeof window !== 'undefined') {
+      window.location.href = path;
+    }
+  };
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      handleNavigate('/');
+    }
+  };
 
   const sadModules = [
     {
@@ -40,7 +55,7 @@ export function GestaoSadDashboard({ user }: GestaoSadDashboardProps) {
     <div className="flex flex-col gap-6 p-4 sm:p-6 lg:p-8 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-5xl mx-auto w-full">
       <div className="mb-4 pt-12">
         <button
-          onClick={() => navigate('/')}
+          onClick={handleBack}
           className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 transition-colors uppercase font-black text-[10px] tracking-[0.2em] group mt-6"
         >
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
@@ -59,7 +74,7 @@ export function GestaoSadDashboard({ user }: GestaoSadDashboardProps) {
           return (
             <button
               key={mod.id}
-              onClick={() => navigate(`/${mod.id}`)}
+              onClick={() => handleNavigate(`/${mod.id}`)}
               className="bg-white border-2 border-slate-100 rounded-[2rem] p-6 flex flex-col items-center justify-center gap-4 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all text-center group relative overflow-hidden"
             >
               <div className={cn(

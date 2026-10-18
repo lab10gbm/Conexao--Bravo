@@ -24,7 +24,6 @@ import {
   Rows3,
   RefreshCw
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { UserProfile } from "../types";
 import { db } from "../lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
@@ -55,10 +54,17 @@ interface EfetivoPanelProps {
   user: UserProfile;
   obmContext?: string;
   onBack: () => void;
+  onNavigate?: (path: string) => void;
 }
 
-export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
-  const navigate = useNavigate();
+export function EfetivoPanel({ user, obmContext, onBack, onNavigate }: EfetivoPanelProps) {
+  const handleNavigate = (path: string) => {
+    if (onNavigate) {
+      onNavigate(path);
+    } else if (typeof window !== "undefined") {
+      window.location.href = path;
+    }
+  };
   const { militars, loading, refreshMilitars } = useMilitars();
   const [search, setSearch] = useState("");
   const [selectedLendGroup, setSelectedLendGroup] = useState("");
@@ -496,7 +502,7 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
           {(user.isAdmin || user.isEscalante) && (
             <div className="flex items-center gap-2 mr-2 border-r border-slate-200 pr-4">
               <button
-                onClick={() => navigate('/sop-medidas')}
+                onClick={() => handleNavigate('/sop-medidas')}
                 title="Gestão SOP (Equipamentos de EPI)"
                 className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-[10px] uppercase font-black text-emerald-700 hover:bg-emerald-100 tracking-widest transition-colors h-[34px]"
               >
@@ -504,7 +510,7 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
                 <span className="hidden sm:inline">SOP / EPI</span>
               </button>
               <button
-                onClick={() => navigate('/gestao-efetivo-moderacao')}
+                onClick={() => handleNavigate('/gestao-efetivo-moderacao')}
                 title="Moderação e Cadastro"
                 className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[10px] uppercase font-black text-slate-700 hover:bg-slate-100 tracking-widest transition-colors h-[34px]"
               >
