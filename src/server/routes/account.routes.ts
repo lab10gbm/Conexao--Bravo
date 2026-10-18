@@ -350,6 +350,12 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
           } catch (createErr: any) {}
         }
       }
+
+      try {
+        firebaseToken = await getAdminAuth().createCustomToken(safeRg, claims);
+      } catch (tokenErr: any) {
+        console.warn(`[Login] Custom token generation note for ${safeRg}:`, tokenErr.message);
+      }
     }
 
     return res.json({

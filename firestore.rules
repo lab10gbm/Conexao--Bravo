@@ -168,9 +168,9 @@ service cloud.firestore {
       allow write: if isEscalante();
     }
 
-    // Configurações Globais
+    // Configurações Globais (públicas para inicialização imediata sem travar login)
     match /config/{configId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow write: if isAdmin();
     }
 

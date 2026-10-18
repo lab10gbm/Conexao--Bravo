@@ -21,7 +21,10 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   const [activeMonths, setActiveMonths] = useState<number[]>([]);
   const [escalanteRGs, setEscalanteRGs] = useState<string[]>([]);
   const [appVisibility, setAppVisibility] = useState<Record<string, string[]> | null>(null);
-  const [alaConfig, setAlaConfig] = useState<{ referenceYear: number; startAla: number } | null>(null);
+  const [alaConfig, setAlaConfig] = useState<{ referenceYear: number; startAla: number } | null>({
+    referenceYear: 2026,
+    startAla: 2,
+  });
   const [vacationSettings, setVacationSettings] = useState<any>(null);
   
   const [loading, setLoading] = useState(true);
@@ -33,6 +36,11 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // Safety timeout: never block the app loading state for more than 1.5s
+    const safetyTimer = setTimeout(() => {
+      setLoading(false);
+    }, 1500);
+
     // Setup real-time listeners for all configs to be our single source of truth
     const unsubMonths = onSnapshot(doc(db, 'config', 'active_months'), (snap) => {
       if (snap.exists()) {
@@ -44,7 +52,10 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
         }
       }
       setLoading(false);
-    }, (err) => console.warn('[ConfigContext] active_months listener error:', err.message));
+    }, (err) => {
+      console.warn('[ConfigContext] active_months listener error:', err.message);
+      setLoading(false);
+    });
 
     const unsubRoles = onSnapshot(doc(db, 'config', 'roles'), (snap) => {
       if (snap.exists()) {
@@ -76,6 +87,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     }, (err) => console.warn('[ConfigContext] vacation_settings listener error:', err.message));
 
     return () => {
+      clearTimeout(safetyTimer);
       unsubMonths();
       unsubRoles();
       unsubAla();

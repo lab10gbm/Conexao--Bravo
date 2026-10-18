@@ -549,7 +549,7 @@ export default function App() {
     );
   }
 
-  if (!alaConfigLoaded) {
+  if (!alaConfigLoaded && !alaConfig) {
     return (
       <div className="min-h-screen bg-[#FDFDFD] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
