@@ -5,7 +5,7 @@ import { collection, addDoc, serverTimestamp, doc, getDoc, query, where, getDocs
 import { UserProfile, PermutaStatus, PermutaRequest } from '../types';
 import { format, isBefore, addHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { getAlaForDate, getAlaName, calculateDeadline, cn, normalizeRg, cleanUndefined } from '../lib/utils';
+import { getAlaForDate, getAlaName, calculateDeadline, cn, normalizeRg, normalizeObm, cleanUndefined } from '../lib/utils';
 import { Send, CalendarIcon, X, ArrowLeftRight, Equal, ArrowUp, AlertTriangle, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppConfig } from '../contexts/ConfigContext';
@@ -350,7 +350,7 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
       const substituteSignedVal = isSubstituteMissing ? false : isUserSubstitute;
 
       const payload = {
-        obm: String(obmContext || '10º GBM'),
+        obm: normalizeObm(String(obmContext || user.obm || '10º GBM')),
         requesterId: requesterIdVal,
         requesterName: isRequesterMissing ? '' : String(requesterName),
         requesterRg: isRequesterMissing ? '' : String(requesterRg),

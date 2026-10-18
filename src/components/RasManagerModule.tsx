@@ -68,7 +68,11 @@ export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasMa
 
   useEffect(() => {
     if (!obmContext) return;
-    const q = query(collection(db, 'ras_opportunities'), where('obm', '==', obmContext));
+    const cleanCtx = normalizeObm(obmContext);
+    const isGlobal = obmContext === 'GLOBAL' || cleanCtx === 'GLOBAL';
+    const q = isGlobal
+      ? query(collection(db, 'ras_opportunities'))
+      : query(collection(db, 'ras_opportunities'), where('obm', 'in', [cleanCtx, obmContext]));
     const unsub = onSnapshot(q, (snap) => {
       const now = new Date();
       const opps = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as RasOpportunity))
@@ -122,7 +126,7 @@ export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasMa
       } else {
         await addDoc(collection(db, 'ras_opportunities'), {
           ...formData,
-          obm: obmContext,
+          obm: normalizeObm(obmContext || '10º GBM'),
           status: 'open',
           createdBy: user.rg,
           createdAt: Date.now(),

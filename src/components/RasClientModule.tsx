@@ -3,7 +3,7 @@ import { UserProfile, RasOpportunity, RasApplication } from '../types';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot, addDoc, getDocs } from 'firebase/firestore';
 import { BriefcaseBusiness, Clock, Users, ArrowRight, CheckCircle2, History, ChevronDown, XCircle, AlertTriangle } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, normalizeObm } from '../lib/utils';
 import { getAuth } from 'firebase/auth';
 import { parsePromotionDate, ALL_RANKS_IN_ORDER, parseRank } from '../lib/rankUtils';
 import { useConflitosOperacionais } from '../hooks/useConflitosOperacionais';
@@ -45,11 +45,18 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
 
   useEffect(() => {
     // Fetch open opportunities
-    const qOpps = query(
-      collection(db, 'ras_opportunities'), 
-      where('obm', '==', obmContext),
-      where('status', '==', 'open')
-    );
+    const cleanCtx = normalizeObm(obmContext || user?.obm || '10º GBM');
+    const isGlobal = obmContext === 'GLOBAL' || cleanCtx === 'GLOBAL';
+    const qOpps = isGlobal
+      ? query(
+          collection(db, 'ras_opportunities'),
+          where('status', '==', 'open')
+        )
+      : query(
+          collection(db, 'ras_opportunities'),
+          where('obm', 'in', Array.from(new Set([cleanCtx, obmContext])).filter(Boolean)),
+          where('status', '==', 'open')
+        );
     const unsubOpps = onSnapshot(qOpps, (snap) => {
       const now = new Date();
       const opps = snap.docs.map(d => ({ id: d.id, ...d.data() } as RasOpportunity))

@@ -73,12 +73,19 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export const getUserObmAccess = (userObm?: string, isAdmin = false): string[] => {
-  if (isAdmin) {
-    return Object.keys(OBM_HIERARCHY); // Admin sees everything
+export const getUserObmAccess = (
+  userObm?: string,
+  isAdminOrGlobal = false,
+  includeSubordinates = false
+): string[] => {
+  if (isAdminOrGlobal || userObm === 'GLOBAL') {
+    return Object.keys(OBM_HIERARCHY); // Global sees everything
   }
-  const obm = userObm || '';
-  return OBM_HIERARCHY[obm] || [obm];
+  const clean = normalizeObm(userObm);
+  if (includeSubordinates && OBM_HIERARCHY[clean]) {
+    return OBM_HIERARCHY[clean];
+  }
+  return [clean];
 };
 
 export let GLOBAL_REF_YEAR = 2026;

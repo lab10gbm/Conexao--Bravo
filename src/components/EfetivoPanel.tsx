@@ -147,15 +147,12 @@ export function EfetivoPanel({ user, obmContext, onBack }: EfetivoPanelProps) {
         filterSituacao.length === 0 ||
         filterSituacao.includes(m.situacao || "");
 
-      // Admin contextualize (GLOBAL shows everything, specific OBM filters)
-      const allowedViews =
-        !obmContext || obmContext === "GLOBAL"
-          ? null
-          : OBM_HIERARCHY[obmContext] || [obmContext];
-      const matchesContext = allowedViews
-        ? allowedViews.includes(normalizeObm(m.obm) || "") || 
-          allowedViews.includes(normalizeObm(m.lentTo!) || "")
-        : true;
+      // Contextualizar OBM (GLOBAL exibe tudo, OBM específica isola rigorosamente a unidade)
+      const cleanCtx = normalizeObm(obmContext);
+      const isGlobal = !obmContext || obmContext === "GLOBAL" || cleanCtx === "GLOBAL";
+      const matchesContext = isGlobal
+        ? true
+        : normalizeObm(m.obm) === cleanCtx || normalizeObm(m.lentTo!) === cleanCtx;
 
       const userCursos = m.cursos
         ? m.cursos
