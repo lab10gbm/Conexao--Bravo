@@ -42,25 +42,35 @@ body {
    PADRÃO DE BORDAS SAUDÁVEIS E ENQUADRAMENTO (DESIGN SYSTEM)
    ========================================================= */
 
-/* Contorno estruturado e sombra sutil para painéis e cartões */
-:is(.bg-white):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *) {
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
+/* Contorno estruturado, nítido e saudável para todos os painéis e cartões (Light Mode) */
+:is(.bg-white):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *, .escala-sections-container > div, input, select, textarea, button:not([class*="rounded-2xl"], [class*="rounded-xl"], [class*="rounded-3xl"])) {
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
+}
+
+/* Transforma bordas antes fracas/invisíveis em bordas nítidas, visíveis e saudáveis em todos os módulos */
+:is(.border-slate-100, .border-slate-200, .border-gray-100, .border-gray-200, .border-zinc-100, .border-zinc-200):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *, .escala-sections-container > div, .border-transparent) {
+  border-color: #cbd5e1 !important;
+}
+
+/* Divisores internos suaves e limpos */
+:is(.divide-slate-100, .divide-slate-200, .divide-gray-100, .divide-gray-200):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *) > :not([hidden]) ~ :not([hidden]) {
+  border-color: #e2e8f0 !important;
 }
 
 /* Enquadramento dos trilhos de abas (Segmented Controls) */
 :is(.bg-slate-100, .bg-slate-50):has(> button):not(.keep-light, .keep-light *) {
-  border: 1px solid rgba(203, 213, 225, 0.9);
+  border: 1px solid #cbd5e1 !important;
   border-radius: 0.875rem;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
   padding: 0.25rem;
   gap: 0.25rem;
 }
 
 /* Botões de abas ativas dentro do trilho */
 :is(.bg-slate-100, .bg-slate-50):has(> button):not(.keep-light, .keep-light *) > button.bg-white {
-  border: 1px solid #cbd5e1 !important;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.06) !important;
+  border: 1px solid #94a3b8 !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.08) !important;
   border-radius: 0.5rem;
 }
 
@@ -149,24 +159,29 @@ html.dark :is(.text-slate-600, .text-gray-600, .text-zinc-600):not(.keep-light, 
   color: #94a3b8 !important;
 }
 
-/* Bordas e Divisores */
-html.dark :is(.border-slate-100, .border-slate-200, .border-slate-300, .border-gray-100, .border-gray-200, .border-gray-300, .border-zinc-100, .border-zinc-200, .border-zinc-300):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *) {
-  border-color: #27364f !important;
+/* Bordas e Divisores no Dark Mode com acabamento nítido e elegante */
+html.dark :is(.border-slate-100, .border-slate-200, .border-slate-300, .border-gray-100, .border-gray-200, .border-gray-300, .border-zinc-100, .border-zinc-200, .border-zinc-300):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *, .escala-sections-container > div, .border-transparent) {
+  border-color: #33435e !important;
 }
 
 html.dark :is(.divide-slate-100, .divide-slate-200, .divide-slate-300, .divide-gray-100, .divide-gray-200):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *) > :not([hidden]) ~ :not([hidden]) {
   border-color: #27364f !important;
 }
 
+html.dark :is(.bg-white):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *, .escala-sections-container > div, input, select, textarea, button:not([class*="rounded-2xl"], [class*="rounded-xl"], [class*="rounded-3xl"])) {
+  border: 1px solid #33435e !important;
+  box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.35);
+}
+
 /* Enquadramento de Abas no Dark Mode */
 html.dark :is(.bg-slate-100, .bg-slate-50):has(> button):not(.keep-light, .keep-light *) {
-  border: 1px solid #334155 !important;
+  border: 1px solid #3b4e6d !important;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 html.dark :is(.bg-slate-100, .bg-slate-50):has(> button):not(.keep-light, .keep-light *) > button.bg-white {
   background-color: #0f172a !important;
-  border: 1px solid #334155 !important;
+  border: 1px solid #475d82 !important;
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.3) !important;
 }
 

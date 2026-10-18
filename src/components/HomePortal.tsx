@@ -86,9 +86,9 @@ const ModuleIcon: React.FC<ModuleIconProps> = ({
       whileTap={disabled ? {} : { scale: 0.98 }}
       onClick={disabled ? undefined : onClick}
       className={cn(
-        "bg-white border border-slate-200/90 dark:border-slate-700/80 rounded-2xl p-3 sm:p-6 flex flex-col items-center justify-center gap-2 sm:gap-4 shadow-xs transition-all text-center group relative overflow-hidden cursor-pointer",
-        disabled ? "opacity-50 grayscale cursor-not-allowed" : "hover:shadow-lg hover:border-indigo-400/80",
-        isFolder && "border-indigo-200/90 dark:border-indigo-500/40 bg-gradient-to-b from-white to-indigo-50/20 dark:from-slate-900/40 dark:to-indigo-950/20 hover:border-indigo-400"
+        "bg-white dark:bg-[#141c2e] border border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-400 rounded-2xl p-3 sm:p-6 flex flex-col items-center justify-center gap-2 sm:gap-4 shadow-sm hover:shadow-md transition-all text-center group relative overflow-hidden cursor-pointer",
+        disabled ? "opacity-50 grayscale cursor-not-allowed" : "hover:shadow-lg",
+        isFolder && "border border-indigo-300 dark:border-indigo-500/60 bg-gradient-to-b from-white to-indigo-50/30 dark:from-slate-900/40 dark:to-indigo-950/30 hover:border-indigo-500"
       )}
     >
       {(onMoveLeft || onMoveRight) && (
@@ -593,16 +593,18 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
 
   return (
     <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
-        <div className="flex items-center gap-3">
-          <LayoutGrid className="w-5 h-5 text-indigo-600" />
-          <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Painel de Aplicações</h2>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 pb-3 border-b border-slate-200/90 dark:border-slate-800">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200/80 dark:border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+            <LayoutGrid className="w-4 h-4" />
+          </div>
+          <h2 className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-[0.2em]">Painel de Aplicações</h2>
         </div>
         {isAdmin && (
            <button 
              onClick={() => setIsEditMode(!isEditMode)}
-             className={cn("px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-colors shadow-sm",
-               isEditMode ? "bg-indigo-600 text-white hover:bg-indigo-700" : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
+             className={cn("px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-colors shadow-sm cursor-pointer",
+               isEditMode ? "bg-indigo-600 text-white hover:bg-indigo-700 border border-indigo-500" : "bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
              )}
            >
              {isEditMode ? "Concluir Edição" : "Editar Ordem"}
@@ -610,14 +612,14 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
         )}
       </div>
 
-      <div className="mb-6 group">
+      <div className="mb-8 group">
         <button 
           onClick={() => setShowMural(!showMural)}
           className={cn(
-            "w-full flex items-center justify-between p-3 sm:p-4 rounded-3xl border-2 transition-all shadow-md relative overflow-hidden",
+            "w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl border transition-all shadow-sm relative overflow-hidden cursor-pointer",
             showMural 
-              ? "bg-white border-indigo-100 ring-2 ring-indigo-50/50" 
-              : "bg-gradient-to-r from-indigo-500 to-indigo-700 border-transparent text-white hover:shadow-indigo-100"
+              ? "bg-white dark:bg-[#141c2e] border-slate-300 dark:border-slate-700 shadow-md" 
+              : "bg-gradient-to-r from-indigo-600 via-indigo-700 to-slate-900 border-indigo-500/60 text-white shadow-md hover:shadow-indigo-500/20 hover:border-indigo-400"
           )}
         >
           {showMural && <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 blur-2xl -translate-y-1/2 translate-x-1/4 rounded-full pointer-events-none"></div>}
@@ -661,10 +663,12 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       </div>
 
       {visibleOperacionalModules.length > 0 && (
-         <div className="mb-12">
-            <div className="flex items-center gap-3 mb-6">
-               <Shield className="w-5 h-5 text-indigo-600" />
-               <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Operacional</h2>
+         <div className="mb-10">
+            <div className="flex items-center gap-2.5 mb-5 pb-2.5 border-b border-slate-200/90 dark:border-slate-800">
+               <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200/80 dark:border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                  <Shield className="w-4 h-4" />
+               </div>
+               <h2 className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-[0.2em]">Operacional</h2>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {visibleOperacionalModules.map((mod, index) => (
@@ -691,10 +695,12 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       )}
 
       {visibleInformativoModules.length > 0 && (
-         <div className="mb-12">
-            <div className="flex items-center gap-3 mb-6">
-               <BookOpen className="w-5 h-5 text-teal-600" />
-               <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Informativo</h2>
+         <div className="mb-10">
+            <div className="flex items-center gap-2.5 mb-5 pb-2.5 border-b border-slate-200/90 dark:border-slate-800">
+               <div className="w-7 h-7 rounded-lg bg-teal-50 dark:bg-teal-950/50 border border-teal-200/80 dark:border-teal-500/30 flex items-center justify-center text-teal-600 dark:text-teal-400 shrink-0">
+                  <BookOpen className="w-4 h-4" />
+               </div>
+               <h2 className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-[0.2em]">Informativo</h2>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {visibleInformativoModules.map((mod, index) => (
@@ -716,8 +722,8 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
               ))}
               {/* Em Breve placeholder ao lado do app Refeitório */}
               {!isEditMode && (
-                <div className="col-span-1 border-2 border-dashed border-slate-200 rounded-3xl sm:rounded-[2rem] p-4 sm:p-6 flex flex-col items-center justify-center gap-2 opacity-40 min-h-[140px] text-center">
-                   <MessageSquare className="w-7 h-7 sm:w-8 sm:h-8 text-slate-300" />
+                <div className="col-span-1 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-4 sm:p-6 flex flex-col items-center justify-center gap-2 opacity-50 min-h-[140px] text-center">
+                   <MessageSquare className="w-7 h-7 sm:w-8 sm:h-8 text-slate-400" />
                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Em Breve</span>
                 </div>
               )}
@@ -726,10 +732,12 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       )}
 
       {visibleEscalanteModules.length > 0 && (
-         <div className="mb-12">
-            <div className="flex items-center gap-3 mb-6">
-               <ShieldCheck className="w-5 h-5 text-rose-600" />
-               <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Espaço do Escalante / Admin</h2>
+         <div className="mb-10">
+            <div className="flex items-center gap-2.5 mb-5 pb-2.5 border-b border-slate-200/90 dark:border-slate-800">
+               <div className="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200/80 dark:border-rose-500/30 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
+                  <ShieldCheck className="w-4 h-4" />
+               </div>
+               <h2 className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-[0.2em]">Espaço do Escalante / Admin</h2>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {visibleEscalanteModules.map((mod, index) => (
@@ -754,10 +762,12 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       )}
 
       {isAdmin && visibleModeradorModules.length > 0 && (
-         <div className="mb-12">
-            <div className="flex items-center gap-3 mb-6">
-               <Shield className="w-5 h-5 text-indigo-800" />
-               <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Painel de Moderação</h2>
+         <div className="mb-10">
+            <div className="flex items-center gap-2.5 mb-5 pb-2.5 border-b border-slate-200/90 dark:border-slate-800">
+               <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200/80 dark:border-indigo-500/30 flex items-center justify-center text-indigo-800 dark:text-indigo-400 shrink-0">
+                  <Shield className="w-4 h-4" />
+               </div>
+               <h2 className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-[0.2em]">Painel de Moderação</h2>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
               {visibleModeradorModules.map((mod, index) => (

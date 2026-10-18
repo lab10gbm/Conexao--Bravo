@@ -313,7 +313,7 @@ export function MainLayout({
         </div>
       </nav>
 
-      <main className="flex-1 w-full max-w-[1600px] mx-auto px-3 sm:px-6 lg:px-8 xl:px-10 py-5 transition-all">
+      <main className="flex-1 w-full max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 py-6 transition-all">
         {children}
       </main>
     </div>

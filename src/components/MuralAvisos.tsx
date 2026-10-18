@@ -54,7 +54,7 @@ export function MuralAvisos({ isAdminOrEscalante, userName }: MuralAvisosProps) 
       initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
-      className="bg-blue-50 border-l-4 border-blue-600 rounded-r-xl p-4 shadow-sm flex flex-col gap-3"
+      className="bg-blue-50/70 dark:bg-slate-900/60 border border-blue-200 dark:border-blue-900/50 border-l-4 border-l-blue-600 rounded-2xl p-4 shadow-sm flex flex-col gap-3"
     >
       {isAdminOrEscalante && (
         <div className="flex justify-end">

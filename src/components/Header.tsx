@@ -513,7 +513,7 @@ export function Header({
     <div
       id="header"
       className={cn(
-        "relative mb-8 rounded-xl shadow-sm border overflow-hidden transition-colors duration-500",
+        "relative mb-8 rounded-2xl shadow-sm border border-slate-300 dark:border-slate-700 overflow-hidden transition-colors duration-500 bg-white dark:bg-[#141c2e]",
         theme.panel,
       )}
     >
