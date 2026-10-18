@@ -24,6 +24,7 @@ const MilitarContext = createContext<MilitarContextType | undefined>(undefined);
 
 export function MilitarProvider({ children }: { children: ReactNode }) {
   const [militars, setMilitars] = useState<UserProfile[]>(() => {
+    if (typeof window === 'undefined') return [];
     try {
       const cached = localStorage.getItem('militars_cache_v2');
       if (cached) {
@@ -36,6 +37,7 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
     return [];
   });
   const [loading, setLoading] = useState(() => {
+    if (typeof window === 'undefined') return true;
     try {
       const cached = localStorage.getItem('militars_cache_v2');
       if (cached) {

@@ -16,7 +16,6 @@ import {
 import { db, auth } from "../lib/firebase";
 import { format, parseISO, addDays, startOfToday, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useNavigate } from "react-router-dom";
 import { parseDateToIso } from "../lib/conflitosOperacionais";
 
 import { parseRank, sortAllBySeniority } from "../lib/rankUtils";
@@ -77,7 +76,6 @@ interface EscalaEspelhoModuleProps {
 }
 
 export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEspelhoModuleProps) {
-  const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     if (initialDate && typeof initialDate === 'string') {
       try {

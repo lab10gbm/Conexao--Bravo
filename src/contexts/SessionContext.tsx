@@ -32,6 +32,7 @@ const SessionContext = createContext<SessionContextType | undefined>(undefined);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<UserProfile | null>(() => {
+    if (typeof window === "undefined") return null;
     try {
       const stored = localStorage.getItem("militar_profile");
       if (stored) {
@@ -45,7 +46,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return null;
   });
 
-  const [loading, setLoading] = useState(() => !localStorage.getItem("militar_profile"));
+  const [loading, setLoading] = useState(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      return !localStorage.getItem("militar_profile");
+    } catch {
+      return true;
+    }
+  });
   const [authReady, setAuthReady] = useState(false);
   const [adminModeActive, setAdminModeActive] = useState(false);
   const [escalanteModeActive, setEscalanteModeActive] = useState(false);
