@@ -8,7 +8,7 @@ import { format, parseISO, addDays, subDays, addMonths, subMonths } from 'date-f
 import { ptBR } from 'date-fns/locale';
 import { cn, getAlaName } from '../../../lib/utils';
 import { SorteioScope } from '../types';
-import { SorteioActionBar } from '../../../components/SorteioFuncoesModal';
+import { SorteioActionBar } from '../../../components/SorteioActionBar';
 
 export interface UpcomingDayItem {
   iso: string;

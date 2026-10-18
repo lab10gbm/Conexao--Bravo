@@ -4,7 +4,7 @@ import {
 } from 'lucide-react';
 import { parseRank } from '../../../lib/rankUtils';
 import { cn, formatMilitaryName, normalizeObm } from '../../../lib/utils';
-import { SorteioActionBar } from '../../../components/SorteioFuncoesModal';
+import { SorteioActionBar } from '../../../components/SorteioActionBar';
 import { RankInsignia } from '../../../components/RankInsignia';
 import { FuncoesMultiSelect } from './FuncoesMultiSelect';
 import { SorteioScope, PermutaRequest } from '../types';
