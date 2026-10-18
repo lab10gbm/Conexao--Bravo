@@ -33,8 +33,7 @@ import {
   signInAnonymously,
 } from 'firebase/auth';
 
-// Internal Server Libs and Routes
-import { authRouter } from './src/server/routes/auth';
+import { authRouter, verifyFirebaseSession } from './src/server/routes/auth';
 import { setupSyncRoutes } from './src/server/routes/sync';
 import { setupMilitaryRoutes } from './src/server/routes/military.routes';
 import { setupServiceRoutes } from './src/server/routes/services.routes';
@@ -539,7 +538,10 @@ async function startServer() {
     });
   });
 
-  app.get('/api/debug/env', (req, res) => {
+  app.get('/api/debug/env', verifyFirebaseSession, (req: any, res) => {
+    if (!req.user?.isAdmin) {
+      return res.status(403).json({ error: 'Acesso negado: Administradores apenas.' });
+    }
     res.json({
       keys: Object.keys(process.env).filter(
         (k) =>

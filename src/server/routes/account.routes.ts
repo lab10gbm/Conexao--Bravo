@@ -455,11 +455,6 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
         await setDoc(doc(clientDb, 'militaries', safeRg), militaryUpdate, {
           merge: true,
         });
-        await setDoc(
-          doc(clientDb, 'militaries', safeRg),
-          { customPassword: cleanNew },
-          { merge: true },
-        );
         try {
           await setDoc(
             doc(clientDb, 'militaries', safeRg, 'private', 'secrets'),
@@ -599,16 +594,20 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
       const isSmtpDelivered =
         emailResult.mode === 'smtp' && emailResult.delivered;
 
+      const isDevPreview = process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_RESET_PREVIEW === 'true';
+
       return res.json({
         success: true,
         message: isSmtpDelivered
           ? `Código de recuperação enviado com sucesso para ${maskEmail(targetEmail)}. Verifique sua caixa de entrada e spam.`
-          : `Serviço de e-mail SMTP não configurado. Código de teste em ambiente de desenvolvimento: ${code}`,
+          : isDevPreview
+            ? `Serviço de e-mail SMTP não configurado. Código em modo dev: ${code}`
+            : `Código enviado. Se o e-mail não chegar em alguns minutos, contate o Escalante da sua OBM.`,
         maskedEmail: maskEmail(targetEmail),
         expiresInMinutes: 15,
         isLocalDelivery: !isSmtpDelivered,
-        codePreview: !isSmtpDelivered ? code : undefined,
-        resetUrlPreview: !isSmtpDelivered ? resetUrl : undefined,
+        codePreview: isDevPreview ? code : undefined,
+        resetUrlPreview: isDevPreview ? resetUrl : undefined,
       });
     },
   );

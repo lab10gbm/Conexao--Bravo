@@ -8,7 +8,7 @@ export function setupSyncRoutes(app: express.Express, getDeps: () => any) {
   const syncRouter = express.Router();
 
   const apiKeyMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const apiKey = process.env.SYNC_API_KEY || "MINHA_CHAVE_SECRETA_SUPER_SEGURA_123";
+    const apiKey = process.env.SYNC_API_KEY;
     if (!apiKey) {
       return res.status(500).json({ success: false, error: 'Configuração do Servidor Incompleta: SYNC_API_KEY ausente' });
     }

@@ -25,7 +25,7 @@ const EscalaEspelhoModule = React.lazy(() => import('./EscalaEspelhoModule').the
 const AfastamentosAlaModule = React.lazy(() => import('./AfastamentosAlaModule').then(m => ({ default: m.AfastamentosAlaModule })));
 const VacationModule = React.lazy(() => import('./VacationModule').then(m => ({ default: m.VacationModule })));
 const GrdModule = React.lazy(() => import('./GrdModule').then(m => ({ default: m.GrdModule })));
-const ExpedienteScheduler = React.lazy(() => import('./ExpedienteScheduler').then(m => ({ default: m.ExpedienteScheduler })));
+const ExpedienteScheduler = React.lazy(() => import('../features/expediente/ExpedienteScheduler').then(m => ({ default: m.ExpedienteScheduler })));
 const ControlePermutasMobile = React.lazy(() => import('./ControlePermutasMobile').then(m => ({ default: m.ControlePermutasMobile })));
 const RasManagerModule = React.lazy(() => import('./RasManagerModule').then(m => ({ default: m.RasManagerModule })));
 const EfetivoPanel = React.lazy(() => import('./EfetivoPanel').then(m => ({ default: m.EfetivoPanel })));

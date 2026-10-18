@@ -7,9 +7,13 @@ import {
   maskEmail,
   SmtpConfig,
 } from '../lib/email.service';
+import { verifyFirebaseSession } from './auth';
 
 export function setupSmtpRoutes(app: express.Express, getDeps: () => any) {
-  app.get('/api/admin/smtp', async (req, res) => {
+  app.get('/api/admin/smtp', verifyFirebaseSession, async (req: any, res) => {
+    if (!req.user?.isAdmin) {
+      return res.status(403).json({ success: false, error: 'Acesso negado: Administradores apenas.' });
+    }
     const { config, source } = getEffectiveSmtpConfig();
     return res.json({
       configured: !!(config && config.host && config.user && config.pass),
@@ -24,7 +28,10 @@ export function setupSmtpRoutes(app: express.Express, getDeps: () => any) {
     });
   });
 
-  app.post('/api/admin/smtp', async (req, res) => {
+  app.post('/api/admin/smtp', verifyFirebaseSession, async (req: any, res) => {
+    if (!req.user?.isAdmin) {
+      return res.status(403).json({ success: false, error: 'Acesso negado: Administradores apenas.' });
+    }
     const { clientDb } = getDeps();
     try {
       const { host, port, secure, user, pass, from, appUrl } = req.body;
@@ -96,7 +103,10 @@ export function setupSmtpRoutes(app: express.Express, getDeps: () => any) {
     }
   });
 
-  app.post('/api/admin/smtp-test', async (req, res) => {
+  app.post('/api/admin/smtp-test', verifyFirebaseSession, async (req: any, res) => {
+    if (!req.user?.isAdmin) {
+      return res.status(403).json({ success: false, error: 'Acesso negado: Administradores apenas.' });
+    }
     try {
       const { targetEmail, host, port, secure, user, pass, from } = req.body;
       const override =
@@ -111,7 +121,10 @@ export function setupSmtpRoutes(app: express.Express, getDeps: () => any) {
             }
           : undefined;
 
-      const destination = targetEmail || user || 'lcssbernardo@gmail.com';
+      const destination = targetEmail || user;
+      if (!destination) {
+        return res.status(400).json({ success: false, message: 'E-mail de destino não informado.' });
+      }
       const result = await testSmtpConnection(destination, override);
       return res.json(result);
     } catch (err: any) {

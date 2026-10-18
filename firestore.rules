@@ -1,16 +1,182 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isRegisteredUser() {
+      return isAuthenticated() && 
+             request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    function isOwner(rg) {
+      return isRegisteredUser() && (request.auth.uid == rg || request.auth.token.rg == rg);
+    }
+
+    function isAdmin() {
+      return isRegisteredUser() && (
+        request.auth.token.admin == true ||
+        request.auth.uid == '54444'
+      );
+    }
+
+    function isEscalante() {
+      return isRegisteredUser() && (
+        request.auth.token.escalante == true ||
+        request.auth.token.admin == true ||
+        request.auth.uid == '54444'
+      );
+    }
+
+    // Permutas (Rede Social de Trocas e Assinaturas Mútuas)
+    match /permutas/{permutaId} {
+      allow read: if isAuthenticated();
+
+      // O militar logado pode criar se for o solicitante, ou o escalante/admin
+      allow create: if isRegisteredUser() && (
+        request.resource.data.requesterRg == request.auth.uid ||
+        request.resource.data.submittedByRg == request.auth.uid ||
+        isEscalante()
+      );
+
+      // Atualização fluida para aceite, assinatura ou cancelamento
+      allow update: if isRegisteredUser() && (
+        isEscalante() ||
+        resource.data.requesterRg == request.auth.uid ||
+        resource.data.substituteRg == request.auth.uid ||
+        resource.data.isLookingForSubstitute == true ||
+        request.resource.data.substituteRg == request.auth.uid
+      );
+
+      // Deletar / Cancelar
+      allow delete: if isRegisteredUser() && (
+        isEscalante() ||
+        (resource.data.requesterRg == request.auth.uid && resource.data.status == 'pending')
+      );
+    }
+
+    // RAS (Regime Adicional de Serviço)
+    match /ras_opportunities/{oppId} {
+      allow read: if isAuthenticated();
+      allow write: if isEscalante();
+    }
+
+    match /ras_applications/{appId} {
+      allow read: if isAuthenticated();
+      allow create: if isRegisteredUser() && request.resource.data.militarRg == request.auth.uid;
+      allow update, delete: if isRegisteredUser() && (
+        isEscalante() || resource.data.militarRg == request.auth.uid
+      );
+    }
+
+    // Presença e Status Online
+    match /presence/{rg} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(rg) || isEscalante();
+    }
+
+    // Férias e Afastamentos
+    match /vacations/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isEscalante();
+    }
+
+    match /vacation_preferences/{prefId} {
+      allow read: if isAuthenticated();
+      allow write: if isRegisteredUser() && (
+        isOwner(prefId) || 
+        resource.data.militarRg == request.auth.uid ||
+        request.resource.data.militarRg == request.auth.uid ||
+        isEscalante()
+      );
+    }
+
+    match /vacation_validations/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isEscalante();
+    }
+
+    match /afastamentos_alas/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isEscalante();
+    }
+
+    // Militares (Perfis)
+    match /militaries/{rg} {
+      allow read: if isAuthenticated();
+      allow update: if isRegisteredUser() && (
+        isEscalante() ||
+        (isOwner(rg) && 
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+           'isAdmin', 'isEscalante', 'adminObms', 'escalanteObms', 'rank', 'rg'
+         ]))
+      );
+      allow create, delete: if isAdmin();
+
+      match /private/{document=**} {
+        allow read, write: if isOwner(rg) || isAdmin();
+      }
+    }
+
+    match /outsourced_users/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Carga Pública e Patrimônio
     match /patrimonioData/{document=**} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isEscalante();
     }
+
+    match /patrimonioConfig/{document=**} {
+      allow read: if true;
+      allow write: if isEscalante();
+    }
+
+    match /customSectors/{document=**} {
+      allow read: if true;
+      allow write: if isEscalante();
+    }
+
+    // Refeitório e Cardápio
     match /refeitorio/{document=**} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isRegisteredUser() && (
+        request.auth.token.isRefeitorioAdmin == true || isEscalante()
+      );
     }
+
+    // Mural de Avisos
+    match /mural_avisos/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isEscalante();
+    }
+
+    // Viaturas e Alertas
+    match /viatura_alerts/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isRegisteredUser();
+    }
+
+    // Livro de Escalas e Registro
+    match /registro_escalas_24h/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isEscalante();
+    }
+
+    // Configurações Globais
+    match /config/{configId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Fallback seguro
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isAdmin();
     }
   }
 }

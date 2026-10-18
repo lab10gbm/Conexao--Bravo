@@ -779,7 +779,9 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   const permutasOut = useMemo(() => {
     const map = new Map<string, PermutaRequest>();
     permutas.forEach((p) => {
-      if (p.requesterRg) map.set(p.requesterRg, p);
+      if (p.requesterRg && (p.status === PermutaStatus.ACCEPTED || p.status === 'accepted')) {
+        map.set(p.requesterRg, p);
+      }
     });
     return map;
   }, [permutas]);

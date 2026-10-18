@@ -3,6 +3,8 @@ import { getAuth } from "firebase-admin/auth";
 
 export const authRouter = express.Router();
 
+const isDevMockAllowed = () => process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_MOCK_AUTH === 'true';
+
 export const optionalFirebaseSession = async (req: any, res: any, next: any) => {
   const authHeader = req.headers.authorization;
   const queryRg = (req.query.rg || req.headers['x-user-rg'] || req.body?.rg) as string;
@@ -17,15 +19,15 @@ export const optionalFirebaseSession = async (req: any, res: any, next: any) => 
       } catch (error) {
         // Token was invalid or expired or firebase-admin not initialized, fall through
       }
-    } else if (idToken === 'mock-token-local') {
+    } else if (idToken === 'mock-token-local' && isDevMockAllowed()) {
       const rg = queryRg || '54444';
       req.user = { uid: "local-dev", rg, isAdmin: true };
       return next();
     }
   }
 
-  // Fallback to RG if passed in query/body/header
-  if (queryRg) {
+  // Fallback to RG only if dev mock is explicitly allowed
+  if (queryRg && isDevMockAllowed()) {
     const cleanRg = String(queryRg).replace(/\D/g, '');
     req.user = { uid: cleanRg, rg: cleanRg, isAdmin: cleanRg === '54444' || cleanRg === '54208' };
   } else {
@@ -40,9 +42,7 @@ export const verifyFirebaseSession = async (req: any, res: any, next: any) => {
   const queryRg = (req.query.rg || req.headers['x-user-rg'] || req.body?.rg) as string;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    // If no token, check if we are in a dev environment without credentials
-    // If so, we'll allow access by extracting RG from query or body
-    if (queryRg) {
+    if (queryRg && isDevMockAllowed()) {
        const cleanRg = String(queryRg).replace(/\D/g, '');
        req.user = { uid: cleanRg, rg: cleanRg, isAdmin: cleanRg === '54444' || cleanRg === '54208' };
        return next();
@@ -52,7 +52,7 @@ export const verifyFirebaseSession = async (req: any, res: any, next: any) => {
 
   const idToken = authHeader.split("Bearer ")[1]?.trim();
   if (!idToken) {
-    if (queryRg) {
+    if (queryRg && isDevMockAllowed()) {
        const cleanRg = String(queryRg).replace(/\D/g, '');
        req.user = { uid: cleanRg, rg: cleanRg, isAdmin: cleanRg === '54444' || cleanRg === '54208' };
        return next();
@@ -60,7 +60,7 @@ export const verifyFirebaseSession = async (req: any, res: any, next: any) => {
     return res.status(401).json({ error: "Empty token provided" });
   }
   
-  if (idToken === 'mock-token-local') {
+  if (idToken === 'mock-token-local' && isDevMockAllowed()) {
     const rg = queryRg || '54444';
     req.user = { uid: "local-dev", rg, isAdmin: true };
     return next();
@@ -72,8 +72,7 @@ export const verifyFirebaseSession = async (req: any, res: any, next: any) => {
     next();
   } catch (error) {
     console.warn("Error verifying auth token", error);
-    // Fallback for local development
-    if (queryRg) {
+    if (queryRg && isDevMockAllowed()) {
        const cleanRg = String(queryRg).replace(/\D/g, '');
        req.user = { uid: cleanRg, rg: cleanRg, isAdmin: cleanRg === '54444' || cleanRg === '54208' };
        return next();

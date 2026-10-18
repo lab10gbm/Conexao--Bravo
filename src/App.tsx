@@ -170,7 +170,7 @@ const OfficerDashboard = lazyWithRetry(() => import("./components/OfficerDashboa
 const PermutaModule = lazyWithRetry(() => import("./components/PermutaModule").then((m) => ({ default: m.PermutaModule })));
 const VacationModule = lazyWithRetry(() => import("./components/VacationModule").then((m) => ({ default: m.VacationModule })));
 const ProfileUpdate = lazyWithRetry(() => import("./components/ProfileUpdate").then((m) => ({ default: m.ProfileUpdate })));
-const PatrimonyModule = lazyWithRetry(() => import("./components/PatrimonyModule").then((m) => ({ default: m.PatrimonyModule })));
+const PatrimonyModule = lazyWithRetry(() => import("./features/patrimonio/PatrimonyModule").then((m) => ({ default: m.PatrimonyModule })));
 const EscalanteDashboard = lazyWithRetry(() => import("./components/EscalanteDashboard").then((m) => ({ default: m.EscalanteDashboard || m.default })));
 const OficiaisDashboard = lazyWithRetry(() => import("./components/OficiaisDashboard").then((m) => ({ default: m.OficiaisDashboard })));
 const EstudoTecnicoGuarnicoesModule = lazyWithRetry(() => import("./components/EstudoTecnicoGuarnicoesModule").then((m) => ({ default: m.EstudoTecnicoGuarnicoesModule })));
@@ -190,9 +190,9 @@ const OfficerMedicosModule = lazyWithRetry(() => import("./components/OfficerMed
 const OfficerConfigModule = lazyWithRetry(() => import("./components/OfficerConfigModule").then((m) => ({ default: m.OfficerConfigModule })));
 const PublicCargaViewer = lazyWithRetry(() => import("./components/PublicCargaViewer").then((m) => ({ default: m.PublicCargaViewer })));
 const RefeitorioModule = lazyWithRetry(() => import("./components/RefeitorioModule").then((m) => ({ default: m.RefeitorioModule })));
-const AprovisionamentoModule = lazyWithRetry(() => import("./components/AprovisionamentoModule").then((m) => ({ default: m.AprovisionamentoModule })));
+const AprovisionamentoModule = lazyWithRetry(() => import("./features/aprovisionamento/AprovisionamentoModule").then((m) => ({ default: m.AprovisionamentoModule })));
 const PublicCardapioViewer = lazyWithRetry(() => import("./components/PublicCardapioViewer").then((m) => ({ default: m.PublicCardapioViewer })));
-const TransladoModule = lazyWithRetry(() => import("./components/TransladoModule").then((m) => ({ default: m.TransladoModule })));
+const TransladoModule = lazyWithRetry(() => import("./features/translado/TransladoModule").then((m) => ({ default: m.TransladoModule })));
 const ComunicanteDashboard = lazyWithRetry(() => import("./components/ComunicanteDashboard").then((m) => ({ default: m.ComunicanteDashboard })));
 
 import { usePresence } from "./hooks/usePresence";
@@ -206,7 +206,7 @@ const PermutaBoard = lazyWithRetry(() => import("./components/PermutaBoard").the
 const RequestPermuta = lazyWithRetry(() => import("./components/RequestPermuta").then((m) => ({ default: m.RequestPermuta })));
 const CalendarHighlights = lazyWithRetry(() => import("./components/CalendarHighlights").then((m) => ({ default: m.CalendarHighlights })));
 const ConfiguracoesModule = lazyWithRetry(() => import("./components/ConfiguracoesModule").then((m) => ({ default: m.ConfiguracoesModule })));
-const ExpedienteScheduler = lazyWithRetry(() => import("./components/ExpedienteScheduler").then((m) => ({ default: m.ExpedienteScheduler })));
+const ExpedienteScheduler = lazyWithRetry(() => import("./features/expediente/ExpedienteScheduler").then((m) => ({ default: m.ExpedienteScheduler })));
 const BuscarMilitarModule = lazyWithRetry(() => import("./components/BuscarMilitarModule").then((m) => ({ default: m.BuscarMilitarModule })));
 const HomePortal = lazyWithRetry(() => import("./components/HomePortal").then((m) => ({ default: m.HomePortal })));
 import { EmDesenvolvimento } from "./components/EmDesenvolvimento";
