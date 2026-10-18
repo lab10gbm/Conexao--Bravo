@@ -220,7 +220,7 @@ export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasMa
     try {
       if (newStatus === 'selected') {
         const milObj = militars.find(m => normalizeRg(m.rg) === normalizeRg(app.militarRg));
-        const conflitos = checarConflito(app.militarRg, opp.date, undefined, milObj?.ala, true);
+        const conflitos = checarConflito(app.militarRg, opp.date, undefined, milObj?.ala, true, true);
         const bloqueios = conflitos.filter(c => c.bloqueante);
         if (bloqueios.length > 0) {
           const motivos = bloqueios.map(c => `• ${c.titulo}: ${c.descricao}`).join('\n');
@@ -865,8 +865,8 @@ export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasMa
                                   const isSelected = app.status === 'selected';
                                   const isRejected = app.status === 'rejected';
 
-                                  const milObj = militars.find(m => normalizeRg(m.rg) === normalizeRg(app.militarRg));
-                                  const appConflitos = checarConflito(app.militarRg, opp.date, undefined, milObj?.ala, true);
+                                   const milObj = militars.find(m => normalizeRg(m.rg) === normalizeRg(app.militarRg));
+                                  const appConflitos = checarConflito(app.militarRg, opp.date, undefined, milObj?.ala, true, true);
                                   const hasBloqueio = appConflitos.some(c => c.bloqueante);
 
                                   return (
@@ -933,10 +933,18 @@ export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasMa
                                                   title={c.descricao}
                                                   className={cn(
                                                     "text-[8px] font-black uppercase px-2 py-0.5 rounded flex items-center gap-1 shadow-2xs",
-                                                    c.bloqueante ? "bg-rose-100 text-rose-800 border border-rose-300" : "bg-amber-100 text-amber-800 border border-amber-300"
+                                                    c.bloqueante
+                                                      ? "bg-rose-100 text-rose-800 border border-rose-300"
+                                                      : c.tipo === "FERIAS"
+                                                        ? "bg-sky-100 text-sky-800 border border-sky-300"
+                                                        : "bg-amber-100 text-amber-800 border border-amber-300",
                                                   )}
                                                 >
-                                                  <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+                                                  {c.bloqueante ? (
+                                                    <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
+                                                  ) : (
+                                                    <CheckCircle2 className="w-2.5 h-2.5 shrink-0 text-sky-600" />
+                                                  )}
                                                   {c.titulo}
                                                 </span>
                                               ))}

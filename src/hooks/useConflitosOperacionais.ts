@@ -116,7 +116,8 @@ export function useConflitosOperacionais({ obmContext, selectedDate }: UseConfli
       dataAlvo: string,
       permutaAtualId?: string,
       militarAla?: string | number | null,
-      verificarPlantaoRegular?: boolean
+      verificarPlantaoRegular?: boolean,
+      permitirFerias?: boolean
     ): ConflitoOperacional[] => {
       if (!militarRg || !dataAlvo) return [];
 
@@ -134,6 +135,7 @@ export function useConflitosOperacionais({ obmContext, selectedDate }: UseConfli
         permutasDoDia,
         permutaAtualId,
         verificarPlantaoRegular,
+        permitirFerias,
       });
     },
     [afastamentos, vacations, grdMonthDays, permutasDoMes]

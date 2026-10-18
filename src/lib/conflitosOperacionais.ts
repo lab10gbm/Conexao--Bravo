@@ -46,6 +46,7 @@ export interface VerificarConflitosParams {
   permutasDoDia?: any[];
   permutaAtualId?: string; // Para ignorar a própria permuta em edição
   verificarPlantaoRegular?: boolean; // Se true, detecta se coincide com a escala de 24h regular do militar
+  permitirFerias?: boolean; // Se true (ex: RAS), militar de férias é plenamente autorizado a concorrer e ser escalado (não-bloqueante)
 }
 
 /**
@@ -62,6 +63,7 @@ export function verificarConflitosMilitar({
   permutasDoDia = [],
   permutaAtualId,
   verificarPlantaoRegular = false,
+  permitirFerias = false,
 }: VerificarConflitosParams): ConflitoOperacional[] {
   const conflitos: ConflitoOperacional[] = [];
   const cleanRg = normalizeRg(militarRg);
@@ -71,6 +73,7 @@ export function verificarConflitosMilitar({
   if (!targetIso) return conflitos;
 
   // 1. VERIFICAÇÃO DE FÉRIAS (DGP)
+  let isEmFerias = false;
   if (Array.isArray(vacations) && vacations.length > 0) {
     for (const v of vacations) {
       if (!v) continue;
@@ -82,17 +85,32 @@ export function verificarConflitosMilitar({
 
       if (isoInicio && isoRetorno) {
         if (targetIso >= isoInicio && targetIso <= isoRetorno) {
-          conflitos.push({
-            tipo: 'FERIAS',
-            bloqueante: true,
-            titulo: 'Férias DGP Ativas',
-            descricao: `Militar em período regulamentar de Férias (de ${v.dataInicio} a ${v.dataRetorno}).`,
-            detalhe: v.boletim ? `Boletim: ${v.boletim}` : undefined,
-            dataInicio: v.dataInicio,
-            dataRetorno: v.dataRetorno,
-            boletim: v.boletim,
-            militarRg: cleanRg,
-          });
+          isEmFerias = true;
+          if (permitirFerias) {
+            conflitos.push({
+              tipo: 'FERIAS',
+              bloqueante: false,
+              titulo: 'Férias DGP (Apto p/ RAS)',
+              descricao: `Militar em período regulamentar de Férias (de ${v.dataInicio} a ${v.dataRetorno}). Autorizado a realizar RAS conforme regulamento.`,
+              detalhe: v.boletim ? `Boletim: ${v.boletim}` : undefined,
+              dataInicio: v.dataInicio,
+              dataRetorno: v.dataRetorno,
+              boletim: v.boletim,
+              militarRg: cleanRg,
+            });
+          } else {
+            conflitos.push({
+              tipo: 'FERIAS',
+              bloqueante: true,
+              titulo: 'Férias DGP Ativas',
+              descricao: `Militar em período regulamentar de Férias (de ${v.dataInicio} a ${v.dataRetorno}).`,
+              detalhe: v.boletim ? `Boletim: ${v.boletim}` : undefined,
+              dataInicio: v.dataInicio,
+              dataRetorno: v.dataRetorno,
+              boletim: v.boletim,
+              militarRg: cleanRg,
+            });
+          }
           break; // Um período de férias ativo já é suficiente para alertar
         }
       }
@@ -167,7 +185,8 @@ export function verificarConflitosMilitar({
   }
 
   // 5. VERIFICAÇÃO DE PLANTÃO REGULAR DA ALA (Para RAS e Vagas Extras)
-  if (verificarPlantaoRegular && militarAla) {
+  // Se o militar estiver em período regulamentar de Férias, ele está dispensado da escala regular
+  if (verificarPlantaoRegular && militarAla && !isEmFerias) {
     const userAlaNum = normalizeAlaField(militarAla);
     if (userAlaNum && userAlaNum !== 'EXP') {
       const [y, m, d] = targetIso.split('-').map(Number);
