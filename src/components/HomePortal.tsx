@@ -35,7 +35,9 @@ import {
   Folder,
   FolderKanban,
   X,
-  ExternalLink
+  ExternalLink,
+  Bell,
+  PenTool,
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { db } from '../lib/firebase';
@@ -47,6 +49,7 @@ import { AppVisibilityConfig } from './AppVisibilityConfig';
 import { SystemRolesConfig } from './SystemRolesConfig';
 import { useAppConfig } from '../contexts/ConfigContext';
 import { MuralAvisos } from './MuralAvisos';
+import { useNotificacoesMilitar } from '../hooks/useNotificacoesMilitar';
 
 interface ModuleIconProps {
   id: string;
@@ -189,6 +192,7 @@ interface HomePortalProps {
 
 export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }: HomePortalProps) {
   const { appVisibility: visibilityConfig } = useAppConfig();
+  const { pendingMySignature } = useNotificacoesMilitar(user);
   const [isEditMode, setIsEditMode] = useState(false);
   const [operacionalOrder, setOperacionalOrder] = useState<string[]>(() => {
      const saved = localStorage.getItem('operacionalModuleOrder');
@@ -611,6 +615,43 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
            </button>
         )}
       </div>
+
+      {/* Banner Social de Permutas Pendentes de Assinatura */}
+      {pendingMySignature.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-white shadow-lg shadow-amber-950/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-amber-400/50"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 text-white">
+              <Bell className="w-5 h-5 sm:w-6 sm:h-6 animate-bounce" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="bg-red-600 text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shadow-xs">
+                  Ação Obrigatória
+                </span>
+                <span className="text-xs sm:text-sm font-black uppercase tracking-wider">
+                  {pendingMySignature.length === 1
+                    ? "1 Solicitação de Permuta Aguardando Você"
+                    : `${pendingMySignature.length} Solicitações de Permutas Aguardando Você`}
+                </span>
+              </div>
+              <p className="text-xs text-amber-100 font-medium mt-1 leading-relaxed">
+                Um militar solicitou permuta com você. Sua assinatura é necessária para validar e enviar ao Escalante.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => onLaunchModule("permutas")}
+            className="w-full sm:w-auto px-4 py-2.5 bg-white text-amber-900 hover:bg-amber-50 rounded-xl text-xs font-black uppercase tracking-wider shadow-md hover:shadow-lg transition-all shrink-0 cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+          >
+            <PenTool className="w-4 h-4 text-amber-700" />
+            <span>Revisar e Assinar</span>
+          </button>
+        </motion.div>
+      )}
 
       <div className="mb-8 group">
         <button 

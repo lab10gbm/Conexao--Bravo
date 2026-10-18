@@ -1072,6 +1072,8 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     try {
       await updateDoc(doc(db, "permutas", permuta.id), cleanUndefined({
         status: newStatus,
+        acceptedById: user?.warName || user?.name || user?.rg || "Escalante",
+        acceptedByName: user?.name || user?.warName || "Escalante",
         updatedAt: serverTimestamp()
       }));
     } catch (error) {

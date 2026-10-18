@@ -7,6 +7,8 @@ import {
   getDoc,
   getDocs,
   where,
+  updateDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { subDays, format, addDays } from "date-fns";
 import React, { useState, useEffect } from "react";
@@ -1314,16 +1316,39 @@ export function Header({
                               </div>
 
                               {needsMySignature && (
-                                <button
-                                  onClick={() => {
-                                    setIsExpanded(false);
-                                    navigate("/permutas");
-                                  }}
-                                  className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-black uppercase tracking-wider rounded-md shadow-xs transition active:scale-95 cursor-pointer"
-                                >
-                                  <FileCheck className="w-3.5 h-3.5" />
-                                  Assinar no Quadro de Permutas →
-                                </button>
+                                <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        const isReq = normalizeRg(n.requesterRg) === myCleanRg;
+                                        const isSub = normalizeRg(n.substituteRg) === myCleanRg;
+                                        await updateDoc(doc(db, "permutas", n.id!), {
+                                          requesterSigned: isReq ? true : Boolean(n.requesterSigned),
+                                          substituteSigned: isSub ? true : Boolean(n.substituteSigned),
+                                          updatedAt: serverTimestamp(),
+                                        });
+                                        alert("✓ Permuta assinada com sucesso! A solicitação foi encaminhada para homologação do Escalante.");
+                                      } catch (e: any) {
+                                        alert("Erro ao assinar permuta: " + e.message);
+                                      }
+                                    }}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase tracking-wider rounded-lg shadow-xs transition active:scale-95 cursor-pointer"
+                                  >
+                                    <FileCheck className="w-3.5 h-3.5" />
+                                    Assinar Agora ✓
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setIsExpanded(false);
+                                      navigate("/permutas");
+                                    }}
+                                    className="text-slate-500 hover:text-indigo-600 text-[10px] font-bold uppercase tracking-wider underline cursor-pointer"
+                                  >
+                                    Ver Detalhes →
+                                  </button>
+                                </div>
                               )}
 
                               <div className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">

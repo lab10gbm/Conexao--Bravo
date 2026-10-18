@@ -22,6 +22,7 @@ import { useSession } from "../../contexts/SessionContext";
 import { useTheme } from "../../contexts/ThemeContext";
 import { PlatformLogo } from "../../components/PlatformLogo";
 import { Login } from "../../components/Login";
+import { CentralNotificacoesSocial } from "../../features/permutas/components/CentralNotificacoesSocial";
 
 export default function DashboardLayout({
   children,
@@ -189,6 +190,12 @@ export default function DashboardLayout({
                 ))}
               </select>
             )}
+
+            {/* Central de Avisos e Permutas da Tropa */}
+            <CentralNotificacoesSocial
+              user={effectiveProfile}
+              onNavigateToPermutas={() => router.push("/permutas")}
+            />
 
             {/* Dark Mode */}
             <button
