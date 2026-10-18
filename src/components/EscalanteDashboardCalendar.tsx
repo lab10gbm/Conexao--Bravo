@@ -211,7 +211,8 @@ export function EscalanteDashboardCalendar({
     // Permutas aprovadas no dia
     const permutasAtivas = permutas.filter((p: any) => {
       const pDate = p.date || p.data;
-      return pDate === dayStr && (p.status === 'APROVADA' || !p.status);
+      const st = (p.status || '').toLowerCase();
+      return pDate === dayStr && (st === 'accepted' || st === 'aprovada' || st === 'scheduled' || !p.status);
     });
 
     // Expediente 24h & Expediente Admin
@@ -440,7 +441,8 @@ export function EscalanteDashboardCalendar({
                 // Permutas no dia
                 const dayPermutas = (permutas || []).filter((p: any) => {
                   const pDate = p.date || p.data;
-                  return pDate === dayStr && (p.status === 'APROVADA' || !p.status);
+                  const st = (p.status || '').toLowerCase();
+                  return pDate === dayStr && (st === 'accepted' || st === 'aprovada' || st === 'scheduled' || !p.status);
                 });
 
                 // Expediente no dia

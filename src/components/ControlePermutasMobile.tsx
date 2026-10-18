@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { UserProfile, PermutaRequest, PermutaStatus } from '../types';
-import { Check, Star, Undo2, Loader2 } from 'lucide-react';
+import { Check, Star, Undo2, Loader2, AlertTriangle } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot, updateDoc, doc } from 'firebase/firestore';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useMilitars } from '../contexts/MilitarContext';
 import { getUserObmAccess, normalizeObm, cn, cleanUndefined } from '../lib/utils';
+import { useConflitosOperacionais } from '../hooks/useConflitosOperacionais';
 
 import { PermutaMonthDashboard } from '../features/permutas/components/PermutaMonthDashboard';
 import { PermutaSwipeCard } from '../features/permutas/components/PermutaSwipeCard';
@@ -79,9 +80,47 @@ export function ControlePermutasMobile({ user, obmContext }: ControlePermutasMob
     setViewMode('swipe');
   };
 
+  // --- SWIPE QUEUE & ACTIVE CARD ---
+  const filteredQueue = useMemo(() => {
+    return queue.filter(p => {
+      const pairKey = `${p.requesterId}-${p.substituteId}`;
+      const isFac = facilitadasIds.has(pairKey);
+      return activeTab === 'facilitadas' ? isFac : !isFac;
+    });
+  }, [queue, facilitadasIds, activeTab]);
+
+  const currentCard = filteredQueue[0];
+
+  const { checarConflito } = useConflitosOperacionais({
+    obmContext,
+    selectedDate: currentCard?.date,
+  });
+
+  const cardConflitos = useMemo(() => {
+    if (!currentCard) return [];
+    const reqConf = checarConflito(currentCard.requesterRg, currentCard.date, currentCard.id);
+    const subConf = checarConflito(currentCard.substituteRg, currentCard.date, currentCard.id);
+    return [...reqConf, ...subConf];
+  }, [currentCard, checarConflito]);
+
+  const hasBloqueio = useMemo(() => {
+    return cardConflitos.some(c => c.bloqueante);
+  }, [cardConflitos]);
+
   const handleAction = async (action: 'deferir' | 'indeferir', currentCard: PermutaRequest) => {
     if (!currentCard.id) return;
     
+    if (action === 'deferir') {
+      const bloqueios = cardConflitos.filter(c => c.bloqueante);
+      if (bloqueios.length > 0) {
+        const motivos = bloqueios.map(b => `• ${b.titulo}: ${b.detalhe}`).join('\n');
+        const confirmou = window.confirm(
+          `ALERTA OPERACIONAL:\nEsta permuta possui conflitos impeditivos detectados no sistema:\n\n${motivos}\n\nDeseja autorizar mesmo assim por determinação do Escalante?`
+        );
+        if (!confirmou) return;
+      }
+    }
+
     setDirection(action === 'deferir' ? 'right' : 'left');
     
     setTimeout(() => {
@@ -148,15 +187,7 @@ export function ControlePermutasMobile({ user, obmContext }: ControlePermutasMob
     );
   }
 
-  // --- SWIPE MODE ---
-  const filteredQueue = queue.filter(p => {
-    const pairKey = `${p.requesterId}-${p.substituteId}`;
-    const isFac = facilitadasIds.has(pairKey);
-    return activeTab === 'facilitadas' ? isFac : !isFac;
-  });
-
-  const currentCard = filteredQueue[0];
-
+  // --- SWIPE MODE RENDER ---
   return (
     <div className="w-full max-w-md h-full flex flex-col bg-slate-100 sm:border-x sm:border-slate-800 relative overflow-hidden">
       {/* App Header Mobile */}
@@ -215,6 +246,7 @@ export function ControlePermutasMobile({ user, obmContext }: ControlePermutasMob
                 selectedSubFunctions={selectedSubFunctions}
                 setSelectedSubFunctions={setSelectedSubFunctions}
                 militars={militars}
+                conflitos={cardConflitos}
               />
             ) : (
               <motion.div 
@@ -241,11 +273,19 @@ export function ControlePermutasMobile({ user, obmContext }: ControlePermutasMob
 
           {/* Action Buttons */}
           {currentCard && (
-            <PermutaActionButtons
-              onIndeferir={() => handleAction('indeferir', currentCard)}
-              onSkip={() => handleSkip(currentCard)}
-              onDeferir={() => handleAction('deferir', currentCard)}
-            />
+            <div className="w-full flex flex-col items-center">
+              {hasBloqueio && (
+                <div className="w-full max-w-sm mt-3 px-3 py-2 bg-rose-50 border border-rose-300 rounded-xl text-rose-800 text-[11px] font-bold flex items-center gap-2 shadow-xs">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>Atenção: Conflito impeditivo ativo (Férias/GRD/Afastamento).</span>
+                </div>
+              )}
+              <PermutaActionButtons
+                onIndeferir={() => handleAction('indeferir', currentCard)}
+                onSkip={() => handleSkip(currentCard)}
+                onDeferir={() => handleAction('deferir', currentCard)}
+              />
+            </div>
           )}
         </div>
       </div>

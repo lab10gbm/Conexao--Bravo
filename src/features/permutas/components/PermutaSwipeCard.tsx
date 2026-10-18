@@ -3,11 +3,12 @@ import { motion } from 'motion/react';
 import { PermutaRequest, UserProfile } from '../../../types';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { ArrowRightLeft, CalendarDays, Star, Activity, Users, ChevronUp, Eye } from 'lucide-react';
+import { ArrowRightLeft, CalendarDays, Star, Activity, Users, ChevronUp, Eye, AlertTriangle } from 'lucide-react';
 import { RankInsignia } from '../../../components/RankInsignia';
 import { CapabilitiesView } from './CapabilitiesView';
 import { matchMilitar, countCommonCapabilities } from '../lib/permutaUtils';
-import { cn, getAlaForDate, getOppositeAla } from '../../../lib/utils';
+import { cn, getAlaForDate, getOppositeAla, normalizeRg } from '../../../lib/utils';
+import { ConflitoOperacional } from '../../../lib/conflitosOperacionais';
 
 const SUB_FUNCTIONS = [
   'ADJUNTO', 'CONDUTOR ABT', 'CONDUTOR ABSL', 'CONDUTOR AR', 'CONDUTOR ASE', 'CONDUTOR ARC',
@@ -26,6 +27,7 @@ interface PermutaSwipeCardProps {
   selectedSubFunctions: string[] | undefined;
   setSelectedSubFunctions: React.Dispatch<React.SetStateAction<string[]>>;
   militars: UserProfile[];
+  conflitos?: ConflitoOperacional[];
 }
 
 export const PermutaSwipeCard: React.FC<PermutaSwipeCardProps> = ({
@@ -38,11 +40,18 @@ export const PermutaSwipeCard: React.FC<PermutaSwipeCardProps> = ({
   selectedSubFunctions = [],
   setSelectedSubFunctions,
   militars,
+  conflitos = [],
 }) => {
   const reqM = matchMilitar(militars, currentCard.requesterId, currentCard.requesterRg, currentCard.requesterName);
   const subM = matchMilitar(militars, currentCard.substituteId, currentCard.substituteRg, currentCard.substituteName);
   const commonCount = countCommonCapabilities(reqM, subM);
   const pairKey = `${currentCard.requesterId}-${currentCard.substituteId}`;
+
+  const reqRg = normalizeRg(reqM?.rg || currentCard.requesterRg);
+  const subRg = normalizeRg(subM?.rg || currentCard.substituteRg);
+
+  const reqConflitos = conflitos.filter(c => normalizeRg(c.militarRg) === reqRg);
+  const subConflitos = conflitos.filter(c => normalizeRg(c.militarRg) === subRg);
 
   const fallbackReqRank = currentCard.requesterName?.split(' ')[0] || '-';
   const fallbackReqName = currentCard.requesterName?.split(' ').slice(1).join(' ') || '-';
@@ -122,10 +131,34 @@ export const PermutaSwipeCard: React.FC<PermutaSwipeCardProps> = ({
           <div className="font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
             <Activity className="w-3 h-3 text-amber-500" /> Alertas Sistêmicos da Permuta
           </div>
-          <div className="flex gap-2 mt-1">
-             <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded font-black uppercase shadow-sm">Interstício OK</span>
-             <span className="bg-slate-200 text-slate-600 px-2 py-0.5 rounded font-black uppercase shadow-sm">Efetivo OK</span>
-          </div>
+          {conflitos.length === 0 ? (
+            <div className="flex gap-2 mt-1">
+              <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-[10px] font-black uppercase shadow-xs flex items-center gap-1">
+                ✓ Sem Conflitos
+              </span>
+              <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded text-[10px] font-bold uppercase shadow-xs">
+                Interstício OK
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {conflitos.map((c, idx) => (
+                <span
+                  key={idx}
+                  title={c.detalhe}
+                  className={cn(
+                    "px-2 py-0.5 rounded text-[10px] font-black uppercase shadow-xs flex items-center gap-1",
+                    c.bloqueante
+                      ? "bg-rose-100 text-rose-800 border border-rose-300"
+                      : "bg-amber-100 text-amber-800 border border-amber-300"
+                  )}
+                >
+                  <AlertTriangle className="w-3 h-3 shrink-0" />
+                  {c.titulo}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -165,6 +198,27 @@ export const PermutaSwipeCard: React.FC<PermutaSwipeCardProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* Conflitos do Solicitante (Sai) */}
+              {reqConflitos.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2.5">
+                  {reqConflitos.map((c, i) => (
+                    <span
+                      key={i}
+                      title={c.detalhe}
+                      className={cn(
+                        "text-[9px] font-black uppercase px-2 py-0.5 rounded flex items-center gap-1",
+                        c.bloqueante
+                          ? "bg-rose-100 text-rose-800 border border-rose-300"
+                          : "bg-amber-100 text-amber-800 border border-amber-300"
+                      )}
+                    >
+                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                      {c.titulo}: {c.detalhe}
+                    </span>
+                  ))}
+                </div>
+              )}
               
               {isExpanded && (
                 <CapabilitiesView 
@@ -234,6 +288,27 @@ export const PermutaSwipeCard: React.FC<PermutaSwipeCardProps> = ({
                     </div>
                   </div>
                 </div>
+
+                {/* Conflitos do Substituto (Entra) */}
+                {subConflitos.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {subConflitos.map((c, i) => (
+                      <span
+                        key={i}
+                        title={c.detalhe}
+                        className={cn(
+                          "text-[9px] font-black uppercase px-2 py-0.5 rounded flex items-center gap-1",
+                          c.bloqueante
+                            ? "bg-rose-100 text-rose-800 border border-rose-300"
+                            : "bg-amber-100 text-amber-800 border border-amber-300"
+                        )}
+                      >
+                        <AlertTriangle className="w-3 h-3 shrink-0" />
+                        {c.titulo}: {c.detalhe}
+                      </span>
+                    ))}
+                  </div>
+                )}
 
                 {/* Seletor de Funções Mobile */}
                 <div className="mt-2 bg-white rounded-xl p-3 border border-emerald-100 shadow-sm">

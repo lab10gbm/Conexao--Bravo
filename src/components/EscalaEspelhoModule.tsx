@@ -14,9 +14,10 @@ import {
   getDocs,
 } from "firebase/firestore";
 import { db, auth } from "../lib/firebase";
-import { format, parseISO, addDays, startOfToday, startOfMonth } from "date-fns";
+import { format, parseISO, addDays, startOfToday, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
+import { parseDateToIso } from "../lib/conflitosOperacionais";
 
 import { parseRank, sortAllBySeniority } from "../lib/rankUtils";
 import { EscalaPrintView } from "./EscalaPrintView";
@@ -614,46 +615,6 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     return () => unsub();
   }, [obmContext]);
 
-  // Permutas and Afastamentos listener
-  useEffect(() => {
-    if (!selectedDate) return;
-    setLoadingPermutas(true);
-    const qDate = query(
-      collection(db, "permutas"),
-      where("date", "==", selectedDate)
-    );
-
-    const unsubPermutas = onSnapshot(qDate, (snapshot) => {
-      const data = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      })) as PermutaRequest[];
-      const filtered = data.filter(
-        (p) => (!p.obm || getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm))) && p.status !== "cancelled"
-      );
-      setPermutas(filtered);
-      setLoadingPermutas(false);
-    });
-
-    const qAfast = query(
-      collection(db, "afastamentos_alas"),
-      where("obm", "==", normalizeObm(obmContext))
-    );
-
-    const unsubAfast = onSnapshot(qAfast, (snapshot) => {
-      const data = snapshot.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      }));
-      setAfastamentos(data);
-    });
-
-    return () => {
-      unsubPermutas();
-      unsubAfast();
-    };
-  }, [selectedDate, obmContext]);
-
   const targetDateObj = useMemo(() => {
     if (!selectedDate || typeof selectedDate !== 'string') return new Date();
     try {
@@ -689,6 +650,67 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
       }
     }
   }, [selectedDate]);
+
+  const monthRange = useMemo(() => {
+    const validMonth = dashboardMonth && !isNaN(dashboardMonth.getTime()) ? dashboardMonth : new Date();
+    const start = format(startOfMonth(validMonth), 'yyyy-MM-dd');
+    const end = format(endOfMonth(validMonth), 'yyyy-MM-dd');
+    return { start, end };
+  }, [dashboardMonth]);
+
+  // DGP Vacations listener
+  const [dgpVacations, setDgpVacations] = useState<any[]>([]);
+  useEffect(() => {
+    const qVac = query(collection(db, "vacations"));
+    const unsub = onSnapshot(qVac, (snap) => {
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setDgpVacations(list);
+    }, (err) => console.warn("Erro ao ouvir vacations:", err.message));
+    return () => unsub();
+  }, []);
+
+  // Permutas do mês inteiro e Afastamentos da Ala
+  useEffect(() => {
+    setLoadingPermutas(true);
+    const qMonth = query(
+      collection(db, "permutas"),
+      where("date", ">=", monthRange.start),
+      where("date", "<=", monthRange.end)
+    );
+
+    const unsubPermutas = onSnapshot(qMonth, (snapshot) => {
+      const data = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      })) as PermutaRequest[];
+      const filtered = data.filter(
+        (p) => (!p.obm || getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm))) && p.status !== "cancelled"
+      );
+      setPermutas(filtered);
+      setLoadingPermutas(false);
+    }, (err) => {
+      console.warn("Erro ao carregar permutas do mês:", err.message);
+      setLoadingPermutas(false);
+    });
+
+    const qAfast = query(
+      collection(db, "afastamentos_alas"),
+      where("obm", "==", normalizeObm(obmContext))
+    );
+
+    const unsubAfast = onSnapshot(qAfast, (snapshot) => {
+      const data = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }));
+      setAfastamentos(data);
+    });
+
+    return () => {
+      unsubPermutas();
+      unsubAfast();
+    };
+  }, [monthRange.start, monthRange.end, obmContext]);
 
   const upcomingDays = useMemo(() => {
     try {
@@ -761,7 +783,18 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           return false;
         });
 
-        return !hasAfastamento;
+        const hasDgpVacation = dgpVacations.some((v) => {
+          if (normalizeRg(v.militarRg) === normalizeRg(m.rg)) {
+            const isoInicio = parseDateToIso(v.dataInicio);
+            const isoRetorno = parseDateToIso(v.dataRetorno);
+            if (isoInicio && isoRetorno) {
+              return selectedDate >= isoInicio && selectedDate <= isoRetorno && v.status !== 'cancelado';
+            }
+          }
+          return false;
+        });
+
+        return !hasAfastamento && !hasDgpVacation;
       })
       .sort((a, b) => {
         const isManualA = manualRgs.includes(a.rg || '') || rasRgs.includes(a.rg || '');
@@ -774,17 +807,21 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         const rgB = parseInt((b.rg || "").replace(/\D/g, "") || "0");
         return rgA - rgB;
       });
-  }, [militars, extraMilitars, identifiedAlaStr, afastamentos, selectedDate, manuallyAddedRgs, manuallyRemovedRgs, expedienteRgs, expediente24hRgs, visibleRasApplications, obmContext]);
+  }, [militars, extraMilitars, identifiedAlaStr, afastamentos, dgpVacations, selectedDate, manuallyAddedRgs, manuallyRemovedRgs, expedienteRgs, expediente24hRgs, visibleRasApplications, obmContext]);
+
+  const permutasDoDia = useMemo(() => {
+    return permutas.filter((p) => p.date === selectedDate);
+  }, [permutas, selectedDate]);
 
   const permutasOut = useMemo(() => {
     const map = new Map<string, PermutaRequest>();
-    permutas.forEach((p) => {
-      if (p.requesterRg && (p.status === PermutaStatus.ACCEPTED || p.status === 'accepted')) {
+    permutasDoDia.forEach((p) => {
+      if (p.requesterRg && p.status === PermutaStatus.ACCEPTED) {
         map.set(p.requesterRg, p);
       }
     });
     return map;
-  }, [permutas]);
+  }, [permutasDoDia]);
 
   const availableControlFunctions = useMemo(() => getAvailableControlFunctions(categories), [categories]);
 
@@ -1408,7 +1445,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
         {/* SECTION 1: Permutas Deferidas */}
         <EscalaPermutasSection
-          permutas={permutas}
+          permutas={permutasDoDia}
           militars={militars}
           loadingPermutas={loadingPermutas}
           onOpenNewPermutaModal={() => setIsPermutaModalOpen(true)}
