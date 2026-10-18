@@ -1,7 +1,7 @@
-import * as XLSX from '@e965/xlsx';
 import { format } from 'date-fns';
 
-export function exportToExcel(data: any[], sheetName: string, fileName: string) {
+export async function exportToExcel(data: any[], sheetName: string, fileName: string) {
+  const XLSX = await import('@e965/xlsx');
   const ws = XLSX.utils.json_to_sheet(data);
   
   // Add styling and column widths if possible

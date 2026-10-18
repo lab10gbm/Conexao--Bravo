@@ -20,8 +20,8 @@ import { useNavigate } from "react-router-dom";
 import { parseDateToIso } from "../lib/conflitosOperacionais";
 
 import { parseRank, sortAllBySeniority } from "../lib/rankUtils";
-import { EscalaPrintView } from "./EscalaPrintView";
-import { RequestPermuta } from "./RequestPermuta";
+const EscalaPrintView = React.lazy(() => import("./EscalaPrintView").then(m => ({ default: m.EscalaPrintView })));
+const RequestPermuta = React.lazy(() => import("./RequestPermuta").then(m => ({ default: m.RequestPermuta })));
 import { AfastamentosAlaModule } from "./AfastamentosAlaModule";
 import { ExpedienteDiaModule } from "./ExpedienteDiaModule";
 import { GrdDiaModule } from "./GrdDiaModule";
@@ -29,7 +29,7 @@ import { SentinelasSection } from "./SentinelasSection";
 import { SentinelaSlot } from "../lib/sentinelaUtils";
 import { EscalanteDashboardCalendar } from "./EscalanteDashboardCalendar";
 import { CategoryConfig, DEFAULT_CATEGORIES, getAvailableControlFunctions } from "./ControleCategoriasModal";
-import { SorteioFuncoesModal } from "./SorteioFuncoesModal";
+const SorteioFuncoesModal = React.lazy(() => import("./SorteioFuncoesModal").then(m => ({ default: m.SorteioFuncoesModal })));
 import { SorteioScope, SorteioResult, SorteioMilitar, clearFunctionsByScope } from "../lib/sorteioFuncoes";
 
 import {
@@ -53,7 +53,7 @@ import { EscalaRosterTable } from "../features/escala24h/components/EscalaRoster
 import { EscalaAdminRolesSection } from "../features/escala24h/components/EscalaAdminRolesSection";
 import { EscalaOperacionalSection } from "../features/escala24h/components/EscalaOperacionalSection";
 import { EscalaViaturasSection } from "../features/escala24h/components/EscalaViaturasSection";
-import { EscalaPredefinicoesModal } from "../features/escala24h/components/EscalaPredefinicoesModal";
+const EscalaPredefinicoesModal = React.lazy(() => import("../features/escala24h/components/EscalaPredefinicoesModal").then(m => ({ default: m.EscalaPredefinicoesModal })));
 import { EscalaTransferModals } from "../features/escala24h/components/EscalaTransferModals";
 import { EscalaFeedbackToasts } from "../features/escala24h/components/EscalaFeedbackToasts";
 
@@ -1577,95 +1577,107 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
       </div>
 
       {sorteioScope && (
-        <SorteioFuncoesModal
-          key={sorteioScope}
-          scope={sorteioScope}
-          onClose={() => setSorteioScope(null)}
-          onApply={handleApplySorteio}
-          requirements={dynamicRequirements}
-          roster={sorteioRoster}
-          selectedFunctions={selectedFunctions}
-          predefinicoes={predefinicoes}
-          viaturasInfo={viaturasInfo}
-          getSlotDisplayName={getSlotDisplayName}
-          onOpenPredefinicoes={() => setIsPreferenciasModalOpen(true)}
-          onToggleRoleActive={(roleName) =>
-            sorteioScope === 'administrativas'
-              ? handleToggleAdminRoleVisibility(roleName)
-              : handleToggleOperationalRole(roleName)
-          }
-          onSetAllRolesActive={(active) =>
-            sorteioScope === 'administrativas'
-              ? handleSetAllAdminRolesVisibility(active)
-              : handleSetAllOperationalRoles(active)
-          }
-        />
+        <React.Suspense fallback={null}>
+          <SorteioFuncoesModal
+            key={sorteioScope}
+            scope={sorteioScope}
+            onClose={() => setSorteioScope(null)}
+            onApply={handleApplySorteio}
+            requirements={dynamicRequirements}
+            roster={sorteioRoster}
+            selectedFunctions={selectedFunctions}
+            predefinicoes={predefinicoes}
+            viaturasInfo={viaturasInfo}
+            getSlotDisplayName={getSlotDisplayName}
+            onOpenPredefinicoes={() => setIsPreferenciasModalOpen(true)}
+            onToggleRoleActive={(roleName) =>
+              sorteioScope === 'administrativas'
+                ? handleToggleAdminRoleVisibility(roleName)
+                : handleToggleOperationalRole(roleName)
+            }
+            onSetAllRolesActive={(active) =>
+              sorteioScope === 'administrativas'
+                ? handleSetAllAdminRolesVisibility(active)
+                : handleSetAllOperationalRoles(active)
+            }
+          />
+        </React.Suspense>
       )}
 
-      <EscalaPredefinicoesModal
-        isOpen={isPreferenciasModalOpen}
-        onClose={() => setIsPreferenciasModalOpen(false)}
-        baseRoster={baseRoster}
-        predefinicoes={predefinicoes}
-        onUpdatePredefinicao={(rg, funcs) => {
-          setPredefinicoes(prev => ({ ...prev, [rg]: funcs }));
-        }}
-        categories={categories}
-        availableControlFunctions={availableControlFunctions}
-        viaturasInfo={viaturasInfo}
-        extraFuncOptions={activeScaleFuncOptions}
-      />
+      {isPreferenciasModalOpen && (
+        <React.Suspense fallback={null}>
+          <EscalaPredefinicoesModal
+            isOpen={isPreferenciasModalOpen}
+            onClose={() => setIsPreferenciasModalOpen(false)}
+            baseRoster={baseRoster}
+            predefinicoes={predefinicoes}
+            onUpdatePredefinicao={(rg, funcs) => {
+              setPredefinicoes(prev => ({ ...prev, [rg]: funcs }));
+            }}
+            categories={categories}
+            availableControlFunctions={availableControlFunctions}
+            viaturasInfo={viaturasInfo}
+            extraFuncOptions={activeScaleFuncOptions}
+          />
+        </React.Suspense>
+      )}
 
       {showPrintView && (
-        <EscalaPrintView
-          selectedDate={selectedDate}
-          identifiedAla={identifiedAla}
-          obmContext={obmContext}
-          afastamentos={afastamentos}
-          baseRoster={baseRoster}
-          permutasOut={permutasOut}
-          militars={militars}
-          selectedFunctions={selectedFunctions}
-          viaturasInfo={viaturasInfo}
-          rasApplications={rasApplications}
-          expedienteMilitars={expedienteMilitars}
-          grdRgs={grdDayRgs}
-          sentinelaRgs={sentinelaRgs}
-          sentinelaSlots={sentinelaSlots}
-          oficialDia={oficialDiaValue}
-          oficialNautica={nauticoOficialValue}
-          oficialMedico={medicoOficialValue}
-          officerVisibility={officerVisibility}
-          onOfficerVisibilityChange={(updated: OfficerVisibility) => {
-            setOfficerVisibility(updated);
-            try {
-              const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : '10º GBM';
-              const cleanObm = normalizeObm(rawObm);
-              localStorage.setItem(`escala_officer_visibility_${cleanObm}`, JSON.stringify(updated));
-            } catch {}
-          }}
-          adminRolesVisibility={adminRolesVisibility}
-          onAdminRolesVisibilityChange={(updated: Record<string, boolean>) => {
-            setAdminRolesVisibility(updated);
-            try {
-              const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : '10º GBM';
-              const cleanObm = normalizeObm(rawObm);
-              localStorage.setItem(`escala_admin_roles_visibility_${cleanObm}`, JSON.stringify(updated));
-            } catch {}
-          }}
-          user={user}
-          onRegister={handleRegisterEscala}
-          onClose={() => setShowPrintView(false)}
-        />
+        <React.Suspense fallback={null}>
+          <EscalaPrintView
+            selectedDate={selectedDate}
+            identifiedAla={identifiedAla}
+            obmContext={obmContext}
+            afastamentos={afastamentos}
+            baseRoster={baseRoster}
+            permutasOut={permutasOut}
+            militars={militars}
+            selectedFunctions={selectedFunctions}
+            viaturasInfo={viaturasInfo}
+            rasApplications={rasApplications}
+            expedienteMilitars={expedienteMilitars}
+            grdRgs={grdDayRgs}
+            sentinelaRgs={sentinelaRgs}
+            sentinelaSlots={sentinelaSlots}
+            oficialDia={oficialDiaValue}
+            oficialNautica={nauticoOficialValue}
+            oficialMedico={medicoOficialValue}
+            officerVisibility={officerVisibility}
+            onOfficerVisibilityChange={(updated: OfficerVisibility) => {
+              setOfficerVisibility(updated);
+              try {
+                const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : '10º GBM';
+                const cleanObm = normalizeObm(rawObm);
+                localStorage.setItem(`escala_officer_visibility_${cleanObm}`, JSON.stringify(updated));
+              } catch {}
+            }}
+            adminRolesVisibility={adminRolesVisibility}
+            onAdminRolesVisibilityChange={(updated: Record<string, boolean>) => {
+              setAdminRolesVisibility(updated);
+              try {
+                const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : '10º GBM';
+                const cleanObm = normalizeObm(rawObm);
+                localStorage.setItem(`escala_admin_roles_visibility_${cleanObm}`, JSON.stringify(updated));
+              } catch {}
+            }}
+            user={user}
+            onRegister={handleRegisterEscala}
+            onClose={() => setShowPrintView(false)}
+          />
+        </React.Suspense>
       )}
 
-      <RequestPermuta 
-        isOpen={isPermutaModalOpen}
-        setIsOpen={setIsPermutaModalOpen}
-        user={user}
-        obmContext={obmContext}
-        initialDate={selectedDate ? new Date(selectedDate + "T00:00:00") : null}
-      />
+      {isPermutaModalOpen && (
+        <React.Suspense fallback={null}>
+          <RequestPermuta 
+            isOpen={isPermutaModalOpen}
+            setIsOpen={setIsPermutaModalOpen}
+            user={user}
+            obmContext={obmContext}
+            initialDate={selectedDate ? new Date(selectedDate + "T00:00:00") : null}
+          />
+        </React.Suspense>
+      )}
 
       <EscalaTransferModals
         obmContext={obmContext}
