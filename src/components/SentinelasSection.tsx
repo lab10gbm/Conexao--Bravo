@@ -47,6 +47,7 @@ export interface SentinelasSectionProps {
   onSentinelaChange: (newSentinelaRgs: (string | null)[], newSlots?: SentinelaSlot[]) => void;
   identifiedAlaStr?: string;
   readonly?: boolean;
+  permutasOut?: Map<string, any>;
 }
 
 export function SentinelasSection({
@@ -58,7 +59,8 @@ export function SentinelasSection({
   sentinelaSlots,
   onSentinelaChange,
   identifiedAlaStr,
-  readonly = false
+  readonly = false,
+  permutasOut
 }: SentinelasSectionProps) {
   // Controle de Abas: Guarda Norte e Guarda Sul
   const [activeTab, setActiveTab] = useState<'norte' | 'sul'>('norte');
@@ -80,31 +82,67 @@ export function SentinelasSection({
     return false;
   });
 
-  // Slots da Guarda Norte
+  // Função utilitária para verificar se um RG pertence à Ala do dia (baseRoster ou permuta autorizada)
+  const isRgInRoster = useMemo(() => {
+    const validSet = new Set<string>();
+    baseRoster.forEach(m => {
+      if (m?.rg) validSet.add(normalizeRg(m.rg));
+    });
+    if (permutasOut) {
+      permutasOut.forEach((p, reqRg) => {
+        if (reqRg) validSet.add(normalizeRg(reqRg));
+        if (p?.substituteRg) validSet.add(normalizeRg(p.substituteRg));
+      });
+    }
+    return (rg: string | null) => {
+      if (!rg) return false;
+      return validSet.has(normalizeRg(rg));
+    };
+  }, [baseRoster, permutasOut]);
+
+  // Slots da Guarda Norte (com proteção contra militares de outras alas)
   const [norteSlots, setNorteSlots] = useState<SentinelaSlot[]>(() => {
-    if (sentinelaSlots && Array.isArray(sentinelaSlots)) {
+    if (sentinelaSlots && Array.isArray(sentinelaSlots) && sentinelaSlots.length > 0) {
       const norte = sentinelaSlots.filter(s => s.posto !== 'GUARDA SUL');
-      if (norte.length > 0) return norte;
+      if (norte.length > 0) {
+        if (baseRoster.length > 0) {
+          const assigned = norte.filter(s => Boolean(s.rg));
+          const hasValid = assigned.some(s => isRgInRoster(s.rg));
+          if (assigned.length > 0 && !hasValid) {
+            return createDefault4Slots();
+          }
+        }
+        return norte;
+      }
     }
     const norteRgs = (sentinelaRgs || []).slice(0, 4);
     const defaults = createDefault4Slots();
     return defaults.map((d, i) => ({
       ...d,
-      rg: norteRgs[i] || null
+      rg: (baseRoster.length === 0 || isRgInRoster(norteRgs[i])) ? (norteRgs[i] || null) : null
     }));
   });
 
-  // Slots da Guarda Sul
+  // Slots da Guarda Sul (com proteção contra militares de outras alas)
   const [sulSlots, setSulSlots] = useState<SentinelaSlot[]>(() => {
-    if (sentinelaSlots && Array.isArray(sentinelaSlots)) {
+    if (sentinelaSlots && Array.isArray(sentinelaSlots) && sentinelaSlots.length > 0) {
       const sul = sentinelaSlots.filter(s => s.posto === 'GUARDA SUL');
-      if (sul.length > 0) return sul;
+      if (sul.length > 0) {
+        if (baseRoster.length > 0) {
+          const assigned = sul.filter(s => Boolean(s.rg));
+          const hasValid = assigned.some(s => isRgInRoster(s.rg));
+          if (assigned.length > 0 && !hasValid) {
+            return [];
+          }
+        }
+        return sul;
+      }
     }
     const sulRgs = (sentinelaRgs || []).slice(4);
     if (sulRgs.length === 0) return [];
     return sulRgs.map((rg, idx) => ({
       id: `slot-sul-${idx}`,
-      rg: rg || null,
+      rg: (baseRoster.length === 0 || isRgInRoster(rg)) ? (rg || null) : null,
       tipo: 'comum' as SentinelaTipo,
       posto: 'GUARDA SUL',
       turnoLabel: `${idx + 1}º TURNO SUL`,
@@ -113,20 +151,59 @@ export function SentinelasSection({
     }));
   });
 
-  // Sincroniza dados externos quando alterados
+  // Sincroniza dados externos quando alterados e higieniza contra dados de outra ala
   useEffect(() => {
     if (sentinelaSlots && Array.isArray(sentinelaSlots) && sentinelaSlots.length > 0) {
-      const norte = sentinelaSlots.filter(s => s.posto !== 'GUARDA SUL');
-      const sul = sentinelaSlots.filter(s => s.posto === 'GUARDA SUL');
-      if (norte.length > 0) setNorteSlots(norte);
-      if (sul.length > 0) {
-        setSulSlots(sul);
-        if (sul.some(s => Boolean(s.rg))) {
-          setIsGuardaSulEnabled(true);
+      let norte = sentinelaSlots.filter(s => s.posto !== 'GUARDA SUL');
+      let sul = sentinelaSlots.filter(s => s.posto === 'GUARDA SUL');
+
+      if (baseRoster.length > 0) {
+        const norteAssigned = norte.filter(s => Boolean(s.rg));
+        if (norteAssigned.length > 0 && !norteAssigned.some(s => isRgInRoster(s.rg))) {
+          norte = createDefault4Slots();
+        }
+        const sulAssigned = sul.filter(s => Boolean(s.rg));
+        if (sulAssigned.length > 0 && !sulAssigned.some(s => isRgInRoster(s.rg))) {
+          sul = [];
         }
       }
+
+      setNorteSlots(norte.length > 0 ? norte : createDefault4Slots());
+      setSulSlots(sul);
+      setIsGuardaSulEnabled(sul.some(s => Boolean(s.rg)));
+    } else if (sentinelaSlots === null || (Array.isArray(sentinelaSlots) && sentinelaSlots.length === 0)) {
+      const defaults = createDefault4Slots();
+      const norteRgs = (sentinelaRgs || []).slice(0, 4);
+      setNorteSlots(defaults.map((d, i) => ({
+        ...d,
+        rg: (baseRoster.length === 0 || isRgInRoster(norteRgs[i])) ? (norteRgs[i] || null) : null
+      })));
+      setSulSlots([]);
+      setIsGuardaSulEnabled(false);
     }
-  }, [sentinelaSlots]);
+  }, [sentinelaSlots, sentinelaRgs, baseRoster, isRgInRoster]);
+
+  // Efeito de auto-cura / expurgo se dados de outra ala tiverem sido salvos indevidamente nesta data
+  useEffect(() => {
+    if (readonly || baseRoster.length === 0) return;
+
+    const norteAssigned = norteSlots.filter(s => Boolean(s.rg));
+    const sulAssigned = sulSlots.filter(s => Boolean(s.rg));
+    
+    const isNorteStale = norteAssigned.length > 0 && !norteAssigned.some(s => isRgInRoster(s.rg));
+    const isSulStale = sulAssigned.length > 0 && !sulAssigned.some(s => isRgInRoster(s.rg));
+
+    if (isNorteStale || isSulStale) {
+      const cleanNorte = isNorteStale ? createDefault4Slots() : norteSlots;
+      const cleanSul = isSulStale ? [] : sulSlots;
+      const cleanSulEnabled = isSulStale ? false : isGuardaSulEnabled;
+      
+      setNorteSlots(cleanNorte);
+      setSulSlots(cleanSul);
+      setIsGuardaSulEnabled(cleanSulEnabled);
+      emitUpdate(cleanNorte, cleanSul, cleanSulEnabled);
+    }
+  }, [baseRoster, isRgInRoster]);
 
   // Edição manual de horário inline nos cards
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
@@ -160,7 +237,14 @@ export function SentinelasSection({
   // Lista enriquecida de militares candidatos da Ala
   const militaryCandidates = useMemo(() => {
     return baseRoster.map(m => {
-      const full = militars.find((x: any) => normalizeRg(x.rg) === normalizeRg(m.rg)) || m;
+      const cleanRg = normalizeRg(m.rg);
+      const isSwapped = Boolean(permutasOut?.has(cleanRg));
+      const subRg = isSwapped ? permutasOut?.get(cleanRg)?.substituteRg : null;
+      let full = militars.find((x: any) => normalizeRg(x.rg) === cleanRg) || m;
+      if (subRg) {
+        const subMilitar = militars.find((x: any) => normalizeRg(x.rg) === normalizeRg(subRg));
+        if (subMilitar) full = subMilitar;
+      }
       const isCondutor = Boolean(
         full.ativoCondutor ||
         full.motorista ||
@@ -178,7 +262,7 @@ export function SentinelasSection({
       );
 
       return {
-        rg: m.rg || '',
+        rg: full.rg || m.rg || '',
         name: full.name || m.name || '',
         warName: full.warName || m.warName || m.name || '',
         rank: full.rank || m.rank || '',
@@ -190,7 +274,7 @@ export function SentinelasSection({
       if (!a.isSentinela && b.isSentinela) return 1;
       return (a.warName || a.name).localeCompare(b.warName || b.name);
     });
-  }, [baseRoster, militars]);
+  }, [baseRoster, militars, permutasOut]);
 
   // Contexto do posto ativo
   const currentPostoName = activeTab === 'norte' ? 'GUARDA NORTE' : 'GUARDA SUL';
@@ -343,7 +427,8 @@ export function SentinelasSection({
     if (readonly) return;
     if (confirm(`Deseja limpar todos os sentinelas da ${currentPostoName}?`)) {
       if (activeTab === 'norte') {
-        emitUpdate([], sulSlots, isGuardaSulEnabled);
+        const defaults = createDefault4Slots();
+        emitUpdate(defaults, sulSlots, isGuardaSulEnabled);
       } else {
         emitUpdate(norteSlots, [], isGuardaSulEnabled);
       }

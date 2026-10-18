@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UserPlus, X } from 'lucide-react';
 import { formatMilitaryName } from '../../../lib/utils';
+import { safeArr } from '../lib/expedienteCalculos';
 import { UserProfile } from '../../../types';
 import { ExpedienteData } from '../types';
 
@@ -27,8 +28,6 @@ export function ExpedienteQuickAddModal({
   const [searchTerm, setSearchTerm] = useState('');
 
   if (!isOpen) return null;
-
-  const safeArr = (val: any) => (Array.isArray(val) ? val : []);
 
   return (
     <AnimatePresence>

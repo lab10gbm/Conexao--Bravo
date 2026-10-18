@@ -4,6 +4,7 @@ import { ArrowUpDown, X, Calendar, Trash2, Check } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn, formatMilitaryName } from '../../../lib/utils';
+import { safeArr } from '../lib/expedienteCalculos';
 import { UserProfile } from '../../../types';
 import { ExpedienteData } from '../types';
 
@@ -41,8 +42,6 @@ export function ExpedienteMilitaryMoveModal({
   onSelectMilitaryForEdit
 }: ExpedienteMilitaryMoveModalProps) {
   if (!isOpen) return null;
-
-  const safeArr = (val: any) => (Array.isArray(val) ? val : []);
 
   return (
     <AnimatePresence>

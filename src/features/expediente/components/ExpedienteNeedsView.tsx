@@ -2,6 +2,7 @@ import React from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '../../../lib/utils';
+import { safeArr } from '../lib/expedienteCalculos';
 import { ExpedienteData } from '../types';
 
 interface ExpedienteNeedsViewProps {
@@ -19,8 +20,6 @@ export function ExpedienteNeedsView({
   handleUpdatePrefDetail,
   funcoesEscala
 }: ExpedienteNeedsViewProps) {
-  const safeArr = (val: any) => (Array.isArray(val) ? val : []);
-
   return (
     <div className="bg-slate-50 flex flex-col gap-6 w-full">
       <div className="bg-white rounded-xl border-2 border-slate-200 shadow-sm p-4 sm:p-6">

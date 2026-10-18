@@ -1,21 +1,6 @@
 import { ViaturaConfig, VtrModalFunctionRow } from '../types';
 
-export function cleanUndefined(obj: any): any {
-  if (Array.isArray(obj)) {
-    return obj.map(cleanUndefined);
-  }
-  if (obj !== null && typeof obj === 'object') {
-    const res: any = {};
-    for (const key of Object.keys(obj)) {
-      const val = obj[key];
-      if (val !== undefined) {
-        res[key] = cleanUndefined(val);
-      }
-    }
-    return res;
-  }
-  return obj;
-}
+export { cleanUndefined } from '../../../lib/utils';
 
 export function formatDateTime(iso?: string | null): string {
   if (!iso) return '';
