@@ -3,7 +3,7 @@ import { db } from '../lib/firebase';
 import { doc, onSnapshot, collection, query, where } from 'firebase/firestore';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, isBefore } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { getAlaForDate, getAlaColor, getAlaLightColor, cn } from '../lib/utils';
+import { getAlaForDate, getAlaColor, getAlaLightColor, cn, normalizeRg } from '../lib/utils';
 import { generateICS } from '../lib/exportUtils';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, ChevronUp, Briefcase, Coffee, CalendarOff, MessageSquare, Info, CalendarDays, Megaphone, CalendarSearch, Download, Shield } from 'lucide-react';
@@ -145,11 +145,6 @@ export const AgendaPessoal = memo(function AgendaPessoal({ user, onDateSelect, o
     const currentYear = new Date().getFullYear();
     const unsubscribes: (() => void)[] = [];
     
-    const normalizeRg = (rg: string | number) => {
-        const str = (rg || '').toString().trim().toUpperCase();
-        const clean = str.replace(/[^A-Z0-9]/g, '');
-        return clean.replace(/^0+/, '') || clean;
-    };
     const userRgEscaped = normalizeRg(user.rg);
     
     // Fetch for the 12 months of the current year

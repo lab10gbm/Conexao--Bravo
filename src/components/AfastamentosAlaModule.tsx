@@ -1,165 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getLocalIsoDateString, normalizeAlaField, cn, normalizeObm, getUserObmAccess } from '../lib/utils';
+import { getLocalIsoDateString, normalizeAlaField, cn, normalizeObm, getUserObmAccess, normalizeRg } from '../lib/utils';
 import { useMilitars } from '../contexts/MilitarContext';
 import { db } from '../lib/firebase';
-import { collection, query, getDocs, setDoc, doc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { Plus, Trash2, Calendar, Loader2, Edit2, Check, X, Search, Filter, AlertCircle, Clock, CheckCircle2, CalendarDays } from 'lucide-react';
-import { parseRank, sortAllBySeniority, isOfficer, isPraca } from '../lib/rankUtils';
+import { collection, setDoc, doc, deleteDoc, onSnapshot, getDocs } from 'firebase/firestore';
+import { Plus, Calendar, X, Search, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Afastamento } from '../features/ferias/types';
+import { AfastamentoAddForm } from '../features/ferias/components/AfastamentoAddForm';
+import { AfastamentosTable, formatDateBr, parseDdMmYyyyToIso } from '../features/ferias/components/AfastamentosTable';
+import { isPracaForAla } from '../features/ferias/components/SearchableMilitarSelect';
 
-export function normalizeRg(rg: string | number | undefined) {
-  if (!rg) return '';
-  return String(rg).replace(/^0+/, '').replace(/\D/g, '');
-}
-
-function isPracaForAla(m: any): boolean {
-  if (!m) return false;
-  if (m.isOfficer) return false;
-  const parsed = parseRank(m.rank || '');
-  if (isOfficer(parsed)) return false;
-  const quadroUp = (m.quadro || '').trim().toUpperCase();
-  if (quadroUp.startsWith('QO')) return false;
-  const combinedUp = `${m.rank || ''} ${m.name || ''}`.toUpperCase();
-  if (
-    /\b(CORONEL|CEL|TENENTE[\s-]*CORONEL|TEN[\s.]*CEL|TC|MAJOR|MAJ|CAPIT[ÃA]O|CAP|1[º°]?\s*TENENTE|2[º°]?\s*TENENTE|1[º°]?\s*TEN|2[º°]?\s*TEN|ASPIRANTE|ASP\s*OF)\b/.test(combinedUp) &&
-    !combinedUp.includes('SUBTEN') &&
-    !combinedUp.includes('SUB TEN')
-  ) {
-    return false;
-  }
-  if (parsed) return isPraca(parsed);
-  return true;
-}
-
-function parseDdMmYyyyToIso(dateStr?: string): string | null {
-  if (!dateStr) return null;
-  const parts = dateStr.trim().split('/');
-  if (parts.length === 3) {
-    const day = parts[0].padStart(2, '0');
-    const month = parts[1].padStart(2, '0');
-    const year = parts[2];
-    if (year.length === 4) {
-      return `${year}-${month}-${day}`;
-    }
-  }
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
-  return null;
-}
-
-function formatDateBr(isoStr?: string): string {
-  if (!isoStr) return '—';
-  const parts = isoStr.split('-');
-  if (parts.length === 3) {
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
-  }
-  return isoStr;
-}
-
-function SearchableMilitarSelect({ 
-  value, 
-  onChange, 
-  militars, 
-  obmContext,
-  onMilitarSelected
-}: {
-  value: string;
-  onChange: (val: string) => void;
-  militars: any[];
-  obmContext: string;
-  onMilitarSelected?: (militar: any) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const wrapperRef = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const allowedObms = getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL');
-  const filteredMilitars = militars
-    .filter(m => isPracaForAla(m) && (!m.obm || allowedObms.includes(normalizeObm(m.obm)) || normalizeObm(obmContext) === 'GLOBAL'))
-    .sort(sortAllBySeniority);
-
-  const selectedMilitar = filteredMilitars.find(m => normalizeRg(m.rg) === value);
-  const displayValue = open 
-    ? search 
-    : (selectedMilitar ? `${parseRank(selectedMilitar.rank)} ${selectedMilitar.warName || selectedMilitar.name} (${selectedMilitar.rg})` : '');
-
-  const normalizeString = (str: string) => (str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  const searchWords = normalizeString(search).split(/\s+/).filter(Boolean);
-  
-  const searchResults = filteredMilitars.filter(m => {
-    const text = normalizeString(`${m.rank} ${parseRank(m.rank)} ${m.name} ${m.warName || ''} ${m.rg}`);
-    return searchWords.every(word => text.includes(word));
-  });
-
-  return (
-    <div ref={wrapperRef} className="relative w-full">
-      <input
-        type="text"
-        className="w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-xs font-bold text-slate-700 outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200"
-        placeholder="Selecione ou busque..."
-        value={displayValue}
-        onChange={(e) => {
-          setSearch(e.target.value);
-          if (!open) setOpen(true);
-        }}
-        onFocus={() => {
-          setOpen(true);
-          setSearch('');
-        }}
-      />
-      {open && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto divide-y divide-slate-100">
-          {searchResults.length > 0 ? (
-            searchResults.map(m => {
-              const val = normalizeRg(m.rg);
-              return (
-                <div
-                  key={val}
-                  className="px-3 py-2 text-xs cursor-pointer hover:bg-indigo-50 text-slate-700 font-bold transition-colors"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    onChange(val);
-                    if (onMilitarSelected) onMilitarSelected(m);
-                    setOpen(false);
-                    setSearch('');
-                  }}
-                >
-                  <div className="flex items-center justify-between">
-                    <span>{parseRank(m.rank)} {m.warName || m.name}</span>
-                    <span className="font-mono text-[10px] text-slate-400">RG {m.rg}</span>
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <div className="px-3 py-2 text-xs text-slate-500 text-center font-medium">Nenhum militar encontrado</div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export interface Afastamento {
-  id: string;
-  rg: string;
-  ala: string;
-  inicio: string;
-  retorno: string;
-  situacao: string;
-  obs: string;
-  obm: string;
-  isAutomatic?: boolean;
-  source?: 'manual' | 'dgp';
-}
+export { normalizeRg, isPracaForAla };
+export type { Afastamento };
 
 interface AfastamentosAlaModuleProps {
   obmContext: string;
@@ -448,150 +299,6 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
     return matchesRg || nameMatch || obsMatch;
   });
 
-  const getStatusBadge = (a: Afastamento) => {
-    if (now >= a.inicio && now <= a.retorno) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping" />
-          Ativo Hoje
-        </span>
-      );
-    }
-    if (now < a.inicio) {
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 border border-indigo-200">
-          <Clock className="w-2.5 h-2.5" />
-          Agendado
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
-        <CheckCircle2 className="w-2.5 h-2.5" />
-        Concluído
-      </span>
-    );
-  };
-
-  const getSituacaoBadge = (situacao: string) => {
-    const s = (situacao || '').toUpperCase();
-    if (s === 'FERIAS') return <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-200">FÉRIAS</span>;
-    if (s === 'LICENÇA' || s === 'LICENCA') return <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-purple-100 text-purple-800 border border-purple-200">LICENÇA</span>;
-    if (s === 'CURSO') return <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-blue-100 text-blue-800 border border-blue-200">CURSO</span>;
-    if (s === 'DISPENSA') return <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-200">DISPENSA</span>;
-    return <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-slate-100 text-slate-700 border border-slate-200">{s}</span>;
-  };
-
-  const renderRow = (a: Afastamento) => {
-    const militar = militars.find(m => normalizeRg(m.rg) === normalizeRg(a.rg));
-    
-    if (editingId === a.id) {
-      return (
-        <tr key={a.id} className="bg-indigo-50/60 border-b border-indigo-200">
-          <td className="p-2 border-r border-slate-200">
-            <input type="date" value={editData.inicio || ''} onChange={e => setEditData({...editData, inicio: e.target.value})} className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-indigo-500 font-mono font-bold" />
-          </td>
-          <td className="p-2 border-r border-slate-200">
-            <input type="date" value={editData.retorno || ''} onChange={e => setEditData({...editData, retorno: e.target.value})} className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-indigo-500 font-mono font-bold" />
-          </td>
-          <td className="p-2 border-r border-slate-200">
-            <select value={editData.ala || '1'} onChange={e => setEditData({...editData, ala: e.target.value})} className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-indigo-500 font-black uppercase">
-              <option value="1">1</option>
-              <option value="2">2</option>
-              <option value="3">3</option>
-              <option value="4">4</option>
-              <option value="EXP">EXP</option>
-            </select>
-          </td>
-          <td className="p-2 border-r border-slate-200">
-            <SearchableMilitarSelect
-              value={editData.rg || ''}
-              onChange={(val) => setEditData({ ...editData, rg: val })}
-              militars={militars}
-              obmContext={obmContext}
-            />
-          </td>
-          <td className="p-2 border-r border-slate-200">
-            <select value={editData.situacao || 'FERIAS'} onChange={e => setEditData({...editData, situacao: e.target.value})} className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-indigo-500 uppercase font-black text-slate-700">
-              {SITUACOES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </td>
-          <td className="p-2 border-r border-slate-200">
-            <input type="text" placeholder="Obs..." value={editData.obs || ''} onChange={e => setEditData({...editData, obs: e.target.value})} className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-indigo-500 font-medium" />
-          </td>
-          <td className="p-2 text-center">
-            <div className="flex items-center justify-center gap-1">
-              <button onClick={saveEdit} className="text-emerald-700 bg-emerald-100 hover:bg-emerald-200 p-1.5 rounded-lg transition-colors" title="Salvar">
-                <Check className="w-4 h-4" />
-              </button>
-              <button onClick={cancelEditing} className="text-slate-500 bg-slate-200 hover:bg-slate-300 p-1.5 rounded-lg transition-colors" title="Cancelar">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </td>
-        </tr>
-      );
-    }
-
-    return (
-      <tr key={a.id} className="hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0">
-        <td className="px-3 py-1.5 border-r border-slate-100 font-mono font-bold text-slate-700 text-[11px]">
-          {formatDateBr(a.inicio)}
-        </td>
-        <td className="px-3 py-1.5 border-r border-slate-100 font-mono font-bold text-slate-700 text-[11px]">
-          {formatDateBr(a.retorno)}
-        </td>
-        <td className="px-2.5 py-1.5 border-r border-slate-100 text-center">
-          <span className={cn(
-            "px-1.5 py-0.5 rounded text-[9.5px] font-black uppercase",
-            a.ala === '1' ? 'bg-emerald-100 text-emerald-800' :
-            a.ala === '2' ? 'bg-rose-100 text-rose-800' :
-            a.ala === '3' ? 'bg-blue-100 text-blue-800' :
-            a.ala === '4' ? 'bg-amber-100 text-amber-800' :
-            'bg-slate-200 text-slate-800'
-          )}>
-            ALA {a.ala || '—'}
-          </span>
-        </td>
-        <td className="px-3 py-1.5 border-r border-slate-100">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-black text-slate-800 text-[11px]">
-              {militar ? `${parseRank(militar.rank)} ${militar.warName || militar.name}` : `Militar RG: ${a.rg}`}
-            </span>
-            <span className="font-mono text-[9.5px] font-bold text-slate-400">RG {a.rg}</span>
-            {militar?.obm && <span className="text-[8.5px] font-bold bg-slate-100 text-slate-500 px-1 rounded">{militar.obm}</span>}
-            {a.source === 'dgp' && <span className="text-[8.5px] font-bold bg-sky-50 text-sky-600 border border-sky-200 px-1 rounded">DGP</span>}
-          </div>
-        </td>
-        <td className="px-3 py-1.5 border-r border-slate-100">
-          <div className="flex items-center gap-1.5">
-            {getSituacaoBadge(a.situacao)}
-            {getStatusBadge(a)}
-          </div>
-        </td>
-        <td className="px-3 py-1.5 border-r border-slate-100 font-medium text-[11px] text-slate-600 max-w-[220px] truncate" title={a.obs}>
-          {a.obs || '—'}
-        </td>
-        <td className="px-2.5 py-1.5 text-center">
-          <div className="flex items-center justify-center gap-1">
-            {a.source !== 'dgp' ? (
-              <>
-                <button onClick={() => startEditing(a)} className="text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 p-1 rounded-md transition-colors" title="Editar">
-                  <Edit2 className="w-3 h-3" />
-                </button>
-                <button onClick={() => handleDelete(a.id, a.source)} className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1 rounded-md transition-colors" title="Excluir">
-                  <Trash2 className="w-3 h-3" />
-                </button>
-              </>
-            ) : (
-              <span className="text-[9.5px] text-slate-400 font-bold italic" title="Importado via DGP Férias">DGP</span>
-            )}
-          </div>
-        </td>
-      </tr>
-    );
-  };
-
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
       {/* Header com gradiente sutil e informações */}
@@ -630,99 +337,30 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
 
       {/* Formulário Retrátil para Adicionar Afastamento */}
       {showAddForm && (
-        <div className="p-3 bg-indigo-50/40 border-b border-indigo-100 animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="text-[11px] font-black uppercase tracking-wider text-indigo-900 mb-2 flex items-center gap-1.5">
-            <CalendarDays className="w-3.5 h-3.5 text-indigo-600" />
-            Cadastrar Novo Afastamento / Férias
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-2.5">
-            <div className="md:col-span-2">
-              <label className="text-[9.5px] font-black uppercase tracking-widest text-slate-500 block mb-0.5">Militar</label>
-              <SearchableMilitarSelect
-                value={newRg}
-                onChange={setNewRg}
-                militars={militars}
-                obmContext={obmContext}
-                onMilitarSelected={(m) => {
-                  if (m.ala) setNewAla(normalizeAlaField(m.ala) || '1');
-                }}
-              />
-            </div>
-
-            <div>
-              <label className="text-[9.5px] font-black uppercase tracking-widest text-slate-500 block mb-0.5">Início</label>
-              <input
-                type="date"
-                value={newInicio}
-                onChange={e => setNewInicio(e.target.value)}
-                className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded px-2 py-1 text-xs font-bold text-slate-700 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="text-[9.5px] font-black uppercase tracking-widest text-slate-500 block mb-0.5">Retorno</label>
-              <input
-                type="date"
-                value={newRetorno}
-                onChange={e => setNewRetorno(e.target.value)}
-                className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded px-2 py-1 text-xs font-bold text-slate-700 outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="text-[9.5px] font-black uppercase tracking-widest text-slate-500 block mb-0.5">Ala Operacional</label>
-              <select
-                value={newAla}
-                onChange={e => setNewAla(e.target.value)}
-                className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded px-2 py-1 text-xs font-black uppercase text-slate-700 outline-none"
-              >
-                <option value="1">ALA 1</option>
-                <option value="2">ALA 2</option>
-                <option value="3">ALA 3</option>
-                <option value="4">ALA 4</option>
-                <option value="EXP">EXPEDIENTE</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-[9.5px] font-black uppercase tracking-widest text-slate-500 block mb-0.5">Motivo / Situação</label>
-              <select
-                value={newSituacao}
-                onChange={e => setNewSituacao(e.target.value)}
-                className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded px-2 py-1 text-xs font-black uppercase text-slate-700 outline-none"
-              >
-                {SITUACOES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-
-            <div className="md:col-span-5">
-              <label className="text-[9.5px] font-black uppercase tracking-widest text-slate-500 block mb-0.5">Observações (Opcional)</label>
-              <input
-                type="text"
-                placeholder="Ex: Portaria nº 123, Curso de Salvamento Marítimo, etc."
-                value={newObs}
-                onChange={e => setNewObs(e.target.value)}
-                className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded px-2 py-1 text-xs font-medium text-slate-700 outline-none"
-              />
-            </div>
-
-            <div className="md:col-span-1 flex items-end">
-              <button
-                onClick={handleAdd}
-                disabled={isAdding}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded px-3 py-1.5 text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-colors shadow-xs"
-              >
-                {isAdding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                Salvar
-              </button>
-            </div>
-          </div>
-        </div>
+        <AfastamentoAddForm
+          newRg={newRg}
+          setNewRg={setNewRg}
+          newInicio={newInicio}
+          setNewInicio={setNewInicio}
+          newRetorno={newRetorno}
+          setNewRetorno={setNewRetorno}
+          newAla={newAla}
+          setNewAla={setNewAla}
+          newSituacao={newSituacao}
+          setNewSituacao={setNewSituacao}
+          newObs={newObs}
+          setNewObs={setNewObs}
+          isAdding={isAdding}
+          onSave={handleAdd}
+          militars={militars}
+          obmContext={obmContext}
+          situacoes={SITUACOES}
+        />
       )}
 
       {/* Barra de Abas e Filtros de Pesquisa */}
-      <div className="py-1.5 px-3 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
-        <div className="flex items-center gap-1 bg-white p-0.5 rounded-xl border border-slate-200 overflow-x-auto">
+      <div className="py-2 px-3 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
+        <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs overflow-x-auto">
           <button
             onClick={() => setActiveTab('atuais')}
             className={cn(
@@ -850,43 +488,23 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
       )}
 
       {/* Tabela de Resultados */}
-      <div className="p-0 overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-[760px]">
-          <thead>
-            <tr className="bg-slate-100/90 text-slate-500 uppercase tracking-widest text-[9.5px] font-black border-b border-slate-200">
-              <th className="px-3 py-1.5 border-r border-slate-200 w-24">Início</th>
-              <th className="px-3 py-1.5 border-r border-slate-200 w-24">Retorno</th>
-              <th className="px-2.5 py-1.5 border-r border-slate-200 text-center w-20">ALA</th>
-              <th className="px-3 py-1.5 border-r border-slate-200">Militar / RG</th>
-              <th className="px-3 py-1.5 border-r border-slate-200 w-48">Situação & Status</th>
-              <th className="px-3 py-1.5 border-r border-slate-200">Observações</th>
-              <th className="px-2.5 py-1.5 w-14 text-center">Ações</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 text-xs">
-            {loading ? (
-              <tr>
-                <td colSpan={7} className="p-4 text-center text-slate-400 font-bold uppercase tracking-widest">
-                  <div className="flex items-center justify-center gap-2">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600" />
-                    Carregando registros de afastamentos...
-                  </div>
-                </td>
-              </tr>
-            ) : displayedList.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="p-4 text-center text-slate-400 font-bold uppercase tracking-widest text-[11px]">
-                  {searchTerm
-                    ? `Nenhum afastamento encontrado para o termo "${searchTerm}".`
-                    : `Nenhum afastamento na categoria ${activeTab.toUpperCase()}.`}
-                </td>
-              </tr>
-            ) : (
-              displayedList.map(a => renderRow(a))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <AfastamentosTable
+        displayedList={displayedList}
+        loading={loading}
+        searchTerm={searchTerm}
+        activeTab={activeTab}
+        now={now}
+        militars={militars}
+        obmContext={obmContext}
+        editingId={editingId}
+        editData={editData}
+        setEditData={setEditData}
+        onSaveEdit={saveEdit}
+        onCancelEdit={cancelEditing}
+        onStartEdit={startEditing}
+        onDelete={handleDelete}
+        situacoes={SITUACOES}
+      />
     </div>
   );
 }

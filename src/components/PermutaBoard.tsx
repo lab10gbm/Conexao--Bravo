@@ -251,11 +251,6 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
         if (grdDoc.exists()) {
           const grdData = grdDoc.data().days || {};
           const dayRgs = grdData[permuta.date] || [];
-          const normalizeRg = (rg: string | number) => {
-            const str = (rg || '').toString().trim().toUpperCase();
-            const clean = str.replace(/[^A-Z0-9]/g, '');
-            return clean.replace(/^0+/, '') || clean;
-          };
           const normalizedGrdRgs = dayRgs.map((r: string) => normalizeRg(r));
           if (normalizedGrdRgs.includes(normalizeRg(user.rg))) {
             alert("Você está escalado de GRD neste dia. É proibido permutar para efetivo enquanto escalado no GRD.");
@@ -277,12 +272,6 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
       const isDuplicate = snapDup.docs.some(docSnap => {
         const data = docSnap.data();
         if (data.status === PermutaStatus.CANCELLED || data.status === PermutaStatus.REJECTED) return false;
-        
-        const normalizeRg = (rg: string | number) => {
-          const str = (rg || '').toString().trim().toUpperCase();
-          const clean = str.replace(/[^A-Z0-9]/g, '');
-          return clean.replace(/^0+/, '') || clean;
-        };
 
         const uRg = normalizeRg(user.rg);
         const dReq = normalizeRg(data.requesterRg || '');
@@ -565,16 +554,22 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-3 rounded-lg border-2 border-slate-300 shadow-sm gap-4">
          <div className="flex items-center gap-2 w-full sm:w-auto">
             <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-600 hidden sm:inline-block">Tipo</span>
-            <div className="flex gap-2 flex-1 sm:flex-initial">
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs flex-1 sm:flex-initial">
               <button
                  onClick={() => handleSelectViewMode('geral')}
-                 className={cn("flex-1 sm:flex-initial px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-colors", viewMode === 'geral' ? "bg-slate-800 text-white shadow-sm" : "bg-slate-100 text-slate-500 hover:bg-slate-200")}
+                 className={cn(
+                   "flex-1 sm:flex-initial px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer",
+                   viewMode === 'geral' ? "bg-white text-slate-900 shadow-xs border border-slate-200 dark:border-slate-700" : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/60"
+                 )}
               >
                  Quadro Geral
               </button>
               <button
                  onClick={() => handleSelectViewMode('ofertas')}
-                 className={cn("flex-1 sm:flex-initial px-4 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition-colors", viewMode === 'ofertas' ? "bg-slate-800 text-white shadow-sm" : "bg-slate-100 text-slate-500 hover:bg-slate-200")}
+                 className={cn(
+                   "flex-1 sm:flex-initial px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer",
+                   viewMode === 'ofertas' ? "bg-white text-slate-900 shadow-xs border border-slate-200 dark:border-slate-700" : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/60"
+                 )}
               >
                  Mural de Ofertas
               </button>

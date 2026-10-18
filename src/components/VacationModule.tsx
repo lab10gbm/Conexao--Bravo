@@ -1,32 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
 import {
   Library,
   Calendar,
-  Plus,
   History,
-  Download,
   Search,
   ArrowLeft,
-  Loader2,
-  CheckCircle2,
   Clock,
-  ExternalLink,
-  ChevronRight,
-  ChevronDown,
-  ChevronUp,
-  Filter,
-  FileJson,
-  FileText,
-  X,
   Table as TableIcon,
-  FileSpreadsheet,
 } from "lucide-react";
-import { cn } from "../lib/utils";
-import { RankInsignia } from "./RankInsignia";
-import { MultiSelectFilter } from "./ui/MultiSelectFilter";
+import { cn, normalizeRg, cleanUndefined } from "../lib/utils";
+import { parseRank, sortAllBySeniority } from "../lib/rankUtils";
 import { UserProfile, Vacation } from "../types";
-import { db, auth, handleFirestoreError, OperationType } from "../lib/firebase";
+import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import {
   collection,
   query,
@@ -34,39 +19,27 @@ import {
   getDocs,
   setDoc,
   doc,
-  updateDoc,
   deleteDoc,
-  getDoc,
   onSnapshot,
   serverTimestamp,
 } from "firebase/firestore";
-
 import { useMilitars } from "../contexts/MilitarContext";
 import { exportToExcel } from "../lib/exportUtils";
-import { VacationStats } from "./VacationStats";
-import { cleanUndefined } from "../lib/utils";
-import { isOfficer, sortAllBySeniority, parseRank, sortRanks } from "../lib/rankUtils";
+import {
+  calculateVacationsByAnoRef,
+  calculateMilitarVacationYears,
+  calculatePanoramaData,
+} from "../features/ferias/lib/vacationCalculations";
+import { VacationPanoramaView } from "../features/ferias/components/VacationPanoramaView";
+import { VacationReportView } from "../features/ferias/components/VacationReportView";
+import { VacationIndividualView } from "../features/ferias/components/VacationIndividualView";
+import { VacationValidationModal } from "../features/ferias/components/VacationValidationModal";
 
 interface VacationModuleProps {
   user: UserProfile;
   onBackToPortal: () => void;
   isSadMode?: boolean;
 }
-
-const MONTHS = [
-  "Janeiro",
-  "Fevereiro",
-  "Março",
-  "Abril",
-  "Maio",
-  "Junho",
-  "Julho",
-  "Agosto",
-  "Setembro",
-  "Outubro",
-  "Novembro",
-  "Dezembro",
-];
 
 export function VacationModule({
   user,
@@ -78,8 +51,6 @@ export function VacationModule({
 
   const [vacations, setVacations] = useState<Vacation[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showImporter, setShowImporter] = useState(false);
-  const [activeTab, setActiveTab] = useState<"current" | "history">("current");
   const [targetRg, setTargetRg] = useState(
     isPowerUser && isSadMode ? "" : user.rg,
   );
@@ -102,16 +73,14 @@ export function VacationModule({
   // Filter States
   const [reportSearch, setReportSearch] = useState("");
   const [showHiddenAsseguradas, setShowHiddenAsseguradas] = useState(true);
-  const [expandedYears, setExpandedYears] = useState<Record<string, boolean>>(
-    {},
-  );
+  const [expandedYears, setExpandedYears] = useState<Record<string, boolean>>({});
 
   const [filterPostoGrad, setFilterPostoGrad] = useState<string[]>([]);
   const [filterObm, setFilterObm] = useState<string[]>([]);
   const [filterAla, setFilterAla] = useState<string[]>([]);
   const [filterStatus, setFilterStatus] = useState<string[]>([]);
 
-  // Vacation Preference Stats
+  // Preferences States
   const [preferencesEnabled, setPreferencesEnabled] = useState(false);
   const [userPrefs, setUserPrefs] = useState<string[]>([]);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -122,61 +91,62 @@ export function VacationModule({
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isNavMenuExpanded, setIsNavMenuExpanded] = useState(true);
 
+  // Panorama validations state & modal
   const [panoramaValidations, setPanoramaValidations] = useState<Record<string, any>>({});
   const [validationModalOpen, setValidationModalOpen] = useState(false);
   const [validationTargetRg, setValidationTargetRg] = useState("");
   const [validationTargetName, setValidationTargetName] = useState("");
-  const [validationPassword, setValidationPassword] = useState("");
-  const [validating, setValidating] = useState(false);
-  const [validationError, setValidationError] = useState("");
 
+  // Listen to all vacations for panorama view
   useEffect(() => {
     if (viewMode === "panorama") {
       setLoadingPanorama(true);
-      Promise.all([
-        getDocs(collection(db, "vacations")),
-        getDocs(collection(db, "vacation_validations"))
-      ])
-        .then(([vacSnapshot, valSnapshot]) => {
+      const fetchAll = async () => {
+        try {
+          const vacSnapshot = await getDocs(collection(db, "vacations"));
           const data = vacSnapshot.docs.map(
             (doc) => ({ id: doc.id, ...doc.data() }) as Vacation,
           );
           setAllVacations(data);
-          
+
+          const valSnapshot = await getDocs(collection(db, "vacation_validations"));
           const vals: Record<string, any> = {};
-          valSnapshot.forEach(doc => {
-            vals[normalizeRg(doc.data().targetRg)] = doc.data();
+          valSnapshot.docs.forEach((doc) => {
+            const d = doc.data();
+            if (d.targetRg) {
+              vals[normalizeRg(d.targetRg)] = d;
+            }
           });
           setPanoramaValidations(vals);
-          
+        } catch (e) {
+          console.error("Error loading panorama vacations:", e);
+        } finally {
           setLoadingPanorama(false);
-        })
-        .catch((e) => {
-          console.error(e);
-          setLoadingPanorama(false);
-        });
+        }
+      };
+      fetchAll();
     }
   }, [viewMode]);
 
+  // Listen to all preferences for report view
   useEffect(() => {
     let unsubAllPrefs = () => {};
     if (isPowerUser && viewMode === "report") {
-      setLoading(true);
-
       const fetchAllFallback = async () => {
         try {
-          const res = await fetch('/api/all-vacation-preferences');
+          const res = await fetch("/api/all-vacation-preferences");
           const json = await res.json();
           if (json.success && json.data) {
              const prefs: Record<string, any> = {};
-             Object.entries(json.data).forEach(([key, val]) => {
-                prefs[normalizeRg(key)] = val;
+             json.data.forEach((d: any) => {
+               if (d.rg) {
+                 prefs[normalizeRg(d.rg)] = d;
+               }
              });
              setAllPreferences(prefs);
-             setLoading(false);
           }
-        } catch(e) {
-          console.error("All prefs fallback failed: ", e);
+        } catch (e) {
+          console.error("Prefs API all fallback failed", e);
         }
       };
 
@@ -186,26 +156,18 @@ export function VacationModule({
         collection(db, "vacation_preferences"),
         (snap) => {
           if (snap.metadata.fromCache && snap.empty) {
-            console.log("Ignoring empty offline cache for preferences.");
             return;
           }
           const prefs: Record<string, any> = {};
           snap.forEach((doc) => {
-            prefs[normalizeRg(doc.id)] = doc.data();
+            const data = doc.data();
+            const rg = data.rg || doc.id;
+            prefs[normalizeRg(rg)] = data;
           });
-          
-          setAllPreferences((prev) => {
-             // Only update if we actually have data, or if we didn't have data before
-             if (Object.keys(prefs).length > 0 || Object.keys(prev).length === 0) {
-               return prefs;
-             }
-             return prev;
-          });
-          setLoading(false);
+          setAllPreferences(prefs);
         },
         (e) => {
-          console.error("Error fetching all preferences:", e);
-          setLoading(false);
+          console.error("Error listening to all preferences:", e);
           fetchAllFallback();
         },
       );
@@ -213,51 +175,48 @@ export function VacationModule({
     return () => unsubAllPrefs();
   }, [isPowerUser, viewMode]);
 
-  const fetchAllPreferences = async () => {
-    // Deprecated in favor of the real-time effect above
-  };
-
+  // Listen to vacation settings config
   useEffect(() => {
-    if (!db) return;
-
     const fetchConfigFallback = async () => {
       try {
-        const res = await fetch('/api/vacation-settings');
+        const res = await fetch("/api/vacation-settings");
         const json = await res.json();
         if (json.success && json.data) {
-          setPreferencesEnabled(json.data.preferencesEnabled || false);
-          if (json.data.activeYear) setActiveYear(json.data.activeYear);
+          setPreferencesEnabled(!!json.data.preferencesEnabled);
+          if (json.data.activeYear) {
+            setActiveYear(json.data.activeYear);
+          }
         }
-      } catch (err) {
-        console.error("Config API fallback failed", err);
+      } catch (e) {
+        console.error("Config API fallback failed", e);
       }
     };
 
-    // Try initial fetch via API to bypass potential adblock
     fetchConfigFallback();
 
     const unsubConfig = onSnapshot(
       doc(db, "config", "vacation_settings"),
       (snap) => {
         if (snap.metadata.fromCache && !snap.exists()) {
-          console.log("Ignoring empty offline cache for settings.");
           return;
         }
         if (snap.exists()) {
           const data = snap.data();
-          if (data.preferencesEnabled !== undefined) setPreferencesEnabled(data.preferencesEnabled);
-          if (data.activeYear) setActiveYear(data.activeYear);
+          setPreferencesEnabled(!!data.preferencesEnabled);
+          if (data.activeYear) {
+            setActiveYear(data.activeYear);
+          }
         }
       },
-      (error) => {
-        console.error("Error listening to config:", error);
+      (e) => {
+        console.error("Error listening to settings config:", e);
         fetchConfigFallback();
       },
     );
-
     return () => unsubConfig();
   }, []);
 
+  // Listen to current user's preferences
   useEffect(() => {
     let unsubPrefs = () => {};
     if (selectedMilitar?.rg) {
@@ -289,7 +248,6 @@ export function VacationModule({
         doc(db, "vacation_preferences", cleanRg),
         (snap) => {
           if (snap.metadata.fromCache && !snap.exists()) {
-             console.log("Ignoring empty offline cache for single preference.");
              return;
           }
           if (snap.exists()) {
@@ -318,9 +276,39 @@ export function VacationModule({
     return () => unsubPrefs();
   }, [selectedMilitar?.rg, activeYear]);
 
-  const fetchUserPreferences = async (rg: string) => {
-    // Deprecated in favor of the real-time effect above
-  };
+  // Listen to individual vacations
+  useEffect(() => {
+    let unsub = () => {};
+    const rgToWatch =
+      viewMode === "individual" ? selectedMilitar?.rg || "" : "";
+    if (rgToWatch) {
+      setLoading(true);
+      const cleanRg = normalizeRg(rgToWatch);
+      const q = query(
+        collection(db, "vacations"),
+        where("militarRg", "==", cleanRg),
+      );
+      unsub = onSnapshot(
+        q,
+        (snapshot) => {
+          const data = snapshot.docs.map(
+            (doc) => ({ id: doc.id, ...doc.data() }) as Vacation,
+          );
+          setVacations(
+            data.sort((a, b) => (b.anoRef || "").localeCompare(a.anoRef || "")),
+          );
+          setLoading(false);
+        },
+        (e) => {
+          handleFirestoreError(e, OperationType.LIST, "vacations", false);
+          setLoading(false);
+        },
+      );
+    } else {
+      setVacations([]);
+    }
+    return () => unsub();
+  }, [viewMode, selectedMilitar?.rg]);
 
   const toggleMonthPreference = async (month: string) => {
     if (!selectedMilitar || isSubmitted) return;
@@ -330,7 +318,7 @@ export function VacationModule({
       newPrefs = newPrefs.filter((m) => m !== month);
     } else {
       if (newPrefs.length >= 3) {
-        return; // Exceeded limit
+        return;
       }
       newPrefs.push(month);
     }
@@ -372,17 +360,14 @@ export function VacationModule({
 
   const handleSubmitPreferences = async () => {
     setShowConfirmDialog(false);
-    if (!selectedMilitar) return;
-    if (userPrefs.length !== 3) {
-      return;
-    }
+    if (!selectedMilitar || userPrefs.length !== 3) return;
     
     setSavingPrefs(true);
     try {
       const updateData = {
-          submitted: {
-            [activeYear]: true
-          }
+        submitted: {
+          [activeYear]: true
+        }
       };
       
       await setDoc(
@@ -416,7 +401,6 @@ export function VacationModule({
         }),
         { merge: true },
       );
-      // Update local state without unmounting
       setAllPreferences((prev) => ({
         ...prev,
         [normalizeRg(rg)]: {
@@ -439,119 +423,9 @@ export function VacationModule({
         preferencesEnabled: !preferencesEnabled,
         updatedBy: user.name || "Admin",
       };
-      
       await setDoc(doc(db, "config", "vacation_settings"), { ...dbDocInfo, updatedAt: serverTimestamp() }, { merge: true });
-      console.log("Successfully saved config/vacation_settings");
     } catch (e) {
       console.error("Error updating global config:", e);
-    }
-  };
-
-  useEffect(() => {
-    let unsub = () => {};
-    const rgToWatch =
-      viewMode === "individual" ? selectedMilitar?.rg || "" : "";
-    if (rgToWatch) {
-      setLoading(true);
-      const cleanRg = normalizeRg(rgToWatch);
-      const q = query(
-        collection(db, "vacations"),
-        where("militarRg", "==", cleanRg),
-      );
-      unsub = onSnapshot(
-        q,
-        (snapshot) => {
-          const data = snapshot.docs.map(
-            (doc) => ({ id: doc.id, ...doc.data() }) as Vacation,
-          );
-          setVacations(
-            data.sort((a, b) => (b.anoRef || "").localeCompare(a.anoRef || "")),
-          );
-          setLoading(false);
-        },
-        (e) => {
-          handleFirestoreError(e, OperationType.LIST, "vacations", false);
-          setLoading(false);
-        },
-      );
-    } else {
-      setVacations([]);
-    }
-    return () => unsub();
-  }, [viewMode, selectedMilitar?.rg]);
-
-  const fetchVacations = async (rg: string) => {
-    // Deprecated in favor of the real-time effect above
-  };
-
-  const handleImport = async (newVacations: Vacation[]) => {
-    setLoading(true);
-    try {
-      for (const v of newVacations) {
-        // Use RefYear + StartDate as a composite ID to avoid duplicates
-        const docId = `${v.militarRg}_${v.anoRef}_${v.dataInicio.replace(/\//g, "")}`;
-        const savedData = cleanUndefined({
-          ...v,
-          updatedAt: new Date().toISOString(),
-        });
-        await setDoc(doc(db, "vacations", docId), savedData, { merge: true });
-        await setDoc(
-          doc(db, "militaries", v.militarRg, "ferias", docId),
-          savedData,
-          { merge: true },
-        );
-      }
-      setShowImporter(false);
-      if (selectedMilitar) {
-        await fetchVacations(selectedMilitar.rg);
-      }
-    } catch (e) {
-      console.error("Error importing vacations:", e);
-      alert("Erro ao salvar os dados no sistema seguro.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleConfirmValidation = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setValidating(true);
-    setValidationError("");
-    try {
-      // Very basic password check hitting the login endpoint
-      const response = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rg: user.rg, password: validationPassword }),
-      });
-      const data = await response.json();
-      
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Senha incorreta.");
-      }
-      
-      // If valid, save the validation in Firestore
-      const targetRgNorm = normalizeRg(validationTargetRg);
-      const docId = `${targetRgNorm}_${user.rg}_${Date.now()}`;
-      const payload = {
-        targetRg: targetRgNorm,
-        targetName: validationTargetName,
-        validatorRg: user.rg,
-        validatorName: `${user.rank || ""} ${user.warName || user.name.split(" ")[0]}`.trim(),
-        validatedAt: new Date().toISOString()
-      };
-      
-      await setDoc(doc(db, "vacation_validations", docId), payload);
-      
-      // Update local state so it reflects immediately
-      setPanoramaValidations(prev => ({ ...prev, [targetRgNorm]: payload }));
-      setValidationModalOpen(false);
-      setValidationPassword("");
-      
-    } catch(err: any) {
-       setValidationError(err.message || "Erro ao validar");
-    } finally {
-       setValidating(false);
     }
   };
 
@@ -560,22 +434,13 @@ export function VacationModule({
       const rg = id.split("_")[0];
       await deleteDoc(doc(db, "vacations", id));
       if (rg) await deleteDoc(doc(db, "militaries", rg, "ferias", id));
-      // fetchVacations is deprecated, relying on onSnapshot
     } catch (e: any) {
       console.error("Error deleting vacation:", e);
     }
   };
 
   const vacationsByAnoRef = React.useMemo(() => {
-    return vacations.reduce(
-      (acc, v) => {
-        if (v.ato && !v.ato.toUpperCase().includes("ASSEGURADAS") && !v.ato.toUpperCase().includes("CANCELAMENT")) {
-          acc[v.anoRef] = (acc[v.anoRef] || 0) + (v.diasGozados || 0);
-        }
-        return acc;
-      },
-      {} as Record<string, number>,
-    );
+    return calculateVacationsByAnoRef(vacations);
   }, [vacations]);
 
   const visibleVacations = React.useMemo(() => {
@@ -595,120 +460,12 @@ export function VacationModule({
   };
 
   const {
-    startYear,
-    endYear,
-    vacationsStats,
     missingYears,
     pendingYears,
     groupedVacations,
   } = React.useMemo(() => {
-    let sYear = new Date().getFullYear();
-
-    // Calcula o startYear baseado no menor anoRef
-    const extractYear = (val: string) => {
-       const match = (val || "").match(/\d{4}/);
-       return match ? parseInt(match[0]) : parseInt(val || "");
-    };
-    const validYears = vacations
-      .map((v) => extractYear(v.anoRef))
-      .filter((n) => !isNaN(n) && n > 1900);
-    if (validYears.length > 0) {
-      sYear = Math.min(...validYears);
-    }
-    const eYear = Math.max(new Date().getFullYear() + 1, ...(validYears.length > 0 ? validYears : [new Date().getFullYear()]));
-
-    // Stats
-    const statsByYear: Record<
-      number,
-      {
-        totalGozados: number;
-        pending: number;
-        temConcessoes: boolean;
-        temAsseguradas: boolean;
-      }
-    > = {};
-    for (let y = sYear; y <= eYear; y++) {
-      statsByYear[y] = {
-        totalGozados: 0,
-        pending: 30,
-        temConcessoes: false,
-        temAsseguradas: false,
-      };
-    }
-
-    vacations.forEach((v) => {
-      const y = extractYear(v.anoRef);
-      if (!isNaN(y) && statsByYear[y]) {
-        if (v.ato && !v.ato.toUpperCase().includes("ASSEGURADAS") && !v.ato.toUpperCase().includes("CANCELAMENT")) {
-          statsByYear[y].totalGozados += v.diasGozados || 0;
-          statsByYear[y].pending = Math.max(
-            0,
-            30 - statsByYear[y].totalGozados,
-          );
-          statsByYear[y].temConcessoes = true;
-        }
-        if (v.ato?.toUpperCase().includes("ASSEGURADAS")) {
-          statsByYear[y].temAsseguradas = true;
-        }
-      }
-    });
-
-    const mY = [];
-    const pY = [];
-    for (let y = sYear; y <= eYear; y++) {
-      if (!statsByYear[y].temConcessoes && !statsByYear[y].temAsseguradas) {
-        mY.push(y);
-      } else if (statsByYear[y].pending > 0 && statsByYear[y].temConcessoes) {
-        // Tem pendência parciais. Se não tiver concessão e tiver assegurada, o pending é 30.
-        pY.push({ year: y, pending: statsByYear[y].pending });
-      } else if (
-        !statsByYear[y].temConcessoes &&
-        statsByYear[y].temAsseguradas
-      ) {
-        // Só assegurou, não gozou nada ainda
-        pY.push({ year: y, pending: 30 });
-      }
-    }
-
-    // Grouping
-    const groups: Record<string, Vacation[]> = {};
-    visibleVacations.forEach((v) => {
-      if (!groups[v.anoRef]) groups[v.anoRef] = [];
-      groups[v.anoRef].push(v);
-    });
-    const gV = Object.keys(groups)
-      .sort((a, b) => parseInt(b) - parseInt(a))
-      .map((anoRef) => {
-        const items = groups[anoRef];
-        items.sort((a, b) => {
-          const ad = a.dataInicio?.split("/").reverse().join("") || "";
-          const bd = b.dataInicio?.split("/").reverse().join("") || "";
-          return bd.localeCompare(ad);
-        });
-        return {
-          anoRef,
-          items,
-          totalGozados: statsByYear[parseInt(anoRef)]?.totalGozados || 0,
-          pending: statsByYear[parseInt(anoRef)]?.pending || 0,
-        };
-      });
-
-    return {
-      startYear: sYear,
-      endYear: eYear,
-      vacationsStats: statsByYear,
-      missingYears: mY,
-      pendingYears: pY,
-      groupedVacations: gV,
-    };
+    return calculateMilitarVacationYears(vacations, visibleVacations);
   }, [vacations, visibleVacations]);
-
-  const currentYearVacations = vacations.filter(
-    (v) => v.anoRef === "2026" || v.status === "marcado",
-  );
-  const pastVacations = vacations.filter(
-    (v) => v.anoRef !== "2026" && v.status === "gozado",
-  );
 
   const handleExportExcel = () => {
     if (!selectedMilitar) return;
@@ -800,7 +557,6 @@ export function VacationModule({
         m.warName?.toLowerCase().includes(term) ||
         m.rg?.includes(term);
 
-      // OBM normalization
       const mObm = (m.obm || "10º GBM").trim().toUpperCase();
       const filterStr = panoramaObmFilter.trim().toUpperCase();
 
@@ -828,278 +584,16 @@ export function VacationModule({
   }, [militars, panoramaSearch, panoramaObmFilter]);
 
   const panoramaData = React.useMemo(() => {
-    if (viewMode !== "panorama" || allVacations.length === 0) return { oficiais: [], pracas: [], regularizadosOficiais: [], regularizadosPracas: [], validadosOficiais: [], validadosPracas: [] };
-
-    const currentYear = new Date().getFullYear();
-    const vacsByRg: Record<string, Vacation[]> = {};
-    allVacations.forEach((v) => {
-      const cleanMilitarRg = normalizeRg(v.militarRg || "");
-      if (!vacsByRg[cleanMilitarRg]) vacsByRg[cleanMilitarRg] = [];
-      vacsByRg[cleanMilitarRg].push(v);
-    });
-
-    const oficiais: any[] = [];
-    const pracas: any[] = [];
-    const regularizadosOficiais: any[] = [];
-    const regularizadosPracas: any[] = [];
-    const validadosOficiais: any[] = [];
-    const validadosPracas: any[] = [];
-
-    for (const m of filteredMilitarsPanorama) {
-      const cleanRg = normalizeRg(m.rg);
-      const mVacations = vacsByRg[cleanRg] || [];
-      const isVal = panoramaValidations[cleanRg];
-      if (mVacations.length === 0 && !isVal) continue;
-
-      let sYear = currentYear;
-      const extractYear = (val: string) => {
-         const match = (val || "").match(/\d{4}/);
-         return match ? parseInt(match[0]) : parseInt(val || "");
-      };
-      const validYears = mVacations
-        .map((v) => extractYear(v.anoRef))
-        .filter((n) => !isNaN(n) && n > 1900);
-      if (validYears.length > 0) sYear = Math.min(...validYears);
-
-      const statsByYear: Record<
-        number,
-        {
-          totalGozados: number;
-          pending: number;
-          temConcessoes: boolean;
-          temAsseguradas: boolean;
-        }
-      > = {};
-      for (let y = sYear; y <= currentYear; y++) {
-        statsByYear[y] = {
-          totalGozados: 0,
-          pending: 30,
-          temConcessoes: false,
-          temAsseguradas: false,
-        };
-      }
-
-      mVacations.forEach((v) => {
-        const y = extractYear(v.anoRef);
-        if (!isNaN(y) && statsByYear[y]) {
-          if (v.ato && !v.ato.toUpperCase().includes("ASSEGURADAS") && !v.ato.toUpperCase().includes("CANCELAMENT")) {
-            statsByYear[y].totalGozados += v.diasGozados || 0;
-            statsByYear[y].pending = Math.max(
-              0,
-              30 - statsByYear[y].totalGozados,
-            );
-            statsByYear[y].temConcessoes = true;
-          }
-          if (v.ato?.toUpperCase().includes("ASSEGURADAS")) {
-            statsByYear[y].temAsseguradas = true;
-          }
-        }
-      });
-
-      const missing = [];
-      const pending = [];
-      for (let y = sYear; y <= currentYear; y++) {
-        if (!statsByYear[y].temConcessoes && !statsByYear[y].temAsseguradas) {
-          missing.push(y);
-        } else if (statsByYear[y].pending > 0 && statsByYear[y].temConcessoes) {
-          pending.push({ year: y, days: statsByYear[y].pending });
-        } else if (
-          !statsByYear[y].temConcessoes &&
-          statsByYear[y].temAsseguradas
-        ) {
-          pending.push({ year: y, days: 30 });
-        }
-      }
-
-      const totalPendingDays =
-        pending.reduce((acc, p) => acc + p.days, 0) + missing.length * 30;
-
-      const row = {
-        militar: m,
-        startYear: sYear,
-        missingYears: missing,
-        pendingBalances: pending,
-        totalPendingDays,
-        isVal,
-      };
-
-      if (isOfficer(m.rank || "")) {
-        if (isVal) validadosOficiais.push(row);
-        else if (totalPendingDays > 0) oficiais.push(row);
-        else regularizadosOficiais.push(row);
-      } else {
-        if (isVal) validadosPracas.push(row);
-        else if (totalPendingDays > 0) pracas.push(row);
-        else regularizadosPracas.push(row);
-      }
+    if (viewMode !== "panorama" || allVacations.length === 0) {
+      return { oficiais: [], pracas: [], regularizadosOficiais: [], regularizadosPracas: [], validadosOficiais: [], validadosPracas: [] };
     }
-
-    const sortFn = (a: any, b: any) => {
-      if (panoramaSortMode === "dias") {
-        return b.totalPendingDays - a.totalPendingDays;
-      } else {
-        return sortAllBySeniority(a.militar, b.militar);
-      }
-    };
-
-    return {
-      oficiais: oficiais.sort(sortFn),
-      pracas: pracas.sort(sortFn),
-      regularizadosOficiais: regularizadosOficiais.sort((a,b) => sortAllBySeniority(a.militar, b.militar)),
-      regularizadosPracas: regularizadosPracas.sort((a,b) => sortAllBySeniority(a.militar, b.militar)),
-      validadosOficiais: validadosOficiais.sort((a,b) => sortAllBySeniority(a.militar, b.militar)),
-      validadosPracas: validadosPracas.sort((a,b) => sortAllBySeniority(a.militar, b.militar)),
-    };
-  }, [allVacations, filteredMilitarsPanorama, viewMode, panoramaSortMode, panoramaValidations]);
-
-  const renderPanoramaTable = (rows: any[], typeLabel: string) => {
-    return (
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-slate-50/20">
-              <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                Militar
-              </th>
-              <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 text-center">
-                Carreira (Est.)
-              </th>
-              <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                Lapsos de Registro (0 dias)
-              </th>
-              <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                Saldos Parciais Pendentes
-              </th>
-              <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 text-center">
-                Dias a Cumprir
-              </th>
-              <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 text-center">
-                Validação
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-50">
-            {rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={6}
-                  className="p-16 text-center text-[10px] font-black text-slate-400 uppercase"
-                >
-                  Nenhuma pendência para {typeLabel}.
-                </td>
-              </tr>
-            ) : (
-              rows.map((row) => {
-                const isVal = panoramaValidations[normalizeRg(row.militar.rg)];
-                return (
-                <tr
-                  key={row.militar.rg}
-                  className="hover:bg-slate-50/50 transition-colors"
-                  id={`panorama-row-${row.militar.rg}`}
-                >
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="shrink-0 w-8 flex justify-center">
-                        <RankInsignia rankStr={row.militar.rank} />
-                      </div>
-                      <div>
-                        {/* Rank on top of Name */}
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                          {row.militar.rank}
-                        </div>
-                        <div className="text-xs font-black text-slate-800 uppercase leading-none">
-                          {row.militar.warName || row.militar.name}
-                        </div>
-                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                          RG: {row.militar.rg} • {row.militar.obm}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <span className="text-[9px] font-black px-2 py-1 bg-slate-100 text-slate-500 rounded uppercase">
-                      {new Date().getFullYear() - row.startYear} anos
-                      ({row.startYear})
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    {row.missingYears.length > 0 ? (
-                      <div className="flex flex-wrap gap-1 max-w-[200px]">
-                        {row.missingYears.map((y: any) => (
-                          <span
-                            key={y}
-                            className="text-[8px] font-black bg-red-50 text-red-600 px-1.5 py-0.5 rounded border border-red-100"
-                          >
-                            {y}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-[10px] text-slate-300">-</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4">
-                    {row.pendingBalances.length > 0 ? (
-                      <div className="flex flex-wrap gap-1 max-w-[200px]">
-                        {row.pendingBalances.map((p: any) => (
-                          <span
-                            key={p.year}
-                            className="text-[8px] font-black bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100"
-                          >
-                            {p.year} ({p.days}d)
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-[10px] text-slate-300">-</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <span
-                      className={cn(
-                        "text-sm font-black px-3 py-1 rounded-lg border inline-block min-w-[3rem]",
-                        row.totalPendingDays > 100
-                          ? "bg-red-50 text-red-600 border-red-200"
-                          : row.totalPendingDays > 50
-                            ? "bg-orange-50 text-orange-600 border-orange-200"
-                            : "bg-indigo-50 text-indigo-600 border-indigo-200",
-                      )}
-                    >
-                      {row.totalPendingDays}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                     {isVal ? (
-                        <div className="flex flex-col items-center">
-                           <CheckCircle2 className="w-4 h-4 text-emerald-500 mb-0.5" />
-                           <span className="text-[8px] font-black uppercase text-emerald-600 leading-tight">
-                             Validado<br />
-                             {isVal.validatorName || isVal.validatorRg}
-                           </span>
-                        </div>
-                     ) : (
-                        <button
-                          onClick={() => {
-                             setValidationTargetRg(row.militar.rg);
-                             setValidationTargetName(row.militar.warName || row.militar.name);
-                             setValidationPassword("");
-                             setValidationError("");
-                             setValidationModalOpen(true);
-                          }}
-                          className="px-3 py-1 text-[9px] font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded uppercase tracking-wider transition-colors"
-                        >
-                           Validar
-                        </button>
-                     )}
-                  </td>
-                </tr>
-              );
-            }))}
-          </tbody>
-        </table>
-      </div>
+    return calculatePanoramaData(
+      allVacations,
+      filteredMilitarsPanorama,
+      panoramaValidations,
+      panoramaSortMode
     );
-  };
+  }, [allVacations, filteredMilitarsPanorama, viewMode, panoramaSortMode, panoramaValidations]);
 
   return (
     <div className="flex flex-col gap-8 font-sans">
@@ -1124,22 +618,22 @@ export function VacationModule({
 
         <div className="flex flex-wrap items-center gap-3">
           {isPowerUser && (
-            <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-inner">
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
               <button
                 onClick={() => setViewMode("individual")}
-                className={`px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest ${viewMode === "individual" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                className={`px-4 py-2 rounded-lg transition-all font-black text-[10px] uppercase tracking-widest cursor-pointer ${viewMode === "individual" ? "bg-white text-indigo-700 shadow-xs border border-slate-200 dark:border-slate-700" : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/60"}`}
               >
                 Individual
               </button>
               <button
                 onClick={() => setViewMode("report")}
-                className={`px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5 ${viewMode === "report" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
+                className={`px-4 py-2 rounded-lg transition-all font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5 cursor-pointer ${viewMode === "report" ? "bg-white text-indigo-700 shadow-xs border border-slate-200 dark:border-slate-700" : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/60"}`}
               >
                 <TableIcon className="w-3.5 h-3.5" /> Preferências
               </button>
               <button
                 onClick={() => setViewMode("panorama")}
-                className={`px-4 py-2 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5 ${viewMode === "panorama" ? "bg-white text-orange-600 shadow-sm border border-orange-100" : "text-slate-500 hover:text-slate-800"}`}
+                className={`px-4 py-2 rounded-lg transition-all font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5 cursor-pointer ${viewMode === "panorama" ? "bg-white text-orange-600 shadow-xs border border-slate-200 dark:border-slate-700" : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/60"}`}
               >
                 <History className="w-3.5 h-3.5" /> Panorama Global
               </button>
@@ -1207,7 +701,7 @@ export function VacationModule({
                 value={activeYear}
                 onChange={async (e) => {
                   const newYear = e.target.value;
-                  setActiveYear(newYear); // Optimistic UI update
+                  setActiveYear(newYear);
                   try {
                     await setDoc(
                       doc(db, "config", "vacation_settings"),
@@ -1253,580 +747,78 @@ export function VacationModule({
       </div>
 
       {viewMode === "report" ? (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] border-2 border-slate-50 shadow-sm overflow-visible flex flex-col">
-            <div className="p-6 sm:p-8 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50/50 gap-4">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setIsNavMenuExpanded(!isNavMenuExpanded)}
-                  className="p-2 bg-white rounded-xl border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 transition-colors shadow-sm shrink-0"
-                  title={
-                    isNavMenuExpanded
-                      ? "Minimizar Navegador"
-                      : "Maximizar Navegador"
-                  }
-                >
-                  {isNavMenuExpanded ? (
-                    <ChevronUp className="w-5 h-5" />
-                  ) : (
-                    <ChevronDown className="w-5 h-5" />
-                  )}
-                </button>
-                <div>
-                  <h3 className="text-lg sm:text-xl font-black text-slate-800 uppercase tracking-tight">
-                    Relatório Consolidado de Preferências
-                  </h3>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                    Lista completa de militares e seus meses de preferência para
-                    o escalonamento SAD
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    const exportData = filteredMilitarsReport.map((m) => {
-                      const data: any = allPreferences[normalizeRg(m.rg)] || {};
-                      const prefs =
-                        data.preferences?.[reportYear] ||
-                        (reportYear === "2026" ? data.months : []) ||
-                        [];
-                      const granted = data.granted?.[reportYear] || "-";
-                      return {
-                        Militar: `${parseRank(m.rank)} ${m.name}`,
-                        RG: m.rg,
-                        "Mês 1": prefs[0] || "-",
-                        "Mês 2": prefs[1] || "-",
-                        "Mês 3": prefs[2] || "-",
-                        "Mês Concedido": granted,
-                        Contagem: prefs.length,
-                      };
-                    });
-                    exportToExcel(
-                      exportData,
-                      `Consolidado_Preferencias_${reportYear}`,
-                      "Preferencias_Ferias_SAD",
-                    );
-                  }}
-                  className="w-full sm:w-auto px-6 py-3 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 transition-all font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-emerald-100"
-                >
-                  <FileSpreadsheet className="w-4 h-4" />{" "}
-                  <span className="sm:hidden">Exportar</span>
-                  <span className="hidden sm:inline">Exportar Filtrados</span>
-                </button>
-              </div>
-            </div>
-
-            {isNavMenuExpanded && (
-              <div className="p-6 sm:p-8 border-b border-slate-50 space-y-6">
-                <VacationStats
-                  militars={filteredMilitarsReport}
-                  allPreferences={allPreferences}
-                  reportYear={reportYear}
-                />
-                <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border-2 border-slate-100 transition-all focus-within:border-indigo-200">
-                  <Search className="w-6 h-6 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Filtrar por nome, guerra ou RG..."
-                    className="bg-transparent outline-none flex-1 text-xs font-bold uppercase tracking-widest text-slate-700"
-                    value={reportSearch}
-                    onChange={(e) => setReportSearch(e.target.value)}
-                  />
-                  <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block"></div>
-                  <select
-                    value={reportYear}
-                    onChange={(e) => setReportYear(e.target.value)}
-                    className="bg-white border-2 border-slate-200 text-indigo-700 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none cursor-pointer"
-                  >
-                    <option value="2026">Ano 2026</option>
-                    <option value="2027">Ano 2027</option>
-                    <option value="2028">Ano 2028</option>
-                    <option value="2029">Ano 2029</option>
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <MultiSelectFilter
-                    label="Posto/Grad"
-                    options={uniqueRanks.sort(sortRanks)}
-                    selected={filterPostoGrad}
-                    onChange={setFilterPostoGrad}
-                  />
-                  <MultiSelectFilter
-                    label="OBM"
-                    options={uniqueObms.sort()}
-                    selected={filterObm}
-                    onChange={setFilterObm}
-                  />
-                  <MultiSelectFilter
-                    label="Ala"
-                    options={uniqueAlas.sort()}
-                    selected={filterAla}
-                    onChange={setFilterAla}
-                  />
-                  <MultiSelectFilter
-                    label="Status SAD"
-                    options={["COMPLETO", "PARCIAL", "PENDENTE"]}
-                    selected={filterStatus}
-                    onChange={setFilterStatus}
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/20">
-                    <th className="px-8 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                      Militar
-                    </th>
-                    <th className="px-8 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                      RG
-                    </th>
-                    <th className="px-8 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                      Opc 1
-                    </th>
-                    <th className="px-8 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                      Opc 2
-                    </th>
-                    <th className="px-8 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                      Opc 3
-                    </th>
-                    <th className="px-5 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 text-center">
-                      Status
-                    </th>
-                    <th className="px-5 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50 text-center">
-                      Mês Concedido
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {loading ? (
-                    <tr>
-                      <td
-                        colSpan={7}
-                        className="p-20 text-center text-[10px] font-black text-slate-300 uppercase animate-pulse"
-                      >
-                        Cruzando dados de preferências...
-                      </td>
-                    </tr>
-                  ) : filteredMilitarsReport.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={7}
-                        className="p-20 text-center text-[10px] font-black text-slate-300 uppercase"
-                      >
-                        Nenhum militar encontrado com os filtros aplicados.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredMilitarsReport
-                      .map((m) => {
-                        const rg = normalizeRg(m.rg);
-                        const data: any = allPreferences[rg] || {};
-                        const prefs =
-                          data.preferences?.[reportYear] ||
-                          (reportYear === "2026" ? data.months : []) ||
-                          [];
-                        const granted = data.granted?.[reportYear] || "";
-                        const isComplete = prefs.length === 3;
-
-                        return (
-                          <tr
-                            key={m.rg}
-                            className="hover:bg-slate-50/50 transition-colors group"
-                          >
-                            <td className="px-5 py-4">
-                              <div className="flex items-center gap-3">
-                                <div className="shrink-0 w-8 flex justify-center">
-                                  <RankInsignia rankStr={parseRank(m.rank)} />
-                                </div>
-                                <div className="flex flex-col leading-tight">
-                                  <div className="text-[11px] font-black text-slate-800 uppercase">
-                                    {parseRank(m.rank)}
-                                  </div>
-                                  <div className="text-[14px] font-black text-indigo-600 uppercase tracking-tight">
-                                    {m.warName || m.name}
-                                  </div>
-                                  <div className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter mt-0.5">
-                                    {m.obm}
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-5 py-4">
-                              <span className="text-[10px] font-bold text-slate-500 font-mono tracking-widest">
-                                {m.rg}
-                              </span>
-                            </td>
-                            <td className="px-5 py-4">
-                              {prefs[0] ? (
-                                <span
-                                  className={cn(
-                                    "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase border",
-                                    granted === prefs[0]
-                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                      : "bg-indigo-50 text-indigo-700 border-indigo-100",
-                                  )}
-                                >
-                                  {prefs[0]}
-                                </span>
-                              ) : (
-                                <span className="text-slate-200 text-[10px]">
-                                  —
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-5 py-4">
-                              {prefs[1] ? (
-                                <span
-                                  className={cn(
-                                    "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase border",
-                                    granted === prefs[1]
-                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                      : "bg-indigo-50 text-indigo-700 border-indigo-100",
-                                  )}
-                                >
-                                  {prefs[1]}
-                                </span>
-                              ) : (
-                                <span className="text-slate-200 text-[10px]">
-                                  —
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-5 py-4">
-                              {prefs[2] ? (
-                                <span
-                                  className={cn(
-                                    "px-2.5 py-1 rounded-lg text-[9px] font-black uppercase border",
-                                    granted === prefs[2]
-                                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                      : "bg-indigo-50 text-indigo-700 border-indigo-100",
-                                  )}
-                                >
-                                  {prefs[2]}
-                                </span>
-                              ) : (
-                                <span className="text-slate-200 text-[10px]">
-                                  —
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-5 py-4 text-center">
-                              {prefs.length > 0 ? (
-                                <div
-                                  className={cn(
-                                    "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border",
-                                    isComplete
-                                      ? "bg-emerald-50 text-emerald-600 border-emerald-100"
-                                      : "bg-amber-50 text-amber-600 border-amber-100",
-                                  )}
-                                >
-                                  <div
-                                    className={cn(
-                                      "w-1.5 h-1.5 rounded-full",
-                                      isComplete
-                                        ? "bg-emerald-500"
-                                        : "bg-amber-500",
-                                    )}
-                                  ></div>
-                                  {isComplete
-                                    ? "Completo"
-                                    : `${prefs.length}/3`}
-                                </div>
-                              ) : (
-                                <span className="text-[8px] font-bold text-slate-300 uppercase tracking-widest">
-                                  Pendente
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-5 py-4 text-center">
-                              {isSadMode ? (
-                                <select
-                                  value={granted}
-                                  onChange={(e) =>
-                                    handleGrantMonth(m.rg, e.target.value)
-                                  }
-                                  className={cn(
-                                    "px-2 py-1.5 border rounded-lg text-[9px] font-black uppercase tracking-widest outline-none transition-colors",
-                                    granted
-                                      ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                                      : "bg-white border-slate-200 text-slate-500 hover:border-indigo-200",
-                                  )}
-                                >
-                                  <option value="">- Conceder -</option>
-                                  {MONTHS.map((mo) => (
-                                    <option key={mo} value={mo}>
-                                      {mo} {prefs.includes(mo) ? "★" : ""}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <span className="text-[10px] font-bold text-slate-500">
-                                  {granted || "-"}
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+        <VacationReportView
+          filteredMilitarsReport={filteredMilitarsReport}
+          allPreferences={allPreferences}
+          reportYear={reportYear}
+          setReportYear={setReportYear}
+          reportSearch={reportSearch}
+          setReportSearch={setReportSearch}
+          isNavMenuExpanded={isNavMenuExpanded}
+          setIsNavMenuExpanded={setIsNavMenuExpanded}
+          uniqueRanks={uniqueRanks}
+          uniqueObms={uniqueObms}
+          uniqueAlas={uniqueAlas}
+          filterPostoGrad={filterPostoGrad}
+          setFilterPostoGrad={setFilterPostoGrad}
+          filterObm={filterObm}
+          setFilterObm={setFilterObm}
+          filterAla={filterAla}
+          setFilterAla={setFilterAla}
+          filterStatus={filterStatus}
+          setFilterStatus={setFilterStatus}
+          loading={loading}
+          isSadMode={isSadMode}
+          onGrantMonth={handleGrantMonth}
+        />
       ) : viewMode === "panorama" ? (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          {loadingPanorama ? (
-            <div className="py-24 text-center">
-              <Loader2 className="w-12 h-12 text-orange-400 mx-auto animate-spin mb-4" />
-              <div className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">
-                Sintetizando Histórico de Férias Global
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-50 shadow-sm flex flex-col justify-center">
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                    Total de Dias Pendentes (Geral)
-                  </h3>
-                  <div className="text-5xl font-black text-red-500 tracking-tighter">
-                    {(
-                      panoramaData.oficiais.reduce((acc, row) => acc + row.totalPendingDays, 0) +
-                      panoramaData.pracas.reduce((acc, row) => acc + row.totalPendingDays, 0)
-                    ).toLocaleString()}
-                  </div>
-                </div>
-                <div className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-50 shadow-sm flex flex-col justify-center">
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                    Militares c/ Alta Pendência (&gt;60 dias)
-                  </h3>
-                  <div className="text-5xl font-black text-orange-500 tracking-tighter">
-                    {
-                      panoramaData.oficiais.filter((r) => r.totalPendingDays > 60).length +
-                      panoramaData.pracas.filter((r) => r.totalPendingDays > 60).length
-                    }
-                  </div>
-                </div>
-                <div className="bg-white p-8 rounded-[2.5rem] border-2 border-slate-50 shadow-sm flex flex-col justify-center">
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                    Anos de Lapsos Totais Registrados
-                  </h3>
-                  <div className="text-5xl font-black text-indigo-500 tracking-tighter">
-                    {
-                      panoramaData.oficiais.reduce((acc, row) => acc + row.missingYears.length, 0) +
-                      panoramaData.pracas.reduce((acc, row) => acc + row.missingYears.length, 0)
-                    }
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-[2.5rem] border-2 border-slate-50 shadow-sm overflow-visible flex flex-col">
-                <div className="p-6 sm:p-8 border-b border-slate-50 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">
-                      Panorama Global SAD
-                    </h3>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                      Visão geral sobre férias atrasadas, organizadas pelas maiores pendências
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => {
-                      const combined = [...panoramaData.oficiais, ...panoramaData.pracas].sort((a,b) => b.totalPendingDays - a.totalPendingDays);
-                      const exportData = combined.map((row) => ({
-                        Militar: `${row.militar.rank} ${row.militar.name}`,
-                        RG: row.militar.rg,
-                        "Admissão Estimada": row.startYear,
-                        "Lapsos (Anos Sem Registro)":
-                          row.missingYears.join(", "),
-                        "Saldos Parciais": row.pendingBalances
-                          .map((p) => `${p.year} (${p.days}d)`)
-                          .join("; "),
-                        "Total Dias Pendentes": row.totalPendingDays,
-                      }));
-                      exportToExcel(
-                        exportData,
-                        "Panorama_Global_SAD",
-                        "PanoramaGlobalSAD",
-                      );
-                    }}
-                    className="px-6 py-3 bg-indigo-600 text-white rounded-2xl hover:bg-indigo-700 transition-all font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-indigo-100"
-                  >
-                    <FileSpreadsheet className="w-4 h-4" /> Exportar Planilha
-                  </button>
-                </div>
-
-                {/* Filters Row */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 sm:px-8 bg-slate-50 border-b border-slate-100">
-                  <div className="flex flex-col gap-2 flex-1">
-                    <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Filtrar por OBM:</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {["TODAS", "10º GBM", "2/10", "3/10", "4/10", "1/26", "26º GBM"].map((obm) => (
-                        <button
-                          key={obm}
-                          onClick={() => setPanoramaObmFilter(obm)}
-                          className={cn(
-                            "px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border",
-                            panoramaObmFilter === obm
-                              ? "bg-orange-600 border-orange-600 text-white shadow-md shadow-orange-200/50 scale-[1.02]"
-                              : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
-                          )}
-                        >
-                          {obm}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="relative w-full md:w-64">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      placeholder="Buscar por nome ou RG..."
-                      value={panoramaSearch}
-                      onChange={(e) => setPanoramaSearch(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-[11px] font-bold uppercase tracking-widest text-slate-700 outline-none focus:border-orange-400 transition-all shadow-sm"
-                    />
-                  </div>
-                </div>
-
-                <div className="p-4 sm:px-8 bg-white border-b border-slate-100 flex flex-wrap gap-4 justify-between items-center">
-                  <div className="flex gap-2">
-                     <button
-                       onClick={() => setPanoramaStatusFilter("PENDENTES")}
-                       className={cn(
-                         "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border",
-                         panoramaStatusFilter === "PENDENTES" ? "bg-amber-100 border-amber-200 text-amber-800 shadow-sm" : "bg-white text-slate-500 hover:bg-slate-50"
-                       )}
-                     >
-                       Pendentes
-                     </button>
-                     <button
-                       onClick={() => setPanoramaStatusFilter("REGULARIZADOS")}
-                       className={cn(
-                         "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border",
-                         panoramaStatusFilter === "REGULARIZADOS" ? "bg-emerald-100 border-emerald-200 text-emerald-800 shadow-sm" : "bg-white text-slate-500 hover:bg-slate-50"
-                       )}
-                     >
-                       Regularizados
-                     </button>
-                     <button
-                       onClick={() => setPanoramaStatusFilter("VALIDADOS")}
-                       className={cn(
-                         "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border",
-                         panoramaStatusFilter === "VALIDADOS" ? "bg-blue-100 border-blue-200 text-blue-800 shadow-sm" : "bg-white text-slate-500 hover:bg-slate-50"
-                       )}
-                     >
-                       Validados
-                     </button>
-                  </div>
-                  
-                  {panoramaStatusFilter === "PENDENTES" && (
-                     <div className="flex gap-2 items-center">
-                        <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Ordenar por:</span>
-                        <button
-                          onClick={() => setPanoramaSortMode("dias")}
-                          className={cn(
-                            "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border",
-                            panoramaSortMode === "dias" ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "bg-white text-slate-500 hover:bg-slate-50"
-                          )}
-                        >
-                          Maior Pendência
-                        </button>
-                        <button
-                          onClick={() => setPanoramaSortMode("graduacao")}
-                          className={cn(
-                            "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all border",
-                            panoramaSortMode === "graduacao" ? "bg-indigo-50 border-indigo-200 text-indigo-700" : "bg-white text-slate-500 hover:bg-slate-50"
-                          )}
-                        >
-                          Graduação
-                        </button>
-                     </div>
-                  )}
-                </div>
-
-                {(() => {
-                  const displayOficiais = panoramaStatusFilter === "PENDENTES" ? panoramaData.oficiais : panoramaStatusFilter === "REGULARIZADOS" ? panoramaData.regularizadosOficiais : panoramaData.validadosOficiais;
-                  const displayPracas = panoramaStatusFilter === "PENDENTES" ? panoramaData.pracas : panoramaStatusFilter === "REGULARIZADOS" ? panoramaData.regularizadosPracas : panoramaData.validadosPracas;
-
-                  return (
-                    <>
-                      {/* OFICIAIS Section */}
-                      <div className="border-b-4 border-slate-100">
-                        <div className="p-6 sm:p-8 bg-slate-50/30 border-b border-slate-100 flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-2.5 h-6 bg-orange-600 rounded-full"></div>
-                            <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">
-                              OFICIAIS ({displayOficiais.length})
-                            </h4>
-                          </div>
-                        </div>
-                        {renderPanoramaTable(displayOficiais, "Oficiais")}
-                      </div>
-
-                      {/* PRAÇAS Section */}
-                      <div>
-                        <div className="p-6 sm:p-8 bg-slate-50/30 border-b border-slate-100 flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-2.5 h-6 bg-indigo-600 rounded-full"></div>
-                            <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">
-                              PRAÇAS ({displayPracas.length})
-                            </h4>
-                          </div>
-                        </div>
-                        {renderPanoramaTable(displayPracas, "Praças")}
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-            </>
-          )}
-        </div>
+        <VacationPanoramaView
+          panoramaData={panoramaData}
+          loadingPanorama={loadingPanorama}
+          panoramaSearch={panoramaSearch}
+          setPanoramaSearch={setPanoramaSearch}
+          panoramaObmFilter={panoramaObmFilter}
+          setPanoramaObmFilter={setPanoramaObmFilter}
+          panoramaStatusFilter={panoramaStatusFilter}
+          setPanoramaStatusFilter={setPanoramaStatusFilter}
+          panoramaSortMode={panoramaSortMode}
+          setPanoramaSortMode={setPanoramaSortMode}
+          panoramaValidations={panoramaValidations}
+          onOpenValidationModal={(rg, name) => {
+            setValidationTargetRg(rg);
+            setValidationTargetName(name);
+            setValidationModalOpen(true);
+          }}
+        />
       ) : selectedMilitar ? (
-        <div className="bg-white p-6 rounded-3xl border-2 border-slate-50 shadow-sm flex flex-col md:flex-row md:items-center gap-6 animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center gap-6 flex-1">
-            <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center font-black text-slate-400 text-xl overflow-visible p-2">
-              <RankInsignia rankStr={selectedMilitar.rank} />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-xl font-black text-slate-800 uppercase tracking-tight">
-                <span className="text-indigo-600 mr-2">
-                  {selectedMilitar.rank}
-                </span>
-                {selectedMilitar.warName || selectedMilitar.name}
-              </h3>
-              <div className="flex gap-4 mt-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  RG: {selectedMilitar.rg}
-                </span>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  OBM: {selectedMilitar.obm}
-                </span>
-              </div>
-            </div>
-          </div>
-          {isPowerUser && isSadMode && (
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowImporter(true)}
-                className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100 text-[10px] font-black uppercase tracking-widest hover:bg-indigo-100 transition-colors"
-              >
-                Sincronização em Massa (DGP)
-              </button>
-              <div className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl border border-emerald-100 text-[10px] font-black uppercase tracking-widest">
-                Administrador
-              </div>
-            </div>
-          )}
-        </div>
+        <VacationIndividualView
+          selectedMilitar={selectedMilitar}
+          vacations={vacations}
+          activeYear={activeYear}
+          userGrantedMonths={userGrantedMonths}
+          userGrantedMonth={userGrantedMonth}
+          isSubmitted={isSubmitted}
+          preferencesEnabled={preferencesEnabled}
+          userPrefs={userPrefs}
+          savingPrefs={savingPrefs}
+          isPowerUser={isPowerUser}
+          toggleGlobalPreferences={toggleGlobalPreferences}
+          toggleMonthPreference={toggleMonthPreference}
+          handleInitiateSubmit={handleInitiateSubmit}
+          showConfirmDialog={showConfirmDialog}
+          setShowConfirmDialog={setShowConfirmDialog}
+          handleSubmitPreferences={handleSubmitPreferences}
+          showHiddenAsseguradas={showHiddenAsseguradas}
+          setShowHiddenAsseguradas={setShowHiddenAsseguradas}
+          handleExportExcel={handleExportExcel}
+          missingYears={missingYears}
+          pendingYears={pendingYears}
+          loading={loading}
+          groupedVacations={groupedVacations}
+          expandedYears={expandedYears}
+          toggleYearGroup={toggleYearGroup}
+          deleteVacation={deleteVacation}
+        />
       ) : (
         <div className="bg-amber-50/50 p-12 rounded-3xl border-2 border-dashed border-amber-200 text-center">
           <Search className="w-12 h-12 text-amber-400 mx-auto mb-4" />
@@ -1839,776 +831,17 @@ export function VacationModule({
         </div>
       )}
 
-      {selectedMilitar && viewMode === "individual" && (
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
-          {/* Sidebar Stats */}
-          <div className="xl:col-span-1 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-6">
-            <div className="bg-slate-900 rounded-2xl p-5 sm:p-6 text-white shadow-xl relative overflow-visible flex flex-col items-center justify-center text-center">
-              <div className="absolute -top-10 -right-10 w-32 h-32 bg-orange-600/20 rounded-full blur-3xl"></div>
-              <h3 className="text-orange-400 font-black text-[10px] sm:text-xs uppercase tracking-[0.3em] mb-4">
-                Resumo Anual
-              </h3>
-              <div className="flex items-center justify-center gap-6 w-full">
-                <div className="flex-1 flex flex-col items-center">
-                  <div className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                    Total Dias Tirados
-                  </div>
-                  <div className="text-3xl sm:text-4xl font-black tracking-tighter">
-                    {vacations.reduce(
-                      (acc, v) => acc + (v.diasGozados || 0),
-                      0,
-                    )}
-                  </div>
-                </div>
-                <div className="w-px h-12 sm:h-16 bg-white/10 shrink-0"></div>
-                <div className="flex-1 flex flex-col items-center">
-                  <div className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                    Total Saldo a Tirar
-                  </div>
-                  <div className="text-3xl sm:text-4xl font-black tracking-tighter text-orange-500">
-                    {vacations.reduce((acc, v) => acc + (v.diasAGozar || 0), 0)}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Próximos Afastamentos */}
-            <div className="bg-white rounded-2xl p-5 border-2 border-slate-50 shadow-sm">
-              <h3 className="text-slate-400 font-black text-[10px] uppercase tracking-[0.2em] mb-4">
-                Próximos Afastamentos
-              </h3>
-              <div className="space-y-3">
-                {vacations.filter((v) => v.status === "marcado").length > 0 || isSubmitted || userGrantedMonth ? (
-                  <>
-                    {vacations
-                      .filter((v) => v.status === "marcado")
-                      .map((v) => {
-                        const isCurrentActiveYear = v.anoRef === activeYear;
-                        const isGranted = isCurrentActiveYear ? !!userGrantedMonths[v.anoRef || ""] : true;
-                        
-                        return (
-                          <div
-                            key={v.id}
-                            className={cn("px-4 py-2 rounded-xl border flex items-center justify-between gap-4", isGranted ? "bg-orange-50 border-orange-100" : "bg-indigo-50 border-indigo-100")}
-                          >
-                            <div className="flex flex-col">
-                              <div className={cn("text-[9px] font-black uppercase", isGranted ? "text-orange-600" : "text-indigo-600")}>
-                                Ref: {v.anoRef}
-                              </div>
-                              <div className={cn("text-[8px] font-bold uppercase tracking-widest", isGranted ? "text-orange-400" : "text-amber-500")}>
-                                {isCurrentActiveYear ? (isGranted ? "Confirmado Escalonamento" : "A Decidir") : "Confirmado"}
-                              </div>
-                            </div>
-                            <div className="text-xs font-black text-slate-800 uppercase text-right">
-                              {isCurrentActiveYear 
-                                ? (isGranted ? `MÊS: ${userGrantedMonths[v.anoRef || ""]}` : "A DEFINIR")
-                                : v.dataInicio}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    {!vacations.some(v => v.status === "marcado" && v.anoRef === activeYear) && (isSubmitted || userGrantedMonth) && (
-                      <div className={cn("px-4 py-2 rounded-xl border flex items-center justify-between gap-4", userGrantedMonth ? "bg-emerald-50 border-emerald-100" : "bg-indigo-50 border-indigo-100")}>
-                        <div className="flex flex-col">
-                          <div className={cn("text-[9px] font-black uppercase", userGrantedMonth ? "text-emerald-600" : "text-indigo-600")}>
-                            Ref: {activeYear}
-                          </div>
-                          <div className={cn("text-[8px] font-bold uppercase tracking-widest", userGrantedMonth ? "text-emerald-500" : "text-amber-500")}>
-                            {userGrantedMonth ? "Confirmado Escalonamento" : "A Decidir"}
-                          </div>
-                        </div>
-                        <div className="text-xs font-black text-slate-800 uppercase text-right">
-                          {userGrantedMonth ? `Mês: ${userGrantedMonth}` : "A Definir"}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="text-[10px] font-black text-slate-300 uppercase text-center py-4">
-                    Nenhum agendamento
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Main Table Content Area */}
-          <div className="xl:col-span-3 space-y-8">
-            {/* Preferences Section - Always visible but controlled */}
-            {selectedMilitar && (
-              <div
-                className={cn(
-                  "bg-white rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 border-2 border-dashed shadow-sm relative group overflow-visible transition-all",
-                  preferencesEnabled
-                    ? "border-indigo-200"
-                    : "border-slate-100 opacity-80",
-                )}
-              >
-                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                  <Calendar className="w-16 h-16 text-indigo-600" />
-                </div>
-
-                <div className="flex items-center justify-between mb-2">
-                  <h3
-                    className={cn(
-                      "font-black text-[10px] uppercase tracking-[0.2em] flex items-center gap-2",
-                      preferencesEnabled ? "text-indigo-600" : "text-slate-400",
-                    )}
-                  >
-                    Escalonamento de Férias {activeYear}
-                    {savingPrefs && (
-                      <Loader2 className="w-3 h-3 animate-spin mx-2" />
-                    )}
-                    {!preferencesEnabled && (
-                      <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded text-[8px]">
-                        Período Encerrado
-                      </span>
-                    )}
-                  </h3>
-                  {isPowerUser && (
-                    <button
-                      onClick={toggleGlobalPreferences}
-                      className="text-[9px] font-bold text-indigo-600 hover:underline uppercase tracking-widest"
-                    >
-                      {preferencesEnabled ? "Encerrar Coleta" : "Abrir Coleta"}
-                    </button>
-                  )}
-                </div>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-6">
-                  {preferencesEnabled
-                    ? "Escolha 3 meses de sua preferência para gozo de férias (Sincronizado com SAD)"
-                    : "A escolha de meses está temporariamente desativada pelo administrador."}
-                </p>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-2">
-                  {MONTHS.map((month) => {
-                    const isSelected = userPrefs.includes(month);
-                    const selIndex = userPrefs.indexOf(month);
-                    const canSelect = preferencesEnabled || isPowerUser;
-                    const isDisabled =
-                      isSubmitted ||
-                      (!isSelected && userPrefs.length >= 3 && !isPowerUser);
-
-                    return (
-                      <button
-                        key={month}
-                        onClick={() => toggleMonthPreference(month)}
-                        disabled={isDisabled || !canSelect}
-                        className={cn(
-                          "py-2.5 px-3 rounded-xl text-[9px] font-black uppercase tracking-tighter transition-all flex items-center justify-between border-2",
-                          isSelected
-                            ? "bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100"
-                            : "bg-white text-slate-500 border-slate-50 hover:border-indigo-100",
-                        )}
-                      >
-                        {month}
-                        {isSelected && (
-                          <span className="flex items-center gap-1">
-                            <span className="text-[8px] opacity-80">
-                              {selIndex + 1}º Opção
-                            </span>
-                            <CheckCircle2 className="w-3 h-3" />
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-                {preferencesEnabled &&
-                  !isSubmitted &&
-                  userPrefs.length === 3 && (
-                    <div className="mt-6 flex flex-col items-end">
-                      <button
-                        onClick={handleInitiateSubmit}
-                        disabled={savingPrefs}
-                        className="px-6 py-3 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 transition-all font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-emerald-100 disabled:opacity-50"
-                      >
-                        {savingPrefs ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <CheckCircle2 className="w-4 h-4" />
-                        )}
-                        Confirmar e Enviar Opções
-                      </button>
-                      
-                      {showConfirmDialog && (
-                        <div className="fixed z-50 inset-0 flex items-center justify-center p-4">
-                          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowConfirmDialog(false)} />
-                          <div className="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full relative z-10 shadow-2xl border-2 border-indigo-50 animate-in fade-in zoom-in-95 duration-200">
-                             <h3 className="text-xl md:text-2xl font-black text-slate-800 mb-2 uppercase tracking-tighter">Confirmar Envio</h3>
-                             <p className="text-sm text-slate-500 mb-6 leading-relaxed font-medium">Após enviar, será necessário solicitar ao administrador caso queira alterar as suas opções. Deseja continuar?</p>
-                             <div className="flex items-center gap-3 w-full">
-                               <button 
-                                 onClick={() => setShowConfirmDialog(false)}
-                                 className="flex-1 py-3 px-4 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-colors"
-                               >
-                                 Cancelar
-                               </button>
-                               <button 
-                                 onClick={handleSubmitPreferences}
-                                 className="flex-1 py-3 px-4 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100"
-                               >
-                                 Sim, Enviar
-                               </button>
-                             </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                {isSubmitted && (
-                  <div className="mt-6 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-center gap-2 text-emerald-700">
-                    <CheckCircle2 className="w-5 h-5" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">
-                      Suas opções foram enviadas e estão bloqueadas para
-                      alteração.
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* History Table */}
-            <div className="bg-white rounded-[2.5rem] border-2 border-slate-50 shadow-sm overflow-visible flex flex-col">
-              <div className="p-6 sm:p-8 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50/50 gap-4">
-                <div>
-                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">
-                    Histórico de Férias (DGP)
-                  </h3>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                    Registros oficiais sincronizados via DGP (Diretoria Geral de
-                    Pessoal)
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() =>
-                      setShowHiddenAsseguradas(!showHiddenAsseguradas)
-                    }
-                    className={cn(
-                      "flex-1 sm:flex-none px-4 py-2 border rounded-xl flex items-center justify-center gap-2 transition-colors text-[10px] font-black uppercase tracking-widest",
-                      showHiddenAsseguradas
-                        ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-                        : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50",
-                    )}
-                  >
-                    <Filter className="w-4 h-4" />{" "}
-                    <span className="hidden sm:inline">
-                      Asseguradas Ocultas
-                    </span>
-                    <span className="sm:hidden">Ass. Ocultas</span>
-                  </button>
-                  <button
-                    onClick={handleExportExcel}
-                    className="flex-1 sm:flex-none px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl flex items-center justify-center gap-2 hover:bg-emerald-100 transition-colors text-[10px] font-black uppercase tracking-widest px-4"
-                  >
-                    <FileSpreadsheet className="w-4 h-4" />{" "}
-                    <span className="hidden sm:inline">Exportar Planilha</span>
-                    <span className="sm:hidden">Excel</span>
-                  </button>
-                  <button className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors">
-                    <Filter className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Report Header */}
-              {vacations.length > 0 && (
-                <div className="m-6 sm:m-8 p-6 bg-indigo-50/50 rounded-[2rem] border-2 border-indigo-100 flex flex-col gap-4">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-indigo-400" />
-                    <h4 className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em]">
-                      Relatório Analítico de Pendências
-                    </h4>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Missing Years */}
-                    <div className="bg-white p-4 rounded-3xl shadow-sm border border-indigo-50">
-                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] block mb-3">
-                        Anos Faltantes (Lapsos)
-                      </span>
-                      {missingYears.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5">
-                          {missingYears.map((y) => (
-                            <span
-                              key={y}
-                              className="px-3 py-1.5 bg-red-50 border border-red-100 text-red-600 text-[10px] font-black rounded-lg"
-                            >
-                              {y}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                          <span className="text-[10px] font-black text-emerald-600 uppercase">
-                            Nenhum lapso identificado
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    {/* Pending balances */}
-                    <div className="bg-white p-4 rounded-3xl shadow-sm border border-indigo-50">
-                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] block mb-3">
-                        Anos com Saldo Pendente
-                      </span>
-                      {pendingYears.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5">
-                          {pendingYears.map((p) => (
-                            <span
-                              key={p.year}
-                              className="px-3 py-1.5 bg-orange-50 border border-orange-100 text-orange-600 text-[10px] font-black rounded-lg"
-                            >
-                              {p.year}{" "}
-                              <span className="opacity-70 mx-1">•</span>{" "}
-                              {p.pending} dias
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                          <span className="text-[10px] font-black text-emerald-600 uppercase">
-                            Férias em dia
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50/20">
-                      <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                        Ano Ref.
-                      </th>
-                      <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                        Período
-                      </th>
-                      <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                        Dias Goz.
-                      </th>
-                      <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                        Saldo / Ass.
-                      </th>
-                      <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                        Boletim / OBS
-                      </th>
-                      <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                        Status
-                      </th>
-                      <th className="px-6 py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {loading ? (
-                      <tr>
-                        <td
-                          colSpan={7}
-                          className="p-20 text-center text-[10px] font-black text-slate-300 uppercase animate-pulse"
-                        >
-                          Carregando dados...
-                        </td>
-                      </tr>
-                    ) : groupedVacations.length > 0 ? (
-                      groupedVacations.map((group) => {
-                        const isExpanded = expandedYears[group.anoRef];
-                        const v = group.items[0]; // display newest info for the main row.
-                        const dateParts = (v.dataInicio || "").split("/");
-                        let displayStatus: string = v.status;
-                        if (dateParts.length === 3) {
-                          const d = new Date(
-                            parseInt(dateParts[2]),
-                            parseInt(dateParts[1]) - 1,
-                            parseInt(dateParts[0]),
-                          );
-                          displayStatus = d > new Date() ? "marcado" : "gozado";
-                        }
-                        if (
-                          v.ato &&
-                          v.ato.toUpperCase().includes("ASSEGURADAS")
-                        )
-                          displayStatus = "asseguradas";
-
-                        return (
-                          <React.Fragment key={group.anoRef}>
-                            <tr
-                              onClick={() => toggleYearGroup(group.anoRef)}
-                              className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
-                            >
-                              <td className="px-6 py-5">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-black text-slate-700 bg-slate-100 px-3 py-1 rounded-lg italic">
-                                    {group.anoRef}
-                                  </span>
-                                  {group.items.length > 1 && (
-                                    <span className="bg-indigo-50 text-indigo-500 px-1.5 py-0.5 rounded-md text-[8px] font-black">
-                                      +{group.items.length - 1} acts
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-6 py-5">
-                                <div className="text-xs font-black text-slate-800 uppercase tracking-tighter">
-                                  {v.dataInicio || "—"}{" "}
-                                  {v.dataRetorno && (
-                                    <>
-                                      <span className="text-slate-300 mx-1">
-                                        ➜
-                                      </span>{" "}
-                                      {v.dataRetorno}
-                                    </>
-                                  )}
-                                </div>
-                                <div className="text-[9px] font-bold text-slate-400 uppercase mt-1">
-                                  {v.ato} (Mais recente)
-                                </div>
-                              </td>
-                              <td className="px-6 py-5">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-black text-slate-700">
-                                    {group.totalGozados}
-                                  </span>
-                                  {group.totalGozados > 0 &&
-                                    group.totalGozados < 30 && (
-                                      <span className="text-[8px] text-amber-500 font-bold">
-                                        Parcial
-                                      </span>
-                                    )}
-                                </div>
-                              </td>
-                              <td className="px-6 py-5">
-                                <div
-                                  className={cn(
-                                    "text-xs font-black",
-                                    group.pending > 0
-                                      ? "text-emerald-600"
-                                      : "text-slate-400",
-                                  )}
-                                >
-                                  {group.pending}
-                                </div>
-                              </td>
-                              <td className="px-6 py-5">
-                                <div className="text-[10px] font-black text-slate-600 uppercase">
-                                  {v.boletim || "—"}
-                                </div>
-                                <div className="text-[8px] font-bold text-slate-300 uppercase leading-none mt-0.5">
-                                  {v.boletimOrigem}
-                                </div>
-                                {v.obs && (
-                                  <div
-                                    className="text-[9px] font-bold text-amber-600 uppercase leading-none mt-1 truncate max-w-xs"
-                                    title={v.obs}
-                                  >
-                                    {v.obs}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-6 py-5">
-                                <div
-                                  className={`
-                                      inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest
-                                      ${displayStatus === "gozado" ? "bg-emerald-50 text-emerald-600" : displayStatus === "marcado" ? "bg-indigo-50 text-indigo-600" : displayStatus === "cancelado" ? "bg-rose-50 text-rose-600" : displayStatus === "interrompido" ? "bg-orange-50 text-orange-600" : displayStatus === "presumida" ? "bg-slate-100 text-slate-600" : displayStatus === "abono" ? "bg-teal-50 text-teal-600" : "bg-amber-50 text-amber-600"}
-                                   `}
-                                >
-                                  <div
-                                    className={`w-1.5 h-1.5 rounded-full ${displayStatus === "gozado" ? "bg-emerald-500" : displayStatus === "marcado" ? "bg-indigo-500" : displayStatus === "cancelado" ? "bg-rose-500" : displayStatus === "interrompido" ? "bg-orange-500" : displayStatus === "presumida" ? "bg-slate-400" : displayStatus === "abono" ? "bg-teal-500" : "bg-amber-500"}`}
-                                  ></div>
-                                  {displayStatus}
-                                </div>
-                              </td>
-                              <td className="px-6 py-5 text-right">
-                                <div className="flex items-center justify-end gap-2 text-slate-400">
-                                  <button
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      deleteVacation(v.id);
-                                    }}
-                                    className="p-2 text-slate-300 hover:text-red-500 transition-colors"
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </button>
-                                  {group.items.length > 1 ? (
-                                    isExpanded ? (
-                                      <ChevronUp className="w-4 h-4" />
-                                    ) : (
-                                      <ChevronDown className="w-4 h-4" />
-                                    )
-                                  ) : (
-                                    <div className="w-4 h-4"></div>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-
-                            {isExpanded &&
-                              group.items.length > 1 &&
-                              group.items.slice(1).map((subV) => {
-                                const sdParts = (subV.dataInicio || "").split(
-                                  "/",
-                                );
-                                let subStatus: string = subV.status;
-                                if (sdParts.length === 3) {
-                                  const d = new Date(
-                                    parseInt(sdParts[2]),
-                                    parseInt(sdParts[1]) - 1,
-                                    parseInt(sdParts[0]),
-                                  );
-                                  subStatus =
-                                    d > new Date() ? "marcado" : "gozado";
-                                }
-                                if (
-                                  subV.ato &&
-                                  subV.ato.toUpperCase().includes("ASSEGURADAS")
-                                )
-                                  subStatus = "asseguradas";
-                                return (
-                                  <tr
-                                    key={subV.id}
-                                    className="bg-slate-50 border-t border-slate-100/50 group"
-                                  >
-                                    <td className="px-6 py-3"></td>
-                                    <td className="px-6 py-3">
-                                      <div className="text-xs font-bold text-slate-600 uppercase tracking-tighter opacity-80">
-                                        {subV.dataInicio || "—"}{" "}
-                                        {subV.dataRetorno && (
-                                          <>
-                                            <span className="text-slate-300 mx-1">
-                                              ➜
-                                            </span>{" "}
-                                            {subV.dataRetorno}
-                                          </>
-                                        )}
-                                      </div>
-                                      <div className="text-[9px] font-bold text-slate-400 uppercase">
-                                        {subV.ato}
-                                      </div>
-                                    </td>
-                                    <td className="px-6 py-3 text-xs font-bold text-slate-600 opacity-80">
-                                      {subV.diasGozados}
-                                    </td>
-                                    <td className="px-6 py-3"></td>
-                                    <td className="px-6 py-3">
-                                      <div className="text-[9px] font-black text-slate-500 uppercase">
-                                        {subV.boletim || "—"}
-                                      </div>
-                                      <div className="text-[8px] font-bold text-slate-300 uppercase leading-none">
-                                        {subV.boletimOrigem}
-                                      </div>
-                                      {subV.obs && (
-                                        <div className="text-[8px] font-bold text-amber-600/80 uppercase leading-none mt-1 truncate max-w-xs">
-                                          {subV.obs}
-                                        </div>
-                                      )}
-                                    </td>
-                                    <td className="px-6 py-3">
-                                      <div
-                                        className={`
-                                          inline-flex items-center gap-1 px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest
-                                          ${subStatus === "gozado" ? "text-emerald-500" : subStatus === "marcado" ? "text-indigo-500" : "text-amber-500"}
-                                      `}
-                                      >
-                                        {subStatus}
-                                      </div>
-                                    </td>
-                                    <td className="px-6 py-3 text-right">
-                                      <button
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          e.stopPropagation();
-                                          deleteVacation(subV.id);
-                                        }}
-                                        className="p-1.5 text-slate-300 hover:text-red-500 transition-colors"
-                                      >
-                                        <X className="w-3 h-3" />
-                                      </button>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                          </React.Fragment>
-                        );
-                      })
-                    ) : (
-                      <tr>
-                        <td colSpan={7} className="p-24 text-center">
-                          <div className="max-w-xs mx-auto opacity-30">
-                            <FileJson className="w-16 h-16 mx-auto mb-4 text-slate-300" />
-                            <h4 className="text-xs font-black text-slate-800 uppercase tracking-[0.2em]">
-                              Sem Dados Sincronizados
-                            </h4>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-2">
-                              Clique em 'Sincronizar DGP' acima para importar o
-                              histórico deste militar.
-                            </p>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <AnimatePresence>
-        {validationModalOpen && (
-           <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
-           >
-              <div className="bg-white rounded-3xl p-6 sm:p-8 w-full max-w-sm shadow-2xl relative">
-                 <button
-                    onClick={() => setValidationModalOpen(false)}
-                    className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
-                 >
-                    <X className="w-5 h-5" />
-                 </button>
-                 
-                 <div className="text-center mb-6">
-                    <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                       <CheckCircle2 className="w-6 h-6" />
-                    </div>
-                    <h3 className="text-lg font-black text-slate-800 uppercase tracking-tighter">Validar Férias</h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                       Militar: {validationTargetName}
-                    </p>
-                 </div>
-                 
-                 <form onSubmit={handleConfirmValidation} className="space-y-4">
-                    {validationError && (
-                       <div className="p-3 bg-red-50 text-red-600 text-[10px] font-bold uppercase tracking-wider rounded-xl text-center border border-red-100">
-                          {validationError}
-                       </div>
-                    )}
-                    
-                    <div>
-                       <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Sua Senha</label>
-                       <input
-                          type="password"
-                          required
-                          value={validationPassword}
-                          onChange={(e) => setValidationPassword(e.target.value)}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-400 focus:ring-0 transition-all font-mono text-xs text-slate-700"
-                          placeholder="Mínimo 6 caracteres"
-                       />
-                    </div>
-                    
-                    <button
-                       type="submit"
-                       disabled={validating}
-                       className="w-full py-3 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center shadow-lg shadow-indigo-100 transition-all hover:bg-indigo-700 disabled:opacity-50"
-                    >
-                       {validating ? "Validando..." : "Confirmar Validação"}
-                    </button>
-                 </form>
-              </div>
-           </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Validation Password Modal */}
+      <VacationValidationModal
+        isOpen={validationModalOpen}
+        onClose={() => setValidationModalOpen(false)}
+        targetName={validationTargetName}
+        targetRg={validationTargetRg}
+        user={user}
+        onSuccess={(targetRgNorm, payload) => {
+          setPanoramaValidations((prev) => ({ ...prev, [targetRgNorm]: payload }));
+        }}
+      />
     </div>
   );
-}
-
-function VacationCard({ vacation }: { vacation: Vacation }) {
-  return (
-    <div className="group bg-white p-6 rounded-3xl border-2 border-slate-50 shadow-sm hover:border-orange-200 hover:shadow-xl hover:shadow-orange-100/30 transition-all">
-      <div className="flex flex-col md:flex-row items-center gap-6">
-        <div
-          className={`w-16 h-16 rounded-2xl shrink-0 flex flex-col items-center justify-center ${vacation.status === "gozado" ? "bg-slate-100 text-slate-400" : "bg-orange-600 text-white shadow-lg shadow-orange-100"}`}
-        >
-          <Calendar className="w-6 h-6" />
-          <span className="text-[10px] font-black uppercase mt-1">
-            {vacation.anoRef}
-          </span>
-        </div>
-
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-2">
-            <h4 className="text-lg font-black text-slate-800 uppercase tracking-tight">
-              {vacation.dataInicio} — {vacation.dataRetorno}
-            </h4>
-            <span
-              className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest flex items-center gap-1 ${
-                vacation.status === "gozado"
-                  ? "bg-slate-100 text-slate-500"
-                  : "bg-emerald-50 text-emerald-700 border border-emerald-100"
-              }`}
-            >
-              {vacation.status === "gozado" ? "Finalizado" : "Próximo Período"}
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-            <div className="flex items-center gap-2">
-              <FileText className="w-3.5 h-3.5 text-slate-400" />
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                Bol: {vacation.boletim}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-3.5 h-3.5 text-slate-400" />
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                {vacation.ato}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4 border-l border-slate-100 pl-6 h-12">
-          <div className="text-right">
-            <div className="text-xl font-black text-orange-600 leading-none">
-              {vacation.diasGozados}
-            </div>
-            <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">
-              Dias Tirados
-            </div>
-          </div>
-          <div className="text-right border-l border-slate-100 pl-4">
-            <div className="text-xl font-black text-slate-800 leading-none">
-              {vacation.diasAGozar}
-            </div>
-            <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">
-              Saldo Reman.
-            </div>
-          </div>
-        </div>
-      </div>
-      {vacation.obs && (
-        <div className="mt-4 pt-4 border-t border-slate-50">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">
-            {vacation.obs}
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function EmptyState({ message }: { message: string }) {
-  return (
-    <div className="py-20 bg-slate-50/50 rounded-3xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-center px-8">
-      <History className="w-12 h-12 text-slate-200 mb-4" />
-      <p className="text-slate-400 text-xs font-black uppercase tracking-widest">
-        {message}
-      </p>
-      <p className="mt-2 text-slate-300 text-[10px] font-bold uppercase tracking-widest">
-        Utilize o botão de sincronização para importar dados do DGP.
-      </p>
-    </div>
-  );
-}
-
-function normalizeRg(rg: string | number) {
-  const str = (rg || "").toString().trim().toUpperCase();
-  const clean = str.replace(/[^A-Z0-9]/g, "");
-  return clean.replace(/^0+/, "") || clean;
 }

@@ -1,7 +1,8 @@
 import React, { ReactNode, useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { ShieldCheck, LogOut, ChevronDown, User as UserIcon } from "lucide-react";
+import { ShieldCheck, LogOut, ChevronDown, User as UserIcon, Moon, Sun } from "lucide-react";
 import { PlatformLogo } from "../PlatformLogo";
+import { useTheme } from "../../contexts/ThemeContext";
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -43,6 +44,7 @@ export function MainLayout({
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const lastScrollY = React.useRef(0);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const { isDark, toggleTheme } = useTheme();
 
   useEffect(() => {
     let ticking = false;
@@ -82,7 +84,7 @@ export function MainLayout({
     <div className="min-h-screen bg-[var(--color-bg-main)] text-[#1D1D1D] font-sans selection:bg-red-100 selection:text-red-900 flex flex-col">
       {hasAdminAccess && moderatorMode && (
           <div className="bg-indigo-600 text-white px-3 py-2 border-b border-indigo-500 animate-in slide-in-from-top duration-300">
-            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="max-w-[1600px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-3 h-3 sm:w-4 sm:h-4 text-indigo-200" />
                 <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] text-indigo-100">
@@ -120,7 +122,7 @@ export function MainLayout({
       <nav
         className={`bg-[var(--color-brand-dark)] text-white p-4 sticky top-0 z-[100] border-b-4 border-[var(--color-brand-red)] shadow-lg transition-transform duration-300 ${isHeaderVisible ? "translate-y-0" : "-translate-y-full"}`}
       >
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+        <div className="max-w-[1600px] mx-auto flex items-center justify-between">
           <div
             className="flex items-center gap-2 sm:gap-4 cursor-pointer hover:opacity-80 transition-opacity flex-1 min-w-0"
             onClick={() => {
@@ -153,6 +155,25 @@ export function MainLayout({
             </div>
 
             <div className="flex items-center gap-1 sm:gap-2 ml-1 sm:ml-2">
+              {/* Botão Modo Noturno (Dark Mode) */}
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className={`w-9 h-9 sm:w-10 sm:h-10 transition-all rounded-xl flex items-center justify-center shrink-0 active:scale-95 cursor-pointer border ${
+                  isDark
+                    ? "bg-amber-400/15 text-amber-300 border-amber-400/40 hover:bg-amber-400/25 shadow-sm shadow-amber-950/30"
+                    : "text-white/70 hover:text-white hover:bg-white/10 border-white/10 hover:border-white/25"
+                }`}
+                title={isDark ? "Desativar Modo Noturno (Mudar para Claro)" : "Ativar Modo Noturno (Mudar para Escuro)"}
+                aria-label="Alternar Modo Noturno"
+              >
+                {isDark ? (
+                  <Sun className="w-5 h-5 sm:w-5.5 sm:h-5.5 text-amber-400 fill-amber-400/20" />
+                ) : (
+                  <Moon className="w-5 h-5 sm:w-5.5 sm:h-5.5 text-slate-200 hover:text-amber-300 transition-colors" />
+                )}
+              </button>
+
               {hasEscalanteAccess && !hasAdminAccess && (
                 <button
                   onClick={() => setEscalanteModeActive(!escalanteModeActive)}
@@ -247,6 +268,31 @@ export function MainLayout({
                           <UserIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                           Atualização Cadastral
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            toggleTheme();
+                          }}
+                          className="w-full flex items-center justify-between px-3 py-2 sm:py-2.5 text-[10px] sm:text-xs font-bold text-zinc-300 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2 sm:gap-3">
+                            {isDark ? (
+                              <Sun className="w-3.5 h-3.5 text-amber-400" />
+                            ) : (
+                              <Moon className="w-3.5 h-3.5 text-slate-400" />
+                            )}
+                            <span>Modo Noturno</span>
+                          </div>
+                          <span
+                            className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
+                              isDark
+                                ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                : "bg-zinc-800 text-zinc-400"
+                            }`}
+                          >
+                            {isDark ? "Ativo" : "Inativo"}
+                          </span>
+                        </button>
                       <button
                         onClick={() => {
                           setUserDropdownOpen(false);
@@ -267,7 +313,9 @@ export function MainLayout({
         </div>
       </nav>
 
-      <main className="flex-1 w-full max-w-[2000px] 2xl:max-w-none mx-auto px-4 py-4 sm:p-6 lg:p-8 xl:p-12 transition-all">{children}</main>
+      <main className="flex-1 w-full max-w-[1600px] mx-auto px-3 sm:px-6 lg:px-8 xl:px-10 py-5 transition-all">
+        {children}
+      </main>
     </div>
   );
 }

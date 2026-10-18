@@ -5,12 +5,11 @@ import { collection, addDoc, serverTimestamp, doc, getDoc, query, where, getDocs
 import { UserProfile, PermutaStatus, PermutaRequest } from '../types';
 import { format, isBefore, addHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { getAlaForDate, getAlaName, calculateDeadline, cn } from '../lib/utils';
+import { getAlaForDate, getAlaName, calculateDeadline, cn, normalizeRg, cleanUndefined } from '../lib/utils';
 import { Send, CalendarIcon, X, ArrowLeftRight, Equal, ArrowUp, AlertTriangle, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppConfig } from '../contexts/ConfigContext';
 import { useMilitars } from '../contexts/MilitarContext';
-import { cleanUndefined } from "../lib/utils";
 
 interface RequestPermutaProps {
   user: UserProfile;
@@ -20,13 +19,6 @@ interface RequestPermutaProps {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
 }
-
-// Helper to normalize RGs for consistency - Removes leading zeros and non-alphanumeric
-const normalizeRg = (rg: string | number) => {
-  const str = (rg || '').toString().trim().toUpperCase();
-  const clean = str.replace(/[^A-Z0-9]/g, '');
-  return clean.replace(/^0+/, '') || clean;
-};
 
 export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen, setIsOpen, onSuccess }: RequestPermutaProps & { onSuccess?: (dateStr: string) => void }) {
   const [date, setDate] = useState('');

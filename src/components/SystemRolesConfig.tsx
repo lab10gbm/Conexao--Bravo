@@ -4,14 +4,8 @@ import { Search, ShieldAlert, CheckSquare, Square, Loader2, Settings, X, Tag } f
 import { useMilitars } from '../contexts/MilitarContext';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { cn } from '../lib/utils';
+import { cn, cleanUndefined, normalizeRg } from '../lib/utils';
 import { OBM_HIERARCHY } from '../constants';
-import { cleanUndefined } from "../lib/utils";
-
-function normalizeRg(rg: string | number) {
-  if (!rg) return '';
-  return String(rg).replace(/^0+/, '').replace(/\D/g, '');
-}
 
 
 function RoleConfigModal({ 

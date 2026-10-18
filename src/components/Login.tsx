@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { auth } from "../lib/firebase";
-import { Shield, LogIn, KeyRound, CheckCircle2, Lock, Mail, RefreshCw, ShieldCheck, ArrowLeft, Send, AlertCircle } from "lucide-react";
+import { Shield, LogIn, KeyRound, CheckCircle2, Lock, Mail, RefreshCw, ShieldCheck, ArrowLeft, Send, AlertCircle, Moon, Sun } from "lucide-react";
 import { signInWithEmailAndPassword, signInWithCustomToken, createUserWithEmailAndPassword, signInAnonymously } from "firebase/auth";
 import { motion } from "motion/react";
 import { cn } from "../lib/utils";
 import { PlatformLogo } from "./PlatformLogo";
+import { useTheme } from "../contexts/ThemeContext";
 
 import { UserProfile } from "../types";
 
@@ -13,6 +14,7 @@ export function Login({
 }: {
   onLogin?: (profile: UserProfile) => void;
 }) {
+  const { isDark, toggleTheme } = useTheme();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({ rg: "", password: "" });
   const [error, setError] = useState<string | null>(null);
@@ -365,7 +367,22 @@ export function Login({
   };
 
   return (
-    <div className="min-h-screen bg-[var(--color-bg-main)] flex items-center justify-center sm:p-6 lg:p-12">
+    <div className="min-h-screen bg-[var(--color-bg-main)] flex items-center justify-center sm:p-6 lg:p-12 relative">
+      {/* Botão de Modo Noturno no Login */}
+      <button
+        type="button"
+        onClick={toggleTheme}
+        className="fixed top-4 right-4 sm:top-6 sm:right-6 w-11 h-11 rounded-2xl flex items-center justify-center bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-amber-400 hover:scale-105 active:scale-95 transition-all shadow-lg cursor-pointer z-50"
+        title={isDark ? "Desativar Modo Noturno (Mudar para Claro)" : "Ativar Modo Noturno (Mudar para Escuro)"}
+        aria-label="Alternar Modo Noturno"
+      >
+        {isDark ? (
+          <Sun className="w-5 h-5 text-amber-400 fill-amber-400/20" />
+        ) : (
+          <Moon className="w-5 h-5 text-slate-700" />
+        )}
+      </button>
+
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}

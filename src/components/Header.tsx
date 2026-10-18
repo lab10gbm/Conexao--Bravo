@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { UserProfile, PermutaRequest, PermutaStatus } from "../types";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
-import { getAlaForDate, getAlaColor, cn, getThemeColors } from "../lib/utils";
+import { getAlaForDate, getAlaColor, cn, getThemeColors, normalizeRg } from "../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { ptBR } from "date-fns/locale";
 import { RankInsignia } from "./RankInsignia";
@@ -280,11 +280,6 @@ export function Header({
     if (!profile.rg || activeMonthIndices.length === 0 || !obmContext) return;
 
     const obmId = obmContext.replace(/\//g, "_").replace(/\s/g, "_");
-    const normalizeRg = (rg: string | number) => {
-      const str = (rg || "").toString().trim().toUpperCase();
-      const clean = str.replace(/[^A-Z0-9]/g, "");
-      return clean.replace(/^0+/, "") || clean;
-    };
     const userRgEscaped = normalizeRg(profile.rg);
 
     const now = new Date();

@@ -1,20 +1,35 @@
-import React, { useState, useTransition } from 'react';
+import React, { useState, useTransition, Suspense } from 'react';
 import { UserProfile } from '../types';
-import { ArrowLeft, Users, Shield, UserCheck, LayoutGrid, CalendarRange, Truck, Smartphone, Palmtree, CalendarOff, BriefcaseBusiness } from 'lucide-react';
-import { EscalanteAlasConfig } from './EscalanteAlasConfig';
-import { ControleDeFuncoes } from './ControleDeFuncoes';
-import { GrdModule } from './GrdModule';
-import { EscalaEspelhoModule } from './EscalaEspelhoModule';
-import { ExpedienteScheduler } from './ExpedienteScheduler';
-import { ControlePermutasMobile } from './ControlePermutasMobile';
-import { AfastamentosAlaModule } from './AfastamentosAlaModule';
-import { VacationModule } from './VacationModule';
-import { RasManagerModule } from './RasManagerModule';
-import { ControleViaturasModule } from './ControleViaturasModule';
-import { EfetivoPanel } from './EfetivoPanel';
-import { RegistroEscalasModule } from './RegistroEscalasModule';
+import {
+  Users,
+  Shield,
+  UserCheck,
+  LayoutGrid,
+  CalendarRange,
+  Truck,
+  Smartphone,
+  Palmtree,
+  CalendarOff,
+  BriefcaseBusiness,
+  Loader2,
+} from 'lucide-react';
+import { ModuleHeader } from './ui/ModuleHeader';
 import { cn } from '../lib/utils';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
+
+// Lazy loading dos submódulos do Escalante para code-splitting e performance instantânea
+const EscalanteAlasConfig = React.lazy(() => import('./EscalanteAlasConfig').then(m => ({ default: m.EscalanteAlasConfig })));
+const ControleDeFuncoes = React.lazy(() => import('./ControleDeFuncoes').then(m => ({ default: m.ControleDeFuncoes })));
+const ControleViaturasModule = React.lazy(() => import('./ControleViaturasModule').then(m => ({ default: m.ControleViaturasModule })));
+const EscalaEspelhoModule = React.lazy(() => import('./EscalaEspelhoModule').then(m => ({ default: m.EscalaEspelhoModule })));
+const AfastamentosAlaModule = React.lazy(() => import('./AfastamentosAlaModule').then(m => ({ default: m.AfastamentosAlaModule })));
+const VacationModule = React.lazy(() => import('./VacationModule').then(m => ({ default: m.VacationModule })));
+const GrdModule = React.lazy(() => import('./GrdModule').then(m => ({ default: m.GrdModule })));
+const ExpedienteScheduler = React.lazy(() => import('./ExpedienteScheduler').then(m => ({ default: m.ExpedienteScheduler })));
+const ControlePermutasMobile = React.lazy(() => import('./ControlePermutasMobile').then(m => ({ default: m.ControlePermutasMobile })));
+const RasManagerModule = React.lazy(() => import('./RasManagerModule').then(m => ({ default: m.RasManagerModule })));
+const EfetivoPanel = React.lazy(() => import('./EfetivoPanel').then(m => ({ default: m.EfetivoPanel })));
+const RegistroEscalasModule = React.lazy(() => import('./RegistroEscalasModule').then(m => ({ default: m.RegistroEscalasModule })));
 
 interface EscalanteDashboardProps {
   user: UserProfile;
@@ -29,7 +44,6 @@ const ESCALANTE_APPS = [
   { id: 'funcoes', label: 'Controle de Função', description: 'Viaturas e Condutores', icon: Shield, color: 'bg-amber-600 shadow-amber-200' },
   { id: 'viaturas', label: 'Controle de Viaturas', description: 'Cadastro de Socorro', icon: Truck, color: 'bg-rose-600 shadow-rose-200' },
   { id: 'escala', label: 'Escala 24h', description: 'Geração e Ajustes', icon: CalendarRange, color: 'bg-indigo-600 shadow-indigo-200' },
-
   { id: 'expediente', label: 'Escala do Expediente', description: 'Gestão de Serviços EXP', icon: CalendarRange, color: 'bg-indigo-400 shadow-indigo-100' },
   { id: 'afastamentos', label: 'Afastamentos', description: 'Controle Anual', icon: Palmtree, color: 'bg-teal-600 shadow-teal-200' },
   { id: 'ferias-sad', label: 'Controle Férias SAD', description: 'Gestão Geral de Férias', icon: CalendarOff, color: 'bg-sky-600 shadow-sky-200' },
@@ -40,6 +54,15 @@ const ESCALANTE_APPS = [
   { id: 'registro', label: 'Registro', description: 'Livro de Escalas', icon: LayoutGrid, color: 'bg-stone-600 shadow-stone-200' },
   { id: 'relatorios', label: 'Relatórios', description: 'Estatísticas', icon: LayoutGrid, color: 'bg-rose-600 shadow-rose-200', disabled: true },
 ];
+
+function ModuleLoadingFallback() {
+  return (
+    <div className="flex flex-col items-center justify-center p-20 gap-3 text-slate-400 bg-white rounded-3xl border border-slate-200 shadow-xs">
+      <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+      <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Carregando módulo...</span>
+    </div>
+  );
+}
 
 export function EscalanteDashboard({ user, obmContext, setObmContext, availableObms, onBack }: EscalanteDashboardProps) {
   const [activeApp, setActiveApp] = useState<string | null>(null);
@@ -55,319 +78,285 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
     }
   };
 
-  const renderHeaderActions = (onClose?: () => void) => (
-    <div className="flex items-center gap-3 shrink-0">
-      {availableObms && availableObms.length > 1 && setObmContext && (
-        <select
-          value={obmContext}
-          onChange={handleObmChange}
-          disabled={isPending}
-          className="px-3 py-2 bg-white border-2 border-indigo-200 hover:border-indigo-400 rounded-xl text-xs font-black uppercase tracking-widest text-indigo-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all cursor-pointer disabled:opacity-50 shadow-xs"
-          title="Selecione a Unidade Operacional / DBM no CBA VII"
-        >
-          {availableObms.map(o => (
-             <option key={o} value={o}>{o}</option>
-          ))}
-        </select>
-      )}
-      <button 
-        onClick={onClose || onBack}
-        className="flex items-center justify-center gap-2 px-4 py-2 bg-white border-2 border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-all group"
-      >
-        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-        {onClose ? "Voltar ao Painel" : "Voltar à Home"}
-      </button>
-    </div>
-  );
+  const closeModule = () => setActiveApp(null);
 
-  if (activeApp === 'alas') {
-    return (
-      <div className="flex flex-col  animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <Users className="w-8 h-8 text-emerald-600 p-1.5 bg-emerald-100 rounded-lg" />
-            <div>
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-                Controle de Ala <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded uppercase tracking-widest ml-2">{obmContext}</span>
-              </h2>
-              <p className="text-sm font-medium text-slate-500 mt-1">Configuração e distribuição do efetivo nas alas operacionais.</p>
+  const renderActiveModule = () => {
+    switch (activeApp) {
+      case 'alas':
+        return (
+          <>
+            <ModuleHeader
+              title="Controle de Ala"
+              subtitle="Configuração e distribuição do efetivo nas alas operacionais."
+              icon={Users}
+              iconClassName="w-8 h-8 text-emerald-600 p-1.5 bg-emerald-100 rounded-lg"
+              obmContext={obmContext}
+              availableObms={availableObms}
+              onObmChange={handleObmChange}
+              isObmPending={isPending}
+              onBack={closeModule}
+            />
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col">
+              <div className="w-full">
+                <EscalanteAlasConfig obmContext={obmContext} />
+              </div>
             </div>
-          </div>
-          {renderHeaderActions(() => setActiveApp(null))}
-        </div>
+          </>
+        );
 
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col">
-           <div className="w-full">
-             <EscalanteAlasConfig obmContext={obmContext} />
-           </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (activeApp === 'funcoes') {
-    return (
-      <div className="flex flex-col  animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <Truck className="w-8 h-8 text-amber-600 p-1.5 bg-amber-100 rounded-lg" />
-            <div>
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-                Controle de Função <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded uppercase tracking-widest ml-2">{obmContext}</span>
-              </h2>
-              <p className="text-sm font-medium text-slate-500 mt-1">Gerencie as funções operacionais, como condutores e habilitações.</p>
+      case 'funcoes':
+        return (
+          <>
+            <ModuleHeader
+              title="Controle de Função"
+              subtitle="Gerencie as funções operacionais, como condutores e habilitações."
+              icon={Truck}
+              iconClassName="w-8 h-8 text-amber-600 p-1.5 bg-amber-100 rounded-lg"
+              obmContext={obmContext}
+              availableObms={availableObms}
+              onObmChange={handleObmChange}
+              isObmPending={isPending}
+              onBack={closeModule}
+            />
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col">
+              <div className="w-full p-2 sm:p-6">
+                <ControleDeFuncoes obmContext={obmContext} />
+              </div>
             </div>
+          </>
+        );
+
+      case 'viaturas':
+        return (
+          <>
+            <ModuleHeader
+              title="Controle de Viaturas"
+              subtitle="Cadastro e configuração de viaturas de socorro."
+              icon={Truck}
+              iconClassName="w-8 h-8 text-rose-600 p-1.5 bg-rose-100 rounded-lg"
+              obmContext={obmContext}
+              availableObms={availableObms}
+              onObmChange={handleObmChange}
+              isObmPending={isPending}
+              onBack={closeModule}
+            />
+            <ControleViaturasModule obmContext={obmContext} />
+          </>
+        );
+
+      case 'escala':
+        return (
+          <>
+            <ModuleHeader
+              title="Escala 24h"
+              subtitle="Montagem da escala de serviço (Escala Espelho)."
+              icon={CalendarRange}
+              iconClassName="w-8 h-8 text-indigo-600 p-1.5 bg-indigo-100 rounded-lg"
+              obmContext={obmContext}
+              availableObms={availableObms}
+              onObmChange={handleObmChange}
+              isObmPending={isPending}
+              onBack={closeModule}
+            />
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col">
+              <div className="w-full p-2 sm:p-6">
+                <EscalaEspelhoModule obmContext={obmContext} user={user} initialDate={escalaInitialDate} />
+              </div>
+            </div>
+          </>
+        );
+
+      case 'afastamentos':
+        return (
+          <>
+            <ModuleHeader
+              title="Controle de Afastamentos"
+              subtitle="Gestão de férias e afastamentos anuais do efetivo."
+              icon={Palmtree}
+              iconClassName="w-8 h-8 text-teal-600 p-1.5 bg-teal-100 rounded-lg"
+              obmContext={obmContext}
+              availableObms={availableObms}
+              onObmChange={handleObmChange}
+              isObmPending={isPending}
+              onBack={closeModule}
+            />
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col p-6">
+              <div className="w-full p-6">
+                <AfastamentosAlaModule obmContext={obmContext} type="anual" />
+              </div>
+            </div>
+          </>
+        );
+
+      case 'ferias-sad':
+        return (
+          <>
+            <ModuleHeader
+              title="Controle Férias SAD"
+              subtitle="Gestão Geral de Férias e Afastamentos SAD."
+              icon={CalendarOff}
+              iconClassName="w-8 h-8 text-sky-600 p-1.5 bg-sky-100 rounded-lg"
+              obmContext={obmContext}
+              availableObms={availableObms}
+              onObmChange={handleObmChange}
+              isObmPending={isPending}
+              onBack={closeModule}
+            />
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col">
+              <div className="w-full p-2 sm:p-6">
+                <VacationModule user={user} isSadMode={true} onBackToPortal={closeModule} />
+              </div>
+            </div>
+          </>
+        );
+
+      case 'grd':
+        return (
+          <>
+            <ModuleHeader
+              title="GRD"
+              subtitle="Gestão da Guarnição de Resposta em Disponibilidade (Ala Oposta)."
+              icon={Shield}
+              iconClassName="w-8 h-8 text-cyan-600 p-1.5 bg-cyan-100 rounded-lg"
+              obmContext={obmContext}
+              availableObms={availableObms}
+              onObmChange={handleObmChange}
+              isObmPending={isPending}
+              onBack={closeModule}
+            />
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col">
+              <div className="w-full">
+                <GrdModule obmContext={obmContext} />
+              </div>
+            </div>
+          </>
+        );
+
+      case 'expediente':
+        return (
+          <>
+            <ModuleHeader
+              title="Escala do Expediente"
+              subtitle="Gestão de Serviços EXP."
+              icon={CalendarRange}
+              iconClassName="w-8 h-8 text-indigo-400 p-1.5 bg-indigo-50 rounded-lg"
+              obmContext={obmContext}
+              availableObms={availableObms}
+              onObmChange={handleObmChange}
+              isObmPending={isPending}
+              onBack={closeModule}
+            />
+            <div className="flex flex-col">
+              <div className="w-full pr-2">
+                <ExpedienteScheduler user={user} obmContext={obmContext} forceExpanded={true} />
+              </div>
+            </div>
+          </>
+        );
+
+      case 'permutas_mobile':
+        return (
+          <>
+            <ModuleHeader
+              title="Permutas Mobile"
+              subtitle="Triagem rápida e ágil de solicitações de permuta."
+              icon={Smartphone}
+              iconClassName="w-8 h-8 text-pink-600 p-1.5 bg-pink-100 rounded-lg"
+              obmContext={obmContext}
+              availableObms={availableObms}
+              onObmChange={handleObmChange}
+              isObmPending={isPending}
+              onBack={closeModule}
+            />
+            <div className="bg-slate-50 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-center items-center">
+              <div className="w-full flex justify-center bg-slate-900 sm:rounded-3xl">
+                <ControlePermutasMobile obmContext={obmContext} user={user} />
+              </div>
+            </div>
+          </>
+        );
+
+      case 'ras':
+        return (
+          <>
+            <ModuleHeader
+              title="Controle de RAS"
+              subtitle="Gestão de Regime Adicional de Serviço para Praças."
+              icon={BriefcaseBusiness}
+              iconClassName="w-8 h-8 text-amber-600 p-1.5 bg-amber-100 rounded-lg"
+              obmContext={obmContext}
+              availableObms={availableObms}
+              onObmChange={handleObmChange}
+              isObmPending={isPending}
+              onBack={closeModule}
+            />
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col">
+              <div className="w-full p-4 sm:p-6">
+                <RasManagerModule
+                  obmContext={obmContext}
+                  user={user}
+                  onNavigateToEscala={(date) => {
+                    if (date) setEscalaInitialDate(date);
+                    setActiveApp('escala');
+                  }}
+                />
+              </div>
+            </div>
+          </>
+        );
+
+      case 'efetivo':
+        return (
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col min-h-[600px] overflow-hidden relative px-6 pb-6">
+            <EfetivoPanel user={user} obmContext={obmContext} onBack={closeModule} />
           </div>
-          {renderHeaderActions(() => setActiveApp(null))}
-        </div>
+        );
 
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col">
-           <div className="w-full p-2 sm:p-6">
-             <ControleDeFuncoes obmContext={obmContext} />
-           </div>
-        </div>
-      </div>
-    );
-  }
+      case 'registro':
+        return (
+          <>
+            <ModuleHeader
+              title="Registro"
+              subtitle="Livro e histórico de escalas homologadas."
+              icon={LayoutGrid}
+              iconClassName="w-8 h-8 text-stone-600 p-1.5 bg-stone-100 rounded-lg"
+              obmContext={obmContext}
+              availableObms={availableObms}
+              onObmChange={handleObmChange}
+              isObmPending={isPending}
+              onBack={closeModule}
+            />
+            <RegistroEscalasModule obmContext={obmContext} />
+          </>
+        );
 
-  if (activeApp === 'viaturas') {
+      default:
+        return null;
+    }
+  };
+
+  if (activeApp) {
     return (
       <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <Truck className="w-8 h-8 text-rose-600 p-1.5 bg-rose-100 rounded-lg" />
-            <div>
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-                Controle de Viaturas <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded uppercase tracking-widest ml-2">{obmContext}</span>
-              </h2>
-              <p className="text-sm font-medium text-slate-500 mt-1">Cadastro e configuração de viaturas de socorro.</p>
-            </div>
-          </div>
-          {renderHeaderActions(() => setActiveApp(null))}
-        </div>
-
-        <ControleViaturasModule obmContext={obmContext} />
-      </div>
-    );
-  }
-
-  if (activeApp === 'escala') {
-    return (
-      <div className="flex flex-col  animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <CalendarRange className="w-8 h-8 text-indigo-600 p-1.5 bg-indigo-100 rounded-lg" />
-            <div>
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-                Escala 24h <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded uppercase tracking-widest ml-2">{obmContext}</span>
-              </h2>
-              <p className="text-sm font-medium text-slate-500 mt-1">Montagem da escala de serviço (Escala Espelho).</p>
-            </div>
-          </div>
-          {renderHeaderActions(() => setActiveApp(null))}
-        </div>
-
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col">
-           <div className="w-full p-2 sm:p-6">
-             <EscalaEspelhoModule obmContext={obmContext} user={user} initialDate={escalaInitialDate} />
-           </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (activeApp === 'afastamentos') {
-    return (
-      <div className="flex flex-col  animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <Palmtree className="w-8 h-8 text-teal-600 p-1.5 bg-teal-100 rounded-lg" />
-            <div>
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-                Controle de Afastamentos <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded uppercase tracking-widest ml-2">{obmContext}</span>
-              </h2>
-              <p className="text-sm font-medium text-slate-500 mt-1">Gestão de férias e afastamentos anuais do efetivo.</p>
-            </div>
-          </div>
-          {renderHeaderActions(() => setActiveApp(null))}
-        </div>
-
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col p-6">
-           <div className="w-full p-6">
-             <AfastamentosAlaModule obmContext={obmContext} type="anual" />
-           </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (activeApp === 'ferias-sad') {
-    return (
-      <div className="flex flex-col  animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <CalendarOff className="w-8 h-8 text-sky-600 p-1.5 bg-sky-100 rounded-lg" />
-            <div>
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-                Controle Férias SAD <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded uppercase tracking-widest ml-2">{obmContext}</span>
-              </h2>
-              <p className="text-sm font-medium text-slate-500 mt-1">Gestão Geral de Férias e Afastamentos SAD.</p>
-            </div>
-          </div>
-          {renderHeaderActions(() => setActiveApp(null))}
-        </div>
-
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col">
-           <div className="w-full p-2 sm:p-6">
-             <VacationModule user={user} isSadMode={true} onBackToPortal={() => setActiveApp(null)} />
-           </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (activeApp === 'grd') {
-    return (
-      <div className="flex flex-col  animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <Shield className="w-8 h-8 text-cyan-600 p-1.5 bg-cyan-100 rounded-lg" />
-            <div>
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-                GRD <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded uppercase tracking-widest ml-2">{obmContext}</span>
-              </h2>
-              <p className="text-sm font-medium text-slate-500 mt-1">Gestão da Guarnição de Resposta em Disponibilidade (Ala Oposta).</p>
-            </div>
-          </div>
-          {renderHeaderActions(() => setActiveApp(null))}
-        </div>
-
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col">
-           <div className="w-full">
-             <GrdModule obmContext={obmContext} />
-           </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (activeApp === 'expediente') {
-    return (
-      <div className="flex flex-col  animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <CalendarRange className="w-8 h-8 text-indigo-400 p-1.5 bg-indigo-50 rounded-lg" />
-            <div>
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-                Escala do Expediente <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded uppercase tracking-widest ml-2">{obmContext}</span>
-              </h2>
-              <p className="text-sm font-medium text-slate-500 mt-1">Gestão de Serviços EXP.</p>
-            </div>
-          </div>
-          {renderHeaderActions(() => setActiveApp(null))}
-        </div>
-
-        <div className="flex flex-col">
-           <div className="w-full pr-2">
-             <ExpedienteScheduler user={user} obmContext={obmContext} forceExpanded={true} />
-           </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (activeApp === 'permutas_mobile') {
-    return (
-      <div className="flex flex-col  animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <Smartphone className="w-8 h-8 text-pink-600 p-1.5 bg-pink-100 rounded-lg" />
-            <div>
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-                Permutas Mobile <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded uppercase tracking-widest ml-2">{obmContext}</span>
-              </h2>
-              <p className="text-sm font-medium text-slate-500 mt-1">Triagem rápida e ágil de solicitações de permuta.</p>
-            </div>
-          </div>
-          {renderHeaderActions(() => setActiveApp(null))}
-        </div>
-
-        <div className="bg-slate-50 rounded-3xl border border-slate-200 shadow-sm flex flex-col justify-center items-center">
-           <div className="w-full flex justify-center bg-slate-900 sm:rounded-3xl">
-             <ControlePermutasMobile obmContext={obmContext} user={user} />
-           </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (activeApp === 'ras') {
-    return (
-      <div className="flex flex-col  animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <BriefcaseBusiness className="w-8 h-8 text-amber-600 p-1.5 bg-amber-100 rounded-lg" />
-            <div>
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-                Controle de RAS <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded uppercase tracking-widest ml-2">{obmContext}</span>
-              </h2>
-              <p className="text-sm font-medium text-slate-500 mt-1">Gestão de Regime Adicional de Serviço para Praças.</p>
-            </div>
-          </div>
-          {renderHeaderActions(() => setActiveApp(null))}
-        </div>
-
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col">
-           <div className="w-full p-4 sm:p-6">
-             <RasManagerModule 
-               obmContext={obmContext} 
-               user={user} 
-               onNavigateToEscala={(date) => {
-                 if (date) setEscalaInitialDate(date);
-                 setActiveApp('escala');
-               }}
-             />
-           </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (activeApp === 'efetivo') {
-    return (
-      <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col min-h-[600px] overflow-hidden relative px-6 pb-6">
-           <EfetivoPanel user={user} obmContext={obmContext} onBack={() => setActiveApp(null)} />
-        </div>
-      </div>
-    );
-  }
-
-  if (activeApp === 'registro') {
-    return (
-      <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <button onClick={() => setActiveApp(null)} className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-bold transition-colors">
-            <ArrowLeft className="w-5 h-5" /> Voltar ao Painel
-          </button>
-          {renderHeaderActions()}
-        </div>
-        <RegistroEscalasModule obmContext={obmContext} />
+        <Suspense fallback={<ModuleLoadingFallback />}>
+          {renderActiveModule()}
+        </Suspense>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col  animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-            Painel do Escalante <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded uppercase tracking-widest ml-2">{obmContext}</span>
-          </h2>
-          <p className="text-sm font-medium text-slate-500 mt-1">Selecione uma aplicação do seu painel de gestão.</p>
-        </div>
-        {renderHeaderActions()}
-      </div>
+    <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <ModuleHeader
+        title="Painel do Escalante"
+        subtitle="Selecione uma aplicação do seu painel de gestão."
+        obmContext={obmContext}
+        availableObms={availableObms}
+        onObmChange={handleObmChange}
+        isObmPending={isPending}
+        onBack={onBack}
+        backLabel="Voltar à Home"
+      />
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6 w-full">
         {ESCALANTE_APPS.map(app => {
@@ -380,8 +369,8 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
               onClick={() => !app.disabled && setActiveApp(app.id)}
               disabled={app.disabled}
               className={cn(
-                "bg-white border-2 border-slate-100 rounded-[2rem] p-6 flex flex-col items-center justify-center gap-4 shadow-sm transition-all text-center group relative overflow-hidden",
-                app.disabled ? "opacity-50 grayscale cursor-not-allowed" : "hover:shadow-xl hover:border-indigo-100"
+                "bg-white border border-slate-200/90 dark:border-slate-700/80 rounded-2xl p-6 flex flex-col items-center justify-center gap-4 shadow-xs transition-all text-center group relative overflow-hidden cursor-pointer",
+                app.disabled ? "opacity-50 grayscale cursor-not-allowed" : "hover:shadow-lg hover:border-indigo-400/80"
               )}
             >
               {app.disabled && (

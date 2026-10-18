@@ -86,9 +86,9 @@ const ModuleIcon: React.FC<ModuleIconProps> = ({
       whileTap={disabled ? {} : { scale: 0.98 }}
       onClick={disabled ? undefined : onClick}
       className={cn(
-        "bg-white border-2 border-slate-100 rounded-3xl sm:rounded-[2rem] p-3 sm:p-6 flex flex-col items-center justify-center gap-2 sm:gap-4 shadow-sm transition-all text-center group relative overflow-hidden",
-        disabled ? "opacity-50 grayscale cursor-not-allowed" : "hover:shadow-xl hover:border-indigo-100",
-        isFolder && "border-indigo-100/80 bg-gradient-to-b from-white to-indigo-50/20 hover:border-indigo-300"
+        "bg-white border border-slate-200/90 dark:border-slate-700/80 rounded-2xl p-3 sm:p-6 flex flex-col items-center justify-center gap-2 sm:gap-4 shadow-xs transition-all text-center group relative overflow-hidden cursor-pointer",
+        disabled ? "opacity-50 grayscale cursor-not-allowed" : "hover:shadow-lg hover:border-indigo-400/80",
+        isFolder && "border-indigo-200/90 dark:border-indigo-500/40 bg-gradient-to-b from-white to-indigo-50/20 dark:from-slate-900/40 dark:to-indigo-950/20 hover:border-indigo-400"
       )}
     >
       {(onMoveLeft || onMoveRight) && (

@@ -57,13 +57,15 @@ export function stripRankPrefix(name: string): string {
 
 export function formatRankAndName(militar: any): string {
   if (!militar) return '';
-  const rAbbr = formatRankAbbr(militar.rank || '');
-  let rawName = militar.warName || '';
-  if (!rawName && militar.name) {
-    const strippedFullName = stripRankPrefix(militar.name);
-    rawName = strippedFullName.split(' ')[0] || militar.name.split(' ')[0];
+  const mil = militar.militar || militar;
+  const rAbbr = formatRankAbbr(mil.rank || mil.postoGrad || '');
+  let rawName = mil.warName || mil.nomeGuerra || '';
+  if (!rawName && (mil.name || mil.nome)) {
+    const fullName = mil.name || mil.nome || '';
+    const strippedFullName = stripRankPrefix(fullName);
+    rawName = strippedFullName.split(' ')[0] || fullName.split(' ')[0];
   }
-  if (!rawName) rawName = militar.rg || '';
+  if (!rawName) rawName = mil.rg || '';
   const finalName = stripRankPrefix(rawName) || rawName;
   if (rAbbr) {
     return `${rAbbr} ${finalName}`.trim();

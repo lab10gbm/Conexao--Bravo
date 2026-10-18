@@ -11,18 +11,9 @@ import { SystemRolesConfig } from './SystemRolesConfig';
 import { KeepAliveConfigCard } from './KeepAliveConfigCard';
 import { EmailSmtpConfigCard } from './EmailSmtpConfigCard';
 import { useAppConfig } from '../contexts/ConfigContext';
-import { cleanUndefined } from "../lib/utils";
+import { cleanUndefined, normalizeRg } from "../lib/utils";
 
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRV3PAwJrGMQOUaUabnYNlbebEgrsE9wEnQ8Qpu0h-8ZT5WOgL3oyVIeQopb_X7g7PDByvP8OPy9upD/pub?gid=1221046524&single=true&output=csv";
-
-// Helper to normalize RG exactly like the server does
-const normalizeRg = (rg: string | undefined): string => {
-  if (!rg) return '';
-  const str = rg.toString().trim().toUpperCase();
-  const clean = str.replace(/[^A-Z0-9]/g, '');
-  // Remove leading zeros to match server aggressive normalization
-  return clean.replace(/^0+/, '') || clean;
-};
 
 interface ConfiguracoesModuleProps {
   onBack: () => void;

@@ -1,63 +1,31 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { parseRank, sortRanks } from "../lib/rankUtils";
+import { parseRank } from "../lib/rankUtils";
 import { useMilitars } from "../contexts/MilitarContext";
 import { db, auth } from "../lib/firebase";
 import { doc, setDoc, getDoc, onSnapshot } from "firebase/firestore";
 import {
   Search,
   Truck,
-  BadgeInfo,
   Settings,
   FolderCog
 } from "lucide-react";
 import { cn, getObmSettingsDocKey, getObmSettingsFallbackKeys, cleanUndefined } from "../lib/utils";
 import { UserProfile } from "../types";
-import { RankInsignia } from "./RankInsignia";
-import { MultiSelectFilter } from "./ui/MultiSelectFilter";
 import { CorrelacaoFuncoesModal } from "./CorrelacaoFuncoesModal";
-import { ControleCategoriasModal, CategoryConfig, DEFAULT_CATEGORIES, FunctionCondition } from "./ControleCategoriasModal";
+import { ControleCategoriasModal, CategoryConfig, DEFAULT_CATEGORIES } from "./ControleCategoriasModal";
 
-export function checkConditions(militar: UserProfile, conditions?: FunctionCondition[]): { valid: boolean; reason?: string } {
-  if (!conditions || conditions.length === 0) return { valid: true };
-  
-  for (const cond of conditions) {
-    const { field, operator, value } = cond;
-    if (!value) continue; // skip empty conditions
-    
-    let mVal = String((militar as any)[field] || "").toUpperCase();
-    const targetVal = value.toUpperCase().trim();
-    
-    if (operator === "equals") {
-      if (mVal !== targetVal) {
-         return { valid: false, reason: `Requisito não atendido: ${field} deve ser exatamente "${value}"` };
-      }
-    } else if (operator === "contains") {
-      if (!mVal.includes(targetVal)) {
-         return { valid: false, reason: `Requisito não atendido: ${field} deve conter "${value}"` };
-      }
-    } else if (operator === "in") {
-      const targets = targetVal.split(',').map(s => s.trim());
-      let isMatch = false;
-      if (field === 'cnhCat') {
-         const chars = mVal.split('');
-         isMatch = chars.some(c => targets.includes(c));
-      } else {
-         isMatch = targets.some(t => mVal.includes(t) || t === mVal);
-      }
-      if (!isMatch) {
-         return { valid: false, reason: `Requisito não atendido: ${field} deve ser um de: "${value}"` };
-      }
-    }
-  }
-  return { valid: true };
-}
+import { checkConditions, getValue, sortByRankAndRg } from "../features/funcoes/lib/funcoesUtils";
+import { FuncoesFilterBar } from "../features/funcoes/components/FuncoesFilterBar";
+import { FuncoesTable } from "../features/funcoes/components/FuncoesTable";
+
+export { checkConditions };
 
 interface ControleDeFuncoesProps {
   obmContext: string;
 }
 
 export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
-  const { militars, refreshMilitars, updateMilitarLocal } = useMilitars();
+  const { militars, updateMilitarLocal } = useMilitars();
   const [search, setSearch] = useState("");
   const [processing, setProcessing] = useState<string | null>(null);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
@@ -79,7 +47,6 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
     const unsub = onSnapshot(docRef, async (snap) => {
       let rawCategories = snap.exists() ? snap.data()?.categorias_funcoes : null;
       if (!rawCategories) {
-        // Fallback: check legacy keys and migrate forward
         const fallbacks = getObmSettingsFallbackKeys(obmContext).filter(k => k !== canonicalKey);
         for (const fk of fallbacks) {
           try {
@@ -163,19 +130,6 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
     };
   }, [militars, obmContext]);
 
-  const getValue = (militar: UserProfile, path: string): boolean => {
-    if (!path) return false;
-    if (path.startsWith("viaturas.")) {
-      const key = path.split(".")[1];
-      return !!militar.viaturas?.[key as keyof typeof militar.viaturas];
-    }
-    if (path.startsWith("dynamicFunctions.")) {
-      const key = path.split(".")[1];
-      return !!militar.dynamicFunctions?.[key];
-    }
-    return !!militar[path as keyof UserProfile];
-  };
-
   const filteredMilitars = useMemo(() => {
     return militars
       .filter((m) => {
@@ -185,13 +139,13 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
         if (!isSameObm) return false;
 
         const r = (m.rank || "").toUpperCase().trim();
-        const isOfficer = [
+        const isOff = [
           "CEL", "CORONEL", "TC", "TENENTE CORONEL", "TENENTE-CORONEL",
           "MAJ", "MAJOR", "CAP", "CAPITÃO", "1º TEN", "1º TENENTE",
           "2º TEN", "2º TENENTE", "ASP", "ASPIRANTE",
         ].includes(r);
 
-        if (isOfficer) return false;
+        if (isOff) return false;
 
         const isActiveInCurrentTab = () => {
           if (activeTab === "mostruario") return true;
@@ -238,32 +192,12 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
 
         return active;
       })
-      .sort((a, b) => {
-        const rankWeights: Record<string, number> = {
-          CORONEL: 1, CEL: 1, "TENENTE CORONEL": 2, "TENENTE-CORONEL": 2, TC: 2,
-          MAJOR: 3, MAJ: 3, CAPITÃO: 4, CAP: 4, "1º TENENTE": 5, "1º TEN": 5,
-          "2º TENENTE": 6, "2º TEN": 6, ASPIRANTE: 7, ASP: 7, SUBTENENTE: 8,
-          "SUB TENENTE": 8, ST: 8, "1º SARGENTO": 9, "1º SGT": 9,
-          "2º SARGENTO": 10, "2º SGT": 10, "3º SARGENTO": 11, "3º SGT": 11,
-          CABO: 12, CB: 12, SOLDADO: 13, SD: 13,
-        };
-        const getWeight = (r: string) => rankWeights[r?.toUpperCase()?.trim()] || 99;
-
-        const weightA = getWeight(a.rank || "");
-        const weightB = getWeight(b.rank || "");
-        if (weightA !== weightB) return weightA - weightB;
-
-        const rgA = parseInt(a.rg?.toString().replace(/\D/g, "") || "0", 10);
-        const rgB = parseInt(b.rg?.toString().replace(/\D/g, "") || "0", 10);
-        return rgA - rgB;
-      })
+      .sort(sortByRankAndRg)
       .slice(0, 100);
   }, [
     militars, search, obmContext, activeTab, categories,
     filterPostoGrad, filterQuadro, filterAla, filterSituacao, filterCursos, somenteAtivos,
   ]);
-
-  const displayMilitars = filteredMilitars;
 
   const toggleValue = async (militar: UserProfile, path: string) => {
     if (!militar.rg || !path) return;
@@ -271,7 +205,6 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
     const currentState = getValue(militar, path);
     
     if (!currentState) {
-      // Find function config to check conditions when turning ON
       let fnConfig = null;
       for (const cat of categories) {
         const found = cat.functions.find(f => f.id === path);
@@ -320,10 +253,10 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
           updatePayload = { [path]: !getValue(militar, path) };
         }
         const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
-      await fetch('/api/militar/update', {
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        await fetch('/api/militar/update', {
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           method: 'POST',
-            body: JSON.stringify({ rg: safeRg, data: cleanUndefined(updatePayload) })
+          body: JSON.stringify({ rg: safeRg, data: cleanUndefined(updatePayload) })
         });
       }
       setTimeout(() => {
@@ -336,8 +269,8 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
   };
 
   const toggleColumnAll = async (path: string) => {
-    if (displayMilitars.length === 0 || !path) return;
-    const allChecked = displayMilitars.every((m) => getValue(m, path));
+    if (filteredMilitars.length === 0 || !path) return;
+    const allChecked = filteredMilitars.every((m) => getValue(m, path));
     const newState = !allChecked;
 
     let fnConfig = null;
@@ -351,7 +284,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
       }
     }
 
-    const militarsToUpdate = displayMilitars.filter(m => {
+    const militarsToUpdate = filteredMilitars.filter(m => {
       if (!m.rg) return false;
       if (newState && fnConfig && fnConfig.conditions) {
         return checkConditions(m, fnConfig.conditions).valid;
@@ -384,42 +317,27 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
         if (!m.rg) return Promise.resolve();
         const safeRg = String(m.rg).replace(/^0+/, "").replace(/\D/g, "");
         if (db) {
-            let updatePayload: any = {};
-            if (path.startsWith("viaturas.")) {
-               const key = path.split('.')[1];
-               updatePayload = { viaturas: { ...(m.viaturas || {}), [key]: newState } };
-            } else if (path.startsWith("dynamicFunctions.")) {
-               const key = path.split('.')[1];
-               updatePayload = { dynamicFunctions: { ...(m.dynamicFunctions || {}), [key]: newState } };
-            } else {
-               updatePayload = { [path]: newState };
-            }
-            const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
-            return fetch('/api/militar/update', {
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-              method: 'POST',
-                    body: JSON.stringify({ rg: safeRg, data: cleanUndefined(updatePayload) })
-            }).catch(() => {});
+          let updatePayload: any = {};
+          if (path.startsWith("viaturas.")) {
+            const key = path.split('.')[1];
+            updatePayload = { viaturas: { ...(m.viaturas || {}), [key]: newState } };
+          } else if (path.startsWith("dynamicFunctions.")) {
+            const key = path.split('.')[1];
+            updatePayload = { dynamicFunctions: { ...(m.dynamicFunctions || {}), [key]: newState } };
+          } else {
+            updatePayload = { [path]: newState };
+          }
+          const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+          return fetch('/api/militar/update', {
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            method: 'POST',
+            body: JSON.stringify({ rg: safeRg, data: cleanUndefined(updatePayload) })
+          }).catch(() => {});
         }
         return Promise.resolve();
       }),
     );
   };
-
-  const ColumnHeaderToggle = ({ field, label }: { field: string; label: React.ReactNode }) => (
-    <div className="flex flex-col items-center justify-center gap-1 group">
-      <span>{label}</span>
-      {field && (
-        <button
-          onClick={() => toggleColumnAll(field)}
-          title="Marcar/Desmarcar todos"
-          className="px-1.5 py-0.5 rounded text-[8px] tracking-wider uppercase font-bold bg-slate-200 text-slate-500 opacity-50 xl:group-hover:opacity-100 hover:bg-indigo-500 hover:text-white hover:opacity-100 transition-all shadow-sm"
-        >
-          LOTE
-        </button>
-      )}
-    </div>
-  );
 
   const activeCategoryData = categories.find(c => c.id === activeTab) || categories[0];
 
@@ -462,14 +380,14 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
               </div>
               <button
                 onClick={() => setIsCatModalOpen(true)}
-                className="flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-4 py-2 rounded-lg text-sm transition-colors shadow-sm whitespace-nowrap"
+                className="flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-4 py-2 rounded-lg text-sm transition-colors shadow-sm whitespace-nowrap cursor-pointer"
               >
                 <FolderCog className="w-4 h-4" />
                 <span className="hidden sm:inline">Categorias e Funções</span>
               </button>
               <button
                 onClick={() => setIsConfigModalOpen(true)}
-                className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-4 py-2 rounded-lg text-sm transition-colors border border-slate-200 shadow-sm whitespace-nowrap"
+                className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold px-4 py-2 rounded-lg text-sm transition-colors border border-slate-200 shadow-sm whitespace-nowrap cursor-pointer"
                 title="Configurar Correlacionamento de Funções"
               >
                 <Settings className="w-4 h-4" />
@@ -479,7 +397,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
           </div>
 
           <div className="flex overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
-            <div className="flex bg-slate-100 p-1 rounded-lg min-w-max gap-1">
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs min-w-max">
               {categories.map(cat => (
                 <button
                   key={cat.id}
@@ -488,10 +406,10 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
                     setSearch("");
                   }}
                   className={cn(
-                    "px-4 py-1.5 text-xs font-bold rounded-md transition-all whitespace-nowrap",
+                    "px-3.5 py-1.5 text-xs font-black rounded-lg transition-all whitespace-nowrap cursor-pointer uppercase tracking-wider",
                     activeTab === cat.id
-                      ? "bg-white text-indigo-600 shadow-sm"
-                      : "text-slate-500 hover:text-slate-700",
+                      ? "bg-white text-indigo-700 shadow-xs border border-slate-200 dark:border-slate-700"
+                      : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/60",
                   )}
                 >
                   {cat.name}
@@ -501,165 +419,36 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-start gap-4 p-4 bg-slate-50 border-2 border-slate-200 rounded-xl">
-          <div className="text-[10px] font-black uppercase text-slate-400 self-center w-full sm:w-auto">
-            Filtros:
-          </div>
-          <div className="flex-1 min-w-[150px]">
-            <MultiSelectFilter label="Posto/Grad" options={uniqueRanks.sort(sortRanks)} selected={filterPostoGrad} onChange={setFilterPostoGrad} />
-          </div>
-          <div className="flex-1 min-w-[150px]">
-            <MultiSelectFilter label="Quadro" options={uniqueQuadros} selected={filterQuadro} onChange={setFilterQuadro} />
-          </div>
-          <div className="flex-1 min-w-[150px]">
-            <MultiSelectFilter label="Ala" options={uniqueAlas} selected={filterAla} onChange={setFilterAla} />
-          </div>
-          <div className="flex-1 min-w-[150px]">
-            <MultiSelectFilter label="Situação" options={uniqueSituacoes} selected={filterSituacao} onChange={setFilterSituacao} />
-          </div>
-          <div className="flex-1 min-w-[200px]">
-            <MultiSelectFilter label="Cursos" options={uniqueCursos} selected={filterCursos} onChange={setFilterCursos} />
-          </div>
-          <div className="flex items-center gap-2 self-center shrink-0">
-            <input
-              type="checkbox"
-              id="somenteAtivos"
-              checked={somenteAtivos}
-              onChange={(e) => setSomenteAtivos(e.target.checked)}
-              className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-            />
-            <label htmlFor="somenteAtivos" className="text-xs font-semibold text-slate-700 select-none cursor-pointer">
-              Exibir Não Ativos
-            </label>
-          </div>
-        </div>
+        <FuncoesFilterBar
+          uniqueRanks={uniqueRanks}
+          filterPostoGrad={filterPostoGrad}
+          setFilterPostoGrad={setFilterPostoGrad}
+          uniqueQuadros={uniqueQuadros}
+          filterQuadro={filterQuadro}
+          setFilterQuadro={setFilterQuadro}
+          uniqueAlas={uniqueAlas}
+          filterAla={filterAla}
+          setFilterAla={setFilterAla}
+          uniqueSituacoes={uniqueSituacoes}
+          filterSituacao={filterSituacao}
+          setFilterSituacao={setFilterSituacao}
+          uniqueCursos={uniqueCursos}
+          filterCursos={filterCursos}
+          setFilterCursos={setFilterCursos}
+          somenteAtivos={somenteAtivos}
+          setSomenteAtivos={setSomenteAtivos}
+        />
       </div>
 
       <div className="flex-1 overflow-auto p-4 sm:p-6">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left min-w-[800px]">
-              <thead className="bg-slate-100 border-b border-slate-200">
-                <tr>
-                  {activeCategoryData?.activeProperty && (
-                    <th className="w-16 px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">
-                      <ColumnHeaderToggle field={activeCategoryData.activeProperty} label="Ativo" />
-                    </th>
-                  )}
-                  <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">
-                    Militar
-                  </th>
-                  {activeCategoryData?.functions.map(fn => (
-                    <th key={fn.id} className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200 bg-slate-50">
-                      <ColumnHeaderToggle field={fn.id} label={fn.name} />
-                    </th>
-                  ))}
-                  <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200">
-                    Ala
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {displayMilitars.length === 0 ? (
-                  <tr>
-                    <td colSpan={(activeCategoryData?.functions.length || 0) + 3} className="px-4 py-8 text-center text-slate-400">
-                      <BadgeInfo className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm font-medium">Nenhum militar encontrado nesta visão.</p>
-                      <p className="text-xs mt-1">Pesquise por nome ou altere os filtros.</p>
-                    </td>
-                  </tr>
-                ) : null}
-                {displayMilitars.map((m) => {
-                  const isProcessing = processing === m.rg?.replace(/\D/g, "").replace(/^0+/, "");
-                  // Active state drives the row highlight
-                  const isActive = activeCategoryData?.activeProperty ? getValue(m, activeCategoryData.activeProperty) : false;
-
-                  return (
-                    <tr key={m.rg} className={cn("hover:bg-indigo-50/30 transition-colors", isActive ? "bg-emerald-50/10" : "")}>
-                      
-                      {activeCategoryData?.activeProperty && (
-                        <td className="px-3 py-2 text-center border-r border-slate-100 bg-white">
-                          <button
-                            onClick={() => toggleValue(m, activeCategoryData.activeProperty)}
-                            disabled={isProcessing}
-                            className={cn(
-                              "w-6 h-6 rounded-full flex items-center justify-center transition-colors mx-auto ring-2 ring-offset-1",
-                              isActive
-                                ? "bg-emerald-500 text-white ring-emerald-200 shadow-sm"
-                                : "bg-white text-slate-200 ring-slate-100 hover:bg-slate-50",
-                              isProcessing && "opacity-50",
-                            )}
-                          >
-                            {isActive && "✓"}
-                          </button>
-                        </td>
-                      )}
-                      
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 flex shrink-0 justify-center">
-                            <RankInsignia rankStr={parseRank(m.rank)} className="scale-75 origin-center" />
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase leading-none mb-1">
-                              {parseRank(m.rank)}
-                            </span>
-                            <span className="text-xs font-black text-slate-700 uppercase tracking-wider leading-none">
-                              {m.warName || (m.name || "").split(" ")[0]}
-                            </span>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-[9px] font-bold text-slate-400 font-mono">
-                                RG: {m.rg}
-                              </span>
-                              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-1 rounded">
-                                {m.quadro ? m.quadro.split('/')[0] : (m.specializations?.[0] || '-')}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-
-                      {activeCategoryData?.functions.map(fn => {
-                        const isChecked = getValue(m, fn.id);
-                        return (
-                          <td key={fn.id} className="px-3 py-2 text-center border-l border-slate-100 bg-slate-50/50">
-                            <button
-                              onClick={() => toggleValue(m, fn.id)}
-                              disabled={isProcessing}
-                              className={cn(
-                                "w-6 h-6 rounded flex items-center justify-center transition-colors mx-auto",
-                                isChecked
-                                  ? "bg-indigo-600 text-white shadow-sm"
-                                  : "bg-white text-slate-300 border border-slate-200 hover:bg-slate-50",
-                                isProcessing && "opacity-50",
-                              )}
-                            >
-                              {isChecked && "✓"}
-                            </button>
-                          </td>
-                        )
-                      })}
-
-                      <td className="px-3 py-2 text-center border-l border-slate-200">
-                        {m.lentTo ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase tracking-widest">
-                            {m.lentTo}
-                          </span>
-                        ) : m.ala ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-widest">
-                            Ala {m.ala}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-slate-400 font-bold">-</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <FuncoesTable
+          displayMilitars={filteredMilitars}
+          activeCategoryData={activeCategoryData}
+          processing={processing}
+          onToggleValue={toggleValue}
+          onToggleColumnAll={toggleColumnAll}
+          getValue={getValue}
+        />
       </div>
     </div>
   );

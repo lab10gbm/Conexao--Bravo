@@ -45,7 +45,7 @@ import { db } from "../lib/firebase";
 import { doc, onSnapshot, setDoc, collection, deleteDoc } from "firebase/firestore";
 import { RankInsignia } from "./RankInsignia";
 import { PatrimonyConfigPanel } from "./PatrimonyConfigPanel";
-import { cleanUndefined } from "../lib/utils";
+import { cleanUndefined, normalizeRg } from "../lib/utils";
 
 interface SectorQrCodeProps {
   value: string;
@@ -830,8 +830,6 @@ export function PatrimonyModule({
   const auxPatrimonio = globalConfig.auxPatrimonioId
     ? militars.find((m) => m.rg === globalConfig.auxPatrimonioId)
     : null;
-
-  const normalizeRg = (rg: string) => rg.replace(/\D/g, "");
 
   const canSignSetor =
     configData.responsavelId &&

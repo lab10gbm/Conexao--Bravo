@@ -1,60 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { parseRank, sortAllBySeniority, isOfficer, isPraca, stripRankPrefix } from "../lib/rankUtils";
+import { parseRank, sortAllBySeniority } from "../lib/rankUtils";
 import { useMilitars } from '../contexts/MilitarContext';
 import { auth, db } from "../lib/firebase";
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
-import { Search, Loader2, Plus, X, Users, BookmarkCheck, RotateCcw, ShieldCheck, CheckCircle2, AlertTriangle, AlertCircle, Info, ArrowLeftRight, UserPlus, Building2, Tag } from 'lucide-react';
-import { cn, normalizeAlaField, normalizeObm } from '../lib/utils';
+import { Search, Loader2, X, Users, BookmarkCheck, RotateCcw, ShieldCheck, CheckCircle2, AlertTriangle, Info, ArrowLeftRight } from 'lucide-react';
+import { cn, normalizeAlaField, normalizeObm, normalizeRg } from '../lib/utils';
 import { DEFAULT_ALA_NOMENCLATURES, getStoredAlaNomenclatures, saveStoredAlaNomenclatures } from '../lib/alaUtils';
 import { UserProfile } from '../types';
 import { AfastamentosAlaModule } from './AfastamentosAlaModule';
 
-function normalizeRg(rg: string | number | undefined) {
-  if (!rg) return '';
-  return String(rg).replace(/^0+/, '').replace(/\D/g, '');
-}
+import { ALAS, PendingTransfer, DefaultAlasInfo } from '../features/alas/types';
+import { isPracaElegivel, getHeaderColor } from '../features/alas/lib/alasUtils';
+import { DirectTransferModal } from '../features/alas/components/DirectTransferModal';
+import { RestoreDefaultConfirmModal } from '../features/alas/components/RestoreDefaultConfirmModal';
+import { PendingTransferConfirmModal } from '../features/alas/components/PendingTransferConfirmModal';
+import { AlaNomenclaturesSection } from '../features/alas/components/AlaNomenclaturesSection';
+import { AlaColumnCard } from '../features/alas/components/AlaColumnCard';
+import { SemAlaSection } from '../features/alas/components/SemAlaSection';
 
-export function isPracaElegivel(m: UserProfile): boolean {
-  if (!m) return false;
-  if ((m as any).isOfficer) return false;
-
-  const parsed = parseRank(m.rank || '');
-  if (isOfficer(parsed)) return false;
-
-  const quadroUp = (m.quadro || '').trim().toUpperCase();
-  if (quadroUp.startsWith('QO')) return false;
-
-  const combinedUp = `${m.rank || ''} ${m.name || ''}`.toUpperCase();
-  if (
-    /\b(CORONEL|CEL|TENENTE[\s-]*CORONEL|TEN[\s.]*CEL|TC|MAJOR|MAJ|CAPIT[ÃA]O|CAP|1[º°]?\s*TENENTE|2[º°]?\s*TENENTE|1[º°]?\s*TEN|2[º°]?\s*TEN|ASPIRANTE|ASP\s*OF)\b/.test(combinedUp) &&
-    !combinedUp.includes('SUBTEN') &&
-    !combinedUp.includes('SUB TEN')
-  ) {
-    return false;
-  }
-
-  if (parsed) {
-    return isPraca(parsed);
-  }
-
-  return true;
-}
+export { isPracaElegivel };
 
 interface EscalanteAlasConfigProps {
   obmContext: string;
 }
-
-const ALAS = ['1', '2', '3', '4', 'EXP'];
-
-const COSTA_VERDE_OBMS = [
-  { id: '10º GBM', label: '10º GBM - Angra dos Reis (Sede)' },
-  { id: '1/10', label: '1/10 - Itaguaí' },
-  { id: '2/10', label: '2/10 - Ilha Grande / Mambucaba' },
-  { id: '3/10', label: '3/10 - Frade' },
-  { id: '4/10', label: '4/10 - Mangaratiba' },
-  { id: '26º GBM', label: '26º GBM - Paraty' },
-  { id: '1/26', label: '1/26 - Mangaratiba / Paraty' },
-];
 
 export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
   const { militars, loading, refreshMilitars, updateMilitarLocal } = useMilitars();
@@ -65,16 +33,12 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
   // Estados para Gestão de Padrão Oficial
   const [savingDefault, setSavingDefault] = useState(false);
   const [restoringDefault, setRestoringDefault] = useState(false);
-  const [defaultInfo, setDefaultInfo] = useState<{ hasDefault: boolean; updatedAt: string | null; totalMilitaries: number } | null>(null);
+  const [defaultInfo, setDefaultInfo] = useState<DefaultAlasInfo | null>(null);
   const [showRestoreConfirmModal, setShowRestoreConfirmModal] = useState(false);
   const [feedbackBanner, setFeedbackBanner] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   // Estados para Transferência / Recebimento de Militar
-  const [pendingTransfer, setPendingTransfer] = useState<{
-    militar: UserProfile;
-    targetAla: string;
-    targetObm: string;
-  } | null>(null);
+  const [pendingTransfer, setPendingTransfer] = useState<PendingTransfer | null>(null);
   const [isTransferring, setIsTransferring] = useState(false);
 
   // Modal de Transferência Direta (Enviar ou Receber Militar entre OBMs da Costa Verde)
@@ -340,17 +304,6 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
     }
   };
 
-  const getHeaderColor = (ala: string) => {
-    switch (ala) {
-      case '1': return 'bg-emerald-600 text-emerald-50';
-      case '2': return 'bg-rose-600 text-rose-50';
-      case '3': return 'bg-blue-600 text-blue-50';
-      case '4': return 'bg-amber-500 text-amber-50';
-      case 'EXP': return 'bg-slate-700 text-slate-50';
-      default: return 'bg-slate-200 text-slate-800';
-    }
-  };
-
   if (loading) {
      return <div className="p-8 flex items-center justify-center text-slate-400 font-black uppercase text-[10px] tracking-widest gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Carregando efetivo...</div>;
   }
@@ -450,7 +403,7 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
           <button
             onClick={handleSaveDefaultAlas}
             disabled={savingDefault || restoringDefault}
-            className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md disabled:opacity-50"
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md disabled:opacity-50 cursor-pointer"
             title="Registra a formação atual das alas como padrão permanente no banco de dados e servidor"
           >
             {savingDefault ? <Loader2 className="w-4 h-4 animate-spin" /> : <BookmarkCheck className="w-4 h-4" />}
@@ -460,7 +413,7 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
           <button
             onClick={() => setShowRestoreConfirmModal(true)}
             disabled={savingDefault || restoringDefault}
-            className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 hover:text-white border border-slate-700 text-slate-200 active:scale-95 rounded-xl text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50"
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 hover:text-white border border-slate-700 text-slate-200 active:scale-95 rounded-xl text-xs font-black uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer"
             title="Restaura a formação padrão oficial caso tenha havido alguma alteração indevida"
           >
             {restoringDefault ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
@@ -470,416 +423,57 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
       </div>
 
       {/* POPUP MODAL 1: Confirmação de Transferência disparada ao selecionar militar de outra OBM na Ala */}
-      {pendingTransfer && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-3 bg-amber-100 text-amber-800 rounded-2xl">
-                <ArrowLeftRight className="w-6 h-6" />
-              </div>
-              <div>
-                <h4 className="text-base font-black text-slate-900 tracking-tight">Transferência de Militar (CBA VII)</h4>
-                <p className="text-xs text-slate-500 font-medium">Confirmação de movimentação entre unidades</p>
-              </div>
-            </div>
-
-            <div className="p-3.5 bg-amber-50 rounded-2xl border border-amber-200 text-xs font-medium text-amber-950 mb-4 space-y-1">
-              <div>
-                Militar: <strong className="font-black text-slate-900">{parseRank(pendingTransfer.militar.rank)} {pendingTransfer.militar.warName || pendingTransfer.militar.name}</strong>
-              </div>
-              <div>
-                RG: <span className="font-mono font-bold text-slate-800">{pendingTransfer.militar.rg}</span> • Lotação Atual: <strong className="font-bold text-rose-700">{pendingTransfer.militar.obm || '10º GBM'}</strong>
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-600 leading-relaxed mb-6 font-medium">
-              Este militar está atualmente lotado no <strong>{pendingTransfer.militar.obm || '10º GBM'}</strong>. 
-              <br /><br />
-              Deseja confirmar a transferência deste militar para o <strong>{pendingTransfer.targetObm}</strong> e alocá-lo na <strong>{pendingTransfer.targetAla ? `ALA ${pendingTransfer.targetAla}` : 'SEM ALA'}</strong>?
-              <br />
-              <span className="text-[11px] text-slate-500 mt-2 block">
-                Esta alteração atualizará a OBM do militar no Sistema de Gestão do Efetivo do CBA VII de forma definitiva.
-              </span>
-            </p>
-
-            <div className="flex items-center justify-end gap-3">
-              <button
-                onClick={() => setPendingTransfer(null)}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black uppercase tracking-wider transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => executeTransfer(pendingTransfer.militar, pendingTransfer.targetObm, pendingTransfer.targetAla)}
-                disabled={isTransferring}
-                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors shadow-sm flex items-center gap-1.5"
-              >
-                {isTransferring ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                Confirmar Transferência para {pendingTransfer.targetObm}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PendingTransferConfirmModal
+        pendingTransfer={pendingTransfer}
+        onClose={() => setPendingTransfer(null)}
+        onConfirm={() => {
+          if (pendingTransfer) {
+            executeTransfer(pendingTransfer.militar, pendingTransfer.targetObm, pendingTransfer.targetAla);
+          }
+        }}
+        isTransferring={isTransferring}
+      />
 
       {/* POPUP MODAL 2: Modal de Transferência entre OBMs da Região da Costa Verde (CBA VII) */}
-      {showDirectTransferModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-indigo-100 text-indigo-700 rounded-2xl">
-                  <ArrowLeftRight className="w-6 h-6" />
-                </div>
-                <div>
-                  <h4 className="text-base font-black text-slate-900 tracking-tight">Transferir Militar na Costa Verde (CBA VII)</h4>
-                  <p className="text-xs text-slate-500 font-medium">Envie ou receba militares entre 10º GBM, 1/10, 2/10, 3/10, 4/10, 26º GBM e 1/26</p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setShowDirectTransferModal(false);
-                  setDirectSelectedMilitar(null);
-                  setDirectSearch('');
-                }}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-600 mb-4 font-medium">
-              Selecione o militar (do <strong>{obmContext}</strong> ou de outra unidade) e escolha para qual <strong>OBM da Costa Verde</strong> e <strong>Ala</strong> deseja enviá-lo:
-            </p>
-
-            {/* Busca e Seleção de Militar + Destino */}
-            <div className="space-y-3.5 mb-6">
-              {!directSelectedMilitar && (
-                <>
-                  <div className="relative">
-                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="Buscar praça por nome de guerra, nome ou RG..."
-                      value={directSearch}
-                      onChange={(e) => setDirectSearch(e.target.value)}
-                      className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:border-indigo-500 rounded-xl text-xs font-bold text-slate-800 outline-none"
-                      autoFocus
-                    />
-                  </div>
-
-                  {/* Lista de Sugestões (mostra militares da OBM atual por padrão ou busca em todas) */}
-                  <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-white shadow-inner">
-                    {(() => {
-                      const isExcluded = (m: any) => ['INATIVO', 'EXCLUÍDO', 'EXCLUIDO', 'DESLIGADO'].some(status => (m.situacao || '').trim().toUpperCase().includes(status));
-                      const filtered = militars
-                        .filter(m => {
-                          if (isExcluded(m)) return false;
-                          if (!isPracaElegivel(m)) return false;
-                          if (!directSearch.trim()) {
-                            return normalizeObm(m.obm || '10º GBM') === currentNormalizedCtx || currentNormalizedCtx === 'GLOBAL';
-                          }
-                          const searchRg = normalizeRg(directSearch);
-                          const matchesRg = searchRg ? normalizeRg(m.rg || '').includes(searchRg) : false;
-                          return (m.name || '').toLowerCase().includes(directSearch.toLowerCase()) ||
-                                 (m.warName || '').toLowerCase().includes(directSearch.toLowerCase()) ||
-                                 matchesRg;
-                        })
-                        .sort(sortAllBySeniority)
-                        .slice(0, 25);
-
-                      if (filtered.length === 0) {
-                        return (
-                          <div className="p-4 text-center text-xs text-slate-400 font-bold">
-                            Nenhum militar encontrado.
-                          </div>
-                        );
-                      }
-
-                      return filtered.map(m => {
-                        const mObm = normalizeObm(m.obm || '10º GBM');
-                        const isCurrentCtx = mObm === currentNormalizedCtx;
-                        const cleanWar = stripRankPrefix(m.warName || '') || stripRankPrefix(m.name || '').split(' ')[0];
-
-                        return (
-                          <div
-                            key={m.rg}
-                            onClick={() => {
-                              setDirectSelectedMilitar(m);
-                              if (mObm === directTargetObm) {
-                                setDirectTargetObm(mObm === '10º GBM' ? '2/10' : '10º GBM');
-                              }
-                            }}
-                            className="p-2.5 hover:bg-indigo-50 cursor-pointer flex items-center justify-between gap-2 text-xs transition-colors"
-                          >
-                            <div className="flex flex-col min-w-0">
-                              <span className="font-bold text-slate-800 break-words leading-snug">{parseRank(m.rank)} {cleanWar}</span>
-                              <span className="text-[10px] text-slate-400 font-mono mt-0.5">
-                                RG {m.rg} • {m.ala ? `Ala ${m.ala}` : 'Sem Ala'}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <span className={cn(
-                                "text-[9px] font-black uppercase px-2 py-0.5 rounded-full border",
-                                isCurrentCtx ? "bg-slate-100 text-slate-600 border-slate-200" : "bg-amber-100 text-amber-800 border-amber-300"
-                              )}>
-                                {m.obm || '10º GBM'}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                </>
-              )}
-
-              {/* Militar Selecionado */}
-              {directSelectedMilitar && (
-                <div className="p-4 bg-indigo-50/70 border border-indigo-200 rounded-2xl flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-black text-indigo-900">
-                      {parseRank(directSelectedMilitar.rank)} {stripRankPrefix(directSelectedMilitar.warName || '') || stripRankPrefix(directSelectedMilitar.name || '').split(' ')[0]}
-                    </div>
-                    <div className="text-[10px] text-indigo-700 font-medium mt-0.5">
-                      RG: {directSelectedMilitar.rg} • Lotação Atual: <strong>{directSelectedMilitar.obm || '10º GBM'}</strong> (Ala: {directSelectedMilitar.ala || 'Sem Ala'})
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setDirectSelectedMilitar(null)}
-                    className="text-xs text-indigo-600 hover:text-indigo-800 font-bold underline cursor-pointer shrink-0"
-                  >
-                    Trocar militar
-                  </button>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                {/* Escolha da OBM de Destino na Costa Verde */}
-                <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">
-                    OBM de Destino (Costa Verde)
-                  </label>
-                  <select
-                    value={directTargetObm}
-                    onChange={(e) => setDirectTargetObm(e.target.value)}
-                    className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs font-black uppercase text-slate-800 outline-none cursor-pointer"
-                  >
-                    {COSTA_VERDE_OBMS.map(obmItem => (
-                      <option key={obmItem.id} value={obmItem.id}>
-                        {obmItem.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Escolha da Ala de Destino */}
-                <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">
-                    Ala de Destino no {directTargetObm}
-                  </label>
-                  <select
-                    value={directTargetAla}
-                    onChange={(e) => setDirectTargetAla(e.target.value)}
-                    className="w-full bg-white border border-slate-200 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs font-black uppercase text-slate-800 outline-none cursor-pointer"
-                  >
-                    <option value="1">ALA 1</option>
-                    <option value="2">ALA 2</option>
-                    <option value="3">ALA 3</option>
-                    <option value="4">ALA 4</option>
-                    <option value="EXP">EXPEDIENTE</option>
-                    <option value="">SEM ALA</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-3">
-              <button
-                onClick={() => {
-                  setShowDirectTransferModal(false);
-                  setDirectSelectedMilitar(null);
-                  setDirectSearch('');
-                }}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black uppercase tracking-wider transition-colors cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => directSelectedMilitar && executeTransfer(directSelectedMilitar, directTargetObm, directTargetAla)}
-                disabled={!directSelectedMilitar || isTransferring}
-                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
-              >
-                {isTransferring ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                Confirmar Envio para {directTargetObm}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DirectTransferModal
+        isOpen={showDirectTransferModal}
+        onClose={() => {
+          setShowDirectTransferModal(false);
+          setDirectSelectedMilitar(null);
+          setDirectSearch('');
+        }}
+        obmContext={obmContext}
+        militars={militars}
+        directSelectedMilitar={directSelectedMilitar}
+        setDirectSelectedMilitar={setDirectSelectedMilitar}
+        directSearch={directSearch}
+        setDirectSearch={setDirectSearch}
+        directTargetObm={directTargetObm}
+        setDirectTargetObm={setDirectTargetObm}
+        directTargetAla={directTargetAla}
+        setDirectTargetAla={setDirectTargetAla}
+        isTransferring={isTransferring}
+        onExecuteTransfer={executeTransfer}
+        currentNormalizedCtx={currentNormalizedCtx}
+      />
 
       {/* Modal de Confirmação para Restaurar Padrão */}
-      {showRestoreConfirmModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-3 bg-amber-100 text-amber-700 rounded-2xl">
-                <AlertTriangle className="w-6 h-6" />
-              </div>
-              <div>
-                <h4 className="text-base font-black text-slate-900 tracking-tight">Restaurar Formação Padrão?</h4>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">Confirmação de restauração de efetivo</p>
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-600 leading-relaxed mb-6 font-medium">
-              Esta ação irá restabelecer a distribuição de todos os militares nas respectivas Alas conforme o <strong>Padrão Oficial gravado</strong>, revertendo qualquer alteração não salva ou inconsistência recente.
-            </p>
-
-            <div className="flex items-center justify-end gap-3">
-              <button
-                onClick={() => setShowRestoreConfirmModal(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black uppercase tracking-wider transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleRestoreDefaultAlas}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-colors shadow-sm"
-              >
-                Confirmar Restauração
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <RestoreDefaultConfirmModal
+        isOpen={showRestoreConfirmModal}
+        onClose={() => setShowRestoreConfirmModal(false)}
+        onConfirm={handleRestoreDefaultAlas}
+      />
 
       {/* SEÇÃO: NOMENCLATURA DAS ALAS (ENTRE AS SEÇÕES) */}
-      <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xs transition-all space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-indigo-700 text-white rounded-2xl shadow-sm">
-              <Tag className="w-5 h-5" />
-            </div>
-            <div>
-              <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                Nomenclatura Oficial das Alas
-                <span className="text-[10px] font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-200 uppercase tracking-widest">
-                  Padrão CBMERJ
-                </span>
-              </h4>
-              <p className="text-xs text-slate-500 font-medium">
-                Denominação oficial das alas operacionais (exibida no Gerar Escala, impressão e cartões de guarnição).
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
-            {namesFeedback && (
-              <span className="text-xs font-bold text-emerald-600 flex items-center gap-1.5 animate-in fade-in">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                {namesFeedback}
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={handleResetAlaNames}
-              className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
-              title="Restaurar as nomenclaturas oficiais padrão"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Restaurar Padrão
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveAlaNames}
-              disabled={savingNames}
-              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 disabled:opacity-50 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer"
-            >
-              {savingNames ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BookmarkCheck className="w-3.5 h-3.5" />}
-              Salvar Nomes
-            </button>
-          </div>
-        </div>
-
-        {/* Grade de Nomenclatura das 4 Alas */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-          {[
-            {
-              ala: '1',
-              label: 'ALA 1',
-              colorBadge: 'bg-emerald-600 text-white border-emerald-700',
-              cardBg: 'bg-emerald-50/50 border-emerald-200 focus-within:border-emerald-500',
-              inputBorder: 'border-emerald-200 focus:border-emerald-500 focus:ring-emerald-200',
-              defaultName: DEFAULT_ALA_NOMENCLATURES['1'],
-            },
-            {
-              ala: '2',
-              label: 'ALA 2',
-              colorBadge: 'bg-rose-600 text-white border-rose-700',
-              cardBg: 'bg-rose-50/50 border-rose-200 focus-within:border-rose-500',
-              inputBorder: 'border-rose-200 focus:border-rose-500 focus:ring-rose-200',
-              defaultName: DEFAULT_ALA_NOMENCLATURES['2'],
-            },
-            {
-              ala: '3',
-              label: 'ALA 3',
-              colorBadge: 'bg-blue-600 text-white border-blue-700',
-              cardBg: 'bg-blue-50/50 border-blue-200 focus-within:border-blue-500',
-              inputBorder: 'border-blue-200 focus:border-blue-500 focus:ring-blue-200',
-              defaultName: DEFAULT_ALA_NOMENCLATURES['3'],
-            },
-            {
-              ala: '4',
-              label: 'ALA 4',
-              colorBadge: 'bg-amber-600 text-white border-amber-700',
-              cardBg: 'bg-amber-50/50 border-amber-200 focus-within:border-amber-500',
-              inputBorder: 'border-amber-200 focus:border-amber-500 focus:ring-amber-200',
-              defaultName: DEFAULT_ALA_NOMENCLATURES['4'],
-            },
-          ].map(item => (
-            <div
-              key={item.ala}
-              className={cn(
-                "p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-2.5",
-                item.cardBg
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <span className={cn("px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border shadow-2xs", item.colorBadge)}>
-                  {item.label}
-                </span>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                  {getMilitarsByAla(item.ala).length} militares
-                </span>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block mb-1">
-                  Nomenclatura / Título:
-                </label>
-                <input
-                  type="text"
-                  value={alaNames[item.ala] ?? item.defaultName}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setAlaNames(prev => ({ ...prev, [item.ala]: val }));
-                  }}
-                  placeholder={item.defaultName}
-                  className={cn(
-                    "w-full bg-white px-3 py-2 rounded-xl text-xs font-black text-slate-800 border outline-none transition-all shadow-2xs focus:ring-2",
-                    item.inputBorder
-                  )}
-                />
-              </div>
-
-              <div className="text-[10px] text-slate-400 font-medium pt-1 border-t border-slate-200/60 truncate">
-                Padrão: <span className="font-semibold text-slate-600">{item.defaultName}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <AlaNomenclaturesSection
+        alaNames={alaNames}
+        setAlaNames={setAlaNames}
+        savingNames={savingNames}
+        namesFeedback={namesFeedback}
+        onResetNames={handleResetAlaNames}
+        onSaveNames={handleSaveAlaNames}
+        getMilitarsByAla={getMilitarsByAla}
+      />
 
       {/* Barra de Título e Pesquisa do Efetivo */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
@@ -919,297 +513,45 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
           const isAdding = targetAlaToAdd === ala;
 
           return (
-            <div key={ala} className="flex flex-col border border-slate-200 rounded-3xl overflow-hidden bg-slate-50/50 relative h-[620px] shadow-xs">
-              <div className={cn("p-4 flex items-center justify-between gap-2", getHeaderColor(ala))}>
-                <div className="min-w-0 pr-1">
-                  <h4 className="text-[12px] sm:text-[12.5px] font-black tracking-wide leading-tight break-words" title={alaNames[ala] || `ALA ${ala}`}>
-                    {alaNames[ala] || `ALA ${ala}`}
-                  </h4>
-                  <p className="text-[9px] font-bold opacity-80 uppercase tracking-widest mt-0.5">{members.length} Militares</p>
-                </div>
-                <button 
-                  onClick={() => {
-                    if (isAdding) {
-                      setTargetAlaToAdd(null);
-                      setLocalSearch('');
-                    } else {
-                      setTargetAlaToAdd(ala);
-                      setLocalSearch('');
-                    }
-                  }}
-                  className="p-1.5 hover:bg-white/20 rounded-xl transition-colors shrink-0"
-                  title={isAdding ? 'Fechar' : `Adicionar militar à Ala ${ala}`}
-                >
-                  {isAdding ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                </button>
-              </div>
-
-              {isAdding && (
-                <div className="p-3 border-b border-slate-200 bg-white">
-                  <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Adicionar à Ala {ala}</div>
-                  <div className="relative mb-2">
-                    <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input 
-                      type="text"
-                      placeholder="Buscar praça de qualquer unidade..."
-                      value={localSearch}
-                      onChange={(e) => setLocalSearch(e.target.value)}
-                      className="pl-7 pr-2 py-1.5 border border-slate-200 focus:border-indigo-400 rounded-lg text-[10px] uppercase font-bold tracking-wider outline-none w-full transition-all"
-                      autoFocus
-                    />
-                  </div>
-                  <div className="max-h-48 overflow-y-auto pr-1 space-y-1">
-                    {(() => {
-                      const isExcluded = (m: any) => ['INATIVO', 'EXCLUÍDO', 'EXCLUIDO', 'DESLIGADO'].some(status => (m.situacao || '').trim().toUpperCase().includes(status));
-                      
-                      const searchPool = militars.filter(m => {
-                        if (isExcluded(m)) return false;
-                        if (!isPracaElegivel(m)) return false;
-                        const mObm = normalizeObm(m.obm || '10º GBM');
-                        const ctx = currentNormalizedCtx;
-                        
-                        // Se já está nesta ala desta OBM, pula
-                        if (mObm === ctx && normalizeAlaField(m.ala) === ala) return false;
-                        
-                        if (!localSearch) {
-                          // Padrão: mostra militares desta OBM sem ala ou em outras alas
-                          return mObm === ctx;
-                        }
-                        
-                        const searchRg = normalizeRg(localSearch);
-                        const matchesRg = searchRg ? normalizeRg(m.rg || '').includes(searchRg) : false;
-                        return (m.name || '').toLowerCase().includes(localSearch.toLowerCase()) || 
-                               (m.warName || '').toLowerCase().includes(localSearch.toLowerCase()) || 
-                               matchesRg;
-                      });
-
-                      if (searchPool.length === 0) {
-                        return (
-                          <div className="p-3 text-center text-[10px] text-slate-400 font-bold uppercase">
-                            Nenhum militar encontrado
-                          </div>
-                        );
-                      }
-
-                      return searchPool.slice(0, 20).map(m => {
-                        const mObm = normalizeObm(m.obm || '10º GBM');
-                        const ctx = currentNormalizedCtx;
-                        const isOtherUnit = mObm !== ctx && ctx !== 'GLOBAL';
-                        const cleanWar = stripRankPrefix(m.warName || '') || stripRankPrefix(m.name || '').split(' ')[0];
-
-                        return (
-                          <button
-                            key={m.rg}
-                            onClick={() => {
-                              if (isOtherUnit) {
-                                setPendingTransfer({
-                                  militar: m,
-                                  targetAla: ala,
-                                  targetObm: obmContext
-                                });
-                              } else {
-                                assignAla(m.rg!, ala);
-                              }
-                            }}
-                            disabled={assigningRg === m.rg}
-                            className={cn(
-                              "w-full text-left p-2 rounded-xl flex items-center justify-between gap-2 text-[11px] group transition-colors border mb-1",
-                              isOtherUnit 
-                                ? "bg-amber-50/70 hover:bg-amber-100 border-amber-200 text-amber-950" 
-                                : "hover:bg-indigo-50 border-slate-100"
-                            )}
-                          >
-                            <div className="flex flex-col min-w-0 pr-1">
-                              <div className="flex flex-wrap items-center gap-1.5">
-                                <span className="font-bold text-slate-800 break-words leading-snug">{parseRank(m.rank)} {cleanWar}</span>
-                                {isOtherUnit && (
-                                  <span className="text-[8px] font-black uppercase text-amber-800 bg-amber-200/80 px-1 py-0.2 rounded border border-amber-300 shrink-0">
-                                    {m.obm || '10º GBM'}
-                                  </span>
-                                )}
-                              </div>
-                              <span className="text-[9px] font-mono text-slate-400 mt-0.5">
-                                RG {m.rg} • {m.ala ? `Ala ${m.ala}` : 'Sem Ala'}
-                              </span>
-                            </div>
-                            {isOtherUnit ? (
-                              <span className="text-[9px] font-black uppercase text-amber-700 bg-white px-1.5 py-0.5 rounded shadow-2xs border border-amber-200 group-hover:bg-amber-600 group-hover:text-white transition-colors shrink-0">
-                                Transferir
-                              </span>
-                            ) : assigningRg === m.rg ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-600 shrink-0" />
-                            ) : (
-                              <Plus className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 shrink-0" />
-                            )}
-                          </button>
-                        );
-                      });
-                    })()}
-                  </div>
-                </div>
-              )}
-
-              {/* Lista de Membros da Ala */}
-              <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                {members.length === 0 ? (
-                  <div className="text-center py-12 text-slate-400 font-bold uppercase text-[10px] tracking-widest">
-                    Nenhum militar
-                  </div>
-                ) : (
-                  members.map((m, idx) => {
-                    const cleanWar = stripRankPrefix(m.warName || '') || stripRankPrefix(m.name || '').split(' ')[0];
-
-                    return (
-                      <div 
-                        key={m.rg}
-                        className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs hover:border-indigo-300 transition-all flex flex-col gap-2 relative group"
-                      >
-                        <div className="flex items-start justify-between gap-1.5">
-                          <div className="flex items-start gap-2 min-w-0 flex-1">
-                            <div className="w-5 h-5 bg-slate-100 rounded-md flex items-center justify-center text-[9px] font-black text-slate-400 shrink-0 mt-0.5">
-                              {idx + 1}
-                            </div>
-                            <span className="text-[11.5px] font-black text-slate-800 leading-snug break-words flex-1">
-                              {parseRank(m.rank)} {cleanWar}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-0.5 shrink-0">
-                            {/* Botão rápido para transferir o militar para outra OBM da Costa Verde */}
-                            <button
-                              type="button"
-                              onClick={() => openTransferModalForMilitar(m)}
-                              className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-200 transition-colors cursor-pointer"
-                              title="Transferir para outra OBM da Costa Verde (ex: 2/10)"
-                            >
-                              <ArrowLeftRight className="w-3.5 h-3.5" />
-                            </button>
-
-                            {/* Botão (X) para excluir/remover o militar desta Ala */}
-                            <button
-                              type="button"
-                              onClick={() => assignAla(m.rg!, '')}
-                              disabled={assigningRg === m.rg}
-                              className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors cursor-pointer disabled:opacity-50"
-                              title="Remover militar desta Ala (enviar para Sem Ala)"
-                            >
-                              {assigningRg === m.rg ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-500" />
-                              ) : (
-                                <X className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between gap-1.5 pl-7 pt-1 border-t border-slate-100 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                          <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                            <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-bold shrink-0">RG {m.rg}</span>
-                            <span className="text-slate-400">{m.quadro || '-'}</span>
-                          </div>
-
-                          {/* Mover para outra Ala */}
-                          <select
-                            value={ala}
-                            onChange={(e) => assignAla(m.rg!, e.target.value)}
-                            disabled={assigningRg === m.rg}
-                            className="bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded px-1.5 py-0.5 text-[9px] font-black uppercase text-slate-600 outline-none cursor-pointer shrink-0"
-                            title="Mover para outra Ala"
-                          >
-                            <option value="1">ALA 1</option>
-                            <option value="2">ALA 2</option>
-                            <option value="3">ALA 3</option>
-                            <option value="4">ALA 4</option>
-                            <option value="EXP">EXP</option>
-                            <option value="">SEM ALA</option>
-                          </select>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
+            <AlaColumnCard
+              key={ala}
+              ala={ala}
+              members={members}
+              alaName={alaNames[ala] || `ALA ${ala}`}
+              headerColor={getHeaderColor(ala)}
+              isAdding={isAdding}
+              onToggleAdding={() => {
+                if (isAdding) {
+                  setTargetAlaToAdd(null);
+                  setLocalSearch('');
+                } else {
+                  setTargetAlaToAdd(ala);
+                  setLocalSearch('');
+                }
+              }}
+              localSearch={localSearch}
+              setLocalSearch={setLocalSearch}
+              militars={militars}
+              currentNormalizedCtx={currentNormalizedCtx}
+              obmContext={obmContext}
+              assigningRg={assigningRg}
+              onAssignAla={assignAla}
+              onPendingTransfer={setPendingTransfer}
+              onOpenDirectTransfer={openTransferModalForMilitar}
+            />
           );
         })}
       </div>
 
       {/* Seção de Militares Sem Ala Definida */}
-      {semAlaMilitars.length > 0 && (
-        <div className="border border-slate-200 rounded-3xl overflow-hidden bg-slate-50/50 shadow-xs">
-          <div className="p-4 bg-slate-800 text-slate-50 flex items-center justify-between">
-            <div>
-              <h4 className="text-sm font-black tracking-wider uppercase">Militares de {obmContext} sem Ala Definida</h4>
-              <p className="text-[10px] font-bold opacity-80 uppercase tracking-widest">
-                {semAlaMilitars.length} praças ativos aguardando alocação
-              </p>
-            </div>
-          </div>
-          <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 max-h-96 overflow-y-auto">
-            {semAlaMilitars
-              .filter(m => {
-                if (!searchTerm) return true;
-                const searchRg = normalizeRg(searchTerm);
-                const matchesRg = searchRg ? normalizeRg(m.rg || '').includes(searchRg) : false;
-                return (
-                  (m.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                  (m.warName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                  matchesRg
-                );
-              })
-              .sort(sortAllBySeniority)
-              .map((m, idx) => {
-                const cleanWar = stripRankPrefix(m.warName || '') || stripRankPrefix(m.name || '').split(' ')[0];
-
-                return (
-                  <div key={m.rg} className="bg-white p-3 rounded-2xl border border-slate-200 hover:border-indigo-300 transition-all shadow-xs flex flex-col justify-between gap-2">
-                    <div className="flex items-start justify-between gap-1.5 min-w-0">
-                      <div className="flex items-start gap-2 min-w-0 flex-1">
-                        <div className="w-5 h-5 bg-slate-100 rounded-md flex items-center justify-center text-[9px] font-black text-slate-400 shrink-0 mt-0.5">
-                          {idx + 1}
-                        </div>
-                        <span className="text-[11.5px] font-black text-slate-800 leading-snug break-words flex-1">
-                          {parseRank(m.rank)} {cleanWar}
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => openTransferModalForMilitar(m)}
-                        className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-200 transition-colors cursor-pointer shrink-0"
-                        title="Transferir para outra OBM da Costa Verde (ex: 2/10)"
-                      >
-                        <ArrowLeftRight className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-1.5 pl-7 pt-1 border-t border-slate-100 text-[9px] font-bold text-slate-500 uppercase tracking-wider">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-bold">RG {m.rg}</span>
-                        <span>{m.quadro || '-'}</span>
-                      </div>
-
-                      <select
-                        value=""
-                        onChange={(e) => assignAla(m.rg!, e.target.value)}
-                        disabled={assigningRg === m.rg}
-                        className="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded px-1.5 py-0.5 text-[9px] font-black uppercase text-indigo-700 outline-none cursor-pointer shrink-0"
-                        title="Atribuir à Ala"
-                      >
-                        <option value="">+ ALA</option>
-                        <option value="1">ALA 1</option>
-                        <option value="2">ALA 2</option>
-                        <option value="3">ALA 3</option>
-                        <option value="4">ALA 4</option>
-                        <option value="EXP">EXP</option>
-                      </select>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        </div>
-      )}
+      <SemAlaSection
+        semAlaMilitars={semAlaMilitars}
+        searchTerm={searchTerm}
+        obmContext={obmContext}
+        assigningRg={assigningRg}
+        onAssignAla={assignAla}
+        onOpenDirectTransfer={openTransferModalForMilitar}
+      />
     </div>
   );
 }

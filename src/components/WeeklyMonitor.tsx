@@ -10,6 +10,7 @@ import {
   getAlaForDate,
   getThemeColors,
   calculateDeadline,
+  normalizeRg,
 } from "../lib/utils";
 import { UserProfile, PermutaRequest } from "../types";
 import {
@@ -347,11 +348,6 @@ export function WeeklyMonitor({
     const obmId = obmContext.replace(/\//g, "_").replace(/\s/g, "_");
     const normalizedObm = obmContext.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
 
-    const normalizeRg = (rg: string | number) => {
-      const str = (rg || "").toString().trim().toUpperCase();
-      const clean = str.replace(/[^A-Z0-9]/g, "");
-      return clean.replace(/^0+/, "") || clean;
-    };
     const userRgEscaped = normalizeRg(user.rg);
 
     const today = startOfDay(new Date());

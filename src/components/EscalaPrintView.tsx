@@ -13,6 +13,7 @@ import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { OfficerVisibility } from '../types';
 import { getEarliestStartTime } from '../lib/sentinelaUtils';
+import { generatePrintHtmlDocument } from '../features/escala24h/lib/printHtmlGenerator';
 
 export function EscalaPrintView({
   selectedDate,
@@ -921,14 +922,33 @@ export function EscalaPrintView({
 
   // Get active members list
   const activeMembersList = useMemo(() => {
-    return (baseRoster || []).map((m: any) => {
-      const rg = m.rg || '';
-      const isSwapped = permutasOut?.has(rg);
-      const actualMilitar = isSwapped ? (militars?.find((x: any) => x.rg === permutasOut.get(rg)?.substituteRg) || m) : m;
+    return (baseRoster || []).map((item: any) => {
+      const m = item?.militar || item;
+      const cleanRg = normalizeRg(m?.rg || '');
+      const isSwapped = Boolean(
+        cleanRg && permutasOut && (
+          permutasOut instanceof Map
+            ? (permutasOut.has(cleanRg) || permutasOut.has(m?.rg))
+            : (permutasOut.has?.(cleanRg) || permutasOut.has?.(m?.rg))
+        )
+      );
+      let subRg = cleanRg;
+      if (isSwapped && permutasOut && permutasOut instanceof Map) {
+        const perm = permutasOut.get(cleanRg) || permutasOut.get(m?.rg);
+        if (perm?.substituteRg) {
+          subRg = normalizeRg(perm.substituteRg);
+        }
+      }
+      const actualMilitar =
+        (militars || []).find((x: any) => normalizeRg(x.rg) === subRg) ||
+        (militars || []).find((x: any) => x.rg === subRg) ||
+        m;
+      const resolved = actualMilitar?.militar || actualMilitar || m;
+      const label = formatRankAndName(resolved) || [resolved?.rank, resolved?.warName || resolved?.name].filter(Boolean).join(' ') || resolved?.rg || cleanRg;
       return {
-        rg: actualMilitar?.rg || rg,
-        militar: actualMilitar || m,
-        label: formatRankAndName(actualMilitar)
+        rg: resolved?.rg || m?.rg || cleanRg,
+        militar: resolved,
+        label
       };
     }).sort((a: any, b: any) => sortAllBySeniority(a.militar, b.militar));
   }, [baseRoster, permutasOut, militars]);
@@ -941,154 +961,11 @@ export function EscalaPrintView({
 
   // Gerador de documento HTML isolado com cores da ala preservadas para impressão e PDF
   const generatePrintHtml = () => {
-    try {
-      const sheetEl = document.getElementById("escala-print-sheet");
-      if (!sheetEl) return null;
-
-      // Coleta todas as regras CSS processadas da página
-      let collectedCss = '';
-      try {
-        for (const sheet of Array.from(document.styleSheets)) {
-          try {
-            if (sheet.cssRules) {
-              for (const rule of Array.from(sheet.cssRules)) {
-                collectedCss += rule.cssText + '\n';
-              }
-            }
-          } catch {}
-        }
-      } catch {}
-
-      // Converte links de folhas de estilo para URLs absolutas para funcionamento garantido em Blob/about:blank
-      const linkTags = Array.from(document.querySelectorAll("link[rel='stylesheet']"))
-        .map(node => {
-          const href = (node as HTMLLinkElement).href;
-          return `<link rel="stylesheet" href="${href}" />`;
-        })
-        .join("\n");
-
-      // Clonar e limpar controles interativos exclusivos da tela
-      const clone = sheetEl.cloneNode(true) as HTMLElement;
-      const hiddenEls = clone.querySelectorAll(".print\\:hidden, [class*='print:hidden']");
-      hiddenEls.forEach(el => el.remove());
-
-      // Forçar atributos inline de cor exata e print-color-adjust em todos os cabeçalhos de ala
-      const alaElements = clone.querySelectorAll(".escala-ala-header, ." + alaTheme.bgClass);
-      alaElements.forEach((el) => {
-        const htmlEl = el as HTMLElement;
-        htmlEl.style.backgroundColor = alaTheme.bgHex;
-        htmlEl.style.color = '#000000';
-        htmlEl.style.setProperty('-webkit-print-color-adjust', 'exact', 'important');
-        htmlEl.style.setProperty('print-color-adjust', 'exact', 'important');
-      });
-
-      return `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Escala de Serviço 24h - ${dateStr || shortDateStr}</title>
-  ${linkTags}
-  <style>
-    ${collectedCss}
-  </style>
-  <style>
-    @page {
-      size: A4 portrait;
-      margin: 22mm 6mm 8mm 6mm;
-    }
-    *, *::before, *::after {
-      box-sizing: border-box;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-      color-adjust: exact !important;
-    }
-    #escala-print-sheet {
-      padding-top: 18mm !important;
-    }
-    html, body {
-      background: white !important;
-      color: black !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-      color-adjust: exact !important;
-    }
-    .print\\:hidden, [class*="print:hidden"] {
-      display: none !important;
-    }
-    /* Estilos definitivos para impressão das cores oficiais da Ala */
-    .escala-ala-header {
-      background-color: ${alaTheme.bgHex} !important;
-      color: #000000 !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-      color-adjust: exact !important;
-    }
-    .bg-emerald-200 {
-      background-color: #a7f3d0 !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-      color-adjust: exact !important;
-    }
-    .bg-rose-200 {
-      background-color: #fecdd3 !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-      color-adjust: exact !important;
-    }
-    .bg-blue-200, .bg-sky-200 {
-      background-color: #bfdbfe !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-      color-adjust: exact !important;
-    }
-    .bg-amber-200, .bg-yellow-200 {
-      background-color: #fde68a !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-      color-adjust: exact !important;
-    }
-    .bg-slate-200 {
-      background-color: #e2e8f0 !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-      color-adjust: exact !important;
-    }
-    .bg-slate-50 {
-      background-color: #f8fafc !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-      color-adjust: exact !important;
-    }
-    .bg-white {
-      background-color: #ffffff !important;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-      color-adjust: exact !important;
-    }
-  </style>
-</head>
-<body class="bg-white text-black p-2 pt-4">
-  <div class="max-w-[1200px] mx-auto bg-white relative text-black font-sans text-[11px] leading-tight flex flex-col pt-2">
-    ${clone.innerHTML}
-  </div>
-  <script>
-    window.addEventListener('load', function() {
-      setTimeout(function() {
-        window.focus();
-        window.print();
-      }, 350);
-    });
-  </script>
-</body>
-</html>`;
-    } catch (e) {
-      console.warn("Erro ao gerar HTML de impressão:", e);
-      return null;
-    }
+    return generatePrintHtmlDocument(
+      "escala-print-sheet",
+      `Escala de Serviço 24h - ${dateStr || shortDateStr}`,
+      alaTheme
+    );
   };
 
   // Pré-gera o link "Abrir para Imprimir" para estar sempre disponível com as cores da Ala
@@ -1149,7 +1026,7 @@ export function EscalaPrintView({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-800/90 z-[200] overflow-y-auto print:absolute print:inset-0 print:bg-white print:z-[9999] print:block">
+    <div className="fixed inset-0 bg-slate-800/90 z-[200] overflow-y-auto print:absolute print:inset-0 print:bg-white print:z-[9999] print:block keep-light" data-theme="light">
       {/* Barra de Ações Fixa no Topo - Oculta na impressão */}
       <div className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-700/80 px-4 py-2.5 flex items-center justify-between gap-3 print:hidden shadow-lg">
         <div className="flex items-center gap-2 text-slate-300 text-xs font-bold">
@@ -2117,8 +1994,8 @@ export function EscalaPrintView({
 
           return (
             <div className="flex border-2 border-black mb-2 uppercase leading-tight w-full items-stretch">
-              {/* COLUNA ESQUERDA: FUNÇÕES ADMINISTRATIVAS (32%) - CRESCE E CONFRONTA SENTINELAS + COMUNICANTES + PERMUTAS AUTORIZADAS */}
-              <div className="w-[32%] flex flex-col border-r-2 border-black shrink-0">
+              {/* COLUNA ESQUERDA: FUNÇÕES ADMINISTRATIVAS (42%) - CRESCE E CONFRONTA SENTINELAS + COMUNICANTES + PERMUTAS AUTORIZADAS */}
+              <div className="w-[53%] flex flex-col border-r-2 border-black shrink-0">
                 {/* Header Funções Administrativas */}
                 <div
                   className={cn("py-1 px-1.5 uppercase border-b border-black text-center escala-ala-header font-bold text-[10px] sm:text-[10.5px]", headerColorClass)}
@@ -2187,8 +2064,8 @@ export function EscalaPrintView({
                 </div>
               </div>
 
-              {/* COLUNA DIREITA (68%): PARTE SUPERIOR (SENTINELAS EM 2 COLUNAS + COMUNICANTE/OUTROS) + PARTE INFERIOR (PERMUTAS AUTORIZADAS) */}
-              <div className="w-[68%] flex flex-col justify-between">
+              {/* COLUNA DIREITA (58%): PARTE SUPERIOR (SENTINELAS EM 2 COLUNAS + COMUNICANTE/OUTROS) + PARTE INFERIOR (PERMUTAS AUTORIZADAS) */}
+              <div className="w-[47%] flex flex-col justify-between">
                 {/* PARTE SUPERIOR: SENTINELAS + COMUNICANTE/OUTROS */}
                 <div className="flex-1 flex w-full items-stretch">
                   {/* SENTINELAS EM 2 COLUNAS */}
@@ -2284,9 +2161,9 @@ export function EscalaPrintView({
                     )}
                   </div>
 
-                  {/* SEÇÃO 3: COMUNICANTE (E OUTROS) (26.47% de 68% = 18% da página, alinhado com RAS e VISTO) */}
+                  {/* SEÇÃO 3: COMUNICANTE (E OUTROS) (31.03% de 58% = 18% da página, alinhado com RAS e VISTO) */}
                   {hasRightCol && (
-                    <div className="w-[26.47%] shrink-0 flex flex-col justify-between font-bold">
+                    <div className="w-[31.03%] shrink-0 flex flex-col justify-between font-bold">
                       {rightSubSections.map((sec, sIdx) => (
                         <div key={sec.key} className="flex flex-col flex-1">
                           <div
@@ -2362,15 +2239,21 @@ export function EscalaPrintView({
            </thead>
            <tbody>
               <tr>
-                 <td className="border-r border-black p-1.5 px-3 align-top text-[10px] font-bold">
+                 <td className="border-r border-black p-1.5 px-3 align-top text-[9.5px] font-bold">
                     {activeMembersList.length > 0 ? (
-                       <div className="grid grid-cols-4 gap-x-4 gap-y-1">
-                          {activeMembersList.map((m: any, idx: number) => (
-                             <div key={idx} className="flex items-center gap-1.5 truncate">
-                                <span className="font-mono text-slate-700 shrink-0">{m.rg} -</span>
-                                <span className="truncate">{renderMilitar(m.militar)}</span>
-                             </div>
-                          ))}
+                       <div className={cn(
+                          "grid gap-y-1",
+                          activeMembersList.length > 24 ? "grid-cols-4 gap-x-2 text-[9px]" : "grid-cols-3 gap-x-3.5"
+                       )}>
+                          {activeMembersList.map((m: any, idx: number) => {
+                             const militarName = m.label || formatRankAndName(m.militar) || [m.militar?.rank, m.militar?.warName || m.militar?.name].filter(Boolean).join(" ") || m.rg;
+                             return (
+                                <div key={idx} className="flex items-center gap-1.5 min-w-0" title={militarName}>
+                                   <span className="font-mono text-slate-700 shrink-0">{m.rg} -</span>
+                                   <span className="truncate whitespace-nowrap font-bold text-slate-900">{militarName}</span>
+                                </div>
+                             );
+                          })}
                        </div>
                     ) : (
                        <div className="text-center font-normal text-slate-500 italic py-2">

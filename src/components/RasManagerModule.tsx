@@ -466,12 +466,12 @@ export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasMa
       )}
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div className="flex bg-slate-100 p-1 rounded-xl">
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs">
           <button
             onClick={() => setActiveTab('oportunidades')}
             className={cn(
-              "px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all",
-              activeTab === 'oportunidades' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              "px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all cursor-pointer",
+              activeTab === 'oportunidades' ? "bg-white text-indigo-700 shadow-xs border border-slate-200 dark:border-slate-700" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/60"
             )}
           >
             Oportunidades
@@ -479,8 +479,8 @@ export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasMa
           <button
             onClick={() => setActiveTab('banco-horas')}
             className={cn(
-              "px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all",
-              activeTab === 'banco-horas' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              "px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all cursor-pointer",
+              activeTab === 'banco-horas' ? "bg-white text-indigo-700 shadow-xs border border-slate-200 dark:border-slate-700" : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/60"
             )}
           >
             Banco de Horas

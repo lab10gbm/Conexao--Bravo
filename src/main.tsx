@@ -22,14 +22,18 @@ if (Capacitor.isNativePlatform()) {
   };
 }
 
+import { ThemeProvider } from './contexts/ThemeContext.tsx';
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <ConfigProvider>
-        <MilitarProvider>
-          <App />
-        </MilitarProvider>
-      </ConfigProvider>
+      <ThemeProvider>
+        <ConfigProvider>
+          <MilitarProvider>
+            <App />
+          </MilitarProvider>
+        </ConfigProvider>
+      </ThemeProvider>
     </BrowserRouter>
   </StrictMode>
 );
