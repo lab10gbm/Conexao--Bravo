@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   collection,
   query,
@@ -13,6 +13,11 @@ import { format, subDays } from "date-fns";
 import { db } from "../lib/firebase";
 import { PermutaRequest, PermutaStatus, UserProfile } from "../types";
 import { normalizeRg, cleanUndefined } from "../lib/utils";
+import {
+  initPushNotifications,
+  notifyNovaPermutaRecebida,
+  notifyPermutaDeferida,
+} from "../lib/pushNotifications";
 
 export interface UseNotificacoesMilitarReturn {
   notifications: PermutaRequest[];
@@ -40,6 +45,15 @@ export function useNotificacoesMilitar(
     } catch {}
     return [];
   });
+
+  const isInitialLoadRef = useRef(true);
+  const knownPendingIdsRef = useRef<Set<string>>(new Set());
+  const knownAcceptedIdsRef = useRef<Set<string>>(new Set());
+
+  // Request permissions once on mount
+  useEffect(() => {
+    initPushNotifications();
+  }, []);
 
   const myCleanRg = useMemo(() => normalizeRg(profile?.rg), [profile?.rg]);
 
@@ -74,6 +88,57 @@ export function useNotificacoesMilitar(
           const subRg = normalizeRg(p.substituteRg);
           return reqRg === myCleanRg || subRg === myCleanRg;
         });
+
+        // Trigger device push / chime if new items arrive
+        if (!isInitialLoadRef.current) {
+          mine.forEach((p) => {
+            if (!p.id) return;
+            const isReq = normalizeRg(p.requesterRg) === myCleanRg;
+            const isSub = normalizeRg(p.substituteRg) === myCleanRg;
+            const needsSign =
+              p.status === PermutaStatus.PENDING &&
+              ((isSub && !p.substituteSigned) || (isReq && !p.requesterSigned));
+
+            if (needsSign && !knownPendingIdsRef.current.has(p.id)) {
+              const solicitante = isReq
+                ? p.substituteName || "Militar"
+                : p.requesterName || "Militar";
+              notifyNovaPermutaRecebida({
+                solicitante,
+                data: p.date,
+                ala: p.originalAla,
+              });
+            }
+
+            if (
+              p.status === PermutaStatus.ACCEPTED &&
+              !knownAcceptedIdsRef.current.has(p.id)
+            ) {
+              notifyPermutaDeferida({
+                data: p.date,
+                escalante: p.acceptedByName || p.acceptedById,
+              });
+            }
+          });
+        }
+
+        // Update tracking sets
+        const currentPending = new Set<string>();
+        const currentAccepted = new Set<string>();
+        mine.forEach((p) => {
+          if (!p.id) return;
+          const isReq = normalizeRg(p.requesterRg) === myCleanRg;
+          const isSub = normalizeRg(p.substituteRg) === myCleanRg;
+          const needsSign =
+            p.status === PermutaStatus.PENDING &&
+            ((isSub && !p.substituteSigned) || (isReq && !p.requesterSigned));
+          if (needsSign) currentPending.add(p.id);
+          if (p.status === PermutaStatus.ACCEPTED) currentAccepted.add(p.id);
+        });
+
+        knownPendingIdsRef.current = currentPending;
+        knownAcceptedIdsRef.current = currentAccepted;
+        isInitialLoadRef.current = false;
 
         setPermutas(mine);
         setLoading(false);
