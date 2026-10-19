@@ -142,7 +142,7 @@ export function EscalaTransferModals({
             </div>
 
             <p className="text-xs text-slate-600 mb-4 font-medium">
-              Pesquise qualquer militar do CBA VII (10º GBM, 1/10, 2/10, 3/10, 4/10, 26º GBM, etc.) para recebê-lo e transferi-lo para o <strong>{obmContext}</strong>:
+              Pesquise qualquer militar do CBA VII (10º GBM, 1/10, 2/10, 3/10, 4/10, 26º GBM, 1/26) para recebê-lo e transferi-lo para o <strong>{obmContext}</strong>:
             </p>
 
             <div className="space-y-3 mb-6">

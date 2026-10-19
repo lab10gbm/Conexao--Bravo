@@ -30,6 +30,7 @@ import {
 import { ptBR } from 'date-fns/locale';
 import { cn, cleanUndefined } from '../../../lib/utils';
 import { parseRank, sortOfficersBySeniority } from '../../../lib/rankUtils';
+import { resolveCanonicalScope, formatScopeLabel } from '../../../lib/canonicalScope';
 import { GenericOfficerGrdModuleProps } from '../types';
 import { calculateOfficerQuotas } from '../lib/officerQuotas';
 
@@ -296,11 +297,14 @@ export function GenericOfficerGrdModule({
                     isCyan ? "focus:border-cyan-500" : "focus:border-emerald-500"
                   )}
                 >
-                  {availableObms.map((obm) => (
-                    <option key={obm} value={obm}>
-                      {obm}
-                    </option>
-                  ))}
+                  {availableObms.map((obm) => {
+                    const label = obm === 'GLOBAL' ? '🌐 TODAS AS UNIDADES' : formatScopeLabel(resolveCanonicalScope(obm));
+                    return (
+                      <option key={obm} value={obm}>
+                        {label}
+                      </option>
+                    );
+                  })}
                 </select>
               )}
             </div>

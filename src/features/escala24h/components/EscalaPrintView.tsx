@@ -35,6 +35,8 @@ export function EscalaPrintView(props: UseEscalaPrintDataProps) {
         setAllOfficersVisibility={data.setAllOfficersVisibility}
         officerTableLayout={data.officerTableLayout}
         setOfficerTableLayout={data.setOfficerTableLayout}
+        viaturaTableLayout={data.viaturaTableLayout}
+        setViaturaTableLayout={data.setViaturaTableLayout}
         showAdminMenu={data.showAdminMenu}
         setShowAdminMenu={data.setShowAdminMenu}
         adminMenuRef={data.adminMenuRef}
@@ -94,6 +96,13 @@ export function EscalaPrintView(props: UseEscalaPrintDataProps) {
               print-color-adjust: exact !important;
               color-adjust: exact !important;
             }
+            .escala-vtr-func-header {
+              background-color: #dbe4ee !important;
+              color: #000000 !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
+            }
           }
         `}</style>
 
@@ -127,6 +136,7 @@ export function EscalaPrintView(props: UseEscalaPrintDataProps) {
           renderMilitar={data.renderMilitar}
           getByFunc={data.getByFunc}
           shortDateStr={data.shortDateStr}
+          viaturaTableLayout={data.viaturaTableLayout}
         />
 
         {/* 3. Funções Administrativas, Sentinelas e Permutas */}

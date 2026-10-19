@@ -206,6 +206,7 @@ const PermutaBoard = lazyWithRetry(() => import("./components/PermutaBoard").the
 const RequestPermuta = lazyWithRetry(() => import("./components/RequestPermuta").then((m) => ({ default: m.RequestPermuta })));
 const CalendarHighlights = lazyWithRetry(() => import("./components/CalendarHighlights").then((m) => ({ default: m.CalendarHighlights })));
 const ConfiguracoesModule = lazyWithRetry(() => import("./components/ConfiguracoesModule").then((m) => ({ default: m.ConfiguracoesModule })));
+const ComandoAreaManager = lazyWithRetry(() => import("./components/config/ComandoAreaManager").then((m) => ({ default: m.ComandoAreaManager })));
 const ExpedienteScheduler = lazyWithRetry(() => import("./features/expediente/ExpedienteScheduler").then((m) => ({ default: m.ExpedienteScheduler })));
 const BuscarMilitarModule = lazyWithRetry(() => import("./components/BuscarMilitarModule").then((m) => ({ default: m.BuscarMilitarModule })));
 const HomePortal = lazyWithRetry(() => import("./components/HomePortal").then((m) => ({ default: m.HomePortal })));
@@ -1288,6 +1289,21 @@ export default function App() {
                     transition={{ duration: 0.3 }}
                   >
                     <ConfiguracoesModule onBack={() => navigate("/")} />
+                  </motion.div>
+                }
+              />
+              <Route
+                path="/comando-area"
+                element={
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.05 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <div className="flex flex-col gap-6">
+                      <ComandoAreaManager onBackToConfig={() => navigate("/")} />
+                    </div>
                   </motion.div>
                 }
               />

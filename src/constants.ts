@@ -18,13 +18,16 @@ export const INITIAL_COLUMNS = [
 ];
 
 export const GROUPS = [
-  { id: "10º GBM", label: "10º GBM" },
-  { id: "1/10", label: "1/10 - Itaguaí" },
-  { id: "2/10", label: "2/10 - Ilha Grande" },
-  { id: "3/10", label: "3/10 - Frade" },
-  { id: "4/10", label: "4/10 - Mangaratiba" },
-  { id: "26º GBM", label: "26º GBM - Paraty" },
-  { id: "1/26", label: "1/26 - Mangaratiba / Paraty" }
+  // 10º GBM - Angra dos Reis
+  { id: "10º GBM", label: "10º GBM - Sede (Angra dos Reis)" },
+  { id: "1/10", label: "DBM 1/10 - Itaguaí" },
+  { id: "2/10", label: "DBM 2/10 - Ilha Grande" },
+  { id: "3/10", label: "DBM 3/10 - Frade" },
+  { id: "4/10", label: "DBM 4/10 - Mangaratiba" },
+
+  // 26º GBM - Paraty
+  { id: "26º GBM", label: "26º GBM - Sede (Paraty)" },
+  { id: "1/26", label: "DBM 1/26 - Parque Mambucaba" }
 ];
 
 export const RAS_FUNCTION_MAP: Record<string, string> = {
@@ -64,11 +67,14 @@ export const DEFAULT_VIATURAS: any[] = [
 ];
 
 export const OBM_HIERARCHY: Record<string, string[]> = {
+  // 10º GBM - Angra dos Reis e Subunidades
   '10º GBM': ['10º GBM', '1/10', '2/10', '3/10', '4/10'],
   '1/10': ['1/10'],
   '2/10': ['2/10'],
   '3/10': ['3/10'],
   '4/10': ['4/10'],
+
+  // 26º GBM - Paraty e Subunidades
   '26º GBM': ['26º GBM', '1/26'],
   '1/26': ['1/26']
 };

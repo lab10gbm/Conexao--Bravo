@@ -1,0 +1,62 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "permutas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "scope.unitId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "permutas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "scope.subunitId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "registro_escalas_24h",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "scope.unitId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "registro_escalas_24h",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "scope.subunitId", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "ras_opportunities",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "scope.unitId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "militaries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "scope.unitId", "order": "ASCENDING" },
+        { "fieldPath": "ala", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "militaries",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "scope.subunitId", "order": "ASCENDING" },
+        { "fieldPath": "ala", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

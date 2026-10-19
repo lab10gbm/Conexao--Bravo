@@ -3,6 +3,7 @@ import express from 'express';
 import { collection, getDocs, getDoc, doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import fs from 'fs';
 import path from 'path';
+import { resolveCanonicalScope } from "../../lib/canonicalScope";
 
 export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
   app.get('/api/militar/version', (req, res) => {
@@ -246,6 +247,7 @@ export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
         warName: user.warName,
         ala: user.ala,
         obm: user.obm,
+        scope: user.scope || resolveCanonicalScope(user.obm),
         lentTo: user.lentTo,
         quadro: user.quadro,
         cidade: user.cidade,

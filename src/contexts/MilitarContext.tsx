@@ -47,10 +47,29 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
     } catch {}
     return true;
   });
-  const cacheVersionRef = useRef<number>(0);
+  const cacheVersionRef = useRef<number>(
+    typeof window !== 'undefined' ? Number(localStorage.getItem('militars_cache_version') || '0') : 0
+  );
 
   const fetchMilitars = async (retryCount = 0) => {
     try {
+      // Checagem leve de versão no servidor (RAM gratuita, 0 leituras do Firestore)
+      if (militars.length > 0 && retryCount === 0 && typeof window !== 'undefined') {
+        try {
+          const vRes = await fetch('/api/militar/version', { cache: 'no-store' });
+          if (vRes.ok) {
+            const vData = await vRes.json();
+            const serverVersion = Number(vData.version || 0);
+            const localVersion = Number(localStorage.getItem('militars_cache_version') || '0');
+            if (serverVersion > 0 && localVersion > 0 && serverVersion === localVersion) {
+              console.log(`[MilitarContext] Cache local está 100% atualizado (v${serverVersion}). Economizando rede e leituras.`);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch {}
+      }
+
       const storedUser = localStorage.getItem('militar_profile');
       let rg = '';
       if (storedUser) {
@@ -87,6 +106,16 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
           setMilitars(data.members as UserProfile[]);
           try {
             localStorage.setItem('militars_cache_v2', JSON.stringify(data.members));
+            // Sincroniza versão atual
+            fetch('/api/militar/version', { cache: 'no-store' })
+              .then(r => r.json())
+              .then(v => {
+                if (v && v.version) {
+                  cacheVersionRef.current = v.version;
+                  localStorage.setItem('militars_cache_version', String(v.version));
+                }
+              })
+              .catch(() => {});
           } catch {}
         } else if (retryCount < 2) {
           // If empty array returned unexpectedly, retry after a short delay
@@ -130,6 +159,9 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
           if (data.version && data.version > cacheVersionRef.current) {
             console.log(`[MilitarContext] Cache version changed (${cacheVersionRef.current} -> ${data.version}). Fetching updates...`);
             cacheVersionRef.current = data.version;
+            try {
+              localStorage.setItem('militars_cache_version', String(data.version));
+            } catch {}
             fetchMilitars();
           }
         } catch (e) {

@@ -7,7 +7,7 @@ export interface PrintChamadaExpedienteGrdProps {
   headerColorClass: string;
   headerBgStyle: React.CSSProperties;
   activeMembersList: any[];
-  renderMilitar: (m: any) => React.ReactNode;
+  renderMilitar: (m: any, options?: { compact?: boolean; hideRank?: boolean }) => React.ReactNode;
   rasApplications: any[];
   expedienteMilitars: any[];
   afastamentos?: any[];

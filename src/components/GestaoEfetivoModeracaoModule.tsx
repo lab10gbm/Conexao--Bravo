@@ -7,6 +7,7 @@ import { db } from '../lib/firebase';
 import { doc, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { cn, cleanUndefined, normalizeObm, normalizeRg } from '../lib/utils';
 import { UserProfile } from '../types';
+import { resolveCanonicalScope, formatScopeLabel } from '../lib/canonicalScope';
 
 export function GestaoEfetivoModeracaoModule({ user, onBack, isEscalanteContext, obmContext }: { user: UserProfile; onBack: () => void; isEscalanteContext?: boolean; obmContext?: string }) {
   const { militars, refreshMilitars, deleteMilitar, addOrUpdateMilitar } = useMilitars();
@@ -209,9 +210,12 @@ export function GestaoEfetivoModeracaoModule({ user, onBack, isEscalanteContext,
                className="w-full sm:w-64 appearance-none pr-10 pl-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 uppercase transition-all"
              >
                <option value="TODOS">TODOS OS OBMs</option>
-               {uniqueObms.map(o => (
-                 <option key={o} value={o}>{o}</option>
-               ))}
+               {uniqueObms.map(o => {
+                  const label = o === 'TERCEIRIZADOS' ? 'TERCEIRIZADOS' : formatScopeLabel(resolveCanonicalScope(o));
+                  return (
+                    <option key={o} value={o}>{label}</option>
+                  );
+                })}
              </select>
              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
            </div>

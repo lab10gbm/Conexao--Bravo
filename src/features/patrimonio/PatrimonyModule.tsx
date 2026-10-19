@@ -855,13 +855,13 @@ export function PatrimonyModule({
                             : "hover:bg-slate-100 text-slate-500 text-xs font-semibold"
                         }`}
                         title={
-                          obmId === '10º' ? '10º GBM Sede (Angra)' :
-                          obmId === '1/10' ? 'Itaguaí' :
-                          obmId === '2/10' ? 'Mambucaba' :
-                          obmId === '3/10' ? 'Frade' :
-                          obmId === '4/10' ? 'Mangaratiba' :
+                          obmId === '10º' ? '10º GBM Sede (Angra dos Reis)' :
+                          obmId === '1/10' ? 'DBM 1/10 (Itaguaí)' :
+                          obmId === '2/10' ? 'DBM 2/10 (Ilha Grande)' :
+                          obmId === '3/10' ? 'DBM 3/10 (Frade)' :
+                          obmId === '4/10' ? 'DBM 4/10 (Mangaratiba)' :
                           obmId === '26º' ? '26º GBM Sede (Paraty)' :
-                          'Paraty'
+                          'DBM 1/26 (Parque Mambucaba)'
                         }
                       >
                         <span className="block">{obmId}</span>
@@ -877,11 +877,11 @@ export function PatrimonyModule({
                   <span className="truncate">
                     {selectedObmFilter === '10º' ? '10º GBM - Sede (Angra dos Reis)' :
                      selectedObmFilter === '1/10' ? '1/10 - DBM (Itaguaí)' :
-                     selectedObmFilter === '2/10' ? '2/10 - DBM (Mambucaba)' :
+                     selectedObmFilter === '2/10' ? '2/10 - DBM (Ilha Grande)' :
                      selectedObmFilter === '3/10' ? '3/10 - DBM (Frade)' :
                      selectedObmFilter === '4/10' ? '4/10 - DBM (Mangaratiba)' :
                      selectedObmFilter === '26º' ? '26º GBM - Sede (Paraty)' :
-                     '1/26 - DBM (Paraty)'}
+                     '1/26 - DBM (Parque Mambucaba)'}
                   </span>
                 </div>
               </div>

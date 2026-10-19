@@ -18,6 +18,7 @@ import { OfficerMedicosModule } from './OfficerMedicosModule';
 import { OficiaisConfigModule } from './OficiaisConfigModule';
 import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
+import { resolveCanonicalScope, formatScopeLabel } from '../lib/canonicalScope';
 
 interface OficiaisDashboardProps {
   user: UserProfile;
@@ -104,11 +105,14 @@ export function OficiaisDashboard({
           disabled={isPending}
           className="px-3 py-2 bg-white border-2 border-slate-200 rounded-xl text-xs font-black uppercase tracking-widest text-slate-700 outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 transition-all cursor-pointer disabled:opacity-50"
         >
-          {availableObms.map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
-          ))}
+          {availableObms.map((o) => {
+            const label = o === 'GLOBAL' ? '🌐 TODAS AS UNIDADES' : formatScopeLabel(resolveCanonicalScope(o));
+            return (
+              <option key={o} value={o}>
+                {label}
+              </option>
+            );
+          })}
         </select>
       )}
       <button

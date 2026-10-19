@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { FieldValue } from 'firebase-admin/firestore';
 import { serverTimestamp, writeBatch, doc } from 'firebase/firestore';
+import { resolveCanonicalScope } from '../../lib/canonicalScope';
 
 interface SyncOptions {
   db: any;
@@ -130,6 +131,7 @@ export async function syncMilitariesFromSheetInternal(options: SyncOptions): Pro
             rank: row['Posto/Grad'] || row['POSTO/GRAD'] || null,
             ala: preservedAla1,
             obm: row['OBM'] ? normalizeObm(row['OBM']) : null,
+            scope: resolveCanonicalScope(row['OBM']),
             email: row['E-mail'] || row['EMAIL'] || null,
             cel: row['Cel'] || row['Celular'] || null,
             tel: row['Tel'] || row['Telefone'] || null,

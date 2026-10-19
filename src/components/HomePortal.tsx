@@ -38,6 +38,7 @@ import {
   ExternalLink,
   Bell,
   PenTool,
+  Building2,
 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { db } from '../lib/firebase';
@@ -533,6 +534,14 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       description: 'Acionar Viaturas',
       icon: Radio,
       color: 'bg-rose-600 shadow-rose-200',
+      defaultGroups: ['ADMIN', 'ESCALANTE']
+    },
+    {
+      id: 'comando-area',
+      label: 'Comando de Área',
+      description: 'CBAs, OBMs e DBMs',
+      icon: Building2,
+      color: 'bg-amber-600 shadow-amber-200',
       defaultGroups: ['ADMIN', 'ESCALANTE']
     },
     {

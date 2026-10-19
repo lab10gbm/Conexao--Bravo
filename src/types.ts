@@ -1,3 +1,6 @@
+export * from './types/scope';
+import type { ScopeContext } from './types/scope';
+
 export interface OfficerVisibility {
   showSection: boolean;
   showOficialDia: boolean;
@@ -14,6 +17,7 @@ export enum PermutaStatus {
 }
 
 export interface UserProfile {
+  scope?: ScopeContext;
   uid: string;
   name: string;
   rank: string;
@@ -107,6 +111,7 @@ export interface UserProfile {
 
 export interface RasOpportunity {
   id?: string;
+  scope?: ScopeContext;
   obm: string;
   date: string;
   duration: 12 | 24;
@@ -155,6 +160,7 @@ export interface Vacation {
 
 export interface PermutaRequest {
   id?: string;
+  scope?: ScopeContext;
   obm?: string;
   isOfficer?: boolean;
   requesterId: string;

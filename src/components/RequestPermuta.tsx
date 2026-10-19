@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useAppConfig } from '../contexts/ConfigContext';
 import { useMilitars } from '../contexts/MilitarContext';
 import { parseDateToIso } from '../lib/conflitosOperacionais';
+import { resolveCanonicalScope } from '../lib/canonicalScope';
 
 interface RequestPermutaProps {
   user: UserProfile;
@@ -351,6 +352,7 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
 
       const payload = {
         obm: normalizeObm(String(obmContext || user.obm || '10º GBM')),
+        scope: user?.scope || resolveCanonicalScope(obmContext || user?.obm),
         requesterId: requesterIdVal,
         requesterName: isRequesterMissing ? '' : String(requesterName),
         requesterRg: isRequesterMissing ? '' : String(requesterRg),

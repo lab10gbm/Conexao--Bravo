@@ -10,7 +10,10 @@ import {
   EyeOff,
   ChevronDown,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Columns,
+  Rows,
+  List
 } from 'lucide-react';
 import { cn } from '../../../../lib/utils';
 
@@ -32,6 +35,8 @@ export interface PrintToolbarProps {
   setAllOfficersVisibility: (v: boolean) => void;
   officerTableLayout: 'colunas' | 'linhas';
   setOfficerTableLayout: (layout: 'colunas' | 'linhas') => void;
+  viaturaTableLayout: 'duplo' | 'classico' | 'antigo';
+  setViaturaTableLayout: (layout: 'duplo' | 'classico' | 'antigo') => void;
   showAdminMenu: boolean;
   setShowAdminMenu: (v: boolean) => void;
   adminMenuRef: React.RefObject<HTMLDivElement>;
@@ -65,6 +70,8 @@ export function PrintToolbar({
   setAllOfficersVisibility,
   officerTableLayout,
   setOfficerTableLayout,
+  viaturaTableLayout,
+  setViaturaTableLayout,
   showAdminMenu,
   setShowAdminMenu,
   adminMenuRef,
@@ -129,6 +136,52 @@ export function PrintToolbar({
         >
           <ImageIcon className="w-4 h-4" /> {showVisualMode ? 'Modo Texto' : 'Modo Visual'}
         </button>
+
+        {/* Alternador de Layout das Viaturas */}
+        <div className="flex items-center bg-slate-800 border border-slate-700 p-0.5 rounded-lg text-xs shadow-2xs">
+          <button
+            type="button"
+            onClick={() => setViaturaTableLayout('duplo')}
+            className={cn(
+              'px-2.5 py-1.5 rounded-md font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5',
+              viaturaTableLayout === 'duplo'
+                ? 'bg-indigo-600 text-white shadow-2xs'
+                : 'text-slate-300 hover:text-white'
+            )}
+            title="Chefe e Condutor lado a lado, e Auxiliares em duplas (design moderno e limpo)"
+          >
+            <Columns className="w-3.5 h-3.5" />
+            <span>Dividido (2 Col)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViaturaTableLayout('classico')}
+            className={cn(
+              'px-2.5 py-1.5 rounded-md font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5',
+              viaturaTableLayout === 'classico'
+                ? 'bg-indigo-600 text-white shadow-2xs'
+                : 'text-slate-300 hover:text-white'
+            )}
+            title="Formato clássico com barras cinzas individuais para cada função"
+          >
+            <Rows className="w-3.5 h-3.5" />
+            <span>Barras Cinzas</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViaturaTableLayout('antigo')}
+            className={cn(
+              'px-2.5 py-1.5 rounded-md font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5',
+              viaturaTableLayout === 'antigo'
+                ? 'bg-indigo-600 text-white shadow-2xs'
+                : 'text-slate-300 hover:text-white'
+            )}
+            title="Versão anterior com função e militar na mesma linha horizontal"
+          >
+            <List className="w-3.5 h-3.5" />
+            <span>Texto em Linha</span>
+          </button>
+        </div>
 
         {/* Seletor/Menu de Funções dos Oficiais */}
         <div className="relative" ref={officerMenuRef}>

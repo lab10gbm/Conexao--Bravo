@@ -1,5 +1,6 @@
 import React from 'react';
 import { ArrowLeft } from 'lucide-react';
+import { resolveCanonicalScope, formatScopeLabel } from '../../lib/canonicalScope';
 
 interface ModuleHeaderProps {
   title: string;
@@ -57,11 +58,14 @@ export function ModuleHeader({
             className="px-3 py-2 bg-white border-2 border-indigo-200 hover:border-indigo-400 rounded-xl text-xs font-black uppercase tracking-widest text-indigo-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all cursor-pointer disabled:opacity-50 shadow-xs"
             title="Selecione a Unidade Operacional / DBM no CBA VII"
           >
-            {availableObms.map((o) => (
-              <option key={o} value={o}>
-                {o}
-              </option>
-            ))}
+            {availableObms.map((o) => {
+              const label = o === 'GLOBAL' ? '🌐 TODAS AS UNIDADES' : formatScopeLabel(resolveCanonicalScope(o));
+              return (
+                <option key={o} value={o}>
+                  {label}
+                </option>
+              );
+            })}
           </select>
         )}
         <button

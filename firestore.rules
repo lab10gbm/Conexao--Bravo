@@ -111,7 +111,7 @@ service cloud.firestore {
         isEscalante() ||
         (isOwner(rg) && 
          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-           'isAdmin', 'isEscalante', 'adminObms', 'escalanteObms', 'rank', 'rg'
+           'isAdmin', 'isEscalante', 'adminObms', 'escalanteObms', 'rank', 'rg', 'scope'
          ]))
       );
       allow create, delete: if isAdmin();

@@ -34,7 +34,8 @@ import {
   Sparkles,
   CheckCircle2,
   Stethoscope,
-  Folder
+  Folder,
+  Building2
 } from 'lucide-react';
 import { useAppConfig } from '../contexts/ConfigContext';
 import { cleanUndefined } from "../lib/utils";
@@ -273,6 +274,16 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     sectionLabel: 'Painel de Moderação',
     icon: Radio,
     color: 'bg-rose-600 shadow-rose-200',
+    defaultGroups: ['ADMIN', 'ESCALANTE']
+  },
+  {
+    id: 'comando-area',
+    name: 'Comando de Área (CBMERJ)',
+    description: 'Gestão dos 10 CBAs, pastas de OBMs e DBMs e cadastro hierárquico territorial',
+    section: 'moderador',
+    sectionLabel: 'Painel de Moderação',
+    icon: Building2,
+    color: 'bg-amber-600 shadow-amber-200',
     defaultGroups: ['ADMIN', 'ESCALANTE']
   },
   {

@@ -49,6 +49,16 @@ export function generatePrintHtmlDocument(
       htmlEl.style.setProperty('print-color-adjust', 'exact', 'important');
     });
 
+    // Forçar atributos inline de cor exata nas barras cinzas de funções das viaturas
+    const vtrFuncHeaders = clone.querySelectorAll(".escala-vtr-func-header");
+    vtrFuncHeaders.forEach((el) => {
+      const htmlEl = el as HTMLElement;
+      htmlEl.style.backgroundColor = '#dbe4ee';
+      htmlEl.style.color = '#000000';
+      htmlEl.style.setProperty('-webkit-print-color-adjust', 'exact', 'important');
+      htmlEl.style.setProperty('print-color-adjust', 'exact', 'important');
+    });
+
     return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -86,9 +96,15 @@ export function generatePrintHtmlDocument(
     .print\\:hidden, [class*="print:hidden"] {
       display: none !important;
     }
-    /* Estilos definitivos para impressão das cores oficiais da Ala */
     .escala-ala-header {
       background-color: ${alaTheme.bgHex} !important;
+      color: #000000 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    .escala-vtr-func-header {
+      background-color: #dbe4ee !important;
       color: #000000 !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;

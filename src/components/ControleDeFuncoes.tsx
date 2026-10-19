@@ -9,7 +9,7 @@ import {
   Settings,
   FolderCog
 } from "lucide-react";
-import { cn, getObmSettingsDocKey, getObmSettingsFallbackKeys, cleanUndefined } from "../lib/utils";
+import { cn, normalizeObm, getObmSettingsDocKey, getObmSettingsFallbackKeys, cleanUndefined } from "../lib/utils";
 import { UserProfile } from "../types";
 import { CorrelacaoFuncoesModal } from "./CorrelacaoFuncoesModal";
 import { ControleCategoriasModal, CategoryConfig, DEFAULT_CATEGORIES } from "./ControleCategoriasModal";
@@ -92,9 +92,9 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
   } = useMemo(() => {
     const cursosSet = new Set<string>();
     militars.forEach((m) => {
-      const rawMObm = m.obm ? m.obm.trim().toUpperCase() : "10º GBM";
-      const ctxObm = (obmContext || "").trim().toUpperCase();
-      const isSameObm = !ctxObm || ctxObm === "GLOBAL" || rawMObm === ctxObm;
+      const rawMObm = normalizeObm(m.obm);
+      const ctxObm = normalizeObm(obmContext);
+      const isSameObm = !obmContext || ctxObm === "GLOBAL" || rawMObm === ctxObm;
       if (isSameObm && m.cursos) {
         m.cursos.split(",").forEach((c) => {
           const tc = c.trim();
@@ -104,9 +104,9 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
     });
 
     const contextMilitars = militars.filter((m) => {
-      const rawMObm = m.obm ? m.obm.trim().toUpperCase() : "10º GBM";
-      const ctxObm = (obmContext || "").trim().toUpperCase();
-      return !ctxObm || ctxObm === "GLOBAL" || rawMObm === ctxObm;
+      const rawMObm = normalizeObm(m.obm);
+      const ctxObm = normalizeObm(obmContext);
+      return !obmContext || ctxObm === "GLOBAL" || rawMObm === ctxObm;
     });
 
     return {
@@ -133,9 +133,9 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
   const filteredMilitars = useMemo(() => {
     return militars
       .filter((m) => {
-        const rawMObm = m.obm ? m.obm.trim().toUpperCase() : "10º GBM";
-        const ctxObm = (obmContext || "").trim().toUpperCase();
-        const isSameObm = !ctxObm || ctxObm === "GLOBAL" || rawMObm === ctxObm;
+        const rawMObm = normalizeObm(m.obm);
+        const ctxObm = normalizeObm(obmContext);
+        const isSameObm = !obmContext || ctxObm === "GLOBAL" || rawMObm === ctxObm;
         if (!isSameObm) return false;
 
         const r = (m.rank || "").toUpperCase().trim();

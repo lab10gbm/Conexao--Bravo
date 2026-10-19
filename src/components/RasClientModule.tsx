@@ -3,7 +3,7 @@ import { UserProfile, RasOpportunity, RasApplication } from '../types';
 import { db } from '../lib/firebase';
 import { collection, query, where, onSnapshot, addDoc, getDocs } from 'firebase/firestore';
 import { BriefcaseBusiness, Clock, Users, ArrowRight, CheckCircle2, History, ChevronDown, XCircle, AlertTriangle } from 'lucide-react';
-import { cn, normalizeObm } from '../lib/utils';
+import { cn, normalizeObm, getRasSharedObms, getParentObm } from '../lib/utils';
 import { getAuth } from 'firebase/auth';
 import { parsePromotionDate, ALL_RANKS_IN_ORDER, parseRank } from '../lib/rankUtils';
 import { useConflitosOperacionais } from '../hooks/useConflitosOperacionais';
@@ -42,11 +42,12 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
   const [applicationsByRas, setApplicationsByRas] = useState<Record<string, RasApplication[]>>({});
   const [myApplications, setMyApplications] = useState<RasApplication[]>([]);
   const { checarConflito } = useConflitosOperacionais({ obmContext });
+  const cleanCtx = normalizeObm(obmContext || user?.obm || '10º GBM');
 
   useEffect(() => {
-    // Fetch open opportunities
-    const cleanCtx = normalizeObm(obmContext || user?.obm || '10º GBM');
+    // Fetch open opportunities across the unified OBM pool (10º GBM & DBMs compartilham concorrência)
     const isGlobal = obmContext === 'GLOBAL' || cleanCtx === 'GLOBAL';
+    const sharedObms = getRasSharedObms(cleanCtx);
     const qOpps = isGlobal
       ? query(
           collection(db, 'ras_opportunities'),
@@ -54,7 +55,7 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
         )
       : query(
           collection(db, 'ras_opportunities'),
-          where('obm', 'in', Array.from(new Set([cleanCtx, obmContext])).filter(Boolean)),
+          where('obm', 'in', sharedObms),
           where('status', '==', 'open')
         );
     const unsubOpps = onSnapshot(qOpps, (snap) => {
@@ -122,6 +123,7 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
         militarWarName: user.warName || '',
         militarQuadro: user.quadro || '',
         militarRank: user.rank,
+        militarObm: user.obm || cleanCtx,
         militarPromotionDate: user.promotionDate || '',
         militarRasHours: user.rasHours || 0, // capture snapshot of hours
         status: 'applied',
@@ -205,11 +207,18 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
                   <div className="flex flex-col justify-between gap-4 border-b-2 border-slate-50 pb-4 mb-4">
                     <div>
                       <h3 className="font-black text-slate-800 text-xl">{opp.date.split('-').reverse().join('/')}</h3>
-                      {opp.local && (
-                        <div className="text-xs font-bold text-slate-600 mt-1 uppercase tracking-widest bg-slate-100 w-max px-2 py-1 rounded">
-                          Local: {opp.local}
-                        </div>
-                      )}
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        {opp.local && (
+                          <div className="text-xs font-bold text-slate-600 uppercase tracking-widest bg-slate-100 px-2.5 py-1 rounded-md">
+                            Posto: {opp.local}
+                          </div>
+                        )}
+                        {opp.obm && (
+                          <div className="text-[10px] font-black text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                            Polo: {normalizeObm(opp.obm)}
+                          </div>
+                        )}
+                      </div>
                       <div className="text-xs font-bold text-slate-500 mt-2 uppercase tracking-widest">
                         {opp.description || 'Serviço de Reforço'}
                       </div>
@@ -313,9 +322,16 @@ export function RasClientModule({ user, obmContext }: RasClientModuleProps) {
                                     <div className="flex items-center gap-4">
                                       <ChevronDown className="w-6 h-6 text-rose-400 stroke-[3]" />
                                       <div className="flex flex-col">
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-0.5">
-                                          {app.militarRank} {app.militarQuadro ? `${app.militarQuadro}` : ''}
-                                        </span>
+                                        <div className="flex items-center gap-2 mb-0.5">
+                                          <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500">
+                                            {app.militarRank} {app.militarQuadro ? `${app.militarQuadro}` : ''}
+                                          </span>
+                                          {((app as any).militarObm || (app as any).obm) && (
+                                            <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-slate-200 text-slate-700 rounded-md">
+                                              {normalizeObm((app as any).militarObm || (app as any).obm)}
+                                            </span>
+                                          )}
+                                        </div>
                                         <span className="text-xl font-black text-slate-800 uppercase leading-none mb-1">
                                           {app.militarWarName || app.militarName}
                                         </span>

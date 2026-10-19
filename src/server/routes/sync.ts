@@ -3,6 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from "../lib/firebase-admin";
 import { writeBatch, doc, serverTimestamp } from 'firebase/firestore';
 import { parseRank } from "../../lib/rankUtils";
+import { enrichDatabaseScope } from "../lib/scope-enricher";
 
 export function setupSyncRoutes(app: express.Express, getDeps: () => any) {
   const syncRouter = express.Router();
@@ -333,5 +334,27 @@ syncRouter.post('/admin/militaries/bulk-sync', apiKeyMiddleware, async (req, res
   }
 });
 
-app.use('/api', syncRouter);
+  syncRouter.post('/admin/enrich-scope', apiKeyMiddleware, async (req: express.Request, res: express.Response) => {
+    try {
+      const { dryRun = true, collections, limitPerCollection } = req.body || {};
+      const { db: adminDb, clientDb, isDbHealthy, militaryCache } = getDeps();
+
+      const report = await enrichDatabaseScope({
+        db: adminDb,
+        clientDb,
+        isDbHealthy,
+        dryRun: dryRun !== false, // dry-run por padrão de segurança
+        collections,
+        limitPerCollection,
+        militaryCache
+      });
+
+      res.json({ success: true, report });
+    } catch (e: any) {
+      console.error('[enrich-scope] Error:', e.message);
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.use('/api', syncRouter);
 }

@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../../../lib/firebase";
 import { normalizeObm } from "../../../lib/utils";
+import { resolveCanonicalScope } from "../../../lib/canonicalScope";
 import { normalizeFnName } from "../lib/escalaCalculos";
 import { OfficerVisibility } from "../../../types";
 import { SentinelaSlot } from "../../../lib/sentinelaUtils";
+import { EscalaPostoData } from "../../postos/types";
 
 interface UseEscalaPersistenceProps {
   selectedDate: string;
@@ -28,6 +30,10 @@ interface UseEscalaPersistenceProps {
   setSentinelaRgs: React.Dispatch<React.SetStateAction<(string | null)[]>>;
   sentinelaSlots: SentinelaSlot[] | null;
   setSentinelaSlots: React.Dispatch<React.SetStateAction<SentinelaSlot[] | null>>;
+  postosEscalaEnabled?: boolean;
+  setPostosEscalaEnabled?: React.Dispatch<React.SetStateAction<boolean>>;
+  postosData?: EscalaPostoData[];
+  setPostosData?: React.Dispatch<React.SetStateAction<EscalaPostoData[]>>;
 }
 
 export function useEscalaPersistence({
@@ -52,6 +58,10 @@ export function useEscalaPersistence({
   setSentinelaRgs,
   sentinelaSlots,
   setSentinelaSlots,
+  postosEscalaEnabled,
+  setPostosEscalaEnabled,
+  postosData,
+  setPostosData,
 }: UseEscalaPersistenceProps) {
   const isFirstLoad = useRef(true);
   const previousDate = useRef(selectedDate);
@@ -68,6 +78,7 @@ export function useEscalaPersistence({
       setManuallyAddedRgs({});
       setSentinelaRgs([null, null, null, null]);
       setSentinelaSlots(null);
+      if (setPostosData) setPostosData([]);
       previousDate.current = selectedDate;
       isFirstLoad.current = true;
     }
@@ -128,10 +139,18 @@ export function useEscalaPersistence({
           } else {
             setSentinelaRgs([null, null, null, null]);
           }
+
+          if (setPostosEscalaEnabled && data.postosEscalaEnabled !== undefined) {
+            setPostosEscalaEnabled(Boolean(data.postosEscalaEnabled));
+          }
+          if (setPostosData && data.postosData && Array.isArray(data.postosData)) {
+            setPostosData(data.postosData);
+          }
         } else if (isMounted) {
           setSelectedFunctions({});
           setSentinelaSlots(null);
           setSentinelaRgs([null, null, null, null]);
+          if (setPostosData) setPostosData([]);
         }
 
         if (isMounted) {
@@ -205,6 +224,7 @@ export function useEscalaPersistence({
         const normalizedObm = cleanObm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
         const docRef = doc(db, `escala24h_${normalizedObm}`, selectedDate);
         await setDoc(docRef, {
+          scope: resolveCanonicalScope(rawObm),
           selectedFunctions,
           viaturasInfo,
           viaturasCustomizedForDate: isViaturasCustomizedForDate.current,
@@ -214,6 +234,8 @@ export function useEscalaPersistence({
           adminRolesVisibility,
           sentinelaRgs,
           sentinelaSlots: sentinelaSlots || null,
+          postosEscalaEnabled: postosEscalaEnabled !== undefined ? postosEscalaEnabled : false,
+          postosData: postosData || null,
         }, { merge: true });
 
         setSavingState('saved');
@@ -236,6 +258,8 @@ export function useEscalaPersistence({
     adminRolesVisibility,
     sentinelaRgs,
     sentinelaSlots,
+    postosEscalaEnabled,
+    postosData,
   ]);
 
   return { savingState, isFirstLoad };

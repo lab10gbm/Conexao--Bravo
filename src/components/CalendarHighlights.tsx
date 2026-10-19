@@ -10,7 +10,7 @@ import { format, startOfWeek, endOfWeek, eachDayOfInterval, startOfMonth, endOfM
 import { AlertTriangle, Shield, X, ArrowRight, Clock, CheckCircle2 } from 'lucide-react';
 
 import { useAppConfig } from '../contexts/ConfigContext';
-import { getAlaForDate, cn, getUserObmAccess, normalizeObm, getAlaColor, normalizeRg } from '../lib/utils';
+import { getAlaForDate, cn, getUserObmAccess, normalizeObm, getAlaColor, normalizeRg, getRasSharedObms } from '../lib/utils';
 
 interface CalendarHighlightsProps {
   user: UserProfile;
@@ -326,7 +326,8 @@ export function MonthDetail({ month, user, userAla, obmContext, userRg, onDateSe
     
     const docRef = doc(db, 'grd_configs', `${obmId}_${monthKey}`);
     // --- RAS INTEGRATION ---
-    const oppsQuery = query(collection(db, "ras_opportunities"), where("obm", "==", obmContext));
+    const sharedObms = getRasSharedObms(obmContext || '10º GBM');
+    const oppsQuery = query(collection(db, "ras_opportunities"), where("obm", "in", sharedObms));
     const appsQuery = query(collection(db, "ras_applications"), where("militarRg", "==", userCleanRg));
     let oppsCache: any[] = [];
     let appsCache: any[] = [];

@@ -9,9 +9,10 @@ export interface PrintViaturasTableProps {
   militars: any[];
   headerColorClass: string;
   headerBgStyle: React.CSSProperties;
-  renderMilitar: (m: any) => React.ReactNode;
+  renderMilitar: (m: any, options?: { compact?: boolean; hideRank?: boolean }) => React.ReactNode;
   getByFunc: (name: string) => any[];
   shortDateStr: string;
+  viaturaTableLayout?: 'duplo' | 'classico' | 'antigo';
 }
 
 export function PrintViaturasTable({
@@ -24,7 +25,8 @@ export function PrintViaturasTable({
   headerBgStyle,
   renderMilitar,
   getByFunc,
-  shortDateStr
+  shortDateStr,
+  viaturaTableLayout = 'duplo'
 }: PrintViaturasTableProps) {
   const displayedVtrs = (viaturasInfo || []).filter((v: any) =>
     v.exibir !== undefined ? Boolean(v.exibir) : true
@@ -544,41 +546,291 @@ export function PrintViaturasTable({
       });
     }
 
+    if (!v?.ativa) {
+      return (
+        <div className="flex-1 flex flex-col items-center justify-center p-2 text-center min-h-[36px]">
+          <span className="font-extrabold text-slate-700 text-[10px] uppercase tracking-wide">
+            INATIVA NO SERVIÇO
+          </span>
+          {shortDateStr && (
+            <span className="font-semibold text-slate-500 text-[9px] mt-0.5">
+              ({shortDateStr})
+            </span>
+          )}
+        </div>
+      );
+    }
+
     if (sections.length === 0) {
       return (
-        <div className="flex-1 flex items-center justify-center p-1 text-slate-400 italic text-[9px]">
+        <div className="flex-1 flex items-center justify-center p-2 text-slate-400 italic text-[9px]">
           Sem funções escaladas
         </div>
       );
     }
 
+    // Modo 1: Versão Antiga (Linha de Texto Horizontal com divide-y suave)
+    if (viaturaTableLayout === 'antigo') {
+      return (
+        <div className="flex flex-col h-full justify-around w-full divide-y divide-slate-200">
+          {sections.map((sec) => {
+            const filledMilitars = sec.militars.filter(Boolean);
+            const displayMilitars =
+              filledMilitars.length > 0 ? filledMilitars : [null];
+            return (
+              <div
+                key={sec.key}
+                className="flex items-baseline justify-start gap-1.5 px-1.5 py-0.5 w-full min-h-[16px]"
+              >
+                <span className="font-black uppercase text-[8.5px] sm:text-[9px] tracking-tight text-slate-900 shrink-0 leading-tight">
+                  {sec.label}
+                </span>
+                <div className="flex flex-col flex-1 min-w-0 justify-center">
+                  {displayMilitars.map((m, mIdx) => (
+                    <div
+                      key={mIdx}
+                      className="w-full leading-tight text-left py-[0.5px]"
+                    >
+                      <span className="leading-tight text-[9.5px] sm:text-[10px] font-bold text-black whitespace-normal break-words block">
+                        {renderMilitar(m) || (
+                          <span className="opacity-0 select-none">&nbsp;</span>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // Modo 2: Clássico (Barras Cinzas Individuais completas por função)
+    if (viaturaTableLayout === 'classico') {
+      return (
+        <div className="w-full flex flex-col">
+          {sections.map((sec) => {
+            const filledMilitars = sec.militars.filter(Boolean);
+            return (
+              <div key={sec.key} className="w-full flex flex-col">
+                {/* Barra Cinza da Função */}
+                <div
+                  className="w-full escala-vtr-func-header bg-[#dbe4ee] border-b border-slate-300 text-center text-black font-black uppercase text-[8.5px] leading-tight py-[2px] tracking-tight shrink-0"
+                  style={{
+                    backgroundColor: '#dbe4ee',
+                    WebkitPrintColorAdjust: 'exact',
+                    printColorAdjust: 'exact'
+                  }}
+                >
+                  {sec.label}
+                </div>
+
+                {/* Militares da Função */}
+                <div className="w-full bg-white flex flex-col items-center justify-center py-1 px-1 min-h-[20px] border-b border-slate-200">
+                  {filledMilitars.length > 0 ? (
+                    filledMilitars.map((m, mIdx) => (
+                      <div
+                        key={mIdx}
+                        className="w-full text-center text-[9.5px] font-bold text-black uppercase leading-tight py-[1px]"
+                      >
+                        {renderMilitar(m)}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-[9.5px] font-bold text-slate-300 select-none py-[1px] leading-tight">
+                      —
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    // Modo 3: Dividido (2 Colunas para Chefe/Condutor + Auxiliares em Duplas, SEM excesso de linhas)
+    const chefeSec = sections.find((s) => s.key === 'chefe');
+    const condutorSec = sections.find((s) => s.key === 'condutor');
+
+    let leftSec: (typeof sections)[0] | null = null;
+    let rightSec: (typeof sections)[0] | null = null;
+    let otherSecs: typeof sections = [];
+
+    if (chefeSec && condutorSec) {
+      leftSec = chefeSec;
+      rightSec = condutorSec;
+      otherSecs = sections.filter((s) => s !== chefeSec && s !== condutorSec);
+    } else if (sections.length === 2) {
+      leftSec = sections[0];
+      rightSec = sections[1];
+      otherSecs = [];
+    } else if (chefeSec && sections.length > 1) {
+      leftSec = chefeSec;
+      const nextSec = sections.find((s) => s !== chefeSec)!;
+      rightSec = nextSec;
+      otherSecs = sections.filter((s) => s !== chefeSec && s !== nextSec);
+    } else if (condutorSec && sections.length > 1) {
+      const firstNonCond = sections.find((s) => s !== condutorSec)!;
+      leftSec = firstNonCond;
+      rightSec = condutorSec;
+      otherSecs = sections.filter((s) => s !== condutorSec && s !== firstNonCond);
+    } else {
+      otherSecs = sections;
+    }
+
     return (
-      <div className="flex flex-col h-full justify-around w-full divide-y divide-slate-200">
-        {sections.map((sec) => {
+      <div className="w-full flex flex-col">
+        {leftSec && rightSec && (
+          <div className="w-full flex flex-col">
+            {/* Linha Cinza Dividida em 2 Títulos */}
+            <div className="flex w-full border-b border-slate-300 shrink-0">
+              <div
+                className="w-1/2 escala-vtr-func-header bg-[#dbe4ee] border-r border-slate-300/80 text-center text-black font-black uppercase text-[8.5px] leading-tight py-[2px] tracking-tight"
+                style={{
+                  backgroundColor: '#dbe4ee',
+                  WebkitPrintColorAdjust: 'exact',
+                  printColorAdjust: 'exact'
+                }}
+              >
+                {leftSec.label}
+              </div>
+              <div
+                className="w-1/2 escala-vtr-func-header bg-[#dbe4ee] text-center text-black font-black uppercase text-[8.5px] leading-tight py-[2px] tracking-tight"
+                style={{
+                  backgroundColor: '#dbe4ee',
+                  WebkitPrintColorAdjust: 'exact',
+                  printColorAdjust: 'exact'
+                }}
+              >
+                {rightSec.label}
+              </div>
+            </div>
+
+            {/* Linha com os Militares (Chefe e Condutor) */}
+            <div className="flex w-full items-stretch bg-white">
+              <div className="w-1/2 border-r border-slate-200 flex flex-col items-center justify-center py-1 px-1 min-h-[22px]">
+                {leftSec.militars.filter(Boolean).length > 0 ? (
+                  leftSec.militars.filter(Boolean).map((m, idx) => (
+                    <div
+                      key={idx}
+                      className="w-full text-center text-[9.5px] font-bold text-black uppercase leading-tight py-[1px]"
+                    >
+                      {renderMilitar(m, { compact: true })}
+                    </div>
+                  ))
+                ) : (
+                  <span className="text-slate-300 font-semibold text-[9px] select-none">—</span>
+                )}
+              </div>
+              <div className="w-1/2 flex flex-col items-center justify-center py-1 px-1 min-h-[22px]">
+                {rightSec.militars.filter(Boolean).length > 0 ? (
+                  rightSec.militars.filter(Boolean).map((m, idx) => (
+                    <div
+                      key={idx}
+                      className="w-full text-center text-[9.5px] font-bold text-black uppercase leading-tight py-[1px]"
+                    >
+                      {renderMilitar(m, { compact: true })}
+                    </div>
+                  ))
+                ) : (
+                  <span className="text-slate-300 font-semibold text-[9px] select-none">—</span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Demais Funções (ex: Auxiliares em Duplas 2-2 ou 2+1) */}
+        {otherSecs.map((sec) => {
           const filledMilitars = sec.militars.filter(Boolean);
-          const displayMilitars =
-            filledMilitars.length > 0 ? filledMilitars : [null];
+          const isAuxiliares = sec.key === 'auxiliares';
+
+          // Se for Auxiliares, agrupa em duplas lado a lado
+          const pairs: any[][] = [];
+          if (isAuxiliares) {
+            for (let i = 0; i < filledMilitars.length; i += 2) {
+              pairs.push(filledMilitars.slice(i, i + 2));
+            }
+          }
+
           return (
-            <div
-              key={sec.key}
-              className="flex items-baseline justify-start gap-1.5 px-1.5 py-0.5 w-full min-h-[16px]"
-            >
-              <span className="font-black uppercase text-[8.5px] sm:text-[9px] tracking-tight text-slate-900 shrink-0 leading-tight">
+            <div key={sec.key} className="w-full flex flex-col">
+              {/* Barra Cinza da Função */}
+              <div
+                className="w-full escala-vtr-func-header bg-[#dbe4ee] border-t border-b border-slate-300 text-center text-black font-black uppercase text-[8.5px] leading-tight py-[2px] tracking-tight shrink-0"
+                style={{
+                  backgroundColor: '#dbe4ee',
+                  WebkitPrintColorAdjust: 'exact',
+                  printColorAdjust: 'exact'
+                }}
+              >
                 {sec.label}
-              </span>
-              <div className="flex flex-col flex-1 min-w-0 justify-center">
-                {displayMilitars.map((m, mIdx) => (
-                  <div
-                    key={mIdx}
-                    className="w-full leading-tight text-left py-[0.5px]"
-                  >
-                    <span className="leading-tight text-[9.5px] sm:text-[10px] font-bold text-black whitespace-normal break-words block">
-                      {renderMilitar(m) || (
-                        <span className="opacity-0 select-none">&nbsp;</span>
-                      )}
-                    </span>
+              </div>
+
+              {/* Militares */}
+              <div className="w-full bg-white flex flex-col">
+                {isAuxiliares ? (
+                  pairs.length === 0 ? (
+                    <div className="w-full flex items-center justify-center py-1 px-1 min-h-[22px]">
+                      <span className="text-slate-300 font-semibold text-[9px] select-none">—</span>
+                    </div>
+                  ) : (
+                    pairs.map((pair, pIdx) => {
+                      const isSingleLast = pair.length === 1 && filledMilitars.length % 2 === 1;
+                      return (
+                        <div
+                          key={pIdx}
+                          className={cn(
+                            'w-full flex items-stretch min-h-[22px]',
+                            pIdx > 0 ? 'border-t border-slate-100' : ''
+                          )}
+                        >
+                          {isSingleLast ? (
+                            <div className="w-full flex items-center justify-center py-1 px-1">
+                              <div className="w-full text-center text-[9.5px] font-bold text-black uppercase leading-tight py-[1px]">
+                                {renderMilitar(pair[0], { compact: false })}
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="w-1/2 border-r border-slate-200 flex flex-col items-center justify-center py-1 px-1">
+                                <div className="w-full text-center text-[9.5px] font-bold text-black uppercase leading-tight py-[1px]">
+                                  {renderMilitar(pair[0], { compact: true })}
+                                </div>
+                              </div>
+                              <div className="w-1/2 flex flex-col items-center justify-center py-1 px-1">
+                                {pair[1] ? (
+                                  <div className="w-full text-center text-[9.5px] font-bold text-black uppercase leading-tight py-[1px]">
+                                    {renderMilitar(pair[1], { compact: true })}
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-300 font-semibold text-[9px] select-none">—</span>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })
+                  )
+                ) : (
+                  <div className="w-full flex flex-col items-center justify-center py-1 px-1 min-h-[22px]">
+                    {filledMilitars.length > 0 ? (
+                      filledMilitars.map((m, mIdx) => (
+                        <div
+                          key={mIdx}
+                          className="w-full text-center text-[9.5px] font-bold text-black uppercase leading-tight py-[1px]"
+                        >
+                          {renderMilitar(m, { compact: false })}
+                        </div>
+                      ))
+                    ) : (
+                      <span className="text-slate-300 font-semibold text-[9px] select-none">—</span>
+                    )}
                   </div>
-                ))}
+                )}
               </div>
             </div>
           );
@@ -630,7 +882,7 @@ export function PrintViaturasTable({
                   return (
                     <td key={colIdx} className="border border-black p-0 align-top">
                       <div className="flex flex-col h-full">
-                        <div className="p-0 flex-1 flex flex-col justify-between">
+                        <div className="p-0 flex-1 flex flex-col justify-start">
                           {renderSlotsForVtr(col.top)}
                         </div>
                         <div
@@ -643,7 +895,7 @@ export function PrintViaturasTable({
                         >
                           {col.bottom.vtr}
                         </div>
-                        <div className="p-0 flex-1 flex flex-col justify-between">
+                        <div className="p-0 flex-1 flex flex-col justify-start">
                           {renderSlotsForVtr(col.bottom)}
                         </div>
                       </div>
@@ -669,7 +921,7 @@ export function PrintViaturasTable({
                                 {itemVtr.vtr}
                               </div>
                             )}
-                            <div className="p-0 flex-1 flex flex-col justify-between">
+                            <div className="p-0 flex-1 flex flex-col justify-start">
                               {renderSlotsForVtr(itemVtr)}
                             </div>
                           </React.Fragment>
@@ -681,7 +933,7 @@ export function PrintViaturasTable({
 
                 return (
                   <td key={colIdx} className="border border-black p-0 align-top">
-                    <div className="flex flex-col h-full p-0 justify-between">
+                    <div className="flex flex-col h-full p-0 justify-start">
                       {renderSlotsForVtr(col.vtr)}
                     </div>
                   </td>

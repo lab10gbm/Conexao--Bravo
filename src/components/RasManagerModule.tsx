@@ -5,12 +5,13 @@ import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, serverTim
 import { Plus, BriefcaseBusiness, Calendar, Clock, Users, ChevronDown, CheckCircle2, XCircle, Edit, Trash2, Settings, ArrowRight, Check, Sparkles, ExternalLink, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { createPortal } from 'react-dom';
-import { cn, normalizeObm, getUserObmAccess, normalizeRg } from '../lib/utils';
+import { cn, normalizeObm, getUserObmAccess, normalizeRg, getRasSharedObms, getParentObm } from '../lib/utils';
 import { parsePromotionDate, ALL_RANKS_IN_ORDER, parseRank, sortAllBySeniority } from '../lib/rankUtils';
 import { useMilitars } from '../contexts/MilitarContext';
 import { RankInsignia } from './RankInsignia';
 import { RAS_FUNCTION_MAP, DEFAULT_VIATURAS } from '../constants';
 import { useConflitosOperacionais } from '../hooks/useConflitosOperacionais';
+import { resolveCanonicalScope } from '../lib/canonicalScope';
 
 interface RasManagerModuleProps {
   obmContext: string;
@@ -70,9 +71,10 @@ export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasMa
     if (!obmContext) return;
     const cleanCtx = normalizeObm(obmContext);
     const isGlobal = obmContext === 'GLOBAL' || cleanCtx === 'GLOBAL';
+    const sharedObms = getRasSharedObms(cleanCtx);
     const q = isGlobal
       ? query(collection(db, 'ras_opportunities'))
-      : query(collection(db, 'ras_opportunities'), where('obm', 'in', [cleanCtx, obmContext]));
+      : query(collection(db, 'ras_opportunities'), where('obm', 'in', sharedObms));
     const unsub = onSnapshot(q, (snap) => {
       const now = new Date();
       const opps = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as RasOpportunity))
@@ -124,9 +126,12 @@ export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasMa
           updatedAt: Date.now(),
         });
       } else {
+        const parentObm = getParentObm(obmContext || '10º GBM');
+        const canonical = resolveCanonicalScope(obmContext || '10º GBM');
         await addDoc(collection(db, 'ras_opportunities'), {
           ...formData,
-          obm: normalizeObm(obmContext || '10º GBM'),
+          obm: parentObm,
+          scope: canonical,
           status: 'open',
           createdBy: user.rg,
           createdAt: Date.now(),
@@ -385,9 +390,16 @@ export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasMa
   const bancoDeHoras = useMemo(() => {
     const hoursMap: Record<string, { nome: string, rank: string, quadro: string, rg: string, horas: number, numServicos: number, militarObj?: UserProfile }> = {};
 
-    // Initialize with all militaries in this OBM
+    // Initialize with all militaries in this OBM and its DBMs (Shared RAS pool)
+    const sharedObms = getRasSharedObms(obmContext);
     militars.forEach(m => {
-      if (obmContext === 'GLOBAL' || normalizeObm(m.obm) === normalizeObm(obmContext) || normalizeObm(m.lentTo!) === normalizeObm(obmContext)) {
+      const mNormObm = normalizeObm(m.obm);
+      const mLentObm = normalizeObm(m.lentTo!);
+      const belongsToCluster = obmContext === 'GLOBAL' || 
+        sharedObms.includes(mNormObm) || 
+        (m.lentTo && sharedObms.includes(mLentObm));
+
+      if (belongsToCluster) {
         hoursMap[m.rg!] = {
           nome: m.warName || m.name,
           rank: m.rank,
@@ -550,7 +562,14 @@ export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasMa
                       {index + 1}º
                     </div>
                     <div>
-                      <div className="font-black text-slate-800">{m.rank} {m.quadro} {m.nome}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-slate-800">{m.rank} {m.quadro} {m.nome}</span>
+                        {m.militarObj?.obm && (
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md border border-slate-200">
+                            {normalizeObm(m.militarObj.obm)}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-3 text-[10px] text-slate-500 uppercase tracking-widest font-bold mt-0.5">
                         <span>RG: {m.rg}</span>
                         {m.militarObj && (m.militarObj.promotionDate || (m.militarObj.promotions && m.militarObj.promotions.length > 0)) && (
@@ -905,6 +924,11 @@ export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasMa
                                         <div className="flex flex-col text-left">
                                           <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-0.5 flex items-center gap-1.5">
                                             {app.militarRank} {app.militarQuadro ? `(${app.militarQuadro})` : ''}
+                                            {((app as any).militarObm || militars.find(m => normalizeRg(m.rg) === normalizeRg(app.militarRg))?.obm) && (
+                                              <span className="text-[8px] bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded font-black">
+                                                {normalizeObm((app as any).militarObm || militars.find(m => normalizeRg(m.rg) === normalizeRg(app.militarRg))?.obm)}
+                                              </span>
+                                            )}
                                             {isSelected && (
                                               <span className="text-[8px] bg-emerald-200/80 text-emerald-800 px-1.5 py-0.2 rounded font-black">
                                                 ESCALA 24H

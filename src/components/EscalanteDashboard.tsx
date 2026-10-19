@@ -42,7 +42,7 @@ interface EscalanteDashboardProps {
 const ESCALANTE_APPS = [
   { id: 'alas', label: 'Controle de Ala', description: 'Configurar e Distribuir', icon: Users, color: 'bg-emerald-600 shadow-emerald-200' },
   { id: 'funcoes', label: 'Controle de Função', description: 'Viaturas e Condutores', icon: Shield, color: 'bg-amber-600 shadow-amber-200' },
-  { id: 'viaturas', label: 'Controle de Viaturas', description: 'Cadastro de Socorro', icon: Truck, color: 'bg-rose-600 shadow-rose-200' },
+  { id: 'viaturas', label: 'Controle de Viaturas e Postos', description: 'Cadastro de Socorro e Postos', icon: Truck, color: 'bg-rose-600 shadow-rose-200' },
   { id: 'escala', label: 'Escala 24h', description: 'Geração e Ajustes', icon: CalendarRange, color: 'bg-indigo-600 shadow-indigo-200' },
   { id: 'expediente', label: 'Escala do Expediente', description: 'Gestão de Serviços EXP', icon: CalendarRange, color: 'bg-indigo-400 shadow-indigo-100' },
   { id: 'afastamentos', label: 'Afastamentos', description: 'Controle Anual', icon: Palmtree, color: 'bg-teal-600 shadow-teal-200' },
@@ -130,8 +130,8 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
         return (
           <>
             <ModuleHeader
-              title="Controle de Viaturas"
-              subtitle="Cadastro e configuração de viaturas de socorro."
+              title="Controle de Viaturas e Postos"
+              subtitle="Cadastro e configuração de viaturas de socorro e postos de serviço."
               icon={Truck}
               iconClassName="w-8 h-8 text-rose-600 p-1.5 bg-rose-100 rounded-lg"
               obmContext={obmContext}

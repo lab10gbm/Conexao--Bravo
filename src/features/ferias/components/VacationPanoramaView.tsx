@@ -261,7 +261,7 @@ export function VacationPanoramaView({
           <div className="flex flex-col gap-2 flex-1">
             <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider">Filtrar por OBM:</span>
             <div className="flex flex-wrap gap-1.5">
-              {['TODAS', '10º GBM', '2/10', '3/10', '4/10', '1/26', '26º GBM'].map((obm) => (
+              {['TODAS', '10º GBM', '1/10', '2/10', '3/10', '4/10', '26º GBM', '1/26'].map((obm) => (
                 <button
                   key={obm}
                   onClick={() => setPanoramaObmFilter(obm)}

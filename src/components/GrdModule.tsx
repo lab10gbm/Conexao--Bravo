@@ -28,6 +28,7 @@ import { ptBR } from 'date-fns/locale';
 import { getAlaForDate, getAlaColor, cn, getOppositeAla, cleanUndefined } from '../lib/utils';
 import { UserProfile } from '../types';
 import { PermutaGrdModal } from './PermutaGrdModal';
+import { resolveCanonicalScope, formatScopeLabel } from '../lib/canonicalScope';
 import { GrdPasteModal } from '../features/grd/components/GrdPasteModal';
 import { GrdSideDrawer } from '../features/grd/components/GrdSideDrawer';
 import { GrdCalendarGrid } from '../features/grd/components/GrdCalendarGrid';
@@ -312,11 +313,14 @@ export function GrdModule({ obmContext, setObmContext, availableObms = [], reado
                       onChange={(e) => setObmContext(e.target.value)}
                       className="bg-slate-100 border border-slate-200 text-slate-500 text-[10px] uppercase font-black tracking-widest rounded px-1.5 py-0.5 outline-none focus:border-cyan-500 transition-colors"
                     >
-                      {availableObms.map((obm) => (
-                        <option key={obm} value={obm}>
-                          {obm}
-                        </option>
-                      ))}
+                      {availableObms.map((obm) => {
+                        const label = obm === 'GLOBAL' ? '🌐 TODAS AS UNIDADES' : formatScopeLabel(resolveCanonicalScope(obm));
+                        return (
+                          <option key={obm} value={obm}>
+                            {label}
+                          </option>
+                        );
+                      })}
                     </select>
                   )}
                 </div>

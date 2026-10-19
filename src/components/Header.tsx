@@ -33,6 +33,7 @@ import { useNavigate } from "react-router-dom";
 import { UserProfile, PermutaRequest, PermutaStatus } from "../types";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { getAlaForDate, getAlaColor, cn, getThemeColors, normalizeRg } from "../lib/utils";
+import { resolveCanonicalScope, formatScopeLabel } from "../lib/canonicalScope";
 import { motion, AnimatePresence } from "motion/react";
 import { ptBR } from "date-fns/locale";
 import { RankInsignia } from "./RankInsignia";
@@ -690,11 +691,14 @@ export function Header({
                   onChange={(e) => setObmContext(e.target.value)}
                   className="bg-slate-50 border border-slate-200 text-slate-600 font-black rounded px-2 py-1 outline-none focus:border-[var(--color-brand-red)] transition-colors max-w-[120px] sm:max-w-none text-ellipsis"
                 >
-                  {availableObms.map((obm) => (
-                    <option key={obm} value={obm}>
-                      {obm}
-                    </option>
-                  ))}
+                  {availableObms.map((obm) => {
+                    const label = obm === 'GLOBAL' ? '🌐 TODAS AS UNIDADES' : formatScopeLabel(resolveCanonicalScope(obm));
+                    return (
+                      <option key={obm} value={obm}>
+                        {label}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             )}

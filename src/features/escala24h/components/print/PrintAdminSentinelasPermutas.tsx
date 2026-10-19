@@ -12,7 +12,7 @@ export interface PrintAdminSentinelasPermutasProps {
   adminRolesRight: Array<{ label: string; values: any[] }>;
   diaDepositoList: any[];
   getAdminRoleMappedKey: (label: string) => string;
-  renderMilitar: (m: any) => React.ReactNode;
+  renderMilitar: (m: any, options?: { compact?: boolean; hideRank?: boolean }) => React.ReactNode;
   sentinelas: any[];
   propSentinelaSlots?: any[];
   com1Militars: any[];
@@ -100,8 +100,8 @@ export function PrintAdminSentinelasPermutas({
 
   return (
     <div className="flex border-2 border-black mb-2 uppercase leading-tight w-full items-stretch">
-      {/* COLUNA ESQUERDA: FUNÇÕES ADMINISTRATIVAS (53%) */}
-      <div className="w-[53%] flex flex-col border-r-2 border-black shrink-0">
+      {/* COLUNA ESQUERDA: FUNÇÕES ADMINISTRATIVAS (38%) */}
+      <div className="w-[38%] flex flex-col border-r-2 border-black shrink-0">
         <div
           className={cn(
             'py-1 px-1.5 uppercase border-b border-black text-center escala-ala-header font-bold text-[10px] sm:text-[10.5px]',
@@ -112,13 +112,13 @@ export function PrintAdminSentinelasPermutas({
           FUNÇÕES ADMINISTRATIVAS:
         </div>
 
-        <div className="flex-1 flex flex-col justify-around py-1.5 px-2.5 gap-0.5 text-[9.5px] sm:text-[10px]">
+        <div className="flex-1 flex flex-col justify-around py-1.5 px-2 gap-0.5 text-[9.5px] sm:text-[10px]">
           {(() => {
             const allAdminRoles = [
               { label: 'ADJUNTO:', values: adminRoles['ADJUNTO:'] || [] },
               {
-                label: 'ENCARREGADO DE MOTORIS:',
-                values: adminRoles['ENCARREGADO DE MOTORIS:'] || []
+                label: 'ENCARREGADO DE MOTORISTAS:',
+                values: adminRoles['ENCARREGADO DE MOTORISTAS:'] || adminRoles['ENCARREGADO DE MOTORIS:'] || []
               },
               { label: 'RESP. P/ FAXINA:', values: adminRoles['RESP. P/ FAXINA:'] || [] },
               { label: 'SGT DE DIA:', values: adminRoles['SGT DE DIA:'] || [] },
@@ -151,25 +151,27 @@ export function PrintAdminSentinelasPermutas({
               return (
                 <div
                   key={idx}
-                  className="flex gap-1.5 w-full items-baseline min-h-[16px] py-[1px] leading-tight group/admin-row"
+                  className="flex items-center justify-between gap-1 w-full min-h-[17px] py-[1px] leading-tight group/admin-row"
                 >
-                  <span className="shrink-0 font-black text-[9.5px] sm:text-[10px] text-slate-900">
+                  <span className="font-black text-[9px] sm:text-[9.5px] text-slate-900 leading-[1.15] whitespace-normal break-words flex-1 min-w-0 pr-1">
                     {item.label}
                   </span>
-                  <span className="font-bold min-w-0 text-[9.5px] sm:text-[10px] text-black flex items-baseline gap-1 flex-wrap">
-                    {item.values.map((m: any, mIdx: number) => (
-                      <React.Fragment key={m?.rg || mIdx}>
-                        {mIdx > 0 && <span className="text-slate-400 font-normal">/</span>}
-                        <span className="whitespace-normal break-words">
-                          {renderMilitar(m)}
-                        </span>
-                      </React.Fragment>
-                    ))}
+                  <span className="font-bold text-[9.5px] sm:text-[10px] text-black shrink-0 whitespace-nowrap text-right ml-auto">
+                    {item.values.length > 0 ? (
+                      item.values.map((m: any, mIdx: number) => (
+                        <React.Fragment key={m?.rg || mIdx}>
+                          {mIdx > 0 && <span className="text-slate-400 font-normal mx-0.5">/</span>}
+                          <span className="whitespace-nowrap">{renderMilitar(m)}</span>
+                        </React.Fragment>
+                      ))
+                    ) : (
+                      <span className="text-slate-300 font-semibold text-[9px] select-none">—</span>
+                    )}
                   </span>
                   <button
                     type="button"
                     onClick={() => toggleAdminRoleVisibility(roleKey)}
-                    className="print:hidden opacity-0 group-hover/admin-row:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 ml-auto cursor-pointer h-3 flex items-center shrink-0"
+                    className="print:hidden opacity-0 group-hover/admin-row:opacity-100 text-slate-400 hover:text-rose-600 transition-opacity p-0.5 ml-1 cursor-pointer h-3 flex items-center shrink-0"
                     title={`Desativar ${item.label} no Gerar Escala`}
                   >
                     <EyeOff className="w-2.5 h-2.5 text-slate-400 hover:text-rose-600" />
@@ -181,8 +183,8 @@ export function PrintAdminSentinelasPermutas({
         </div>
       </div>
 
-      {/* COLUNA DIREITA (47%): SENTINELAS + COMUNICANTES + PERMUTAS */}
-      <div className="w-[47%] flex flex-col justify-between">
+      {/* COLUNA DIREITA (62%): SENTINELAS + COMUNICANTES + PERMUTAS */}
+      <div className="w-[62%] flex flex-col justify-between">
         <div className="flex-1 flex w-full items-stretch">
           {/* SENTINELAS EM 2 COLUNAS */}
           <div
@@ -200,9 +202,11 @@ export function PrintAdminSentinelasPermutas({
             >
               <div className="flex items-center justify-center gap-1.5">
                 <span>SENTINELAS:</span>
-                <span className="font-bold text-[9px] sm:text-[9.5px]">
-                  {hasAnySul ? 'G. NORTE / SUL' : 'GUARDA NORTE'}
-                </span>
+                {hasAnySul && (
+                  <span className="font-bold text-[9px] sm:text-[9.5px]">
+                    G. NORTE / SUL
+                  </span>
+                )}
               </div>
               <button
                 type="button"
@@ -255,14 +259,15 @@ export function PrintAdminSentinelasPermutas({
                   const colRight = numberedList.slice(half);
 
                   const renderSentinelaCol = (colItems: typeof numberedList) => (
-                    <div className="flex flex-col justify-start py-1 px-1.5 gap-1">
+                    <div className="flex flex-col justify-start py-1 px-2 gap-1.5">
                       {colItems.map((item) => (
                         <div
                           key={item.displayOrder}
-                          className="flex flex-wrap items-baseline justify-between w-full leading-tight min-h-[18px] py-[1px] gap-x-1.5 gap-y-0.5"
+                          className="flex flex-col w-full leading-tight py-[1px]"
                         >
-                          <div className="flex items-baseline gap-1 min-w-0">
-                            <span className="font-black shrink-0 text-[9.5px] sm:text-[10px]">
+                          {/* Linha 1: Turno + Badge Motorista + Militar */}
+                          <div className="flex items-center gap-1.5 min-w-0 w-full">
+                            <span className="font-black shrink-0 text-[9.5px] sm:text-[10px] text-slate-900">
                               {item.displayOrder}º
                             </span>
                             {item.isMotorista && (
@@ -270,18 +275,20 @@ export function PrintAdminSentinelasPermutas({
                                 MOT
                               </span>
                             )}
-                            <span className="font-bold text-black text-[9px] sm:text-[9.5px] whitespace-normal break-words leading-tight">
+                            <div className="flex-1 min-w-0 font-bold text-black text-[9.5px] sm:text-[10px] leading-tight">
                               {item.filled ? (
                                 renderMilitar(item.m)
                               ) : (
                                 <span className="opacity-0 select-none">&nbsp;</span>
                               )}
-                            </span>
+                            </div>
                           </div>
+
+                          {/* Linha 2 (Abaixo): Horário do Turno */}
                           {item.horario && item.filled && (
-                            <span className="font-normal text-slate-600 ml-auto text-right font-mono text-[7.5px] sm:text-[8px] tracking-tighter whitespace-normal leading-tight">
+                            <div className="w-full text-slate-600 font-mono text-[8px] sm:text-[8.5px] tracking-tight leading-tight mt-0.5 pl-3">
                               {item.horario}
-                            </span>
+                            </div>
                           )}
                         </div>
                       ))}
@@ -303,9 +310,9 @@ export function PrintAdminSentinelasPermutas({
             )}
           </div>
 
-          {/* COMUNICANTES E OUTROS */}
+          {/* COMUNICANTES E OUTROS (ocupa ~14.5% do total da folha) */}
           {hasRightCol && (
-            <div className="w-[31.03%] shrink-0 flex flex-col justify-between font-bold">
+            <div className="w-[23.5%] shrink-0 flex flex-col justify-between font-bold">
               {rightSubSections.map((sec, sIdx) => (
                 <div key={sec.key} className="flex flex-col flex-1">
                   <div

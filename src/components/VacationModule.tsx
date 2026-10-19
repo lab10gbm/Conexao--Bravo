@@ -564,6 +564,8 @@ export function VacationModule({
       if (filterStr !== "TODAS") {
         if (filterStr === "10º GBM") {
           matchesObm = mObm === "10º GBM" || mObm === "10ºGBM" || mObm === "10 GBM";
+        } else if (filterStr === "1/10") {
+          matchesObm = mObm === "1/10" || mObm === "1/10º" || mObm === "1/10º GBM" || mObm === "1º/10º" || mObm === "1º/10º GBM";
         } else if (filterStr === "2/10") {
           matchesObm = mObm === "2/10" || mObm === "2/10º" || mObm === "2/10º GBM" || mObm === "2º/10º" || mObm === "2º/10º GBM";
         } else if (filterStr === "3/10") {

@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { collection, query, where, onSnapshot, getDocs, addDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "../../../lib/firebase";
 import { UserProfile } from "../../../types";
-import { normalizeObm } from "../../../lib/utils";
+import { normalizeObm, getRasSharedObms, getParentObm } from "../../../lib/utils";
+import { resolveCanonicalScope } from "../../../lib/canonicalScope";
 import { RAS_FUNCTION_MAP } from "../../../constants";
 
 interface UseRasEscalaProps {
@@ -64,9 +65,10 @@ export function useRasEscala({
       if (isCancelled) return;
       cleanAppUnsubs();
 
+      const sharedObms = getRasSharedObms(obmContext);
       const matchingOpps = oppsSnap.docs
         .map(d => ({ id: d.id, ...d.data() } as any))
-        .filter(o => !o.obm || obmContext === 'GLOBAL' || normalizeObm(o.obm) === normalizeObm(obmContext));
+        .filter(o => !o.obm || obmContext === 'GLOBAL' || sharedObms.includes(normalizeObm(o.obm)));
 
       if (matchingOpps.length === 0) {
         setRasApplications([]);
@@ -179,13 +181,18 @@ export function useRasEscala({
       return { ...prev, [selectedDate]: curr.filter(rg => rg !== m.rg) };
     });
     try {
-      const qOpps = query(collection(db, 'ras_opportunities'), where('obm', '==', obmContext), where('date', '==', selectedDate), where('duration', '==', rasDuration));
+      const sharedObms = getRasSharedObms(obmContext);
+      const qOpps = query(collection(db, 'ras_opportunities'), where('obm', 'in', sharedObms), where('date', '==', selectedDate), where('duration', '==', rasDuration));
       const oppsSnap = await getDocs(qOpps);
       
       let rasId = '';
       if (oppsSnap.empty) {
+        const parentObm = getParentObm(obmContext || '10º GBM');
+        const canonical = resolveCanonicalScope(obmContext || '10º GBM');
         const oppRef = await addDoc(collection(db, 'ras_opportunities'), {
-          obm: obmContext,
+          obm: parentObm,
+          scope: canonical,
+          local: normalizeObm(obmContext || '10º GBM'),
           date: selectedDate,
           duration: rasDuration,
           description: "RAS Adicionado pelo Escalante",
@@ -231,7 +238,8 @@ export function useRasEscala({
 
   const handleFetchRas = async () => {
     try {
-      const qOpps = query(collection(db, 'ras_opportunities'), where('obm', '==', obmContext), where('date', '==', selectedDate));
+      const sharedObms = getRasSharedObms(obmContext);
+      const qOpps = query(collection(db, 'ras_opportunities'), where('obm', 'in', sharedObms), where('date', '==', selectedDate));
       const oppsSnap = await getDocs(qOpps);
       if (oppsSnap.empty) {
         alert("Nenhuma oportunidade de RAS encontrada para esta data e OBM.");

@@ -1,4 +1,5 @@
 import { getUserObmAccess, normalizeObm, normalizeRg, calculateDeadline, cleanUndefined, cn, getAlaForDate, getAlaColor, getAlaName } from '../lib/utils';
+import { resolveCanonicalScope } from '../lib/canonicalScope';
 import { getDocs } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -93,7 +94,15 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
         id: doc.id
       })) as PermutaRequest[];
       
-      const filteredByObm = data.filter(p => !p.obm || getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm)));
+      const targetScope = resolveCanonicalScope(obmContext);
+      const isGlobalAccess = obmContext === 'GLOBAL' || user?.isAdmin;
+      const filteredByObm = data.filter(p => {
+        if (isGlobalAccess) return true;
+        if (p.scope) {
+          return p.scope.unitId === targetScope.unitId;
+        }
+        return !p.obm || getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm));
+      });
       
       if (adminMode) {
         setPermutas(filteredByObm);

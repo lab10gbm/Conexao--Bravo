@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Save, RotateCcw, Check, X, BookmarkCheck } from 'lucide-react';
+import { Plus, Save, RotateCcw, Check, X, BookmarkCheck, Truck, Palmtree } from 'lucide-react';
 import { doc, onSnapshot, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { cn, normalizeObm, getObmSettingsDocKey, getObmSettingsFallbackKeys } from '../lib/utils';
@@ -11,6 +11,7 @@ import { ViaturaTable } from '../features/viaturas/components/ViaturaTable';
 import { ViaturaEditModal } from '../features/viaturas/components/ViaturaEditModal';
 import { ViaturaNewDefaultModal } from '../features/viaturas/components/ViaturaNewDefaultModal';
 import { ViaturaRestoreModal } from '../features/viaturas/components/ViaturaRestoreModal';
+import { PostosManagerPanel } from '../features/postos/components/PostosManagerPanel';
 
 export type { ViaturaConfig, VtrModalFunctionRow };
 
@@ -19,6 +20,7 @@ interface ControleViaturasModuleProps {
 }
 
 export function ControleViaturasModule({ obmContext }: ControleViaturasModuleProps) {
+  const [activeTab, setActiveTab] = useState<'viaturas' | 'postos'>('viaturas');
   const [viaturas, setViaturas] = useState<ViaturaConfig[]>([]);
   const [categories, setCategories] = useState<CategoryConfig[]>(DEFAULT_CATEGORIES);
   const [loading, setLoading] = useState(true);
@@ -429,7 +431,54 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
         </div>
       )}
 
-      {/* Modal Criar Novo Padrão */}
+      {/* Seletor de Ambiente do Módulo: Viaturas vs Postos de Serviço */}
+      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200 self-start shadow-2xs">
+        <button
+          type="button"
+          onClick={() => setActiveTab('viaturas')}
+          className={cn(
+            "flex items-center gap-2.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer",
+            activeTab === 'viaturas'
+              ? "bg-white text-rose-700 shadow-sm border border-slate-200"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+          )}
+        >
+          <Truck className="w-4 h-4" />
+          <span>Viaturas de Socorro</span>
+          <span className={cn(
+            "text-[9.5px] px-2 py-0.5 rounded-full font-black",
+            activeTab === 'viaturas' ? "bg-rose-100 text-rose-800" : "bg-slate-200 text-slate-600"
+          )}>
+            {viaturas.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('postos')}
+          className={cn(
+            "flex items-center gap-2.5 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer",
+            activeTab === 'postos'
+              ? "bg-white text-teal-700 shadow-sm border border-slate-200"
+              : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+          )}
+        >
+          <Palmtree className="w-4 h-4" />
+          <span>Postos de Serviço</span>
+          <span className={cn(
+            "text-[9.5px] px-2 py-0.5 rounded-full font-black",
+            activeTab === 'postos' ? "bg-teal-100 text-teal-800" : "bg-slate-200 text-slate-600"
+          )}>
+            Praia / Salvamar
+          </span>
+        </button>
+      </div>
+
+      {activeTab === 'postos' ? (
+        <PostosManagerPanel obmContext={obmContext} />
+      ) : (
+        <>
+          {/* Modal Criar Novo Padrão */}
       <ViaturaNewDefaultModal
         isOpen={isNewDefaultModalOpen}
         onClose={() => setIsNewDefaultModalOpen(false)}
@@ -588,6 +637,8 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
         onDelete={handleDeleteVtr}
         availableFunctions={availableFunctions}
       />
+        </>
+      )}
     </div>
   );
 }

@@ -89,13 +89,13 @@ export function PatrimonyNewSectorModal({
               >
                 {['10º', '1/10', '2/10', '3/10', '4/10', '26º', '1/26'].map(obmId => (
                   <option key={obmId} value={obmId}>
-                    {obmId === '10º' ? '10º GBM Sede (Angra)' :
-                     obmId === '1/10' ? `${obmId} DBM (Itaguaí)` :
-                     obmId === '2/10' ? `${obmId} DBM (Mambucaba)` :
-                     obmId === '3/10' ? `${obmId} DBM (Frade)` :
-                     obmId === '4/10' ? `${obmId} DBM (Mangaratiba)` :
+                    {obmId === '10º' ? '10º GBM Sede (Angra dos Reis)' :
+                     obmId === '1/10' ? 'DBM 1/10 (Itaguaí)' :
+                     obmId === '2/10' ? 'DBM 2/10 (Ilha Grande)' :
+                     obmId === '3/10' ? 'DBM 3/10 (Frade)' :
+                     obmId === '4/10' ? 'DBM 4/10 (Mangaratiba)' :
                      obmId === '26º' ? '26º GBM Sede (Paraty)' :
-                     `${obmId} DBM (Paraty)`}
+                     'DBM 1/26 (Parque Mambucaba)'}
                   </option>
                 ))}
               </select>

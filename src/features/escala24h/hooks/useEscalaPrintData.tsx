@@ -11,6 +11,7 @@ import {
   formatRankAbbr
 } from '../../../lib/rankUtils';
 import {
+  cn,
   formatMilitaryName,
   normalizeObm,
   normalizeRg,
@@ -103,6 +104,20 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
       localStorage.setItem('escala_officer_table_layout', officerTableLayout);
     } catch {}
   }, [officerTableLayout]);
+
+  const [viaturaTableLayout, setViaturaTableLayout] = useState<'duplo' | 'classico' | 'antigo'>(() => {
+    try {
+      const saved = localStorage.getItem('escala_viatura_table_layout');
+      if (saved === 'classico' || saved === 'duplo' || saved === 'antigo') return saved;
+    } catch {}
+    return 'duplo';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('escala_viatura_table_layout', viaturaTableLayout);
+    } catch {}
+  }, [viaturaTableLayout]);
 
   const [officerVisibility, setOfficerVisibility] = useState<OfficerVisibility>(() => {
     if (propOfficerVisibility) return propOfficerVisibility;
@@ -735,26 +750,64 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
     </span>
   );
 
-  const renderMilitar = (militar: any) => {
+  const renderMilitar = (
+    militar: any,
+    options?: { compact?: boolean; hideRank?: boolean }
+  ) => {
     if (!militar) return '';
     const isRas = isRasMilitar(militar);
+    const compact = options?.compact ?? false;
+    const hideRank = options?.hideRank ?? compact;
+
     if (showVisualMode) {
+      const rawName =
+        militar.warName?.toUpperCase() ||
+        formatMilitaryName(militar.name || '') ||
+        '';
+      const rankAbbr = formatRankAbbr(militar.rank);
+
+      // Tamanho de fonte reativo e sem truncamento por reticências
+      let nameFontSizeClass = 'text-[9.5px]';
+      if (compact) {
+        if (rawName.length > 12) {
+          nameFontSizeClass = 'text-[7.5px] tracking-tighter';
+        } else if (rawName.length > 9) {
+          nameFontSizeClass = 'text-[8px] tracking-tight';
+        } else if (rawName.length > 7) {
+          nameFontSizeClass = 'text-[8.5px] tracking-tight';
+        } else {
+          nameFontSizeClass = 'text-[9px]';
+        }
+      } else {
+        if (rawName.length > 14) {
+          nameFontSizeClass = 'text-[8px] tracking-tight';
+        } else if (rawName.length > 10) {
+          nameFontSizeClass = 'text-[8.5px] tracking-tight';
+        } else {
+          nameFontSizeClass = 'text-[9.5px]';
+        }
+      }
+
       return (
-        <div className="flex items-center gap-1">
-          <div className="origin-left shrink-0 opacity-80">
-            <RankInsignia rankStr={militar.rank} className="w-4 h-4" />
+        <div className="inline-flex items-center justify-center gap-1 max-w-full leading-tight align-middle">
+          <div className="shrink-0 flex items-center justify-center opacity-90">
+            <RankInsignia rankStr={militar.rank} size="xs" className="w-3.5 h-3.5 shrink-0" />
           </div>
-          <div className="flex flex-col text-left justify-center min-w-0">
-            <span className="text-[8px] font-black uppercase text-slate-500 tracking-widest leading-none mb-[2px] whitespace-nowrap">
-              {formatRankAbbr(militar.rank)}
-            </span>
-            <span className="text-[11px] font-black uppercase tracking-tight text-slate-800 leading-none truncate block">
-              <span>
-                {militar.warName?.toUpperCase() ||
-                  formatMilitaryName(militar.name || '')}
+          <div className="inline-flex items-center gap-1 min-w-0">
+            {!hideRank && rankAbbr && (
+              <span className="text-[7.5px] font-bold text-slate-500 uppercase leading-none shrink-0">
+                {rankAbbr}
               </span>
-              {isRas && renderRasBadge()}
+            )}
+            <span
+              className={cn(
+                'font-black uppercase text-slate-900 leading-none whitespace-normal break-words',
+                nameFontSizeClass
+              )}
+            >
+              {rawName}
             </span>
+            {isRas && renderRasBadge()}
           </div>
         </div>
       );
@@ -1034,6 +1087,8 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
     officerMenuRef,
     officerTableLayout,
     setOfficerTableLayout,
+    viaturaTableLayout,
+    setViaturaTableLayout,
     officerVisibility,
     toggleOfficerVisibility,
     setAllOfficersVisibility,

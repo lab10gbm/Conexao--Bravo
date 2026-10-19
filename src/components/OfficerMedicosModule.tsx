@@ -29,6 +29,7 @@ import {
 import { ptBR } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 import { UserProfile } from '../types';
+import { resolveCanonicalScope, formatScopeLabel } from '../lib/canonicalScope';
 import { COLS_OFICIAIS, parseRank, sortOfficersBySeniority } from '../lib/rankUtils';
 import { cleanUndefined } from "../lib/utils";
 
@@ -406,11 +407,14 @@ export function OfficerMedicosModule({ user, obmContext, setObmContext, availabl
               onChange={(e) => setObmContext(e.target.value)}
               className="px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-black uppercase text-slate-700 bg-white shadow-sm focus:border-rose-500 outline-none"
             >
-              {availableObms.map((obm) => (
-                <option key={obm} value={obm}>
-                  {obm}
-                </option>
-              ))}
+              {availableObms.map((obm) => {
+                const label = obm === 'GLOBAL' ? '🌐 TODAS AS UNIDADES' : formatScopeLabel(resolveCanonicalScope(obm));
+                return (
+                  <option key={obm} value={obm}>
+                    {label}
+                  </option>
+                );
+              })}
             </select>
           )}
 

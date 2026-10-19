@@ -26,6 +26,8 @@ import { ExpedienteDiaModule } from "./ExpedienteDiaModule";
 import { GrdDiaModule } from "./GrdDiaModule";
 import { SentinelasSection } from "./SentinelasSection";
 import { SentinelaSlot } from "../lib/sentinelaUtils";
+import { EscalaPostosSection } from "../features/escala24h/components/EscalaPostosSection";
+import { PostoConfig, EscalaPostoData, DEFAULT_POSTOS } from "../features/postos/types";
 import { EscalanteDashboardCalendar } from "./EscalanteDashboardCalendar";
 import { CategoryConfig, DEFAULT_CATEGORIES, getAvailableControlFunctions } from "./ControleCategoriasModal";
 const SorteioFuncoesModal = React.lazy(() => import("./SorteioFuncoesModal").then(m => ({ default: m.SorteioFuncoesModal })));
@@ -459,6 +461,10 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   const [grdDayRgs, setGrdDayRgs] = useState<string[]>([]);
   const [sentinelaRgs, setSentinelaRgs] = useState<(string | null)[]>(() => [null, null, null, null]);
   const [sentinelaSlots, setSentinelaSlots] = useState<SentinelaSlot[] | null>(null);
+  const [postosEscalaEnabled, setPostosEscalaEnabled] = useState<boolean>(false);
+  const [postosData, setPostosData] = useState<EscalaPostoData[]>([]);
+  const [availablePostosConfig, setAvailablePostosConfig] = useState<PostoConfig[]>(DEFAULT_POSTOS);
+  const [postosAtivoObm, setPostosAtivoObm] = useState<boolean>(false);
 
   // Redefinição síncrona de estado na renderização quando a data muda
   const [prevSelectedDate, setPrevSelectedDate] = useState(selectedDate);
@@ -467,6 +473,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     setSelectedFunctions({});
     setSentinelaRgs([null, null, null, null]);
     setSentinelaSlots(null);
+    setPostosData([]);
   }
 
   // Hook Persistência
@@ -492,7 +499,42 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     setSentinelaRgs,
     sentinelaSlots,
     setSentinelaSlots,
+    postosEscalaEnabled,
+    setPostosEscalaEnabled,
+    postosData,
+    setPostosData,
   });
+
+  const handlePostoSlotAssign = (postoId: string, slotId: string, rg: string | null, funcaoNome: string) => {
+    const previousPosto = postosData.find(p => p.postoId === postoId);
+    const previousSlot = previousPosto?.slots.find(s => s.slotId === slotId);
+    const oldRg = previousSlot?.rg ? normalizeRg(previousSlot.rg) : null;
+    const newRg = rg ? normalizeRg(rg) : null;
+
+    setSelectedFunctions(prev => {
+      const next = { ...prev };
+
+      // Se havia militar anterior e é diferente do novo, remove a funcaoNome dele
+      if (oldRg && oldRg !== newRg && next[oldRg]) {
+        const filtered = next[oldRg].filter(f => normalizeFnName(f) !== normalizeFnName(funcaoNome));
+        if (filtered.length === 0) {
+          delete next[oldRg];
+        } else {
+          next[oldRg] = filtered;
+        }
+      }
+
+      // Se há novo militar, adiciona a funcaoNome
+      if (newRg) {
+        const current = next[newRg] || [];
+        if (!current.some(f => normalizeFnName(f) === normalizeFnName(funcaoNome))) {
+          next[newRg] = [...current, funcaoNome];
+        }
+      }
+
+      return next;
+    });
+  };
 
   const handleSentinelaChange = (newSentinelaRgs: (string | null)[], newSlots?: SentinelaSlot[]) => {
     setSentinelaRgs(newSentinelaRgs);
@@ -600,11 +642,29 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         } else {
           setPredefinicoes({});
         }
+
+        if (data.postos_config && Array.isArray(data.postos_config)) {
+          setAvailablePostosConfig(data.postos_config);
+        } else if (data.postos_custom_default && Array.isArray(data.postos_custom_default)) {
+          setAvailablePostosConfig(data.postos_custom_default);
+        } else {
+          setAvailablePostosConfig(DEFAULT_POSTOS);
+        }
+
+        if (data.postos_ativo_obm !== undefined) {
+          setPostosAtivoObm(Boolean(data.postos_ativo_obm));
+        } else {
+          const cleanObm = normalizeObm(obmContext || '');
+          const isDecimo = cleanObm === '10º GBM' || cleanObm.includes('10');
+          setPostosAtivoObm(!isDecimo && Boolean(data.postos_config?.length));
+        }
       } else {
         setCategories(DEFAULT_CATEGORIES);
         setCorrelation({});
         setRoleQtds({});
         setPredefinicoes({});
+        setAvailablePostosConfig(DEFAULT_POSTOS);
+        setPostosAtivoObm(false);
       }
     }, (e) => {
       console.warn("Could not listen to obm_settings in EscalaEspelhoModule:", e);
@@ -860,10 +920,24 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   };
 
   const activeScaleFuncOptions = useMemo(() => {
-    return dynamicRequirements
+    const list = dynamicRequirements
       .filter(r => r.active !== false && r.req > 0)
       .map(r => r.name);
-  }, [dynamicRequirements]);
+
+    if (postosEscalaEnabled) {
+      postosData.forEach(p => {
+        if (p.ativa) {
+          p.slots.forEach(s => {
+            if (s.funcaoNome && !list.includes(s.funcaoNome)) {
+              list.push(s.funcaoNome);
+            }
+          });
+        }
+      });
+    }
+
+    return list;
+  }, [dynamicRequirements, postosEscalaEnabled, postosData]);
 
   const functionUsageStats = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -1301,7 +1375,9 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         })),
         grdRgs: grdDayRgs,
         sentinelaRgs,
-        sentinelaSlots: sentinelaSlots || null
+        sentinelaSlots: sentinelaSlots || null,
+        postosEscalaEnabled: Boolean(postosEscalaEnabled),
+        postosData: postosData || null
       };
 
       await setDoc(doc(db, "registro_escalas_24h", docId), cleanUndefined(payload));
@@ -1503,6 +1579,24 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           activeScaleFuncOptions={activeScaleFuncOptions}
           functionUsageStats={functionUsageStats}
           getRawAllowedOptions={getRawAllowedOptions}
+        />
+
+        {/* SEÇÃO 2.3: POSTOS DE SERVIÇO (POSTO DE PRAIA) */}
+        <EscalaPostosSection
+          key={`postos_${selectedDate}_${identifiedAlaStr}`}
+          obmContext={obmContext}
+          selectedDate={selectedDate}
+          identifiedAlaStr={identifiedAlaStr}
+          baseRoster={baseRoster}
+          militars={militars}
+          permutasOut={permutasOut}
+          isSectionEnabled={postosEscalaEnabled}
+          onToggleSectionEnabled={setPostosEscalaEnabled}
+          postosData={postosData}
+          onChangePostosData={setPostosData}
+          availablePostosConfig={availablePostosConfig}
+          selectedFunctions={selectedFunctions}
+          onAssignSlot={handlePostoSlotAssign}
         />
 
         {/* SEÇÃO 2.4: SENTINELAS DA GUARDA */}

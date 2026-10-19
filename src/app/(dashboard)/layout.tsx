@@ -23,6 +23,7 @@ import { useTheme } from "../../contexts/ThemeContext";
 import { PlatformLogo } from "../../components/PlatformLogo";
 import { Login } from "../../components/Login";
 import { CentralNotificacoesSocial } from "../../features/permutas/components/CentralNotificacoesSocial";
+import { resolveCanonicalScope, formatScopeLabel } from "../../lib/canonicalScope";
 
 export default function DashboardLayout({
   children,
@@ -183,11 +184,14 @@ export default function DashboardLayout({
                 onChange={(e) => setObmContext(e.target.value)}
                 className="bg-white/10 hover:bg-white/15 text-white text-[10px] sm:text-xs font-black uppercase tracking-wider px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl border border-white/15 outline-none cursor-pointer"
               >
-                {availableObms.map((obm) => (
-                  <option key={obm} value={obm} className="bg-slate-900 text-white">
-                    {obm}
-                  </option>
-                ))}
+                {availableObms.map((obm) => {
+                  const label = obm === 'GLOBAL' ? '🌐 TODAS AS UNIDADES' : formatScopeLabel(resolveCanonicalScope(obm));
+                  return (
+                    <option key={obm} value={obm} className="bg-slate-900 text-white">
+                      {label}
+                    </option>
+                  );
+                })}
               </select>
             )}
 
