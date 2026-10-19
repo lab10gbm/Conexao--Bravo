@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, X, Search, Loader2, ArrowLeftRight } from 'lucide-react';
+import { Plus, X, Search, Loader2, ArrowLeftRight, UserPlus } from 'lucide-react';
 import { UserProfile } from '../../../types';
 import { PendingTransfer } from '../types';
 import { isPracaElegivel } from '../lib/alasUtils';
@@ -22,6 +22,7 @@ interface AlaColumnCardProps {
   onAssignAla: (rg: string, ala: string) => void;
   onPendingTransfer: (transfer: PendingTransfer) => void;
   onOpenDirectTransfer: (m: UserProfile) => void;
+  onOpenAddMilitar?: (ala: string) => void;
 }
 
 export const AlaColumnCard: React.FC<AlaColumnCardProps> = ({
@@ -40,6 +41,7 @@ export const AlaColumnCard: React.FC<AlaColumnCardProps> = ({
   onAssignAla,
   onPendingTransfer,
   onOpenDirectTransfer,
+  onOpenAddMilitar,
 }) => {
   return (
     <div className="flex flex-col border border-slate-200 rounded-3xl overflow-hidden bg-slate-50/50 relative h-[620px] shadow-xs">
@@ -61,7 +63,22 @@ export const AlaColumnCard: React.FC<AlaColumnCardProps> = ({
 
       {isAdding && (
         <div className="p-3 border-b border-slate-200 bg-white">
-          <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">Adicionar à Ala {ala}</div>
+          <div className="flex items-center justify-between gap-1 mb-2">
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+              Adicionar à Ala {ala}
+            </span>
+            {onOpenAddMilitar && (
+              <button
+                type="button"
+                onClick={() => onOpenAddMilitar(ala)}
+                className="text-[9px] font-black uppercase tracking-wider text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer hover:underline"
+                title="Cadastrar novo militar no banco e adicionar nesta ala"
+              >
+                <UserPlus className="w-3 h-3" />
+                <span>+ Novo no Banco</span>
+              </button>
+            )}
+          </div>
           <div className="relative mb-2">
             <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
             <input 
@@ -98,8 +115,20 @@ export const AlaColumnCard: React.FC<AlaColumnCardProps> = ({
 
               if (searchPool.length === 0) {
                 return (
-                  <div className="p-3 text-center text-[10px] text-slate-400 font-bold uppercase">
-                    Nenhum militar encontrado
+                  <div className="p-3 text-center flex flex-col items-center gap-2">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">
+                      Nenhum militar encontrado
+                    </p>
+                    {onOpenAddMilitar && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenAddMilitar(ala)}
+                        className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-[9.5px] font-black uppercase tracking-wider transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      >
+                        <UserPlus className="w-3.5 h-3.5" />
+                        Cadastrar no banco (Ala {ala})
+                      </button>
+                    )}
                   </div>
                 );
               }

@@ -129,7 +129,7 @@ export function MainLayout({
               navigate("/");
             }}
           >
-            <div className="w-10 h-10 sm:w-[70px] sm:h-[70px] bg-white rounded-full flex items-center justify-center p-0 shadow-inner overflow-hidden shrink-0">
+            <div className="w-10 h-10 sm:w-[70px] sm:h-[70px] bg-white rounded-full flex items-center justify-center p-0 shadow-inner overflow-hidden shrink-0 keep-light">
               <PlatformLogo className="w-10 h-10 sm:w-[70px] sm:h-[70px] text-[var(--color-brand-dark)] scale-[1.25]" />
             </div>
             <div className="flex flex-col truncate">

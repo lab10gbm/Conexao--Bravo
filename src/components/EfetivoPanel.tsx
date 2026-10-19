@@ -22,7 +22,8 @@ import {
   FileText,
   Settings,
   Rows3,
-  RefreshCw
+  RefreshCw,
+  UserPlus
 } from "lucide-react";
 import { UserProfile } from "../types";
 import { db } from "../lib/firebase";
@@ -38,6 +39,7 @@ import { EfetivoResumoTables } from "./EfetivoResumoTables";
 import { EfetivoPlanoChamada } from "./EfetivoPlanoChamada";
 import { LendMilitarModal } from "./LendMilitarModal";
 import { ManualRgModal } from "./ManualRgModal";
+import { AdicionarMilitarModal } from "./AdicionarMilitarModal";
 import { useMilitars } from "../contexts/MilitarContext";
 import {
   exportToExcel,
@@ -92,6 +94,7 @@ export function EfetivoPanel({ user, obmContext, onBack, onNavigate }: EfetivoPa
   const [groupBy, setGroupBy] = useState<"obm" | "ala" | "quadro" | "rank">("obm");
   const [layoutMode, setLayoutMode] = useState<"grid" | "stack">("grid");
   const [showManualRgModal, setShowManualRgModal] = useState(false);
+  const [showAddMilitarModal, setShowAddMilitarModal] = useState(false);
   const [orderedColumns, setOrderedColumns] = useState(INITIAL_COLUMNS);
   const [visibleColumns, setVisibleColumns] = useState<string[]>(
     INITIAL_COLUMNS.map((c) => c.id),
@@ -502,6 +505,14 @@ export function EfetivoPanel({ user, obmContext, onBack, onNavigate }: EfetivoPa
           {(user.isAdmin || user.isEscalante) && (
             <div className="flex items-center gap-2 mr-2 border-r border-slate-200 pr-4">
               <button
+                onClick={() => setShowAddMilitarModal(true)}
+                title="Adicionar Militar ao Banco de Dados e Servidor"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-lg text-[10px] uppercase font-black tracking-widest transition-all shadow-xs h-[34px] cursor-pointer"
+              >
+                <UserPlus size={14} />
+                <span className="hidden sm:inline">Adicionar Militar</span>
+              </button>
+              <button
                 onClick={() => handleNavigate('/sop-medidas')}
                 title="Gestão SOP (Equipamentos de EPI)"
                 className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-[10px] uppercase font-black text-emerald-700 hover:bg-emerald-100 tracking-widest transition-colors h-[34px]"
@@ -886,6 +897,16 @@ export function EfetivoPanel({ user, obmContext, onBack, onNavigate }: EfetivoPa
           />
         )}
       </AnimatePresence>
+
+      {/* Modal para Adicionar Militar Diretamente ao Banco de Dados e Servidor */}
+      <AdicionarMilitarModal
+        isOpen={showAddMilitarModal}
+        onClose={() => setShowAddMilitarModal(false)}
+        obmContext={obmContext}
+        onSuccess={() => {
+          refreshMilitars();
+        }}
+      />
     </div>
   );
 }

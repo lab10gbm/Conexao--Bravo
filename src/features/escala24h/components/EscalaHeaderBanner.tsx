@@ -57,7 +57,7 @@ export function EscalaHeaderBanner({
   children,
 }: EscalaHeaderBannerProps) {
   return (
-    <div className="bg-white border-b border-slate-200 p-2.5 sm:p-3 shrink-0 flex flex-col gap-2 z-10 shadow-xs relative escala-header-banner">
+    <div className="bg-white dark:bg-[#141c2e] border-b border-slate-200 dark:border-slate-800 p-2.5 sm:p-3 shrink-0 flex flex-col gap-2 z-10 shadow-xs relative escala-header-banner">
       {/* LINHA 1: BANNER ESCURO DA ALA: Data da Escala, Controles < >, Ala em Serviço, Militares Base, Permutas e Nuvem */}
       <div className="w-full flex items-center flex-wrap xl:flex-nowrap justify-between bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-xl py-2 px-3 border border-slate-800 shadow-sm gap-2 sm:gap-3 overflow-x-auto no-scrollbar">
         
@@ -310,10 +310,10 @@ export function EscalaHeaderBanner({
       </div>
 
       {/* LINHA 3: Faixa de Navegação Rápida com os Próximos Dias */}
-      <div className="flex items-center gap-2 pt-1.5 border-t border-slate-100 overflow-x-auto no-scrollbar max-w-full">
+      <div className="flex items-center gap-2 pt-1.5 border-t border-slate-100 dark:border-slate-800 overflow-x-auto no-scrollbar max-w-full">
         <div className="flex items-center gap-1.5 text-slate-400 shrink-0 pr-1">
           <Clock className="w-3.5 h-3.5 text-indigo-500" />
-          <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-500">
+          <span className="text-[9.5px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Próximos Dias:
           </span>
         </div>
@@ -330,14 +330,14 @@ export function EscalaHeaderBanner({
                   "px-2.5 py-1 rounded-xl flex flex-col items-center justify-center gap-0.5 border transition-all cursor-pointer active:scale-95 shrink-0 min-w-[74px]",
                   isSelected
                     ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs ring-1 ring-indigo-400/40"
-                    : "bg-slate-50 hover:bg-indigo-50/50 text-slate-700 border-slate-200/90 hover:border-indigo-200"
+                    : "bg-slate-50 dark:bg-slate-800/80 hover:bg-indigo-50/50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200/90 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-indigo-500"
                 )}
                 title={`Ir para ${item.label} (${item.dayNumber}) - Ala ${item.alaNum}`}
               >
                 <span
                   className={cn(
                     "text-[8px] font-black uppercase tracking-wider leading-none",
-                    isSelected ? "text-indigo-200" : "text-slate-400"
+                    isSelected ? "text-indigo-200" : "text-slate-400 dark:text-slate-400"
                   )}
                 >
                   {item.label}
@@ -346,7 +346,7 @@ export function EscalaHeaderBanner({
                   <span
                     className={cn(
                       "text-[11px] font-black font-mono",
-                      isSelected ? "text-white" : "text-slate-800"
+                      isSelected ? "text-white" : "text-slate-800 dark:text-slate-100"
                     )}
                   >
                     {item.dayNumber}
@@ -354,10 +354,10 @@ export function EscalaHeaderBanner({
                   <span
                     className={cn(
                       "text-[8px] font-black font-mono px-1 py-0.2 rounded",
-                      item.alaNum === 1 && "bg-emerald-100 text-emerald-800",
-                      item.alaNum === 2 && "bg-rose-100 text-rose-800",
-                      item.alaNum === 3 && "bg-sky-100 text-sky-800",
-                      item.alaNum === 4 && "bg-amber-100 text-amber-800"
+                      item.alaNum === 1 && "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300",
+                      item.alaNum === 2 && "bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300",
+                      item.alaNum === 3 && "bg-sky-100 dark:bg-sky-950/60 text-sky-800 dark:text-sky-300",
+                      item.alaNum === 4 && "bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300"
                     )}
                   >
                     A{item.alaNum}

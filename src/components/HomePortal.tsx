@@ -86,34 +86,34 @@ const ModuleIcon: React.FC<ModuleIconProps> = ({
 }) => {
   return (
     <motion.button
-      whileHover={disabled ? {} : { y: -5, scale: 1.02 }}
+      whileHover={disabled ? {} : { y: -4, scale: 1.02 }}
       whileTap={disabled ? {} : { scale: 0.98 }}
       onClick={disabled ? undefined : onClick}
       className={cn(
-        "bg-white dark:bg-[#141c2e] border border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-400 rounded-2xl p-3 sm:p-6 flex flex-col items-center justify-center gap-2 sm:gap-4 shadow-sm hover:shadow-md transition-all text-center group relative overflow-hidden cursor-pointer",
+        "bg-white dark:bg-[#141c2e] border border-slate-300 dark:border-slate-700/80 hover:border-indigo-500 dark:hover:border-indigo-400 rounded-2xl p-3 sm:p-4 md:p-4.5 flex flex-col items-center justify-center gap-2 sm:gap-3 shadow-xs hover:shadow-md transition-all text-center group relative overflow-hidden cursor-pointer",
         disabled ? "opacity-50 grayscale cursor-not-allowed" : "hover:shadow-lg",
         isFolder && "border border-indigo-300 dark:border-indigo-500/60 bg-gradient-to-b from-white to-indigo-50/30 dark:from-slate-900/40 dark:to-indigo-950/30 hover:border-indigo-500"
       )}
     >
       {(onMoveLeft || onMoveRight) && (
-        <div className="absolute top-2 left-0 right-0 flex justify-between px-3 z-30">
+        <div className="absolute top-2 left-0 right-0 flex justify-between px-2.5 z-30">
           <div
             onClick={onMoveLeft}
-            className={cn("p-1.5 rounded-full bg-slate-100 hover:bg-indigo-100 hover:text-indigo-600 transition text-slate-400 opacity-0 group-hover:opacity-100", !onMoveLeft && "hidden")}
+            className={cn("p-1.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-900 hover:text-indigo-600 transition text-slate-400 opacity-0 group-hover:opacity-100", !onMoveLeft && "hidden")}
           >
-             <ChevronLeft className="w-4 h-4" />
+             <ChevronLeft className="w-3.5 h-3.5" />
           </div>
           <div
             onClick={onMoveRight}
-            className={cn("p-1.5 rounded-full bg-slate-100 hover:bg-indigo-100 hover:text-indigo-600 transition text-slate-400 opacity-0 group-hover:opacity-100", !onMoveRight && "hidden")}
+            className={cn("p-1.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-900 hover:text-indigo-600 transition text-slate-400 opacity-0 group-hover:opacity-100", !onMoveRight && "hidden")}
           >
-             <ChevronRight className="w-4 h-4" />
+             <ChevronRight className="w-3.5 h-3.5" />
           </div>
         </div>
       )}
 
       {isFolder && (
-        <div className="absolute top-2 sm:top-3 right-2 sm:right-3 bg-indigo-100/90 text-indigo-700 border border-indigo-200 text-[7px] sm:text-[8px] font-black py-0.5 px-2 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-2xs z-10">
+        <div className="absolute top-2 sm:top-2.5 right-2 sm:right-2.5 bg-indigo-100/90 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[7px] sm:text-[8px] font-black py-0.5 px-2 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-2xs z-10">
           <Folder className="w-2.5 h-2.5" />
           <span>3 Apps</span>
         </div>
@@ -126,7 +126,7 @@ const ModuleIcon: React.FC<ModuleIconProps> = ({
       )}
 
       {alertText && (
-        <div className="absolute top-4 right-4 bg-rose-500 w-3 h-3 border-2 border-white rounded-full flex items-center justify-center shadow-md animate-pulse z-20" title={alertText}>
+        <div className="absolute top-3 right-3 bg-rose-500 w-3 h-3 border-2 border-white dark:border-slate-900 rounded-full flex items-center justify-center shadow-md animate-pulse z-20" title={alertText}>
         </div>
       )}
 
@@ -137,44 +137,46 @@ const ModuleIcon: React.FC<ModuleIconProps> = ({
       )}
       
       {disabled && !comingSoon && !inDevelopment && (
-        <div className="absolute top-2 right-3">
-          <div className="bg-slate-100 text-slate-400 text-[7px] sm:text-[8px] font-black py-0.5 px-2 rounded-full uppercase tracking-widest outline outline-1 outline-slate-200">
+        <div className="absolute top-2 right-2.5">
+          <div className="bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 text-[7px] sm:text-[8px] font-black py-0.5 px-1.5 rounded-full uppercase tracking-widest outline outline-1 outline-slate-200 dark:outline-slate-700">
             Off
           </div>
         </div>
       )}
 
       {isFolder ? (
-        <div className="w-10 h-10 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-gradient-to-br from-indigo-700 via-indigo-900 to-slate-900 p-1 sm:p-2 flex items-center justify-center text-white shadow-xl transition-all group-hover:scale-105 border border-indigo-400/40">
+        <div className="w-10 h-10 sm:w-13 sm:h-13 md:w-14 md:h-14 rounded-xl sm:rounded-2xl bg-gradient-to-br from-indigo-700 via-indigo-900 to-slate-900 p-1 sm:p-1.5 flex items-center justify-center text-white shadow-md transition-all group-hover:scale-105 border border-indigo-400/40">
           <div className="grid grid-cols-2 gap-1 w-full h-full">
             <div className="bg-indigo-600 rounded flex items-center justify-center shadow-xs">
-              <ShieldCheck className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-white" />
+              <ShieldCheck className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
             </div>
             <div className="bg-cyan-600 rounded flex items-center justify-center shadow-xs">
-              <Anchor className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-white" />
+              <Anchor className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
             </div>
             <div className="bg-rose-600 rounded flex items-center justify-center shadow-xs">
-              <Stethoscope className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-white" />
+              <Stethoscope className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
             </div>
             <div className="bg-slate-800/90 rounded flex items-center justify-center shadow-xs">
-              <Folder className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-amber-300" />
+              <Folder className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-amber-300" />
             </div>
           </div>
         </div>
       ) : (
         <div className={cn(
-          `w-10 h-10 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl ${color} flex items-center justify-center text-white shadow-lg transition-transform`,
+          `w-10 h-10 sm:w-13 sm:h-13 md:w-14 md:h-14 rounded-xl sm:rounded-2xl ${color} flex items-center justify-center text-white shadow-md transition-transform`,
           !disabled && "group-hover:rotate-6"
         )}>
-          <Icon className="w-5 h-5 sm:w-8 sm:h-8" />
+          <Icon className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7" />
         </div>
       )}
-      <div>
-        <h3 className="font-black text-slate-800 uppercase tracking-tighter text-[11px] sm:text-sm leading-tight">{label}</h3>
+      <div className="w-full">
+        <h3 className="font-black text-slate-800 dark:text-slate-100 uppercase tracking-tighter text-[11px] sm:text-xs md:text-sm leading-tight truncate px-1">
+          {label}
+        </h3>
         {description && (
           <p className={cn(
-            "text-[8px] sm:text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 sm:mt-1 transition-colors",
-            !disabled && "group-hover:text-slate-500"
+            "text-[8px] sm:text-[9.5px] text-slate-400 dark:text-slate-400 font-bold uppercase tracking-widest mt-0.5 sm:mt-1 transition-colors line-clamp-1",
+            !disabled && "group-hover:text-slate-600 dark:group-hover:text-slate-300"
           )}>
             {description}
           </p>
@@ -182,7 +184,7 @@ const ModuleIcon: React.FC<ModuleIconProps> = ({
       </div>
     </motion.button>
   );
-}
+};
 
 interface HomePortalProps {
   user: UserProfile;
@@ -606,24 +608,18 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
 
   return (
     <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6 pb-3 border-b border-slate-200/90 dark:border-slate-800">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200/80 dark:border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
-            <LayoutGrid className="w-4 h-4" />
-          </div>
-          <h2 className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-[0.2em]">Painel de Aplicações</h2>
+      {isAdmin && (
+        <div className="flex justify-end mb-4">
+          <button 
+            onClick={() => setIsEditMode(!isEditMode)}
+            className={cn("px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-colors shadow-sm cursor-pointer",
+              isEditMode ? "bg-indigo-600 text-white hover:bg-indigo-700 border border-indigo-500" : "bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
+            )}
+          >
+            {isEditMode ? "Concluir Edição" : "Editar Ordem"}
+          </button>
         </div>
-        {isAdmin && (
-           <button 
-             onClick={() => setIsEditMode(!isEditMode)}
-             className={cn("px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-colors shadow-sm cursor-pointer",
-               isEditMode ? "bg-indigo-600 text-white hover:bg-indigo-700 border border-indigo-500" : "bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700"
-             )}
-           >
-             {isEditMode ? "Concluir Edição" : "Editar Ordem"}
-           </button>
-        )}
-      </div>
+      )}
 
       {/* Banner Social de Permutas Pendentes de Assinatura */}
       {pendingMySignature.length > 0 && (
@@ -662,39 +658,39 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
         </motion.div>
       )}
 
-      <div className="mb-8 group">
+      <div className="mb-5 sm:mb-6 group">
         <button 
           onClick={() => setShowMural(!showMural)}
           className={cn(
-            "w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl border transition-all shadow-sm relative overflow-hidden cursor-pointer",
+            "w-full flex items-center justify-between p-3 sm:p-3.5 rounded-2xl border transition-all shadow-xs relative overflow-hidden cursor-pointer",
             showMural 
-              ? "bg-white dark:bg-[#141c2e] border-slate-300 dark:border-slate-700 shadow-md" 
-              : "bg-gradient-to-r from-indigo-600 via-indigo-700 to-slate-900 border-indigo-500/60 text-white shadow-md hover:shadow-indigo-500/20 hover:border-indigo-400"
+              ? "bg-white dark:bg-[#141c2e] border-slate-300 dark:border-slate-700 shadow-sm" 
+              : "bg-gradient-to-r from-indigo-600 via-indigo-700 to-slate-900 border-indigo-500/60 text-white shadow-sm hover:shadow-indigo-500/20 hover:border-indigo-400"
           )}
         >
-          {showMural && <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 blur-2xl -translate-y-1/2 translate-x-1/4 rounded-full pointer-events-none"></div>}
+          {showMural && <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 dark:bg-indigo-950/40 blur-2xl -translate-y-1/2 translate-x-1/4 rounded-full pointer-events-none"></div>}
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             <div className={cn(
-              "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 backdrop-blur-sm transition-colors",
-              showMural ? "bg-indigo-100 text-indigo-600" : "bg-white/20 text-white"
+              "w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 backdrop-blur-sm transition-colors",
+              showMural ? "bg-indigo-100 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400" : "bg-white/20 text-white"
             )}>
-              <Megaphone className="w-5 h-5" />
+              <Megaphone className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
             <div className="text-left">
-              <h3 className={cn("text-sm sm:text-base font-black uppercase tracking-tight", showMural ? "text-slate-800" : "text-white")}>
+              <h3 className={cn("text-xs sm:text-sm md:text-base font-black uppercase tracking-tight", showMural ? "text-slate-800 dark:text-slate-100" : "text-white")}>
                 Mural de Avisos & Prazos
               </h3>
-              <p className={cn("text-[9px] sm:text-[10px] font-bold uppercase tracking-widest mt-0.5", showMural ? "text-indigo-600" : "text-white/80")}>
+              <p className={cn("text-[8.5px] sm:text-[9.5px] font-bold uppercase tracking-widest mt-0.5", showMural ? "text-indigo-600 dark:text-indigo-400" : "text-white/80")}>
                 {showMural ? "Informações Institucionais" : "Visualizar avisos do dia"}
               </p>
             </div>
           </div>
           <div className={cn(
-            "w-8 h-8 rounded-full flex items-center justify-center transition-all",
-            showMural ? "bg-slate-100 text-slate-400 rotate-180" : "bg-white/20 text-white"
+            "w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all",
+            showMural ? "bg-slate-100 dark:bg-slate-800 text-slate-400 rotate-180" : "bg-white/20 text-white"
           )}>
-            <ChevronDown className="w-4 h-4" />
+            <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </div>
         </button>
 
@@ -702,7 +698,7 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
           {showMural && (
             <motion.div
               initial={{ height: 0, opacity: 0, marginTop: 0 }}
-              animate={{ height: "auto", opacity: 1, marginTop: 12 }}
+              animate={{ height: "auto", opacity: 1, marginTop: 10 }}
               exit={{ height: 0, opacity: 0, marginTop: 0 }}
               className="overflow-hidden"
             >
@@ -713,14 +709,14 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       </div>
 
       {visibleOperacionalModules.length > 0 && (
-         <div className="mb-10">
-            <div className="flex items-center gap-2.5 mb-5 pb-2.5 border-b border-slate-200/90 dark:border-slate-800">
-               <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200/80 dark:border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
-                  <Shield className="w-4 h-4" />
+         <div className="mb-6 sm:mb-8">
+            <div className="flex items-center gap-2 mb-3.5 pb-2 border-b border-slate-200/90 dark:border-slate-800">
+               <div className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200/80 dark:border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                  <Shield className="w-3.5 h-3.5" />
                </div>
-               <h2 className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-[0.2em]">Operacional</h2>
+               <h2 className="text-xs sm:text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-[0.2em]">Operacional</h2>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3.5 md:gap-4">
               {visibleOperacionalModules.map((mod, index) => (
                 <ModuleIcon
                   key={mod.id}
@@ -745,14 +741,14 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       )}
 
       {visibleInformativoModules.length > 0 && (
-         <div className="mb-10">
-            <div className="flex items-center gap-2.5 mb-5 pb-2.5 border-b border-slate-200/90 dark:border-slate-800">
-               <div className="w-7 h-7 rounded-lg bg-teal-50 dark:bg-teal-950/50 border border-teal-200/80 dark:border-teal-500/30 flex items-center justify-center text-teal-600 dark:text-teal-400 shrink-0">
-                  <BookOpen className="w-4 h-4" />
+         <div className="mb-6 sm:mb-8">
+            <div className="flex items-center gap-2 mb-3.5 pb-2 border-b border-slate-200/90 dark:border-slate-800">
+               <div className="w-6 h-6 rounded-lg bg-teal-50 dark:bg-teal-950/50 border border-teal-200/80 dark:border-teal-500/30 flex items-center justify-center text-teal-600 dark:text-teal-400 shrink-0">
+                  <BookOpen className="w-3.5 h-3.5" />
                </div>
-               <h2 className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-[0.2em]">Informativo</h2>
+               <h2 className="text-xs sm:text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-[0.2em]">Informativo</h2>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3.5 md:gap-4">
               {visibleInformativoModules.map((mod, index) => (
                 <ModuleIcon
                   key={mod.id}
@@ -772,9 +768,9 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
               ))}
               {/* Em Breve placeholder ao lado do app Refeitório */}
               {!isEditMode && (
-                <div className="col-span-1 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-4 sm:p-6 flex flex-col items-center justify-center gap-2 opacity-50 min-h-[140px] text-center">
-                   <MessageSquare className="w-7 h-7 sm:w-8 sm:h-8 text-slate-400" />
-                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Em Breve</span>
+                <div className="col-span-1 border-2 border-dashed border-slate-300 dark:border-slate-700/80 rounded-2xl p-3 sm:p-4 md:p-4.5 flex flex-col items-center justify-center gap-2 opacity-60 min-h-[110px] text-center">
+                   <MessageSquare className="w-6 h-6 sm:w-7 sm:h-7 text-slate-400" />
+                   <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-slate-400">Em Breve</span>
                 </div>
               )}
             </div>
@@ -782,14 +778,14 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       )}
 
       {visibleEscalanteModules.length > 0 && (
-         <div className="mb-10">
-            <div className="flex items-center gap-2.5 mb-5 pb-2.5 border-b border-slate-200/90 dark:border-slate-800">
-               <div className="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200/80 dark:border-rose-500/30 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
-                  <ShieldCheck className="w-4 h-4" />
+         <div className="mb-6 sm:mb-8">
+            <div className="flex items-center gap-2 mb-3.5 pb-2 border-b border-slate-200/90 dark:border-slate-800">
+               <div className="w-6 h-6 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200/80 dark:border-rose-500/30 flex items-center justify-center text-rose-600 dark:text-rose-400 shrink-0">
+                  <ShieldCheck className="w-3.5 h-3.5" />
                </div>
-               <h2 className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-[0.2em]">Espaço do Escalante / Admin</h2>
+               <h2 className="text-xs sm:text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-[0.2em]">Espaço do Escalante / Admin</h2>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3.5 md:gap-4">
               {visibleEscalanteModules.map((mod, index) => (
                 <ModuleIcon
                   key={mod.id}
@@ -812,14 +808,14 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       )}
 
       {isAdmin && visibleModeradorModules.length > 0 && (
-         <div className="mb-10">
-            <div className="flex items-center gap-2.5 mb-5 pb-2.5 border-b border-slate-200/90 dark:border-slate-800">
-               <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200/80 dark:border-indigo-500/30 flex items-center justify-center text-indigo-800 dark:text-indigo-400 shrink-0">
-                  <Shield className="w-4 h-4" />
+         <div className="mb-6 sm:mb-8">
+            <div className="flex items-center gap-2 mb-3.5 pb-2 border-b border-slate-200/90 dark:border-slate-800">
+               <div className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200/80 dark:border-indigo-500/30 flex items-center justify-center text-indigo-800 dark:text-indigo-400 shrink-0">
+                  <Shield className="w-3.5 h-3.5" />
                </div>
-               <h2 className="text-xs sm:text-sm font-black text-slate-700 dark:text-slate-300 uppercase tracking-[0.2em]">Painel de Moderação</h2>
+               <h2 className="text-xs sm:text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-[0.2em]">Painel de Moderação</h2>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3.5 md:gap-4">
               {visibleModeradorModules.map((mod, index) => (
                 <ModuleIcon
                   key={mod.id}
@@ -841,21 +837,21 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
          </div>
       )}
 
-         <div className="mt-12 p-6 sm:p-8 bg-slate-50 rounded-[2.5rem] border border-slate-100 flex flex-col lg:flex-row items-center justify-between gap-6 sm:gap-8">
-            <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 text-center sm:text-left">
-               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white flex items-center justify-center shadow-sm shrink-0">
+         <div className="mt-8 p-4 sm:p-5 bg-slate-100/80 dark:bg-slate-900/60 rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6">
+            <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 text-center sm:text-left">
+               <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-white dark:bg-slate-800 flex items-center justify-center shadow-xs shrink-0 border border-slate-200 dark:border-slate-700">
                   <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-500" />
                </div>
                <div>
-                  <h4 className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-tight">Ambiente Seguro</h4>
-                  <p className="text-[9px] sm:text-xs text-slate-400 font-bold uppercase tracking-widest mt-0.5 sm:mt-0">Sua conexão está criptografada e autenticada.</p>
+                  <h4 className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-200 uppercase tracking-tight">Ambiente Seguro</h4>
+                  <p className="text-[8.5px] sm:text-[10px] text-slate-400 dark:text-slate-400 font-bold uppercase tracking-widest mt-0.5">Sua conexão está criptografada e autenticada.</p>
                </div>
             </div>
-            <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto justify-center">
-               <div className="px-3 sm:px-4 py-2 bg-white rounded-xl border border-slate-200 text-[8px] sm:text-[10px] font-black text-slate-500 uppercase tracking-widest shadow-sm">
+            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-center">
+               <div className="px-3 py-1.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-[8px] sm:text-[9.5px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest shadow-2xs">
                   v2.4.0
                </div>
-               <div className="px-3 sm:px-4 py-2 bg-white rounded-xl border border-slate-200 text-[8px] sm:text-[10px] font-black text-slate-500 uppercase tracking-widest shadow-sm">
+               <div className="px-3 py-1.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-[8px] sm:text-[9.5px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest shadow-2xs">
                   10º GBM - Angra
                </div>
             </div>

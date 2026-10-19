@@ -17,19 +17,21 @@ import { ModuleHeader } from './ui/ModuleHeader';
 import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
 
-// Lazy loading dos submódulos do Escalante para code-splitting e performance instantânea
-const EscalanteAlasConfig = React.lazy(() => import('./EscalanteAlasConfig').then(m => ({ default: m.EscalanteAlasConfig })));
-const ControleDeFuncoes = React.lazy(() => import('./ControleDeFuncoes').then(m => ({ default: m.ControleDeFuncoes })));
-const ControleViaturasModule = React.lazy(() => import('./ControleViaturasModule').then(m => ({ default: m.ControleViaturasModule })));
-const EscalaEspelhoModule = React.lazy(() => import('./EscalaEspelhoModule').then(m => ({ default: m.EscalaEspelhoModule })));
-const AfastamentosAlaModule = React.lazy(() => import('./AfastamentosAlaModule').then(m => ({ default: m.AfastamentosAlaModule })));
-const VacationModule = React.lazy(() => import('./VacationModule').then(m => ({ default: m.VacationModule })));
-const GrdModule = React.lazy(() => import('./GrdModule').then(m => ({ default: m.GrdModule })));
-const ExpedienteScheduler = React.lazy(() => import('../features/expediente/ExpedienteScheduler').then(m => ({ default: m.ExpedienteScheduler })));
-const ControlePermutasMobile = React.lazy(() => import('./ControlePermutasMobile').then(m => ({ default: m.ControlePermutasMobile })));
-const RasManagerModule = React.lazy(() => import('./RasManagerModule').then(m => ({ default: m.RasManagerModule })));
-const EfetivoPanel = React.lazy(() => import('./EfetivoPanel').then(m => ({ default: m.EfetivoPanel })));
-const RegistroEscalasModule = React.lazy(() => import('./RegistroEscalasModule').then(m => ({ default: m.RegistroEscalasModule })));
+import { lazyWithRetry, SubModuleErrorBoundary } from '../lib/lazyWithRetry';
+
+// Lazy loading resiliente dos submódulos do Escalante com retry automático e isolamento de falha
+const EscalanteAlasConfig = lazyWithRetry(() => import('./EscalanteAlasConfig').then(m => ({ default: m.EscalanteAlasConfig })));
+const ControleDeFuncoes = lazyWithRetry(() => import('./ControleDeFuncoes').then(m => ({ default: m.ControleDeFuncoes })));
+const ControleViaturasModule = lazyWithRetry(() => import('./ControleViaturasModule').then(m => ({ default: m.ControleViaturasModule })));
+const EscalaEspelhoModule = lazyWithRetry(() => import('./EscalaEspelhoModule').then(m => ({ default: m.EscalaEspelhoModule })));
+const AfastamentosAlaModule = lazyWithRetry(() => import('./AfastamentosAlaModule').then(m => ({ default: m.AfastamentosAlaModule })));
+const VacationModule = lazyWithRetry(() => import('./VacationModule').then(m => ({ default: m.VacationModule })));
+const GrdModule = lazyWithRetry(() => import('./GrdModule').then(m => ({ default: m.GrdModule })));
+const ExpedienteScheduler = lazyWithRetry(() => import('../features/expediente/ExpedienteScheduler').then(m => ({ default: m.ExpedienteScheduler })));
+const ControlePermutasMobile = lazyWithRetry(() => import('./ControlePermutasMobile').then(m => ({ default: m.ControlePermutasMobile })));
+const RasManagerModule = lazyWithRetry(() => import('./RasManagerModule').then(m => ({ default: m.RasManagerModule })));
+const EfetivoPanel = lazyWithRetry(() => import('./EfetivoPanel').then(m => ({ default: m.EfetivoPanel })));
+const RegistroEscalasModule = lazyWithRetry(() => import('./RegistroEscalasModule').then(m => ({ default: m.RegistroEscalasModule })));
 
 interface EscalanteDashboardProps {
   user: UserProfile;
@@ -336,11 +338,18 @@ export function EscalanteDashboard({ user, obmContext, setObmContext, availableO
   };
 
   if (activeApp) {
+    const currentAppMeta = ESCALANTE_APPS.find(a => a.id === activeApp);
     return (
       <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <Suspense fallback={<ModuleLoadingFallback />}>
-          {renderActiveModule()}
-        </Suspense>
+        <SubModuleErrorBoundary
+          key={activeApp}
+          moduleName={currentAppMeta?.label || 'módulo'}
+          onBack={closeModule}
+        >
+          <Suspense fallback={<ModuleLoadingFallback />}>
+            {renderActiveModule()}
+          </Suspense>
+        </SubModuleErrorBoundary>
       </div>
     );
   }

@@ -3,6 +3,8 @@ import React, { ReactNode } from "react";
 import "../index.css";
 import { Providers } from "./providers";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Conexão Bravo - CBMERJ",
   description:

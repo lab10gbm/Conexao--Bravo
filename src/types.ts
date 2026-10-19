@@ -60,6 +60,7 @@ export interface UserProfile {
   promotionDate?: string;
   promotions?: any[];
   lastProfileUpdate?: number;
+  updatedAt?: string;
   hasCustomPassword?: boolean;
   mustChangePassword?: boolean;
   // Funções e Viaturas

@@ -3,11 +3,12 @@ import { parseRank, sortAllBySeniority } from "../lib/rankUtils";
 import { useMilitars } from '../contexts/MilitarContext';
 import { auth, db } from "../lib/firebase";
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
-import { Search, Loader2, X, Users, BookmarkCheck, RotateCcw, ShieldCheck, CheckCircle2, AlertTriangle, Info, ArrowLeftRight } from 'lucide-react';
+import { Search, Loader2, X, Users, BookmarkCheck, RotateCcw, ShieldCheck, CheckCircle2, AlertTriangle, Info, ArrowLeftRight, UserPlus } from 'lucide-react';
 import { cn, normalizeAlaField, normalizeObm, normalizeRg } from '../lib/utils';
 import { DEFAULT_ALA_NOMENCLATURES, getStoredAlaNomenclatures, saveStoredAlaNomenclatures } from '../lib/alaUtils';
 import { UserProfile } from '../types';
 import { AfastamentosAlaModule } from './AfastamentosAlaModule';
+import { AdicionarMilitarModal } from './AdicionarMilitarModal';
 
 import { ALAS, PendingTransfer, DefaultAlasInfo } from '../features/alas/types';
 import { isPracaElegivel, getHeaderColor } from '../features/alas/lib/alasUtils';
@@ -65,6 +66,15 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
     }
     setDirectSearch('');
     setShowDirectTransferModal(true);
+  };
+
+  // Modal de Adicionar Militar Diretamente ao Banco de Dados e Servidor
+  const [showAddMilitarModal, setShowAddMilitarModal] = useState(false);
+  const [addMilitarInitialAla, setAddMilitarInitialAla] = useState('1');
+
+  const openAddMilitarModal = (targetAla = '1') => {
+    setAddMilitarInitialAla(targetAla || '1');
+    setShowAddMilitarModal(true);
   };
 
   // Estados para Nomenclatura das Alas (Padrão Oficial CBMERJ)
@@ -392,6 +402,15 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
         {/* Botões de Ação para Gravar, Restaurar e Transferir */}
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           <button
+            onClick={() => openAddMilitarModal('1')}
+            className="flex items-center gap-2 px-3.5 py-2.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md cursor-pointer border border-blue-400/30"
+            title="Cadastrar novo militar definitivamente no servidor e banco de dados sem precisar ir na Gestão de Efetivo"
+          >
+            <UserPlus className="w-4 h-4 text-blue-100" />
+            Adicionar Militar ao Banco
+          </button>
+
+          <button
             onClick={() => openTransferModalForMilitar()}
             className="flex items-center gap-2 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-md cursor-pointer"
             title="Enviar ou receber militar entre OBMs da Região da Costa Verde (10º GBM, 1/10, 2/10, 3/10, 4/10, 26º GBM, 1/26)"
@@ -487,15 +506,26 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
           </p>
         </div>
 
-        <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input 
-            type="text"
-            placeholder="Buscar por nome ou RG..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 pr-4 py-2 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl text-xs uppercase font-bold tracking-wider outline-none w-full sm:w-72 transition-all shadow-xs"
-          />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+          <button
+            onClick={() => openAddMilitarModal('1')}
+            className="flex items-center justify-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-xs cursor-pointer shrink-0"
+            title="Adicionar novo militar ao banco de dados e servidor"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>Adicionar Militar</span>
+          </button>
+
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input 
+              type="text"
+              placeholder="Buscar por nome ou RG..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 pr-4 py-2 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl text-xs uppercase font-bold tracking-wider outline-none w-full sm:w-72 transition-all shadow-xs"
+            />
+          </div>
         </div>
       </div>
 
@@ -538,6 +568,7 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
               onAssignAla={assignAla}
               onPendingTransfer={setPendingTransfer}
               onOpenDirectTransfer={openTransferModalForMilitar}
+              onOpenAddMilitar={openAddMilitarModal}
             />
           );
         })}
@@ -551,6 +582,21 @@ export function EscalanteAlasConfig({ obmContext }: EscalanteAlasConfigProps) {
         assigningRg={assigningRg}
         onAssignAla={assignAla}
         onOpenDirectTransfer={openTransferModalForMilitar}
+      />
+
+      {/* Modal para Adicionar Militar Diretamente ao Banco de Dados e Servidor */}
+      <AdicionarMilitarModal
+        isOpen={showAddMilitarModal}
+        onClose={() => setShowAddMilitarModal(false)}
+        obmContext={obmContext}
+        initialAla={addMilitarInitialAla}
+        onSuccess={(militar) => {
+          setFeedbackBanner({
+            type: 'success',
+            text: `Militar ${parseRank(militar.rank)} ${militar.warName || militar.name} (RG ${militar.rg}) adicionado ao banco e servidor com sucesso!`
+          });
+          refreshMilitars();
+        }}
       />
     </div>
   );

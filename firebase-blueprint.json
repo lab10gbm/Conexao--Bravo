@@ -23,6 +23,28 @@
       },
       "required": ["rg", "name"]
     },
+    "Presence": {
+      "title": "Presence",
+      "description": "User online presence heartbeat and activity status",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "rank": { "type": "string" },
+        "lastActive": { "type": "string", "format": "date-time" }
+      }
+    },
+    "MedidasAntropometricas": {
+      "title": "MedidasAntropometricas",
+      "description": "Anthropometric and uniform/PPE sizing data for a military member",
+      "type": "object",
+      "properties": {
+        "rg": { "type": "string" },
+        "tamanhoGandola": { "type": "string" },
+        "tamanhoCalca": { "type": "string" },
+        "tamanhoCalcado": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
     "OutsourcedUser": {
       "title": "OutsourcedUser",
       "description": "Non-military personnel (civilians) with platform access for specialized administration (e.g. kitchen)",
@@ -92,12 +114,31 @@
         "preferencesDetails": { "type": "object" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
+    },
+    "ViaturaAlert": {
+      "title": "ViaturaAlert",
+      "description": "Real-time alert status for active rescue and operational vehicles",
+      "type": "object",
+      "properties": {
+        "viaturaPrefix": { "type": "string" },
+        "status": { "type": "string" },
+        "details": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "firestore": {
     "/militaries/{rg}": {
       "schema": "Military",
       "description": "Collection storing military personnel records"
+    },
+    "/presence/{rg}": {
+      "schema": "Presence",
+      "description": "Online presence and last active timestamps for active personnel"
+    },
+    "/medidasAntropometricas/{rg}": {
+      "schema": "MedidasAntropometricas",
+      "description": "Anthropometric and uniform measurements per military RG"
     },
     "/outsourced_users/{login}": {
       "schema": "OutsourcedUser",
@@ -122,6 +163,10 @@
     "/expediente_{obm}/{monthKey}": {
       "schema": "ExpedienteMonth",
       "description": "Monthly roster storing 24h operational duties, administrative expedientes, and distinct ordinary and weekly locks"
+    },
+    "/viatura_alerts/{docId}": {
+      "schema": "ViaturaAlert",
+      "description": "Operational vehicle alerts and breakdown dispatches"
     }
   }
 }

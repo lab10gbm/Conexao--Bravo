@@ -7,120 +7,104 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isRegisteredUser() {
-      return isAuthenticated() && 
-             request.auth.token.firebase.sign_in_provider != 'anonymous';
-    }
-
-    function isOwner(rg) {
-      return isRegisteredUser() && (request.auth.uid == rg || request.auth.token.rg == rg);
+    function isAdminEmail() {
+      return isAuthenticated() && (
+        request.auth.token.email == 'MrBlous@gmail.com' ||
+        request.auth.token.email == 'system_admin@cbmerj.com' ||
+        request.auth.token.email == '54444@cbmerj.com' ||
+        request.auth.token.email == '54208@cbmerj.com'
+      );
     }
 
     function isAdmin() {
-      return isRegisteredUser() && (
+      return isAuthenticated() && (
+        isAdminEmail() ||
         request.auth.token.admin == true ||
-        request.auth.uid == '54444'
+        request.auth.uid == '54444' ||
+        request.auth.uid == '54208'
       );
     }
 
     function isEscalante() {
-      return isRegisteredUser() && (
-        request.auth.token.escalante == true ||
-        request.auth.token.admin == true ||
-        request.auth.uid == '54444'
+      return isAuthenticated() && (
+        isAdmin() ||
+        request.auth.token.escalante == true
       );
     }
 
-    // Permutas (Rede Social de Trocas e Assinaturas Mútuas)
-    match /permutas/{permutaId} {
-      allow read: if isAuthenticated();
-
-      // O militar logado pode criar se for o solicitante, ou o escalante/admin
-      allow create: if isRegisteredUser() && (
-        request.resource.data.requesterRg == request.auth.uid ||
-        request.resource.data.submittedByRg == request.auth.uid ||
-        isEscalante()
+    function isOwner(rg) {
+      return isAuthenticated() && (
+        isAdmin() ||
+        request.auth.uid == rg ||
+        request.auth.token.rg == rg ||
+        request.auth.token.email == rg + '@cbmerj.com'
       );
-
-      // Atualização fluida para aceite, assinatura ou cancelamento
-      allow update: if isRegisteredUser() && (
-        isEscalante() ||
-        resource.data.requesterRg == request.auth.uid ||
-        resource.data.substituteRg == request.auth.uid ||
-        resource.data.isLookingForSubstitute == true ||
-        request.resource.data.substituteRg == request.auth.uid
-      );
-
-      // Deletar / Cancelar
-      allow delete: if isRegisteredUser() && (
-        isEscalante() ||
-        (resource.data.requesterRg == request.auth.uid && resource.data.status == 'pending')
-      );
-    }
-
-    // RAS (Regime Adicional de Serviço)
-    match /ras_opportunities/{oppId} {
-      allow read: if isAuthenticated();
-      allow write: if isEscalante();
-    }
-
-    match /ras_applications/{appId} {
-      allow read: if isAuthenticated();
-      allow create: if isRegisteredUser() && request.resource.data.militarRg == request.auth.uid;
-      allow update, delete: if isRegisteredUser() && (
-        isEscalante() || resource.data.militarRg == request.auth.uid
-      );
-    }
-
-    // Presença e Status Online
-    match /presence/{rg} {
-      allow read: if isAuthenticated();
-      allow write: if isOwner(rg) || isEscalante();
-    }
-
-    // Férias e Afastamentos
-    match /vacations/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isEscalante();
-    }
-
-    match /vacation_preferences/{prefId} {
-      allow read: if isAuthenticated();
-      allow write: if isRegisteredUser() && (
-        isOwner(prefId) || 
-        resource.data.militarRg == request.auth.uid ||
-        request.resource.data.militarRg == request.auth.uid ||
-        isEscalante()
-      );
-    }
-
-    match /vacation_validations/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isEscalante();
-    }
-
-    match /afastamentos_alas/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isEscalante();
     }
 
     // Militares (Perfis)
     match /militaries/{rg} {
       allow read: if isAuthenticated();
-      allow update: if isRegisteredUser() && (
-        isEscalante() ||
-        (isOwner(rg) && 
-         !request.resource.data.diff(resource.data).affectedKeys().hasAny([
-           'isAdmin', 'isEscalante', 'adminObms', 'escalanteObms', 'rank', 'rg', 'scope'
-         ]))
-      );
-      allow create, delete: if isAdmin();
+      allow write: if isAdmin() || isEscalante() || isOwner(rg);
 
       match /private/{document=**} {
         allow read, write: if isOwner(rg) || isAdmin();
       }
     }
 
+    // Presença e Status Online
+    match /presence/{rg} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Medidas Antropométricas e EPIs
+    match /medidasAntropometricas/{rg} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(rg) || isEscalante() || isAdmin();
+    }
+
+    // Permutas (Rede Social de Trocas e Assinaturas Mútuas)
+    match /permutas/{permutaId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAuthenticated() && (
+        isEscalante() ||
+        isAdmin() ||
+        resource.data.requesterRg == request.auth.uid ||
+        request.auth.token.email == resource.data.requesterRg + '@cbmerj.com'
+      );
+    }
+
+    // RAS (Regime Adicional de Serviço)
+    match /ras_opportunities/{oppId} {
+      allow read: if isAuthenticated();
+      allow write: if isEscalante() || isAdmin();
+    }
+
+    match /ras_applications/{appId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Férias e Afastamentos
+    match /vacations/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isEscalante() || isAdmin();
+    }
+
+    match /vacation_preferences/{prefId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /vacation_validations/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isEscalante() || isAdmin();
+    }
+
+    match /afastamentos_alas/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isEscalante() || isAdmin();
+    }
+
+    // Usuários Terceirizados / Civis
     match /outsourced_users/{docId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
@@ -129,55 +113,120 @@ service cloud.firestore {
     // Carga Pública e Patrimônio
     match /patrimonioData/{document=**} {
       allow read: if true;
-      allow write: if isEscalante();
+      allow write: if isEscalante() || isAdmin();
     }
 
     match /patrimonioConfig/{document=**} {
       allow read: if true;
-      allow write: if isEscalante();
+      allow write: if isEscalante() || isAdmin();
     }
 
     match /customSectors/{document=**} {
       allow read: if true;
-      allow write: if isEscalante();
+      allow write: if isEscalante() || isAdmin();
     }
 
     // Refeitório e Cardápio
     match /refeitorio/{document=**} {
       allow read: if true;
-      allow write: if isRegisteredUser() && (
-        request.auth.token.isRefeitorioAdmin == true || isEscalante()
-      );
+      allow write: if isAuthenticated();
     }
 
     // Mural de Avisos
     match /mural_avisos/{document=**} {
       allow read: if isAuthenticated();
-      allow write: if isEscalante();
+      allow write: if isEscalante() || isAdmin();
     }
 
     // Viaturas e Alertas
     match /viatura_alerts/{document=**} {
-      allow read: if isAuthenticated();
-      allow write: if isRegisteredUser();
+      allow read, write: if isAuthenticated();
     }
 
     // Livro de Escalas e Registro
     match /registro_escalas_24h/{docId} {
       allow read: if isAuthenticated();
-      allow write: if isEscalante();
+      allow write: if isEscalante() || isAdmin();
     }
 
-    // Configurações Globais (públicas para inicialização imediata sem travar login)
+    // Configurações Globais (públicas para leitura imediata)
     match /config/{configId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAdmin() || isEscalante();
     }
 
-    // Fallback seguro
+    // Configurações do Sistema
+    match /system_config/{configId} {
+      allow read: if true;
+      allow write: if isAdmin() || isEscalante();
+    }
+
+    // Configurações e Postos por OBM
+    match /obm_settings/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isEscalante() || isAdmin();
+    }
+
+    // Escalas de Oficiais e Médicos
+    match /officer_pool_config/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isEscalante() || isAdmin();
+    }
+
+    match /officer_scales/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isEscalante() || isAdmin();
+    }
+
+    match /nautico_scales/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isEscalante() || isAdmin();
+    }
+
+    match /medico_scales/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isEscalante() || isAdmin();
+    }
+
+    match /grd_configs/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isEscalante() || isAdmin();
+    }
+
+    // SOP e Efetivo
+    match /sop_roster/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isEscalante() || isAdmin();
+    }
+
+    match /personalData/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isEscalante() || isAdmin();
+    }
+
+    // Aprovisionamento (Estoque e Compras)
+    match /aprovisionamento/{docId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Translado (Veículos e Viagens)
+    match /translado_vehicles/{docId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /translado_trips/{docId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Tarefas / Agenda Pessoal do Militar
+    match /users/{rg}/todos/{todoId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Fallback para coleções dinâmicas de escala (escala24h_*, expediente_*) e documentos gerais
     match /{document=**} {
-      allow read, write: if isAdmin();
+      allow read: if isAuthenticated();
+      allow write: if isEscalante() || isAdmin();
     }
   }
 }
-

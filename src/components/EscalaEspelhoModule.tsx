@@ -19,8 +19,9 @@ import { ptBR } from "date-fns/locale";
 import { parseDateToIso } from "../lib/conflitosOperacionais";
 
 import { parseRank, sortAllBySeniority } from "../lib/rankUtils";
-const EscalaPrintView = React.lazy(() => import("./EscalaPrintView").then(m => ({ default: m.EscalaPrintView })));
-const RequestPermuta = React.lazy(() => import("./RequestPermuta").then(m => ({ default: m.RequestPermuta })));
+import { lazyWithRetry } from "../lib/lazyWithRetry";
+const EscalaPrintView = lazyWithRetry(() => import("./EscalaPrintView").then(m => ({ default: m.EscalaPrintView })));
+const RequestPermuta = lazyWithRetry(() => import("./RequestPermuta").then(m => ({ default: m.RequestPermuta })));
 import { AfastamentosAlaModule } from "./AfastamentosAlaModule";
 import { ExpedienteDiaModule } from "./ExpedienteDiaModule";
 import { GrdDiaModule } from "./GrdDiaModule";
@@ -30,7 +31,7 @@ import { EscalaPostosSection } from "../features/escala24h/components/EscalaPost
 import { PostoConfig, EscalaPostoData, DEFAULT_POSTOS } from "../features/postos/types";
 import { EscalanteDashboardCalendar } from "./EscalanteDashboardCalendar";
 import { CategoryConfig, DEFAULT_CATEGORIES, getAvailableControlFunctions } from "./ControleCategoriasModal";
-const SorteioFuncoesModal = React.lazy(() => import("./SorteioFuncoesModal").then(m => ({ default: m.SorteioFuncoesModal })));
+const SorteioFuncoesModal = lazyWithRetry(() => import("./SorteioFuncoesModal").then(m => ({ default: m.SorteioFuncoesModal })));
 import { SorteioScope, SorteioResult, SorteioMilitar, clearFunctionsByScope } from "../lib/sorteioFuncoes";
 
 import {
@@ -54,7 +55,7 @@ import { EscalaRosterTable } from "../features/escala24h/components/EscalaRoster
 import { EscalaAdminRolesSection } from "../features/escala24h/components/EscalaAdminRolesSection";
 import { EscalaOperacionalSection } from "../features/escala24h/components/EscalaOperacionalSection";
 import { EscalaViaturasSection } from "../features/escala24h/components/EscalaViaturasSection";
-const EscalaPredefinicoesModal = React.lazy(() => import("../features/escala24h/components/EscalaPredefinicoesModal").then(m => ({ default: m.EscalaPredefinicoesModal })));
+const EscalaPredefinicoesModal = lazyWithRetry(() => import("../features/escala24h/components/EscalaPredefinicoesModal").then(m => ({ default: m.EscalaPredefinicoesModal })));
 import { EscalaTransferModals } from "../features/escala24h/components/EscalaTransferModals";
 import { EscalaFeedbackToasts } from "../features/escala24h/components/EscalaFeedbackToasts";
 

@@ -4,6 +4,7 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  output: 'standalone',
   // Allows gradual migration alongside Vite
   typescript: {
     ignoreBuildErrors: false,

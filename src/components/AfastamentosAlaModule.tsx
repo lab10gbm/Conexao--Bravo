@@ -3,11 +3,12 @@ import { getLocalIsoDateString, normalizeAlaField, cn, normalizeObm, getUserObmA
 import { useMilitars } from '../contexts/MilitarContext';
 import { db } from '../lib/firebase';
 import { collection, setDoc, doc, deleteDoc, onSnapshot, getDocs } from 'firebase/firestore';
-import { Plus, Calendar, X, Search, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Plus, Calendar, X, Search, AlertCircle, CheckCircle2, UserPlus } from 'lucide-react';
 import { Afastamento } from '../features/ferias/types';
 import { AfastamentoAddForm } from '../features/ferias/components/AfastamentoAddForm';
 import { AfastamentosTable, formatDateBr, parseDdMmYyyyToIso } from '../features/ferias/components/AfastamentosTable';
 import { isPracaForAla } from '../features/ferias/components/SearchableMilitarSelect';
+import { AdicionarMilitarModal } from './AdicionarMilitarModal';
 
 export { normalizeRg, isPracaForAla };
 export type { Afastamento };
@@ -40,6 +41,7 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
   const [isAdding, setIsAdding] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
+  const [showAddMilitarModal, setShowAddMilitarModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<Afastamento>>({});
 
@@ -319,8 +321,17 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
 
         <div className="flex items-center gap-2">
           <button
+            type="button"
+            onClick={() => setShowAddMilitarModal(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-black uppercase tracking-wider transition-all shadow-xs active:scale-95 cursor-pointer"
+            title="Adicionar novo militar ao banco de dados e servidor"
+          >
+            <UserPlus className="w-3 h-3" />
+            <span>Adicionar Militar</span>
+          </button>
+          <button
             onClick={() => setShowAddForm(!showAddForm)}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-black uppercase tracking-wider transition-all shadow-xs active:scale-95"
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-black uppercase tracking-wider transition-all shadow-xs active:scale-95 cursor-pointer"
           >
             {showAddForm ? <X className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
             {showAddForm ? 'Fechar Cadastro' : 'Novo Afastamento'}
@@ -504,6 +515,18 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
         onStartEdit={startEditing}
         onDelete={handleDelete}
         situacoes={SITUACOES}
+      />
+
+      {/* Modal para Adicionar Militar Diretamente ao Banco de Dados e Servidor */}
+      <AdicionarMilitarModal
+        isOpen={showAddMilitarModal}
+        onClose={() => setShowAddMilitarModal(false)}
+        obmContext={obmContext}
+        initialAla={filterAla || '1'}
+        onSuccess={() => {
+          setSaveSuccessMsg('Militar cadastrado com sucesso no banco de dados e servidor!');
+          setTimeout(() => setSaveSuccessMsg(''), 4000);
+        }}
       />
     </div>
   );

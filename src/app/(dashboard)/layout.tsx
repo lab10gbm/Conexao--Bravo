@@ -137,7 +137,7 @@ export default function DashboardLayout({
             href="/"
             className="flex items-center gap-2 sm:gap-4 hover:opacity-80 transition-opacity flex-1 min-w-0"
           >
-            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-white rounded-full flex items-center justify-center p-0 shadow-inner overflow-hidden shrink-0">
+            <div className="w-10 h-10 sm:w-14 sm:h-14 bg-white rounded-full flex items-center justify-center p-0 shadow-inner overflow-hidden shrink-0 keep-light">
               <PlatformLogo className="w-10 h-10 sm:w-14 sm:h-14 text-[var(--color-brand-dark)] scale-[1.25]" />
             </div>
             <div className="flex flex-col truncate">

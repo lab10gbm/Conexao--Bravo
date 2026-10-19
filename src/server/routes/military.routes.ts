@@ -504,7 +504,7 @@ app.get('/api/militar/:rg', async (req, res) => {
   app.delete('/api/militar/:rg', deleteMilitarInternal);
   app.post('/api/militar/delete', deleteMilitarInternal);
 
-  app.post('/api/militar/update', async (req, res) => {
+  const handleMilitarUpdate = async (req: express.Request, res: express.Response) => {
     const { isDbHealthy, db, clientDb, militaryCache, deletedMilitaries, normalizeRg, cacheEvents, incrementCacheVersion } = getDeps();
     const { rg, data } = req.body;
     if (!rg || !data) return res.status(400).json({ success: false });
@@ -549,13 +549,66 @@ app.get('/api/militar/:rg', async (req, res) => {
       }
       
       militaryCache.set(safeRg, mergedData);
+
+      // Persistir também na composição oficial padrão das alas no disco se tiver ala/obm
+      try {
+        const hardcodedPath = path.join(process.cwd(), 'src/server/lib/default_alas_composition.json');
+        if (fs.existsSync(hardcodedPath)) {
+          const fileData = JSON.parse(fs.readFileSync(hardcodedPath, 'utf8'));
+          fileData[safeRg] = {
+            rg: safeRg,
+            name: mergedData.name || '',
+            warName: mergedData.warName || mergedData.name || '',
+            rank: mergedData.rank || '',
+            ala: (mergedData.ala || '').toString().trim() || null,
+            obm: mergedData.obm || null,
+            quadro: mergedData.quadro || null
+          };
+          fs.writeFileSync(hardcodedPath, JSON.stringify(fileData, null, 2), 'utf8');
+          console.log(`[API] Militar ${safeRg} persistido definitivamente em default_alas_composition.json`);
+        }
+      } catch (fileErr: any) {
+        console.warn('[API] Aviso ao gravar militar em default_alas_composition.json:', fileErr.message);
+      }
+
+      // Atualizar também na configuração do Firestore
+      if (clientDb && mergedData.ala) {
+        try {
+          const compSnap = await getDoc(doc(clientDb, 'config', 'default_alas_composition'));
+          if (compSnap.exists()) {
+            const compData = compSnap.data() || {};
+            const formation = compData.formation || {};
+            formation[safeRg] = {
+              rg: safeRg,
+              name: mergedData.name || '',
+              warName: mergedData.warName || mergedData.name || '',
+              rank: mergedData.rank || '',
+              ala: (mergedData.ala || '').toString().trim() || null,
+              obm: mergedData.obm || null,
+              quadro: mergedData.quadro || null
+            };
+            await setDoc(doc(clientDb, 'config', 'default_alas_composition'), {
+              ...compData,
+              totalMilitaries: Object.keys(formation).length,
+              updatedAt: new Date().toISOString(),
+              formation
+            }, { merge: true });
+          }
+        } catch (compErr: any) {
+          console.warn('[API] Aviso ao atualizar default_alas_composition no Firestore:', compErr.message);
+        }
+      }
+
       const newVer = incrementCacheVersion ? incrementCacheVersion() : Date.now();
       if (cacheEvents) cacheEvents.emit('update', newVer);
-      return res.json({ success: true, version: newVer });
+      return res.json({ success: true, version: newVer, militar: mergedData });
     } catch (e) {
       return res.status(500).json({ success: false });
     }
-  });
+  };
+
+  app.post('/api/militar/update', handleMilitarUpdate);
+  app.post('/api/militar/add', handleMilitarUpdate);
 
 app.post('/api/militar/role', async (req, res) => {
     const { isDbHealthy, db, clientDb, militaryCache, normalizeRg, OBM_HIERARCHY, isCacheLoaded, cachePromise, setDbUnhealthy, cacheEvents, incrementCacheVersion } = getDeps();

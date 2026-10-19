@@ -76,27 +76,27 @@ export function MuralAvisos({ isAdminOrEscalante, userName }: MuralAvisosProps) 
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-             <div className="pt-2 flex flex-col gap-2 border-t border-blue-200 mt-2">
+             <div className="pt-2 flex flex-col gap-2 border-t border-blue-200 dark:border-blue-800/60 mt-2">
                 <textarea 
                   value={novoAviso}
                   onChange={(e) => setNovoAviso(e.target.value)}
                   placeholder="Detalhes do aviso ou evento..."
-                  className="w-full text-sm p-3 rounded-lg border border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]"
+                  className="w-full text-sm p-3 rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]"
                 />
                 <div className="flex flex-col sm:flex-row items-center gap-2 justify-between">
-                   <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-blue-300 w-full sm:w-auto">
-                      <span className="text-[10px] font-bold text-blue-800 uppercase tracking-widest">Data do Evento (Opcional):</span>
+                   <div className="flex items-center gap-2 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-blue-300 dark:border-blue-700 w-full sm:w-auto">
+                      <span className="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase tracking-widest">Data do Evento (Opcional):</span>
                       <input 
                          type="date" 
                          value={eventoData}
                          onChange={(e) => setEventoData(e.target.value)}
-                         className="text-xs font-bold text-slate-700 focus:outline-none"
+                         className="text-xs font-bold text-slate-700 dark:text-slate-200 bg-transparent focus:outline-none cursor-pointer [color-scheme:light] dark:[color-scheme:dark]"
                       />
                    </div>
                    <button 
                      onClick={handleAddAviso}
                      disabled={!novoAviso.trim()}
-                     className="w-full sm:w-auto flex justify-center items-center gap-2 bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-800 disabled:opacity-50 transition"
+                     className="w-full sm:w-auto flex justify-center items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded-lg text-xs font-bold disabled:opacity-50 transition cursor-pointer"
                    >
                      <Send className="w-4 h-4" />
                      Publicar
@@ -107,9 +107,9 @@ export function MuralAvisos({ isAdminOrEscalante, userName }: MuralAvisosProps) 
         )}
       </AnimatePresence>
 
-      <ul className="text-sm text-blue-900 space-y-2">
+      <ul className="text-sm text-blue-900 dark:text-slate-100 space-y-2">
         {avisos.length === 0 && !isAdding && (
-          <motion.li initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-blue-600 italic">Nenhum aviso no momento.</motion.li>
+          <motion.li initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-xs text-blue-600 dark:text-blue-400 italic">Nenhum aviso no momento.</motion.li>
         )}
         <AnimatePresence>
           {avisos.map((aviso, i) => (
@@ -119,12 +119,12 @@ export function MuralAvisos({ isAdminOrEscalante, userName }: MuralAvisosProps) 
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, scale: 0.9 }}
               transition={{ delay: i * 0.05 }}
-              className="flex gap-3 p-3 bg-white/50 rounded-lg border border-blue-100 items-start"
+              className="flex gap-3 p-3 bg-white/70 dark:bg-slate-800/80 rounded-lg border border-blue-100 dark:border-slate-700 items-start"
             >
             <span className="shrink-0 mt-2"><span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"></span></span>
             <div className="flex-1 min-w-0">
                {aviso.eventDate && (
-                 <span className="inline-block px-1.5 py-0.5 mb-1 bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-black uppercase tracking-widest rounded">
+                 <span className="inline-block px-1.5 py-0.5 mb-1 bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-700/60 text-[10px] font-black uppercase tracking-widest rounded">
                     Evento: {(() => {
                       try {
                         return format(new Date(aviso.eventDate + 'T12:00:00'), 'dd/MM/yyyy');
@@ -134,15 +134,15 @@ export function MuralAvisos({ isAdminOrEscalante, userName }: MuralAvisosProps) 
                     })()}
                  </span>
                )}
-               <p className="whitespace-pre-wrap break-words">{aviso.texto}</p>
-               <p className="text-[9px] text-blue-500 uppercase tracking-widest mt-1 font-bold">
+               <p className="whitespace-pre-wrap break-words text-slate-800 dark:text-slate-100 text-xs sm:text-sm">{aviso.texto}</p>
+               <p className="text-[9px] text-blue-600 dark:text-blue-400 uppercase tracking-widest mt-1 font-bold">
                  Enviado por {aviso.autor} • {aviso.createdAt ? format(aviso.createdAt.toDate(), "dd/MM 'às' HH:mm", { locale: ptBR }) : 'Agora'}
                </p>
             </div>
             {isAdminOrEscalante && (
               <button 
                 onClick={(e) => handleDeleteAviso(aviso.id, e)}
-                className={`shrink-0 p-2 rounded-lg transition-colors ${confirmDeleteId === aviso.id ? 'bg-red-500 text-white' : 'text-red-500 hover:bg-red-100 hover:text-red-700'}`}
+                className={`shrink-0 p-2 rounded-lg transition-colors ${confirmDeleteId === aviso.id ? 'bg-red-500 text-white' : 'text-red-500 hover:bg-red-100 dark:hover:bg-red-950/40 hover:text-red-700'}`}
                 title={confirmDeleteId === aviso.id ? "Clique novamente para confirmar" : "Excluir Aviso"}
               >
                 {confirmDeleteId === aviso.id ? <span className="text-[10px] font-bold px-1">CONFIRMAR</span> : <Trash2 className="w-4 h-4" />}

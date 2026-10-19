@@ -39,22 +39,61 @@ body {
 }
 
 /* =========================================================
-   PADRÃO DE BORDAS SAUDÁVEIS E ENQUADRAMENTO (DESIGN SYSTEM)
+   PADRÃO DE BORDAS E ENQUADRAMENTO (DESIGN SYSTEM)
    ========================================================= */
 
-/* Contorno estruturado, nítido e saudável para todos os painéis e cartões (Light Mode) */
-:is(.bg-white):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *, .escala-sections-container > div, input, select, textarea, button:not([class*="rounded-2xl"], [class*="rounded-xl"], [class*="rounded-3xl"])) {
+/* Contorno estruturado, nítido e saudável para painéis e cartões (Light Mode) */
+:is(.bg-white):not(
+  .keep-light,
+  .keep-light *,
+  [data-theme="light"],
+  [data-theme="light"] *,
+  #escala-print-sheet,
+  #escala-print-sheet *,
+  .escala-sections-container > div,
+  input,
+  select,
+  textarea,
+  .rounded-full,
+  [class*="rounded-full"],
+  .border-none,
+  .border-0,
+  [class*="border-transparent"],
+  table,
+  tbody,
+  thead,
+  tr,
+  td,
+  th,
+  button:not([class*="rounded-2xl"], [class*="rounded-xl"], [class*="rounded-3xl"])
+) {
   border: 1px solid #cbd5e1;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
 }
 
 /* Transforma bordas antes fracas/invisíveis em bordas nítidas, visíveis e saudáveis em todos os módulos */
-:is(.border-slate-100, .border-slate-200, .border-gray-100, .border-gray-200, .border-zinc-100, .border-zinc-200):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *, .escala-sections-container > div, .border-transparent) {
+:is(.border-slate-100, .border-slate-200, .border-gray-100, .border-gray-200, .border-zinc-100, .border-zinc-200):not(
+  .keep-light,
+  .keep-light *,
+  [data-theme="light"],
+  [data-theme="light"] *,
+  #escala-print-sheet,
+  #escala-print-sheet *,
+  .escala-sections-container > div,
+  .border-transparent
+) {
   border-color: #cbd5e1 !important;
 }
 
 /* Divisores internos suaves e limpos */
-:is(.divide-slate-100, .divide-slate-200, .divide-gray-100, .divide-gray-200):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *) > :not([hidden]) ~ :not([hidden]) {
+:is(.divide-slate-100, .divide-slate-200, .divide-gray-100, .divide-gray-200):not(
+  .keep-light,
+  .keep-light *,
+  [data-theme="light"],
+  [data-theme="light"] *,
+  #escala-print-sheet,
+  #escala-print-sheet *
+) > :not([hidden]) ~ :not([hidden]) {
   border-color: #e2e8f0 !important;
 }
 
@@ -120,55 +159,175 @@ html.dark .custom-scrollbar::-webkit-scrollbar-thumb {
    REGRAS GLOBAIS DE MODO NOTURNO (EXCETO GERAR ESCALA)
    ========================================================= */
 
-/* Cards, Contêineres e Painéis Brancos */
-html.dark :is(.bg-white):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *) {
+/* Cards, Contêineres e Painéis Brancos / Translúcidos */
+html.dark :is(.bg-white, [class*="bg-white/80"], [class*="bg-white/90"], [class*="bg-white/95"]):not(
+  .keep-light,
+  .keep-light *,
+  [data-theme="light"],
+  [data-theme="light"] *,
+  #escala-print-sheet,
+  #escala-print-sheet *
+) {
   background-color: #141c2e !important;
   color: #f1f5f9;
 }
 
+html.dark :is([class*="bg-white/40"], [class*="bg-white/50"], [class*="bg-white/60"], [class*="bg-white/70"]):not(
+  .keep-light,
+  .keep-light *,
+  [data-theme="light"],
+  [data-theme="light"] *,
+  #escala-print-sheet,
+  #escala-print-sheet *
+) {
+  background-color: rgba(20, 28, 46, 0.75) !important;
+  color: #f1f5f9;
+}
+
 /* Superfícies Secundárias / Neutras Claras */
-html.dark :is(.bg-slate-50, .bg-gray-50, .bg-zinc-50):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *) {
+html.dark :is(.bg-slate-50, .bg-gray-50, .bg-zinc-50, [class*="bg-slate-50/"], [class*="bg-gray-50/"], [class*="bg-zinc-50/"]):not(
+  .keep-light,
+  .keep-light *,
+  [data-theme="light"],
+  [data-theme="light"] *,
+  #escala-print-sheet,
+  #escala-print-sheet *
+) {
   background-color: #0e1626 !important;
   color: #f1f5f9;
 }
 
-html.dark :is(.bg-slate-100, .bg-gray-100, .bg-zinc-100):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *) {
+html.dark :is(.bg-slate-100, .bg-gray-100, .bg-zinc-100, [class*="bg-slate-100/"], [class*="bg-gray-100/"], [class*="bg-zinc-100/"]):not(
+  .keep-light,
+  .keep-light *,
+  [data-theme="light"],
+  [data-theme="light"] *,
+  #escala-print-sheet,
+  #escala-print-sheet *
+) {
   background-color: #1a2438 !important;
   color: #f1f5f9;
 }
 
-html.dark :is(.bg-slate-200, .bg-gray-200, .bg-zinc-200):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *) {
-  background-color: #26354e !important;
+html.dark :is(.bg-slate-200, .bg-gray-200, .bg-zinc-200):not(
+  .keep-light,
+  .keep-light *,
+  [data-theme="light"],
+  [data-theme="light"] *,
+  #escala-print-sheet,
+  #escala-print-sheet *
+) {
+  background-color: #243247 !important;
   color: #f1f5f9;
 }
 
-/* Textos e Tipografia Escura -> Clara */
-html.dark :is(.text-slate-900, .text-gray-900, .text-zinc-900, .text-black, .text-[#1D1D1D]):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *) {
+/* Textos e Tipografia Escura -> Clara no Modo Noturno */
+html.dark :is(.text-slate-900, .text-gray-900, .text-zinc-900, .text-black, .text-[#1D1D1D]):not(
+  .keep-light,
+  .keep-light *,
+  [data-theme="light"],
+  [data-theme="light"] *,
+  #escala-print-sheet,
+  #escala-print-sheet *
+) {
   color: #f8fafc !important;
 }
 
-html.dark :is(.text-slate-800, .text-gray-800, .text-zinc-800):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *) {
+html.dark :is(.text-slate-800, .text-gray-800, .text-zinc-800):not(
+  .keep-light,
+  .keep-light *,
+  [data-theme="light"],
+  [data-theme="light"] *,
+  #escala-print-sheet,
+  #escala-print-sheet *
+) {
   color: #e2e8f0 !important;
 }
 
-html.dark :is(.text-slate-700, .text-gray-700, .text-zinc-700):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *) {
+html.dark :is(.text-slate-700, .text-gray-700, .text-zinc-700):not(
+  .keep-light,
+  .keep-light *,
+  [data-theme="light"],
+  [data-theme="light"] *,
+  #escala-print-sheet,
+  #escala-print-sheet *
+) {
   color: #cbd5e1 !important;
 }
 
-html.dark :is(.text-slate-600, .text-gray-600, .text-zinc-600):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *) {
+html.dark :is(.text-slate-600, .text-gray-600, .text-zinc-600):not(
+  .keep-light,
+  .keep-light *,
+  [data-theme="light"],
+  [data-theme="light"] *,
+  #escala-print-sheet,
+  #escala-print-sheet *
+) {
   color: #94a3b8 !important;
 }
 
-/* Bordas e Divisores no Dark Mode com acabamento nítido e elegante */
-html.dark :is(.border-slate-100, .border-slate-200, .border-slate-300, .border-gray-100, .border-gray-200, .border-gray-300, .border-zinc-100, .border-zinc-200, .border-zinc-300):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *, .escala-sections-container > div, .border-transparent) {
+/* Bordas e Divisores no Dark Mode com acabamento limpo e consistente */
+html.dark :is(
+  .border-slate-100,
+  .border-slate-200,
+  .border-slate-300,
+  .border-gray-100,
+  .border-gray-200,
+  .border-gray-300,
+  .border-zinc-100,
+  .border-zinc-200,
+  .border-zinc-300,
+  [class*="border-slate-100/"],
+  [class*="border-slate-200/"],
+  [class*="border-slate-300/"]
+):not(
+  .keep-light,
+  .keep-light *,
+  [data-theme="light"],
+  [data-theme="light"] *,
+  #escala-print-sheet,
+  #escala-print-sheet *,
+  .escala-sections-container > div,
+  .border-transparent
+) {
   border-color: #33435e !important;
 }
 
-html.dark :is(.divide-slate-100, .divide-slate-200, .divide-slate-300, .divide-gray-100, .divide-gray-200):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *) > :not([hidden]) ~ :not([hidden]) {
+html.dark :is(.divide-slate-100, .divide-slate-200, .divide-slate-300, .divide-gray-100, .divide-gray-200):not(
+  .keep-light,
+  .keep-light *,
+  [data-theme="light"],
+  [data-theme="light"] *,
+  #escala-print-sheet,
+  #escala-print-sheet *
+) > :not([hidden]) ~ :not([hidden]) {
   border-color: #27364f !important;
 }
 
-html.dark :is(.bg-white):not(.keep-light, .keep-light *, [data-theme="light"], [data-theme="light"] *, #escala-print-sheet, #escala-print-sheet *, .escala-sections-container > div, input, select, textarea, button:not([class*="rounded-2xl"], [class*="rounded-xl"], [class*="rounded-3xl"])) {
+html.dark :is(.bg-white):not(
+  .keep-light,
+  .keep-light *,
+  [data-theme="light"],
+  [data-theme="light"] *,
+  #escala-print-sheet,
+  #escala-print-sheet *,
+  .escala-sections-container > div,
+  input,
+  select,
+  textarea,
+  .rounded-full,
+  [class*="rounded-full"],
+  .border-none,
+  .border-0,
+  [class*="border-transparent"],
+  table,
+  tbody,
+  thead,
+  tr,
+  td,
+  th,
+  button:not([class*="rounded-2xl"], [class*="rounded-xl"], [class*="rounded-3xl"])
+) {
   border: 1px solid #33435e !important;
   box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.35);
 }
@@ -204,31 +363,46 @@ html.dark textarea::placeholder {
   color: #64748b !important;
 }
 
-/* Cores das Alas Suavizadas no Dark Mode */
-html.dark :is(.bg-emerald-50):not(.keep-light, .keep-light *) { background-color: rgba(6, 78, 59, 0.28) !important; }
-html.dark :is(.bg-emerald-100):not(.keep-light, .keep-light *) { background-color: rgba(6, 78, 59, 0.45) !important; }
-html.dark :is(.text-emerald-900, .text-emerald-800):not(.keep-light, .keep-light *) { color: #6ee7b7 !important; }
-html.dark :is(.border-emerald-200, .border-emerald-300):not(.keep-light, .keep-light *) { border-color: rgba(16, 185, 129, 0.35) !important; }
+/* Cores das Alas e Módulos Suavizadas no Dark Mode */
+html.dark :is(.bg-emerald-50, [class*="bg-emerald-50/"]):not(.keep-light, .keep-light *) { background-color: rgba(6, 78, 59, 0.28) !important; }
+html.dark :is(.bg-emerald-100, [class*="bg-emerald-100/"]):not(.keep-light, .keep-light *) { background-color: rgba(6, 78, 59, 0.45) !important; }
+html.dark :is(.text-emerald-900, .text-emerald-800, .text-emerald-700):not(.keep-light, .keep-light *) { color: #6ee7b7 !important; }
+html.dark :is(.border-emerald-200, .border-emerald-300, [class*="border-emerald-200/"], [class*="border-emerald-300/"]):not(.keep-light, .keep-light *) { border-color: rgba(16, 185, 129, 0.35) !important; }
 
-html.dark :is(.bg-rose-50):not(.keep-light, .keep-light *) { background-color: rgba(136, 19, 55, 0.28) !important; }
-html.dark :is(.bg-rose-100):not(.keep-light, .keep-light *) { background-color: rgba(136, 19, 55, 0.45) !important; }
-html.dark :is(.text-rose-900, .text-rose-800):not(.keep-light, .keep-light *) { color: #fda4af !important; }
-html.dark :is(.border-rose-200, .border-rose-300):not(.keep-light, .keep-light *) { border-color: rgba(244, 63, 94, 0.35) !important; }
+html.dark :is(.bg-rose-50, [class*="bg-rose-50/"]):not(.keep-light, .keep-light *) { background-color: rgba(136, 19, 55, 0.28) !important; }
+html.dark :is(.bg-rose-100, [class*="bg-rose-100/"]):not(.keep-light, .keep-light *) { background-color: rgba(136, 19, 55, 0.45) !important; }
+html.dark :is(.text-rose-900, .text-rose-800, .text-rose-700):not(.keep-light, .keep-light *) { color: #fda4af !important; }
+html.dark :is(.border-rose-200, .border-rose-300, [class*="border-rose-200/"], [class*="border-rose-300/"]):not(.keep-light, .keep-light *) { border-color: rgba(244, 63, 94, 0.35) !important; }
 
-html.dark :is(.bg-sky-50):not(.keep-light, .keep-light *) { background-color: rgba(12, 74, 110, 0.28) !important; }
-html.dark :is(.bg-sky-100):not(.keep-light, .keep-light *) { background-color: rgba(12, 74, 110, 0.45) !important; }
-html.dark :is(.text-sky-900, .text-sky-800):not(.keep-light, .keep-light *) { color: #7dd3fc !important; }
-html.dark :is(.border-sky-200, .border-sky-300):not(.keep-light, .keep-light *) { border-color: rgba(14, 165, 233, 0.35) !important; }
+html.dark :is(.bg-sky-50, [class*="bg-sky-50/"]):not(.keep-light, .keep-light *) { background-color: rgba(12, 74, 110, 0.28) !important; }
+html.dark :is(.bg-sky-100, [class*="bg-sky-100/"]):not(.keep-light, .keep-light *) { background-color: rgba(12, 74, 110, 0.45) !important; }
+html.dark :is(.text-sky-900, .text-sky-800, .text-sky-700):not(.keep-light, .keep-light *) { color: #7dd3fc !important; }
+html.dark :is(.border-sky-200, .border-sky-300, [class*="border-sky-200/"], [class*="border-sky-300/"]):not(.keep-light, .keep-light *) { border-color: rgba(14, 165, 233, 0.35) !important; }
 
-html.dark :is(.bg-amber-50):not(.keep-light, .keep-light *) { background-color: rgba(120, 53, 15, 0.28) !important; }
-html.dark :is(.bg-amber-100):not(.keep-light, .keep-light *) { background-color: rgba(120, 53, 15, 0.45) !important; }
-html.dark :is(.text-amber-900, .text-amber-800):not(.keep-light, .keep-light *) { color: #fcd34d !important; }
-html.dark :is(.border-amber-200, .border-amber-300):not(.keep-light, .keep-light *) { border-color: rgba(245, 158, 11, 0.35) !important; }
+html.dark :is(.bg-amber-50, [class*="bg-amber-50/"]):not(.keep-light, .keep-light *) { background-color: rgba(120, 53, 15, 0.28) !important; }
+html.dark :is(.bg-amber-100, [class*="bg-amber-100/"]):not(.keep-light, .keep-light *) { background-color: rgba(120, 53, 15, 0.45) !important; }
+html.dark :is(.text-amber-900, .text-amber-800, .text-amber-700):not(.keep-light, .keep-light *) { color: #fcd34d !important; }
+html.dark :is(.border-amber-200, .border-amber-300, [class*="border-amber-200/"], [class*="border-amber-300/"]):not(.keep-light, .keep-light *) { border-color: rgba(245, 158, 11, 0.35) !important; }
 
-html.dark :is(.bg-indigo-50):not(.keep-light, .keep-light *) { background-color: rgba(49, 46, 129, 0.28) !important; }
-html.dark :is(.bg-indigo-100):not(.keep-light, .keep-light *) { background-color: rgba(49, 46, 129, 0.45) !important; }
-html.dark :is(.text-indigo-900, .text-indigo-800):not(.keep-light, .keep-light *) { color: #a5b4fc !important; }
-html.dark :is(.border-indigo-200, .border-indigo-300):not(.keep-light, .keep-light *) { border-color: rgba(99, 102, 241, 0.35) !important; }
+html.dark :is(.bg-indigo-50, [class*="bg-indigo-50/"]):not(.keep-light, .keep-light *) { background-color: rgba(49, 46, 129, 0.28) !important; }
+html.dark :is(.bg-indigo-100, [class*="bg-indigo-100/"]):not(.keep-light, .keep-light *) { background-color: rgba(49, 46, 129, 0.45) !important; }
+html.dark :is(.text-indigo-900, .text-indigo-800, .text-indigo-700):not(.keep-light, .keep-light *) { color: #a5b4fc !important; }
+html.dark :is(.border-indigo-200, .border-indigo-300, [class*="border-indigo-200/"], [class*="border-indigo-300/"]):not(.keep-light, .keep-light *) { border-color: rgba(99, 102, 241, 0.35) !important; }
+
+html.dark :is(.bg-blue-50, [class*="bg-blue-50/"]):not(.keep-light, .keep-light *) { background-color: rgba(30, 58, 138, 0.28) !important; }
+html.dark :is(.bg-blue-100, [class*="bg-blue-100/"]):not(.keep-light, .keep-light *) { background-color: rgba(30, 58, 138, 0.45) !important; }
+html.dark :is(.text-blue-900, .text-blue-800, .text-blue-700):not(.keep-light, .keep-light *) { color: #93c5fd !important; }
+html.dark :is(.border-blue-200, .border-blue-300, [class*="border-blue-200/"], [class*="border-blue-300/"]):not(.keep-light, .keep-light *) { border-color: rgba(59, 130, 246, 0.35) !important; }
+
+html.dark :is(.bg-teal-50, [class*="bg-teal-50/"]):not(.keep-light, .keep-light *) { background-color: rgba(19, 78, 74, 0.28) !important; }
+html.dark :is(.bg-teal-100, [class*="bg-teal-100/"]):not(.keep-light, .keep-light *) { background-color: rgba(19, 78, 74, 0.45) !important; }
+html.dark :is(.text-teal-900, .text-teal-800, .text-teal-700):not(.keep-light, .keep-light *) { color: #5eead4 !important; }
+html.dark :is(.border-teal-200, .border-teal-300, [class*="border-teal-200/"], [class*="border-teal-300/"]):not(.keep-light, .keep-light *) { border-color: rgba(20, 184, 166, 0.35) !important; }
+
+html.dark :is(.bg-red-50, [class*="bg-red-50/"]):not(.keep-light, .keep-light *) { background-color: rgba(127, 29, 29, 0.28) !important; }
+html.dark :is(.bg-red-100, [class*="bg-red-100/"]):not(.keep-light, .keep-light *) { background-color: rgba(127, 29, 29, 0.45) !important; }
+html.dark :is(.text-red-900, .text-red-800, .text-red-700):not(.keep-light, .keep-light *) { color: #fca5a5 !important; }
+html.dark :is(.border-red-200, .border-red-300, [class*="border-red-200/"], [class*="border-red-300/"]):not(.keep-light, .keep-light *) { border-color: rgba(239, 68, 68, 0.35) !important; }
 
 /* =========================================================
    MÓDULO ESCALA 24H: BORDAS TEMÁTICAS DA ALA DO DIA
