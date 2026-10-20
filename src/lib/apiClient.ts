@@ -1,4 +1,4 @@
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { cleanUndefined } from './utils';
 
@@ -6,8 +6,8 @@ import { cleanUndefined } from './utils';
  * Persiste um documento com garantia de sucesso:
  * 1. Chama a API do Backend (/api/doc/save) que possui credenciais de Administrador
  *    e nunca é bloqueada por AdBlockers/Brave Shields.
- * 2. Em paralelo, grava no Firestore do Cliente (em try/catch) para que os listeners
- *    em tempo real do navegador (onSnapshot) reajam instantaneamente.
+ * 2. Se autenticado no cliente, sincroniza em paralelo no Firestore (com catch silencioso)
+ *    para que os listeners em tempo real do navegador (onSnapshot) reajam instantaneamente.
  */
 export async function safeSaveDocument(
   collectionName: string,
@@ -34,10 +34,12 @@ export async function safeSaveDocument(
       return null;
     });
 
-  // 2. Gravação local via Client SDK para reatividade instantânea
-  if (db) {
+  // 2. Gravação local via Client SDK apenas se o militar estiver autenticado
+  if (db && auth?.currentUser) {
     try {
-      await setDoc(doc(db, collectionName, docId), sanitized, { merge });
+      setDoc(doc(db, collectionName, docId), sanitized, { merge }).catch(() => {
+        // Rejeição direta do client tratada de forma silenciosa e transparente
+      });
     } catch (clientErr) {
       // Rejeição direta do client tratada de forma silenciosa e transparente
     }
@@ -62,9 +64,9 @@ export async function safeSaveDocRef(
     return safeSaveDocument(collectionName, docId, data, merge);
   }
   // Fallback caso não seja possível extrair os caminhos
-  if (db) {
+  if (db && auth?.currentUser) {
     try {
-      await setDoc(docRef, cleanUndefined(data), { merge });
+      setDoc(docRef, cleanUndefined(data), { merge }).catch(() => {});
       return true;
     } catch (e) {
       console.warn('[apiClient] direct setDoc failed:', e);
@@ -124,9 +126,9 @@ export async function safeDeleteDocument(
       return null;
     });
 
-  if (db) {
+  if (db && auth?.currentUser) {
     try {
-      await deleteDoc(doc(db, collectionName, docId));
+      deleteDoc(doc(db, collectionName, docId)).catch(() => {});
     } catch (e) {}
   }
 
@@ -144,9 +146,9 @@ export async function safeDeleteDocRef(docRef: any): Promise<boolean> {
   if (collectionName && docId) {
     return safeDeleteDocument(collectionName, docId);
   }
-  if (db) {
+  if (db && auth?.currentUser) {
     try {
-      await deleteDoc(docRef);
+      deleteDoc(docRef).catch(() => {});
       return true;
     } catch (e) {}
   }

@@ -95,41 +95,82 @@ export function useExpedienteData({ selectedObm, currentMonth, obmContext }: Use
       setLoading(false);
     };
 
-    const unsubMonth = onSnapshot(monthDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        monthData = docSnap.data();
-      } else {
-        monthData = { selections: {}, locked: {}, swapRequests: [], weeklyChangeRequests: [] };
-      }
-      mergeData();
-    });
-
-    const unsubGlobal = onSnapshot(globalDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        globalData = docSnap.data();
-      } else {
-        globalData = { requirements: {}, userNames: {}, sectors: {} };
-      }
-      mergeData();
-    });
-
     const obmGrdId = selectedObm.replace(/\//g, '_').replace(/\s/g, '_');
     const grdDocId = `${obmGrdId}_${monthKey}`;
-    const unsubGrd = onSnapshot(doc(db, 'grd_configs', grdDocId), (docSnap) => {
-      if (docSnap.exists()) {
-        grdData = docSnap.data().days || {};
-      } else {
-        grdData = {};
+
+    // 1. Initial backend load to guarantee data even with client permission blocks
+    let isMounted = true;
+    Promise.all([
+      fetch(`/api/doc/get?collection=${encodeURIComponent(`expediente_${normalizedObm}`)}&docId=${encodeURIComponent(monthKey)}`).then(r => r.json()).catch(() => null),
+      fetch(`/api/doc/get?collection=${encodeURIComponent(`expediente_${normalizedObm}`)}&docId=global`).then(r => r.json()).catch(() => null),
+      fetch(`/api/doc/get?collection=grd_configs&docId=${encodeURIComponent(grdDocId)}`).then(r => r.json()).catch(() => null)
+    ]).then(([mRes, gRes, grdRes]) => {
+      if (!isMounted) return;
+      if (mRes?.success && mRes?.data) {
+        monthData = { ...monthData, ...mRes.data };
+      }
+      if (gRes?.success && gRes?.data) {
+        globalData = { ...globalData, ...gRes.data };
+      }
+      if (grdRes?.success && grdRes?.data) {
+        grdData = grdRes.data.days || {};
       }
       mergeData();
+    }).catch(err => {
+      console.warn('[useExpedienteData] Initial fetch notice:', err?.message);
     });
 
+    // 2. Real-time listeners with resilient error handling (prevents uncaught runtime exceptions)
+    let unsubMonth = () => {};
+    let unsubGlobal = () => {};
+    let unsubGrd = () => {};
+
+    try {
+      unsubMonth = onSnapshot(monthDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+          monthData = docSnap.data();
+        } else {
+          monthData = { selections: {}, locked: {}, swapRequests: [], weeklyChangeRequests: [] };
+        }
+        mergeData();
+      }, (error) => {
+        console.warn('[useExpedienteData] monthDocRef snapshot notice (handled via API fallback):', error?.message);
+      });
+    } catch (e) {}
+
+    try {
+      unsubGlobal = onSnapshot(globalDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+          globalData = docSnap.data();
+        } else {
+          globalData = { requirements: {}, userNames: {}, sectors: {} };
+        }
+        mergeData();
+      }, (error) => {
+        console.warn('[useExpedienteData] globalDocRef snapshot notice (handled via API fallback):', error?.message);
+      });
+    } catch (e) {}
+
+    try {
+      unsubGrd = onSnapshot(doc(db, 'grd_configs', grdDocId), (docSnap) => {
+        if (docSnap.exists()) {
+          grdData = docSnap.data().days || {};
+        } else {
+          grdData = {};
+        }
+        mergeData();
+      }, (error) => {
+        console.warn('[useExpedienteData] grdDoc snapshot notice (handled via API fallback):', error?.message);
+      });
+    } catch (e) {}
+
     return () => {
+      isMounted = false;
       unsubMonth();
       unsubGlobal();
       unsubGrd();
     };
-  }, [monthKey, selectedObm]);
+  }, [monthKey, selectedObm, normalizedObm]);
 
   return {
     data,

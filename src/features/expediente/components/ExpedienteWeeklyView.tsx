@@ -8,6 +8,7 @@ import { format, subWeeks, addWeeks, startOfWeek, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { doc, setDoc } from 'firebase/firestore';
 import { cn, cleanUndefined } from '../../../lib/utils';
+import { safeSaveDocRef } from '../../../lib/apiClient';
 import { UserProfile } from '../../../types';
 import { ExpedienteData, DayStatusResult, WeeklyChangeRequest } from '../types';
 import { safeArr, formatPreferenceFunction } from '../lib/expedienteCalculos';
@@ -391,7 +392,7 @@ export const ExpedienteWeeklyView: React.FC<ExpedienteWeeklyViewProps> = ({
                           }
                         }));
                       }
-                      await setDoc(weekDocRef, cleanUndefined(updatePayload), { merge: true });
+                      await safeSaveDocRef(weekDocRef, cleanUndefined(updatePayload), true);
                     }}
                     className="px-3.5 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
                     title="Confirmar e homologar expediente desta semana"
@@ -452,7 +453,7 @@ export const ExpedienteWeeklyView: React.FC<ExpedienteWeeklyViewProps> = ({
                               }
                             }));
                           }
-                          await setDoc(weekDocRef, cleanUndefined(updatePayload), { merge: true });
+                          await safeSaveDocRef(weekDocRef, cleanUndefined(updatePayload), true);
                         }}
                         className="px-3 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white font-black text-[10px] uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer"
                         title="Desbloquear expediente da semana para edição"

@@ -4,6 +4,7 @@ import { UserProfile } from '../../../types';
 import { ExpedienteData } from '../types';
 import { parseRank, sortAllBySeniority } from '../../../lib/rankUtils';
 import { formatMilitaryName, cleanUndefined } from '../../../lib/utils';
+import { safeSaveDocRef } from '../../../lib/apiClient';
 import { setDoc, updateDoc, deleteField } from 'firebase/firestore';
 
 interface ExpedienteMemberManagementViewProps {
@@ -221,8 +222,8 @@ export function ExpedienteMemberManagementView({
                           delete newGlobal.regimes;
                         }
                         
-                        await setDoc(globalDocRef, cleanUndefined(newGlobal), { merge: true });
-                        await setDoc(monthDocRef, cleanUndefined({ requirements: { [rg]: autoReq } }), { merge: true });
+                        await safeSaveDocRef(globalDocRef, cleanUndefined(newGlobal), true);
+                        await safeSaveDocRef(monthDocRef, cleanUndefined({ requirements: { [rg]: autoReq } }), true);
                       }}
                       className="w-full text-[10px] font-bold p-1.5 border-2 border-slate-200 rounded-md bg-white text-slate-700 hover:border-indigo-300 focus:border-indigo-500 outline-none transition-colors"
                     >
@@ -248,7 +249,7 @@ export function ExpedienteMemberManagementView({
                             regimes: { [rg]: r },
                             userNames: { [rg]: formatMilitaryName(u.rank ? `${u.rank} ${u.warName || u.name.split(' ')[0]}` : u.name) }
                           };
-                          await setDoc(globalDocRef, cleanUndefined(newGlobal), { merge: true });
+                          await safeSaveDocRef(globalDocRef, cleanUndefined(newGlobal), true);
                         }}
                         className="w-full text-[9px] font-bold p-1 px-2 border border-indigo-100 rounded bg-indigo-50/30 text-indigo-900 focus:border-indigo-300 outline-none"
                       />
@@ -283,7 +284,7 @@ export function ExpedienteMemberManagementView({
                         updateDoc(globalDocRef, { [`expQuotas.${rg}`]: deleteField() }).catch(console.error);
                         delete newGlobal.expQuotas;
                       }
-                      await setDoc(globalDocRef, cleanUndefined(newGlobal), { merge: true });
+                      await safeSaveDocRef(globalDocRef, cleanUndefined(newGlobal), true);
                     }}
                     className="w-16 p-2 text-center text-sm border-2 border-indigo-200 rounded-md bg-white font-black text-indigo-900 hover:border-indigo-400 focus:border-indigo-500 outline-none transition-colors mx-auto block"
                     title="Quantidade semanal de serviços expedientes (EXP/Sem)"
@@ -315,8 +316,8 @@ export function ExpedienteMemberManagementView({
                         updateDoc(globalDocRef, { [`requirements.${rg}`]: deleteField() }).catch(console.error);
                         delete newGlobal.requirements;
                       }
-                      await setDoc(globalDocRef, cleanUndefined(newGlobal), { merge: true });
-                      await setDoc(monthDocRef, cleanUndefined({ requirements: { [rg]: req } }), { merge: true });
+                      await safeSaveDocRef(globalDocRef, cleanUndefined(newGlobal), true);
+                      await safeSaveDocRef(monthDocRef, cleanUndefined({ requirements: { [rg]: req } }), true);
                     }}
                     className="w-16 p-2 text-center text-sm border-2 border-indigo-200 rounded-md bg-white font-black text-indigo-900 hover:border-indigo-400 focus:border-indigo-500 outline-none transition-colors mx-auto block"
                     title="Quantidade mensal de Serviços 24h (S. 24h)"
@@ -339,7 +340,7 @@ export function ExpedienteMemberManagementView({
                       } else {
                         newGlobal.sectors = { [rg]: s };
                       }
-                      await setDoc(globalDocRef, cleanUndefined(newGlobal), { merge: true });
+                      await safeSaveDocRef(globalDocRef, cleanUndefined(newGlobal), true);
                     }}
                     className="w-full text-sm p-2 border-2 border-slate-200 rounded-md bg-white font-bold text-slate-700 hover:border-slate-300 focus:border-slate-500 outline-none transition-colors"
                   />

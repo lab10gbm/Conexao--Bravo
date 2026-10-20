@@ -475,7 +475,7 @@ export const ExpedienteCalendarView: React.FC<ExpedienteCalendarViewProps> = ({
                                   [activeRg!]: true
                                 }
                               }));
-                              await setDoc(monthDocRef, cleanUndefined(newMonthData), { merge: true });
+                              await safeSaveDocRef(monthDocRef, cleanUndefined(newMonthData), true);
                               setConfirmLock(false);
                             }}
                             className="flex-1 bg-green-500 hover:bg-green-400 text-white py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors shadow-sm"
@@ -523,7 +523,7 @@ export const ExpedienteCalendarView: React.FC<ExpedienteCalendarViewProps> = ({
                               [activeRg!]: false
                             }
                           }));
-                          await setDoc(monthDocRef, cleanUndefined(newMonthData), { merge: true });
+                          await safeSaveDocRef(monthDocRef, cleanUndefined(newMonthData), true);
                         }}
                         className="w-full flex items-center justify-center gap-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors border border-amber-500/30 cursor-pointer"
                         title="Desbloquear escala 24h para edição"
@@ -558,7 +558,7 @@ export const ExpedienteCalendarView: React.FC<ExpedienteCalendarViewProps> = ({
                             e.preventDefault();
                             e.stopPropagation();
                             const updatedRequests = data.swapRequests!.filter(r => r.id !== req.id);
-                            await setDoc(monthDocRef, cleanUndefined({ swapRequests: updatedRequests }), { merge: true });
+                            await safeSaveDocRef(monthDocRef, cleanUndefined({ swapRequests: updatedRequests }), true);
                           }}
                           className="w-full py-1.5 bg-red-500/20 hover:bg-red-500/40 border border-red-500/30 text-red-200 text-[9px] font-black uppercase tracking-widest rounded transition-colors mt-1 z-20 relative cursor-pointer"
                         >

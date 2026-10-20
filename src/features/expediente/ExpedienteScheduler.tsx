@@ -303,16 +303,21 @@ export function ExpedienteScheduler({
     weekMonthKeys.forEach((mKey) => {
       if (mKey !== monthKey) {
         const mRef = doc(db, `expediente_${normalizedObm}`, mKey);
-        const unsub = onSnapshot(mRef, (snap) => {
-          if (snap.exists()) {
-            setExtraMonthData((prev) => ({ ...prev, [mKey]: snap.data() }));
-          } else {
-            setExtraMonthData((prev) => ({
-              ...prev,
-              [mKey]: { selections: {}, expedienteDays: {} }
-            }));
-          }
-        });
+        let unsub = () => {};
+        try {
+          unsub = onSnapshot(mRef, (snap) => {
+            if (snap.exists()) {
+              setExtraMonthData((prev) => ({ ...prev, [mKey]: snap.data() }));
+            } else {
+              setExtraMonthData((prev) => ({
+                ...prev,
+                [mKey]: { selections: {}, expedienteDays: {} }
+              }));
+            }
+          }, (error) => {
+            console.warn('[ExpedienteScheduler] Extra month snapshot notice:', error?.message);
+          });
+        } catch (e) {}
         unsubs.push(unsub);
       }
     });
