@@ -1,4 +1,4 @@
-import React, { useState, useTransition } from 'react';
+import React, { useState, useTransition, useEffect, useMemo } from 'react';
 import { UserProfile } from '../types';
 import { 
   ArrowLeft, 
@@ -10,13 +10,26 @@ import {
   CheckCircle2, 
   Shield,
   Clock,
-  Settings
+  Settings,
+  Flame,
+  Award,
+  Compass,
+  Star,
+  LifeBuoy,
+  Waves,
+  Crosshair,
+  type LucideIcon
 } from 'lucide-react';
 import { OfficerGrdModule } from './OfficerGrdModule';
 import { NucleoNauticoGrdModule } from './NucleoNauticoGrdModule';
 import { OfficerMedicosModule } from './OfficerMedicosModule';
 import { GestaoOficiaisMedicosModule } from './GestaoOficiaisMedicosModule';
 import { OficiaisConfigModule } from './OficiaisConfigModule';
+import { GenericOfficerGrdModule } from '../features/grd/components/GenericOfficerGrdModule';
+import { GenericOfficerGrdConfig } from '../features/grd/types';
+import { OfficerSectionItem, getDefaultSectionsForObm } from '../types/officerSections';
+import { db } from '../lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
 import { resolveCanonicalScope, formatScopeLabel } from '../lib/canonicalScope';
@@ -30,52 +43,29 @@ interface OficiaisDashboardProps {
   initialApp?: string | null;
 }
 
-const OFICIAIS_APPS = [
-  {
-    id: 'servicos-grd',
-    label: 'Serviços e GRD',
-    subtitle: 'Escala de Oficiais',
-    description: 'Oficial de Dia, Sobreaviso e gerenciamento da escala geral de oficiais.',
-    badge: 'Geral & Sobreaviso',
-    icon: ShieldCheck,
-    color: 'bg-indigo-700 shadow-indigo-200',
-    borderColor: 'hover:border-indigo-300',
-    accentText: 'text-indigo-700'
-  },
-  {
-    id: 'nucleo-nautico',
-    label: 'Núcleo Náutico',
-    subtitle: 'Operações Náuticas',
-    description: 'Serviços especializados, escalas e GRD marítima e náutica.',
-    badge: 'Operações Náuticas',
-    icon: Anchor,
-    color: 'bg-cyan-600 shadow-cyan-200',
-    borderColor: 'hover:border-cyan-300',
-    accentText: 'text-cyan-700'
-  },
-  {
-    id: 'oficiais-medicos',
-    label: 'Oficiais Médicos',
-    subtitle: 'Corpo de Saúde',
-    description: 'Serviços médicos, escala hospitalar e atendimento operacional de saúde.',
-    badge: 'Corpo de Saúde',
-    icon: Stethoscope,
-    color: 'bg-rose-700 shadow-rose-200',
-    borderColor: 'hover:border-rose-300',
-    accentText: 'text-rose-700'
-  },
-  {
-    id: 'config-efetivo',
-    label: 'Configuração de Efetivo',
-    subtitle: 'Ajustes Gerais',
-    description: 'Determine quais militares aparecerão disponíveis nas escalas de Oficiais.',
-    badge: 'Administrativo',
-    icon: Settings,
-    color: 'bg-slate-700 shadow-slate-200',
-    borderColor: 'hover:border-slate-300',
-    accentText: 'text-slate-700'
-  }
-];
+const SECTION_ICONS: Record<string, LucideIcon> = {
+  shield: ShieldCheck,
+  anchor: Anchor,
+  stethoscope: Stethoscope,
+  flame: Flame,
+  award: Award,
+  compass: Compass,
+  star: Star,
+  lifebuoy: LifeBuoy,
+  waves: Waves,
+  crosshair: Crosshair
+};
+
+const SECTION_COLOR_MAP: Record<string, { bg: string; shadow: string; border: string; text: string }> = {
+  indigo: { bg: 'bg-indigo-700', shadow: 'shadow-indigo-200', border: 'border-indigo-300', text: 'text-indigo-700' },
+  cyan: { bg: 'bg-cyan-600', shadow: 'shadow-cyan-200', border: 'border-cyan-300', text: 'text-cyan-700' },
+  rose: { bg: 'bg-rose-700', shadow: 'shadow-rose-200', border: 'border-rose-300', text: 'text-rose-700' },
+  emerald: { bg: 'bg-emerald-700', shadow: 'shadow-emerald-200', border: 'border-emerald-300', text: 'text-emerald-700' },
+  amber: { bg: 'bg-amber-600', shadow: 'shadow-amber-200', border: 'border-amber-300', text: 'text-amber-700' },
+  blue: { bg: 'bg-blue-700', shadow: 'shadow-blue-200', border: 'border-blue-300', text: 'text-blue-700' },
+  purple: { bg: 'bg-purple-700', shadow: 'shadow-purple-200', border: 'border-purple-300', text: 'text-purple-700' },
+  slate: { bg: 'bg-slate-700', shadow: 'shadow-slate-200', border: 'border-slate-300', text: 'text-slate-700' }
+};
 
 export function OficiaisDashboard({
   user,
@@ -87,6 +77,39 @@ export function OficiaisDashboard({
 }: OficiaisDashboardProps) {
   const [activeApp, setActiveApp] = useState<string | null>(initialApp);
   const [isPending, startTransition] = useTransition();
+
+  // Carrega as seções ativas para a OBM / DBM atual
+  const [sections, setSections] = useState<OfficerSectionItem[]>(() => getDefaultSectionsForObm(obmContext));
+
+  useEffect(() => {
+    let isMounted = true;
+    const cleanObm = obmContext === 'GLOBAL' ? '10º GBM' : obmContext;
+    const docId = (cleanObm || '10º GBM').replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_');
+
+    fetch(`/api/officer-sections?obm=${encodeURIComponent(cleanObm)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (isMounted && data.success && Array.isArray(data.sections)) {
+          setSections(data.sections);
+        }
+      })
+      .catch(() => {});
+
+    const unsub = onSnapshot(doc(db, 'officer_sections_config', docId), (snap) => {
+      if (!isMounted) return;
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data.sections) && data.sections.length > 0) {
+          setSections(data.sections);
+        }
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsub();
+    };
+  }, [obmContext]);
 
   const handleObmChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
@@ -125,6 +148,48 @@ export function OficiaisDashboard({
       </button>
     </div>
   );
+
+  // Lista dinâmica de apps/seções para o Grid baseada nas configurações da OBM
+  const displayApps = useMemo(() => {
+    // 1. Filtra apenas as seções ativas para esta OBM/DBM
+    const enabledSections = sections.filter(sec => sec.enabled);
+
+    const sectionCards = enabledSections.map(sec => {
+      const colorStyles = SECTION_COLOR_MAP[sec.color] || SECTION_COLOR_MAP.indigo;
+      const Icon = SECTION_ICONS[sec.icon] || ShieldCheck;
+
+      return {
+        id: sec.id,
+        label: sec.name,
+        subtitle: sec.subtitle,
+        description: sec.description,
+        badge: sec.badge,
+        icon: Icon,
+        color: `${colorStyles.bg} ${colorStyles.shadow}`,
+        borderColor: `hover:${colorStyles.border}`,
+        accentText: colorStyles.text,
+        isCustom: sec.isCustom,
+        rawSection: sec
+      };
+    });
+
+    // 2. Card Administrativo sempre presente no final (Configuração Serviços de Oficiais)
+    const configCard = {
+      id: 'config-servicos-oficiais',
+      label: 'Configuração Serviços de Oficiais',
+      subtitle: 'Gestão de Seções & Efetivo',
+      description: 'Determine quais militares aparecerão disponíveis nas escalas de Oficiais.',
+      badge: 'Administrativo',
+      icon: Settings,
+      color: 'bg-slate-700 shadow-slate-200',
+      borderColor: 'hover:border-slate-300',
+      accentText: 'text-slate-700',
+      isCustom: false,
+      rawSection: null
+    };
+
+    return [...sectionCards, configCard];
+  }, [sections]);
 
   // Sub-view 1: Serviços e GRD
   if (activeApp === 'servicos-grd') {
@@ -194,7 +259,7 @@ export function OficiaisDashboard({
     );
   }
 
-  // Sub-view 3: Oficiais Médicos (Módulo da OBM, idêntico aos de Serviços e Náutico)
+  // Sub-view 3: Oficiais Médicos
   if (activeApp === 'oficiais-medicos') {
     return (
       <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -228,8 +293,8 @@ export function OficiaisDashboard({
     );
   }
 
-  // Sub-view 4: Configuração de Efetivo
-  if (activeApp === 'config-efetivo') {
+  // Sub-view 4: Configuração Serviços de Oficiais (anteriormente Configuração de Efetivo)
+  if (activeApp === 'config-servicos-oficiais' || activeApp === 'config-efetivo') {
     return (
       <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -239,13 +304,13 @@ export function OficiaisDashboard({
             </div>
             <div>
               <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-                Configuração de Efetivo{' '}
+                Configuração Serviços de Oficiais{' '}
                 <span className="text-xs font-bold bg-slate-100 text-slate-700 px-2 py-1 rounded uppercase tracking-widest ml-2">
                   {obmContext || '10º GBM'}
                 </span>
               </h2>
               <p className="text-sm font-medium text-slate-500 mt-0.5">
-                Determine quais militares oficiais aparecerão em cada módulo de escala.
+                Gestão de seções da unidade e seleção de oficiais disponíveis em cada escala.
               </p>
             </div>
           </div>
@@ -254,12 +319,65 @@ export function OficiaisDashboard({
 
         <OficiaisConfigModule
           obmContext={obmContext}
+          onClose={() => setActiveApp(null)}
         />
       </div>
     );
   }
 
-  // Main Dashboard Space View
+  // Sub-view 5: Seções Personalizadas (Criadas dinamicamente para os DBMs/OBMs)
+  const customSection = sections.find(s => s.id === activeApp);
+  if (customSection) {
+    const IconComp = SECTION_ICONS[customSection.icon] || ShieldCheck;
+    const colorStyles = SECTION_COLOR_MAP[customSection.color] || SECTION_COLOR_MAP.indigo;
+
+    const dynamicConfig: GenericOfficerGrdConfig = {
+      collectionName: 'officer_scales',
+      poolConfigField: customSection.id as any,
+      title: customSection.name,
+      icon: (customSection.icon === 'anchor' ? 'anchor' : 'shield'),
+      themeColor: (customSection.color === 'cyan' ? 'cyan' : 'emerald'),
+      col1Label: customSection.col1Name || 'OFICIAL DE DIA / CMT OP / SOBREAVISO 1',
+      col2Label: customSection.col2Name || 'SOBREAVISO 2 / GRD 2',
+      distTitle: `Distribuição de Serviços (${customSection.name})`,
+      configSelectorLabel1: 'Oficial de Dia / G1',
+      configSelectorLabel2: 'Sobreaviso / G2'
+    };
+
+    return (
+      <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <div className={cn("w-10 h-10 rounded-xl text-white flex items-center justify-center shadow-md", colorStyles.bg)}>
+              <IconComp className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                {customSection.name}{' '}
+                <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-2 py-1 rounded uppercase tracking-widest ml-2">
+                  {obmContext || '10º GBM'}
+                </span>
+              </h2>
+              <p className="text-sm font-medium text-slate-500 mt-0.5">
+                {customSection.description}
+              </p>
+            </div>
+          </div>
+          {renderHeaderActions(() => setActiveApp(null))}
+        </div>
+
+        <GenericOfficerGrdModule
+          user={user}
+          obmContext={obmContext}
+          setObmContext={setObmContext}
+          availableObms={availableObms}
+          config={dynamicConfig}
+        />
+      </div>
+    );
+  }
+
+  // Main Dashboard Grid View
   return (
     <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -276,7 +394,7 @@ export function OficiaisDashboard({
                 </span>
               </h2>
               <p className="text-sm font-medium text-slate-500 mt-0.5">
-                Selecione uma aplicação do seu painel de oficiais.
+                Selecione uma aplicação ou seção ativa da sua unidade.
               </p>
             </div>
           </div>
@@ -284,9 +402,9 @@ export function OficiaisDashboard({
         {renderHeaderActions()}
       </div>
 
-      {/* Grid de Módulos (Estilo Painel do Escalante) */}
+      {/* Grid de Módulos e Seções Ativas da Unidade */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full mb-8">
-        {OFICIAIS_APPS.map((app) => {
+        {displayApps.map((app) => {
           const Icon = app.icon;
           return (
             <motion.button
@@ -349,13 +467,13 @@ export function OficiaisDashboard({
               Sincronização em Tempo Real com a Escala 24h
             </h4>
             <p className="text-xs text-slate-300 font-medium mt-0.5 max-w-2xl">
-              As designações de Oficial de Dia em Serviços e GRD, Núcleo Náutico e Oficiais Médicos alimentam diretamente a seção consolidada de oficiais na Escala 24h.
+              As designações de Oficial de Dia nas seções ativas de {obmContext || '10º GBM'} alimentam diretamente a seção consolidada de oficiais na Escala 24h.
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl bg-white/10 text-slate-200 border border-white/10">
-            10º GBM - Angra
+            {obmContext || '10º GBM'}
           </span>
         </div>
       </div>

@@ -1095,7 +1095,7 @@ export function GenericOfficerGrdModule({
 
                                 {availableOfficers.length === 0 && (
                                   <div className="p-3 text-center text-slate-400 text-xs">
-                                    Nenhum oficial configurado para este módulo. Acesse <strong>Configuração de Efetivo</strong>.
+                                    Nenhum oficial configurado para este módulo. Acesse <strong>Configuração Serviços de Oficiais</strong>.
                                   </div>
                                 )}
                               </div>
