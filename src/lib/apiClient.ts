@@ -6,8 +6,7 @@ import { cleanUndefined } from './utils';
  * Persiste um documento com garantia de sucesso:
  * 1. Chama a API do Backend (/api/doc/save) que possui credenciais de Administrador
  *    e nunca é bloqueada por AdBlockers/Brave Shields.
- * 2. Se autenticado no cliente, sincroniza em paralelo no Firestore (com catch silencioso)
- *    para que os listeners em tempo real do navegador (onSnapshot) reajam instantaneamente.
+ * 2. 100% imune a bloqueios de WebChannel (ERR_BLOCKED_BY_CLIENT) e regras de permissão.
  */
 export async function safeSaveDocument(
   collectionName: string,
@@ -17,36 +16,23 @@ export async function safeSaveDocument(
 ): Promise<boolean> {
   const sanitized = cleanUndefined(data);
 
-  // 1. Gravação confiável via API Backend (ignora adblockers e contorna regras de permissão)
-  const apiPromise = fetch('/api/doc/save', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      collection: collectionName,
-      docId,
-      data: sanitized,
-      merge
-    })
-  })
-    .then(r => r.json())
-    .catch(err => {
-      console.warn(`[apiClient] Backend API save notice (${collectionName}/${docId}):`, err);
-      return null;
+  try {
+    const res = await fetch('/api/doc/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        collection: collectionName,
+        docId,
+        data: sanitized,
+        merge
+      })
     });
-
-  // 2. Gravação local via Client SDK apenas se o militar estiver autenticado
-  if (db && auth?.currentUser) {
-    try {
-      setDoc(doc(db, collectionName, docId), sanitized, { merge }).catch(() => {
-        // Rejeição direta do client tratada de forma silenciosa e transparente
-      });
-    } catch (clientErr) {
-      // Rejeição direta do client tratada de forma silenciosa e transparente
-    }
+    const json = await res.json();
+    return json?.success ?? true;
+  } catch (err) {
+    console.warn(`[apiClient] Backend API save notice (${collectionName}/${docId}):`, err);
+    return false;
   }
-
-  const res = await apiPromise;
-  return res?.success ?? true;
 }
 
 /**
@@ -62,15 +48,6 @@ export async function safeSaveDocRef(
   const docId = docRef.id || '';
   if (collectionName && docId) {
     return safeSaveDocument(collectionName, docId, data, merge);
-  }
-  // Fallback caso não seja possível extrair os caminhos
-  if (db && auth?.currentUser) {
-    try {
-      setDoc(docRef, cleanUndefined(data), { merge }).catch(() => {});
-      return true;
-    } catch (e) {
-      console.warn('[apiClient] direct setDoc failed:', e);
-    }
   }
   return false;
 }
@@ -115,25 +92,18 @@ export async function safeDeleteDocument(
   collectionName: string,
   docId: string
 ): Promise<boolean> {
-  const apiPromise = fetch('/api/doc/delete', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ collection: collectionName, docId })
-  })
-    .then(r => r.json())
-    .catch(err => {
-      console.warn(`[apiClient] Backend API delete notice (${collectionName}/${docId}):`, err);
-      return null;
+  try {
+    const res = await fetch('/api/doc/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ collection: collectionName, docId })
     });
-
-  if (db && auth?.currentUser) {
-    try {
-      deleteDoc(doc(db, collectionName, docId)).catch(() => {});
-    } catch (e) {}
+    const json = await res.json();
+    return json?.success ?? true;
+  } catch (err) {
+    console.warn(`[apiClient] Backend API delete notice (${collectionName}/${docId}):`, err);
+    return false;
   }
-
-  const res = await apiPromise;
-  return res?.success ?? true;
 }
 
 /**
@@ -145,12 +115,6 @@ export async function safeDeleteDocRef(docRef: any): Promise<boolean> {
   const docId = docRef.id || '';
   if (collectionName && docId) {
     return safeDeleteDocument(collectionName, docId);
-  }
-  if (db && auth?.currentUser) {
-    try {
-      deleteDoc(docRef).catch(() => {});
-      return true;
-    } catch (e) {}
   }
   return false;
 }
