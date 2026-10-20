@@ -18,6 +18,8 @@ import {
   LifeBuoy,
   Waves,
   Crosshair,
+  ArrowRightLeft,
+  CalendarRange,
   type LucideIcon
 } from 'lucide-react';
 import { OfficerGrdModule } from './OfficerGrdModule';
@@ -25,6 +27,8 @@ import { NucleoNauticoGrdModule } from './NucleoNauticoGrdModule';
 import { OfficerMedicosModule } from './OfficerMedicosModule';
 import { GestaoOficiaisMedicosModule } from './GestaoOficiaisMedicosModule';
 import { OficiaisConfigModule } from './OficiaisConfigModule';
+import { OficiaisPermutasModule } from './OficiaisPermutasModule';
+import { ExpedienteScheduler } from '../features/expediente/ExpedienteScheduler';
 import { GenericOfficerGrdModule } from '../features/grd/components/GenericOfficerGrdModule';
 import { GenericOfficerGrdConfig } from '../features/grd/types';
 import { OfficerSectionItem, getDefaultSectionsForObm } from '../types/officerSections';
@@ -173,7 +177,36 @@ export function OficiaisDashboard({
       };
     });
 
-    // 2. Card Administrativo sempre presente no final (Configuração Serviços de Oficiais)
+    // 2. Módulos Operacionais Exclusivos dos Oficiais
+    const officerPermutaCard = {
+      id: 'permutas-oficiais',
+      label: 'Permutas de Oficiais',
+      subtitle: 'Trocas de Serviço de Oficiais',
+      description: 'Quadro de permutas, solicitações e compensações de serviços exclusivos de Oficiais.',
+      badge: 'Permutas',
+      icon: ArrowRightLeft,
+      color: 'bg-purple-700 shadow-purple-200',
+      borderColor: 'hover:border-purple-300',
+      accentText: 'text-purple-700',
+      isCustom: false,
+      rawSection: null
+    };
+
+    const officerExpedienteCard = {
+      id: 'expediente-oficiais',
+      label: 'Escala do Expediente',
+      subtitle: 'Expediente & Escala 24h Oficiais',
+      description: 'Planejamento de expediente semanal e serviços 24h dos Oficiais da unidade.',
+      badge: 'Expediente',
+      icon: CalendarRange,
+      color: 'bg-blue-700 shadow-blue-200',
+      borderColor: 'hover:border-blue-300',
+      accentText: 'text-blue-700',
+      isCustom: false,
+      rawSection: null
+    };
+
+    // 3. Card Administrativo sempre presente no final (Configuração Serviços de Oficiais)
     const configCard = {
       id: 'config-servicos-oficiais',
       label: 'Configuração Serviços de Oficiais',
@@ -188,7 +221,7 @@ export function OficiaisDashboard({
       rawSection: null
     };
 
-    return [...sectionCards, configCard];
+    return [...sectionCards, officerPermutaCard, officerExpedienteCard, configCard];
   }, [sections]);
 
   // Sub-view 1: Serviços e GRD
@@ -320,6 +353,74 @@ export function OficiaisDashboard({
         <OficiaisConfigModule
           obmContext={obmContext}
           onClose={() => setActiveApp(null)}
+        />
+      </div>
+    );
+  }
+
+  // Sub-view: Permutas de Oficiais
+  if (activeApp === 'permutas-oficiais') {
+    return (
+      <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-purple-700 text-white flex items-center justify-center shadow-md">
+              <ArrowRightLeft className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                Permutas de Oficiais{' '}
+                <span className="text-xs font-bold bg-purple-100 text-purple-700 px-2 py-1 rounded uppercase tracking-widest ml-2">
+                  {obmContext || '10º GBM'}
+                </span>
+              </h2>
+              <p className="text-sm font-medium text-slate-500 mt-0.5">
+                Quadro geral de permutas, solicitações e compensações de serviços exclusivos dos Oficiais.
+              </p>
+            </div>
+          </div>
+          {renderHeaderActions(() => setActiveApp(null))}
+        </div>
+
+        <OficiaisPermutasModule
+          user={user}
+          obmContext={obmContext}
+          onBack={() => setActiveApp(null)}
+        />
+      </div>
+    );
+  }
+
+  // Sub-view: Escala do Expediente (Oficiais)
+  if (activeApp === 'expediente-oficiais') {
+    return (
+      <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-700 text-white flex items-center justify-center shadow-md">
+              <CalendarRange className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
+                Escala do Expediente (Oficiais){' '}
+                <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded uppercase tracking-widest ml-2">
+                  {obmContext || '10º GBM'}
+                </span>
+              </h2>
+              <p className="text-sm font-medium text-slate-500 mt-0.5">
+                Planejamento do expediente semanal e escala 24h exclusivo para os Oficiais da unidade.
+              </p>
+            </div>
+          </div>
+          {renderHeaderActions(() => setActiveApp(null))}
+        </div>
+
+        <ExpedienteScheduler
+          user={user}
+          obmContext={obmContext}
+          forceExpanded={true}
+          allowCollapse={false}
+          isOfficerOnly={true}
         />
       </div>
     );

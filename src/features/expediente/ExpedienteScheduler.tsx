@@ -38,7 +38,7 @@ import {
 import { UserProfile } from '../../types';
 import { db } from '../../lib/firebase';
 import { cn, formatMilitaryName, getAlaForDate, getAlaLightColor, getAlaColor, normalizeObm, cleanUndefined } from '../../lib/utils';
-import { sortAllBySeniority } from '../../lib/rankUtils';
+import { sortAllBySeniority, isOfficer } from '../../lib/rankUtils';
 import { useMilitars } from '../../contexts/MilitarContext';
 
 // Feature components, types, hooks, and helpers
@@ -74,6 +74,7 @@ export interface ExpedienteSchedulerProps {
   forceExpanded?: boolean;
   allowCollapse?: boolean;
   defaultExpanded?: boolean;
+  isOfficerOnly?: boolean;
 }
 
 export function ExpedienteScheduler({
@@ -81,7 +82,8 @@ export function ExpedienteScheduler({
   obmContext,
   forceExpanded = false,
   allowCollapse,
-  defaultExpanded
+  defaultExpanded,
+  isOfficerOnly = false
 }: ExpedienteSchedulerProps) {
   const { militars, updateMilitarLocal } = useMilitars();
 
@@ -110,11 +112,13 @@ export function ExpedienteScheduler({
     normalizedObm,
     monthKey,
     monthDocRef,
-    globalDocRef
+    globalDocRef,
+    collectionPrefix
   } = useExpedienteData({
     selectedObm,
     currentMonth,
-    obmContext
+    obmContext,
+    isOfficerOnly
   });
 
   const [expedienteUsers, setExpedienteUsers] = useState<UserProfile[]>([]);
@@ -130,6 +134,11 @@ export function ExpedienteScheduler({
 
       const docId = u.uid || u.rg || '';
       const alaUpper = u.ala?.toString().toUpperCase() || '';
+      const isMilOfficer = isOfficer(u.rank || '') || Boolean((u as any).isOfficer);
+
+      if (isOfficerOnly && !isMilOfficer) {
+        return;
+      }
 
       const inData = docId
         ? data.requirements[docId] !== undefined ||
@@ -138,6 +147,7 @@ export function ExpedienteScheduler({
         : false;
 
       if (
+        isOfficerOnly ||
         alaUpper.includes('EXP') ||
         alaUpper === 'E' ||
         alaUpper === 'EXPEDIENTE' ||
@@ -156,7 +166,7 @@ export function ExpedienteScheduler({
     });
 
     setExpedienteUsers(usersList.sort(sortAllBySeniority));
-  }, [militars, selectedObm, data]);
+  }, [militars, selectedObm, data, isOfficerOnly]);
 
   const [adminTargetRg, setAdminTargetRg] = useState<string | null>(null);
   const isCollapsible = allowCollapse !== undefined ? allowCollapse : !forceExpanded;
@@ -302,7 +312,7 @@ export function ExpedienteScheduler({
     const unsubs: (() => void)[] = [];
     weekMonthKeys.forEach((mKey) => {
       if (mKey !== monthKey) {
-        const mRef = doc(db, `expediente_${normalizedObm}`, mKey);
+        const mRef = doc(db, `${collectionPrefix}${normalizedObm}`, mKey);
         let unsub = () => {};
         try {
           unsub = onSnapshot(mRef, (snap) => {
@@ -324,7 +334,7 @@ export function ExpedienteScheduler({
     return () => {
       unsubs.forEach((u) => u());
     };
-  }, [weekMonthKeys, monthKey, normalizedObm]);
+  }, [weekMonthKeys, monthKey, normalizedObm, collectionPrefix]);
 
   // Hook for calculation helpers & inquiries
   const {
@@ -381,7 +391,8 @@ export function ExpedienteScheduler({
     fullWeekDays,
     selectedWeekMonday,
     getDayStatus,
-    setActionFeedback
+    setActionFeedback,
+    collectionPrefix
   });
 
   // Hook for actions & updates
@@ -435,7 +446,8 @@ export function ExpedienteScheduler({
     updateMilitarLocal,
     setActionFeedback,
     setMilitaryMoveModal,
-    setQuickAddModal
+    setQuickAddModal,
+    collectionPrefix
   });
 
   const handleCopyTables = async () => {
@@ -541,10 +553,10 @@ export function ExpedienteScheduler({
             <div className="text-left flex flex-col items-start min-w-0">
               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                 <h3 className="text-xs sm:text-lg font-black text-slate-800 uppercase tracking-tight truncate">
-                  Escala do Expediente
+                  {isOfficerOnly ? 'Escala do Expediente (Oficiais)' : 'Escala do Expediente'}
                 </h3>
                 <div className="text-[9px] font-black text-indigo-500 bg-indigo-100/90 px-2 py-0.5 rounded uppercase tracking-widest hidden sm:block border border-indigo-200">
-                  OPERAÇÕES EXP
+                  {isOfficerOnly ? 'OFICIAIS EXP' : 'OPERAÇÕES EXP'}
                 </div>
                 {!isExpanded && (
                   <span className="hidden sm:inline-block text-[9px] font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-wider border border-indigo-200">
@@ -554,7 +566,7 @@ export function ExpedienteScheduler({
               </div>
               <p className="hidden sm:block text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">
                 {isExpanded
-                  ? 'Planejamento e Registro de Serviços 24h e Expediente Semanal'
+                  ? (isOfficerOnly ? 'Planejamento e Registro de Serviços e Expediente Exclusivo de Oficiais' : 'Planejamento e Registro de Serviços 24h e Expediente Semanal')
                   : 'Painel compacto da escala de expediente • Clique para expandir ou recolher'}
               </p>
             </div>
@@ -599,14 +611,14 @@ export function ExpedienteScheduler({
             <div className="text-left flex flex-col items-start gap-0.5 sm:gap-1">
               <div className="flex items-center gap-2">
                 <h3 className="text-xs sm:text-lg font-black text-slate-800 uppercase tracking-tight">
-                  Escala do Expediente
+                  {isOfficerOnly ? 'Escala do Expediente (Oficiais)' : 'Escala do Expediente'}
                 </h3>
                 <div className="text-[9px] font-black text-indigo-500 bg-indigo-100/90 px-2 py-0.5 rounded uppercase tracking-widest hidden sm:block border border-indigo-200">
-                  OPERAÇÕES EXP
+                  {isOfficerOnly ? 'OFICIAIS EXP' : 'OPERAÇÕES EXP'}
                 </div>
               </div>
               <p className="hidden sm:block text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">
-                Planejamento e Registro de Serviços 24h e Expediente Semanal
+                {isOfficerOnly ? 'Planejamento e Registro de Serviços e Expediente Exclusivo de Oficiais' : 'Planejamento e Registro de Serviços 24h e Expediente Semanal'}
               </p>
             </div>
           </div>
@@ -1155,6 +1167,7 @@ export function ExpedienteScheduler({
                   handleSetWeeklyDayStatus={handleSetWeeklyDayStatus}
                   setMilitaryMoveModal={setMilitaryMoveModal}
                   checkNeedFulfilled={checkNeedFulfilled}
+                  collectionPrefix={collectionPrefix}
                 />
               ) : (
                 <ExpedienteCalendarView

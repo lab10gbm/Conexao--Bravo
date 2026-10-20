@@ -60,6 +60,7 @@ interface ExpedienteWeeklyViewProps {
   handleSetWeeklyDayStatus: (rg: string, dayStr: string, statusType: 'expediente' | 'servico' | 'folga' | 'cycle') => Promise<void>;
   setMilitaryMoveModal: React.Dispatch<React.SetStateAction<any>>;
   checkNeedFulfilled: (func: string, dayStr: string, qt: number) => boolean;
+  collectionPrefix?: string;
 }
 
 export const ExpedienteWeeklyView: React.FC<ExpedienteWeeklyViewProps> = ({
@@ -109,6 +110,7 @@ export const ExpedienteWeeklyView: React.FC<ExpedienteWeeklyViewProps> = ({
   handleSetWeeklyDayStatus,
   setMilitaryMoveModal,
   checkNeedFulfilled,
+  collectionPrefix = 'expediente_',
 }) => {
   return (
     <div className="flex flex-col gap-6 w-full">
@@ -248,7 +250,7 @@ export const ExpedienteWeeklyView: React.FC<ExpedienteWeeklyViewProps> = ({
 
         const currentWeekKey = format(selectedWeekMonday, 'yyyy-MM-dd');
         const weekMondayMonthKey = format(selectedWeekMonday, 'yyyy-MM');
-        const weekDocRef = weekMondayMonthKey === monthKey ? monthDocRef : doc(db, `expediente_${normalizedObm}`, weekMondayMonthKey);
+        const weekDocRef = weekMondayMonthKey === monthKey ? monthDocRef : doc(db, `${collectionPrefix}${normalizedObm}`, weekMondayMonthKey);
 
         const userSels = safeArr(data.selections[activeRg]);
         const userReq = getReqAmount(activeRg);
