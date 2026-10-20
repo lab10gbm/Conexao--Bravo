@@ -331,6 +331,7 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       }
       return isVisible('servicos-grd', ['OFICIAIS', 'ADMIN', 'ESCALANTE']) || 
              isVisible('nucleo-nautico', ['OFICIAIS', 'ADMIN', 'ESCALANTE']) || 
+             isVisible('escala-oficiais-medicos', ['OFICIAIS', 'ADMIN', 'ESCALANTE']) ||
              isVisible('oficiais-medicos', ['OFICIAIS', 'ADMIN', 'ESCALANTE']);
     }
     
@@ -404,7 +405,7 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
           defaultGroups: ['OFICIAIS', 'ADMIN', 'ESCALANTE']
         },
         {
-          id: 'oficiais-medicos',
+          id: 'escala-oficiais-medicos',
           label: 'Oficiais Médicos',
           description: 'Serviços e Escala Médica Hospitalar',
           icon: Stethoscope,
@@ -544,6 +545,14 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
       description: 'CBAs, OBMs e DBMs',
       icon: Building2,
       color: 'bg-amber-600 shadow-amber-200',
+      defaultGroups: ['ADMIN', 'ESCALANTE']
+    },
+    {
+      id: 'gestao-oficiais-medicos',
+      label: 'Oficiais Médicos',
+      description: 'Efetivo Médico e GSE',
+      icon: Stethoscope,
+      color: 'bg-rose-700 shadow-rose-200',
       defaultGroups: ['ADMIN', 'ESCALANTE']
     },
     {

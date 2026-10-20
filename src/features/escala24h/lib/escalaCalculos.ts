@@ -1,4 +1,5 @@
 import { CategoryConfig, SelectableControlFunction } from '../../../components/ControleCategoriasModal';
+import { inferDefaultFnIdForSlot } from '../../viaturas/lib/viaturaUtils';
 
 export const normalizeFnName = (s: string): string => {
   if (!s) return "";
@@ -22,6 +23,8 @@ export const isMaritima = (v: any): boolean => {
 export const getDefaultName = (v: any, slot: string): string => {
   const vtrName = (v.vtr || "").toUpperCase();
   const maritima = isMaritima(v);
+  const rawSigla = (v.vtr || "").split(/[-_\s]/)[0]?.trim().toUpperCase() || "";
+  const sigla = (rawSigla.startsWith('AR') && rawSigla !== 'ARC') ? 'AR' : rawSigla;
   
   if (slot === 'condutor') {
     if (maritima) return vtrName.startsWith('BIA') ? 'MESTRE BIA' : 'MESTRE L';
@@ -30,13 +33,13 @@ export const getDefaultName = (v: any, slot: string): string => {
     if (isVtrType(vtrName, 'ABT')) return 'CONDUTOR ABT';
     if (isVtrType(vtrName, 'ASE')) return 'CONDUTOR ASE';
     if (isVtrType(vtrName, 'ARC')) return 'CONDUTOR ARC';
-    return 'CONDUTOR';
+    return sigla ? `CONDUTOR ${sigla}` : 'CONDUTOR';
   }
   if (slot === 'cg') {
     if (isVtrType(vtrName, 'ABSL')) return 'CHEFE ABSL';
     if (isVtrType(vtrName, 'ABT')) return 'CHEFE ABT';
     if (isVtrType(vtrName, 'ARC')) return 'AUXILIAR/CHEFE ARC';
-    return 'CHEFE GUA';
+    return sigla ? `CHEFE ${sigla}` : 'CHEFE';
   }
   // Auxiliares (g1, g2, g3, g4)
   if (maritima) return vtrName.startsWith('BIA') ? 'MARINHEIRO BIA' : 'MARINHEIRO L';
@@ -45,7 +48,7 @@ export const getDefaultName = (v: any, slot: string): string => {
   if (isVtrType(vtrName, 'ASE')) return 'AUXILIAR ASE';
   if (isVtrType(vtrName, 'ARC')) return 'AUXILIAR/CHEFE ARC';
   if (isVtrType(vtrName, 'AR')) return 'AUXILIAR AR';
-  return 'AUXILIAR GUA';
+  return sigla ? `AUXILIAR ${sigla}` : 'AUXILIAR';
 };
 
 export const getSlotDisplayName = (v: any, slot: string, availableControlFunctions: SelectableControlFunction[] = []): string => {
@@ -55,6 +58,9 @@ export const getSlotDisplayName = (v: any, slot: string, availableControlFunctio
     const genericPrefixes = ['CONDUTOR', 'AUXILIAR', 'CHEFE', 'MARINHEIRO', 'MESTRE', 'OPERADOR'];
     if (genericPrefixes.includes(custom) && sigla) {
       return `${custom} ${sigla}`.trim();
+    }
+    if (custom === 'CHEFE GUA' && sigla) {
+      return `CHEFE ${sigla}`;
     }
     if (custom === 'AUXILIAR / CHEFE ARC') return 'AUXILIAR/CHEFE ARC';
     if (v.customFunctions?.[slot]) {
@@ -88,19 +94,21 @@ export const getMostruario = (militar: any, availableControlFunctions: Selectabl
   const funcs: string[] = [];
   
   if (militar.ativoCondutor) {
-    funcs.push("CONDUTOR");
     if (militar.ativoEncarregado) funcs.push("ENC MOTORISTA");
     if (militar.ativoAbastecedor) funcs.push("ABASTECEDOR");
+    if (militar.viaturas?.ABT) funcs.push("COND ABT");
+    if (militar.viaturas?.ABSL) funcs.push("COND ABSL");
+    if (militar.viaturas?.AR) funcs.push("COND AR");
+    if (militar.viaturas?.ASE) funcs.push("COND ASE");
+    if (militar.viaturas?.ARC) funcs.push("COND ARC");
   }
   
   if (militar.ativoChefeGua) {
-    funcs.push("CHEFE GUA");
     if (militar.chefeAbsl) funcs.push("CHEFE ABSL");
     if (militar.chefeAbt) funcs.push("CHEFE ABT");
   }
   
   if (militar.ativoAuxiliar) {
-    funcs.push("AUX GUA");
     if (militar.auxAbt) funcs.push("AUX ABT");
     if (militar.auxAbsl) funcs.push("AUX ABSL");
     if (militar.auxArc) funcs.push("AUX ARC");
@@ -112,7 +120,6 @@ export const getMostruario = (militar: any, availableControlFunctions: Selectabl
   }
   
   if (militar.ativoMaritimo) {
-    funcs.push("MARITIMO");
     if (militar.mestreAl) funcs.push("MESTRE L");
     if (militar.mestreBia) funcs.push("MESTRE BIA");
     if (militar.marinheiros) {
@@ -167,7 +174,6 @@ export const getRawAllowedOptions = (
   const allowed = new Set<string>();
   
   if (militar.ativoCondutor) {
-    allowed.add('CONDUTOR');
     if (militar.ativoEncarregado) allowed.add('ENCARREGADO DE MOTORISTA');
     if (militar.ativoAbastecedor) allowed.add('ABASTECEDOR');
     
@@ -179,14 +185,12 @@ export const getRawAllowedOptions = (
   }
   
   if (militar.ativoChefeGua) {
-    allowed.add('CHEFE GUA');
     if (militar.chefeAbsl) allowed.add('CHEFE ABSL');
     if (militar.chefeAbt) allowed.add('CHEFE ABT');
     allowed.add('AUXILIAR/CHEFE ARC');
   }
   
   if (militar.ativoAuxiliar) {
-    allowed.add('AUXILIAR GUA');
     if (militar.auxAbt) allowed.add('AUXILIAR ABT');
     if (militar.auxAbsl) allowed.add('AUXILIAR ABSL');
     if (militar.auxArc) allowed.add('AUXILIAR/CHEFE ARC');
@@ -243,24 +247,32 @@ export const getRawAllowedOptions = (
       (cat.functions || []).forEach(fn => {
         if (getMilitarProp(militar, fn.id)) {
           const mapped = availableControlFunctions.find(af => af.id === fn.id);
-          if (mapped) {
-            allowed.add(mapped.scaleName);
-          } else {
-            allowed.add(fn.name.trim().toUpperCase());
+          const sName = mapped ? mapped.scaleName : fn.name.trim().toUpperCase();
+          if (
+            sName !== 'CONDUTOR' &&
+            sName !== 'CHEFE GUA' &&
+            sName !== 'CHEFE' &&
+            sName !== 'AUXILIAR GUA' &&
+            sName !== 'AUX GUA' &&
+            sName !== 'AUXILIAR'
+          ) {
+            allowed.add(sName);
           }
         }
       });
     }
   });
 
-  const allowedArr = Array.from(allowed);
+  // Mapeia as viaturas cadastradas e seus slots de função configurados
   viaturasInfo.forEach(v => {
-    if (!v.ativa) return;
+    if (v.ativa === false) return;
     (['condutor', 'g1', 'g2', 'g3', 'g4', 'cg'] as const).forEach(slot => {
        if (v.blocked?.includes(slot)) return;
        if (v[slot] !== true) return;
        const slotDisplayName = getSlotDisplayName(v, slot, availableControlFunctions);
+       const slotGroup = slot === 'condutor' ? 'condutor' : slot === 'cg' ? 'chefe' : 'auxiliar';
        const explicitFnId = v.customFunctions?.[slot];
+
        if (explicitFnId) {
           if (getMilitarProp(militar, explicitFnId)) {
              allowed.add(slotDisplayName);
@@ -273,13 +285,27 @@ export const getRawAllowedOptions = (
           if (matchedFn && getMilitarProp(militar, matchedFn.id)) {
              allowed.add(slotDisplayName);
           } else {
-             const baseName = getDefaultName(v, slot);
-             if (allowedArr.includes(baseName) || allowedArr.includes(customUpper) || allowedArr.includes(slotDisplayName)) {
+             const defaultFnId = inferDefaultFnIdForSlot(v, slotGroup);
+             if (defaultFnId && getMilitarProp(militar, defaultFnId)) {
                 allowed.add(slotDisplayName);
              }
+          }
+       } else {
+          const defaultFnId = inferDefaultFnIdForSlot(v, slotGroup);
+          if (defaultFnId && getMilitarProp(militar, defaultFnId)) {
+             allowed.add(slotDisplayName);
           }
        }
     });
   });
+
+  // Remove qualquer resquício de opções genéricas
+  allowed.delete('CONDUTOR');
+  allowed.delete('CHEFE GUA');
+  allowed.delete('CHEFE');
+  allowed.delete('AUXILIAR GUA');
+  allowed.delete('AUX GUA');
+  allowed.delete('AUXILIAR');
+
   return Array.from(allowed);
 };

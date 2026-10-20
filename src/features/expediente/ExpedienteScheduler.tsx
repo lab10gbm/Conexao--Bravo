@@ -14,6 +14,7 @@ import {
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { safeSaveDocRef } from '../../lib/apiClient';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ChevronLeft,
@@ -1203,10 +1204,10 @@ export function ExpedienteScheduler({
         currentMonthDays={currentMonthDays}
         onSubmitSwap={async (newReq) => {
           const updatedRequests = [...(data.swapRequests || []), newReq];
-          await setDoc(
+          await safeSaveDocRef(
             monthDocRef,
             cleanUndefined({ swapRequests: updatedRequests }),
-            { merge: true }
+            true
           );
           alert('Solicitação enviada para avaliação!');
           setShowSwapModal(false);

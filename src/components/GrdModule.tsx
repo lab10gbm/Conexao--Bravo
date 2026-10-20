@@ -72,6 +72,31 @@ export function GrdModule({ obmContext, setObmContext, availableObms = [], reado
 
   useEffect(() => {
     setLoading(true);
+
+    // Fast initial fetch from backend API
+    fetch(`/api/officer-scales?collection=grd_configs&docId=${docId}`)
+      .then(res => res.json())
+      .then(result => {
+        if (result.success && result.data?.days) {
+          setGrdData(result.data.days);
+        }
+      })
+      .catch(() => {});
+
+    fetch(`/api/officer-scales?collection=officer_scales&docId=${obmId}`)
+      .then(res => res.json())
+      .then(result => {
+        if (result.success && result.data?.days) {
+          setOfficerData(result.data.days);
+        }
+      })
+      .catch(() => {});
+
+    if (!db) {
+      setLoading(false);
+      return;
+    }
+
     // Listen to GRD data
     const unsubscribeGrd = onSnapshot(doc(db, 'grd_configs', docId), (snapshot) => {
       if (snapshot.exists()) {
@@ -79,6 +104,8 @@ export function GrdModule({ obmContext, setObmContext, availableObms = [], reado
       } else {
         setGrdData({});
       }
+    }, (err) => {
+      console.warn("Aviso ao sincronizar GRD:", err);
     });
 
     // Listen to Officer data
@@ -198,8 +225,26 @@ export function GrdModule({ obmContext, setObmContext, availableObms = [], reado
       "2026-05-15": { "oficialDia": "CAP BM MARCOS AUGUSTO", "sobreaviso": "CAP BM KAIZER", "ras": "CAP BM MARCOS AUGUSTO 49163" }
     };
 
+    const payload = cleanUndefined({ days: mayData });
     try {
-      await setDoc(doc(db, 'officer_scales', obmId), cleanUndefined({ days: mayData }), { merge: true });
+      await fetch('/api/officer-scales/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          collectionName: 'officer_scales',
+          docId: obmId,
+          data: payload,
+          merge: true
+        })
+      }).catch(err => console.warn('[GrdModule] Backend API warning:', err));
+
+      if (db) {
+        try {
+          await setDoc(doc(db, 'officer_scales', obmId), payload, { merge: true });
+        } catch (dbErr) {
+          console.warn('[GrdModule] Client setDoc warning (handled):', dbErr);
+        }
+      }
     } catch (error) {
       console.error(error);
     } finally {
@@ -233,13 +278,34 @@ export function GrdModule({ obmContext, setObmContext, availableObms = [], reado
       [dateStr]: safeRgs
     }));
     
+    const payload = cleanUndefined({
+      days: {
+        [dateStr]: safeRgs
+      }
+    });
+
     setSaving(true);
     try {
-      await setDoc(doc(db, 'grd_configs', docId), cleanUndefined({
-        days: {
-          [dateStr]: safeRgs
+      // 1. Backend API persistence
+      await fetch('/api/officer-scales/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          collectionName: 'grd_configs',
+          docId,
+          data: payload,
+          merge: true
+        })
+      }).catch(err => console.warn('[GrdModule] Backend API warning:', err));
+
+      // 2. Client setDoc for real-time reactivity
+      if (db) {
+        try {
+          await setDoc(doc(db, 'grd_configs', docId), payload, { merge: true });
+        } catch (dbErr) {
+          console.warn('[GrdModule] Client setDoc warning (handled):', dbErr);
         }
-      }), { merge: true });
+      }
     } catch (error) {
       console.error("Error saving GRD:", error);
     } finally {
@@ -274,15 +340,36 @@ export function GrdModule({ obmContext, setObmContext, availableObms = [], reado
       }
     }));
     
+    const payload = cleanUndefined({
+      days: {
+        [dateStr]: {
+          [field]: value
+        }
+      }
+    });
+
     setSaving(true);
     try {
-      await setDoc(doc(db, 'officer_scales', obmId), cleanUndefined({
-        days: {
-          [dateStr]: {
-            [field]: value
-          }
+      // 1. Backend API persistence
+      await fetch('/api/officer-scales/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          collectionName: 'officer_scales',
+          docId: obmId,
+          data: payload,
+          merge: true
+        })
+      }).catch(err => console.warn('[GrdModule] Backend API warning:', err));
+
+      // 2. Client setDoc for real-time reactivity
+      if (db) {
+        try {
+          await setDoc(doc(db, 'officer_scales', obmId), payload, { merge: true });
+        } catch (dbErr) {
+          console.warn('[GrdModule] Client setDoc warning (handled):', dbErr);
         }
-      }), { merge: true });
+      }
     } catch (error) {
       console.error("Error saving Officer scale:", error);
     } finally {

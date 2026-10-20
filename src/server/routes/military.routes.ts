@@ -4,6 +4,8 @@ import { collection, getDocs, getDoc, doc, setDoc, deleteDoc, writeBatch } from 
 import fs from 'fs';
 import path from 'path';
 import { resolveCanonicalScope } from "../../lib/canonicalScope";
+import { cleanUndefined, withTimeout } from "../../lib/utils";
+import { syncMedicosInternal } from "../lib/medicos-sync";
 
 export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
   app.get('/api/militar/version', (req, res) => {
@@ -72,6 +74,68 @@ export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
       count: filtered.length,
       militaries: filtered.slice(0, 50)
     });
+  });
+
+  // Listagem e estatísticas completas dos Oficiais Médicos
+  app.get('/api/militar/medicos', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const { militaryCache } = getDeps();
+    const all = Array.from(militaryCache.values());
+    const medicos = all.filter((m: any) => 
+      m.isMedico === true || 
+      (m.quadro && m.quadro.toUpperCase().includes('QOS/MÉD')) ||
+      (m.quadro && m.quadro.toUpperCase().includes('QOS/MED'))
+    );
+
+    const stats = {
+      total: medicos.length,
+      gse: medicos.filter((m: any) => m.gse || m.obm?.toUpperCase().includes('GSE')).length,
+      superiores: medicos.filter((m: any) => ['CORONEL', 'TENENTE CORONEL', 'MAJOR'].includes(m.rank?.toUpperCase())).length,
+      capitaes: medicos.filter((m: any) => m.rank?.toUpperCase() === 'CAPITÃO' || m.rank?.toUpperCase() === 'CAPITAO').length,
+      porRegiao: {} as Record<string, number>,
+      porPosto: {} as Record<string, number>,
+      porObm: {} as Record<string, number>,
+    };
+
+    medicos.forEach((m: any) => {
+      const reg = m.regiao || 'Geral CBMERJ';
+      stats.porRegiao[reg] = (stats.porRegiao[reg] || 0) + 1;
+      const rk = m.rank || 'N/A';
+      stats.porPosto[rk] = (stats.porPosto[rk] || 0) + 1;
+      const obm = m.obm || 'N/A';
+      stats.porObm[obm] = (stats.porObm[obm] || 0) + 1;
+    });
+
+    return res.json({
+      success: true,
+      stats,
+      count: medicos.length,
+      medicos
+    });
+  });
+
+  // Sincronização e cadastro em massa dos médicos
+  app.post('/api/militar/sync-medicos', async (req, res) => {
+    const { isDbHealthy, db, clientDb, militaryCache, deletedMilitaries, normalizeRg, normalizeObm, incrementCacheVersion, cacheEvents } = getDeps();
+    try {
+      const count = await syncMedicosInternal({
+        db,
+        clientDb,
+        isDbHealthy,
+        militaryCache,
+        deletedMilitaries,
+        normalizeRg,
+        normalizeObm,
+        incrementCacheVersion
+      });
+      if (cacheEvents && incrementCacheVersion) {
+        cacheEvents.emit('update', incrementCacheVersion());
+      }
+      return res.json({ success: true, count });
+    } catch (err: any) {
+      console.error('[API] /api/militar/sync-medicos error:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
   });
 
   // Obter informações do padrão salvo das alas
@@ -523,10 +587,23 @@ app.get('/api/militar/:rg', async (req, res) => {
         }
       }
 
+      const existing = militaryCache.get(safeRg) || {};
+      
+      const mergedData = { ...existing, ...data, rg: safeRg };
+      if (data.viaturas && existing.viaturas) {
+        mergedData.viaturas = { ...existing.viaturas, ...data.viaturas };
+      }
+      if (data.dynamicFunctions && existing.dynamicFunctions) {
+        mergedData.dynamicFunctions = { ...existing.dynamicFunctions, ...data.dynamicFunctions };
+      }
+      
+      militaryCache.set(safeRg, mergedData);
+
+      const sanitized = cleanUndefined(mergedData);
       let savedToDb = false;
       if (db && isDbHealthy) {
         try {
-          await db.collection('militaries').doc(safeRg).set(data, { merge: true });
+          await db.collection('militaries').doc(safeRg).set(sanitized, { merge: true });
           savedToDb = true;
         } catch (e: any) {
           console.warn('[API] Admin SDK update notice, trying Client SDK:', e.message);
@@ -534,41 +611,11 @@ app.get('/api/militar/:rg', async (req, res) => {
       }
       if (!savedToDb && clientDb) {
         try {
-          await setDoc(doc(clientDb, 'militaries', safeRg), data, { merge: true });
+          await setDoc(doc(clientDb, 'militaries', safeRg), sanitized, { merge: true });
           savedToDb = true;
         } catch (e: any) {
           console.error('[API] Client SDK update error:', e.message);
         }
-      }
-
-      const existing = militaryCache.get(safeRg) || {};
-      
-      const mergedData = { ...existing, ...data, rg: safeRg };
-      if (data.viaturas && existing.viaturas) {
-        mergedData.viaturas = { ...existing.viaturas, ...data.viaturas };
-      }
-      
-      militaryCache.set(safeRg, mergedData);
-
-      // Persistir também na composição oficial padrão das alas no disco se tiver ala/obm
-      try {
-        const hardcodedPath = path.join(process.cwd(), 'src/server/lib/default_alas_composition.json');
-        if (fs.existsSync(hardcodedPath)) {
-          const fileData = JSON.parse(fs.readFileSync(hardcodedPath, 'utf8'));
-          fileData[safeRg] = {
-            rg: safeRg,
-            name: mergedData.name || '',
-            warName: mergedData.warName || mergedData.name || '',
-            rank: mergedData.rank || '',
-            ala: (mergedData.ala || '').toString().trim() || null,
-            obm: mergedData.obm || null,
-            quadro: mergedData.quadro || null
-          };
-          fs.writeFileSync(hardcodedPath, JSON.stringify(fileData, null, 2), 'utf8');
-          console.log(`[API] Militar ${safeRg} persistido definitivamente em default_alas_composition.json`);
-        }
-      } catch (fileErr: any) {
-        console.warn('[API] Aviso ao gravar militar em default_alas_composition.json:', fileErr.message);
       }
 
       // Atualizar também na configuração do Firestore
@@ -791,6 +838,445 @@ app.post('/api/militar/emprestar', async (req, res) => {
     } catch (err: any) {
       console.error('[Transfer] Erro na transferência:', err);
       return res.status(500).json({ success: false, error: err.message || 'Erro ao transferir militar' });
+    }
+  });
+
+  // Obter configurações de piscinas de oficiais (Serviços e GRD, Núcleo Náutico, Médicos)
+  app.get('/api/officer-pool', async (req, res) => {
+    const { isDbHealthy, db, clientDb, normalizeObm } = getDeps();
+    const rawObm = (req.query.obm as string) || '10º GBM';
+    const cleanObm = rawObm === 'GLOBAL' ? '10º GBM' : normalizeObm(rawObm);
+    const docId = cleanObm.replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_');
+
+    try {
+      let poolData: any = null;
+      if (db && isDbHealthy) {
+        try {
+          const snap = await db.collection('officer_pool_config').doc(docId).get();
+          if (snap.exists) poolData = snap.data();
+        } catch (e) {}
+      }
+      if (!poolData && clientDb) {
+        try {
+          const snap = await getDoc(doc(clientDb, 'officer_pool_config', docId));
+          if (snap.exists()) poolData = snap.data();
+        } catch (e) {}
+      }
+
+      return res.json({
+        success: true,
+        docId,
+        config: {
+          servicosGrd: (poolData?.servicosGrd || []).map((r: any) => String(r).trim()),
+          nucleoNautico: (poolData?.nucleoNautico || []).map((r: any) => String(r).trim()),
+          oficiaisMedicos: (poolData?.oficiaisMedicos || []).map((r: any) => String(r).trim())
+        }
+      });
+    } catch (err: any) {
+      console.error('[API] /api/officer-pool error:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Atualizar configurações de piscinas de oficiais (evita permission-denied ou falsos checks)
+  app.post('/api/officer-pool/update', async (req, res) => {
+    const { isDbHealthy, db, clientDb, normalizeObm } = getDeps();
+    const { obm, moduleKey, rgs, config: fullConfig } = req.body;
+    const rawObm = obm || '10º GBM';
+    const cleanObm = rawObm === 'GLOBAL' ? '10º GBM' : normalizeObm(rawObm);
+    const docId = cleanObm.replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_');
+
+    try {
+      let currentData: any = {};
+      if (db && isDbHealthy) {
+        try {
+          const snap = await db.collection('officer_pool_config').doc(docId).get();
+          if (snap.exists) currentData = snap.data();
+        } catch (e) {}
+      }
+      if (Object.keys(currentData).length === 0 && clientDb) {
+        try {
+          const snap = await getDoc(doc(clientDb, 'officer_pool_config', docId));
+          if (snap.exists()) currentData = snap.data();
+        } catch (e) {}
+      }
+
+      let newConfig = fullConfig ? { ...fullConfig } : { ...currentData };
+      if (moduleKey && rgs) {
+        newConfig[moduleKey] = (Array.isArray(rgs) ? rgs : []).map((r: any) => String(r).trim());
+      }
+
+      // Sanitiza strings
+      newConfig.servicosGrd = (newConfig.servicosGrd || []).map((r: any) => String(r).trim());
+      newConfig.nucleoNautico = (newConfig.nucleoNautico || []).map((r: any) => String(r).trim());
+      newConfig.oficiaisMedicos = (newConfig.oficiaisMedicos || []).map((r: any) => String(r).trim());
+
+      let saved = false;
+      if (db && isDbHealthy) {
+        try {
+          await db.collection('officer_pool_config').doc(docId).set(newConfig, { merge: true });
+          saved = true;
+        } catch (e: any) {
+          console.warn('[API] officer_pool_config Admin SDK save notice:', e.message);
+        }
+      }
+      if (!saved && clientDb) {
+        try {
+          await setDoc(doc(clientDb, 'officer_pool_config', docId), newConfig, { merge: true });
+          saved = true;
+        } catch (e: any) {
+          console.error('[API] officer_pool_config Client SDK save error:', e.message);
+        }
+      }
+
+      console.log(`[API] officer_pool_config atualizado com sucesso para ${docId}`);
+      return res.json({ success: true, docId, config: newConfig });
+    } catch (err: any) {
+      console.error('[API] /api/officer-pool/update error:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Obter dados de escalas de oficiais/náutico/médicos
+  app.get('/api/officer-scales', async (req, res) => {
+    const { isDbHealthy, db, clientDb } = getDeps();
+    const collectionName = (req.query.collection as string) || 'officer_scales';
+    const docId = (req.query.docId as string) || '';
+
+    const allowedCollections = ['officer_scales', 'nautico_scales', 'medico_scales', 'grd_configs'];
+    if (!allowedCollections.includes(collectionName)) {
+      return res.status(403).json({ success: false, error: 'Coleção não permitida' });
+    }
+    if (!docId) {
+      return res.status(400).json({ success: false, error: 'docId é obrigatório' });
+    }
+
+    try {
+      let scaleData: any = null;
+      if (db && isDbHealthy) {
+        try {
+          const snap: any = await withTimeout(db.collection(collectionName).doc(docId).get(), 2500);
+          if (snap.exists) scaleData = snap.data();
+        } catch (e: any) {
+          console.warn(`[API] officer-scales Admin SDK read notice:`, e.message);
+        }
+      }
+      if (!scaleData && clientDb) {
+        try {
+          const snap: any = await withTimeout(getDoc(doc(clientDb, collectionName, docId)), 2500);
+          if (snap.exists()) scaleData = snap.data();
+        } catch (e: any) {
+          console.warn(`[API] officer-scales Client SDK read notice:`, e.message);
+        }
+      }
+
+      return res.json({ success: true, collectionName, docId, data: scaleData || {} });
+    } catch (err: any) {
+      console.error('[API] /api/officer-scales GET error:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Atualizar dados de escalas de oficiais/náutico/médicos (evita permission-denied ou restrições de cliente)
+  app.post('/api/officer-scales/update', async (req, res) => {
+    const { isDbHealthy, db, clientDb } = getDeps();
+    const { collectionName, docId, data } = req.body;
+
+    const allowedCollections = ['officer_scales', 'nautico_scales', 'medico_scales', 'grd_configs'];
+    if (!collectionName || !allowedCollections.includes(collectionName)) {
+      return res.status(403).json({ success: false, error: 'Coleção não permitida ou inválida' });
+    }
+    if (!docId) {
+      return res.status(400).json({ success: false, error: 'docId é obrigatório' });
+    }
+    if (!data || typeof data !== 'object') {
+      return res.status(400).json({ success: false, error: 'data deve ser um objeto válido' });
+    }
+
+    try {
+      const sanitizedData = cleanUndefined(data);
+      let saved = false;
+
+      if (db && isDbHealthy) {
+        try {
+          await withTimeout(db.collection(collectionName).doc(docId).set(sanitizedData, { merge: true }), 3000);
+          saved = true;
+        } catch (e: any) {
+          console.warn(`[API] ${collectionName} Admin SDK save notice:`, e.message);
+        }
+      }
+
+      if (!saved && clientDb) {
+        try {
+          await withTimeout(setDoc(doc(clientDb, collectionName, docId), sanitizedData, { merge: true }), 3000);
+          saved = true;
+        } catch (e: any) {
+          console.error(`[API] ${collectionName} Client SDK save error:`, e.message);
+        }
+      }
+
+      console.log(`[API] ${collectionName}/${docId} atualizado com sucesso via API backend`);
+      return res.json({ success: true, collectionName, docId });
+    } catch (err: any) {
+      console.error('[API] /api/officer-scales/update error:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Obter configurações de OBM (categorias, correlações, postos)
+  app.get('/api/obm-settings', async (req, res) => {
+    const { isDbHealthy, db, clientDb } = getDeps();
+    const key = (req.query.key as string) || '';
+    if (!key) return res.status(400).json({ success: false, error: 'Chave obrigatória' });
+
+    try {
+      let data = null;
+      if (db && isDbHealthy) {
+        try {
+          const snap: any = await withTimeout(db.collection('obm_settings').doc(key).get(), 2500);
+          if (snap.exists) data = snap.data();
+        } catch (e: any) {}
+      }
+      if (!data && clientDb) {
+        try {
+          const snap: any = await withTimeout(getDoc(doc(clientDb, 'obm_settings', key)), 2500);
+          if (snap.exists()) data = snap.data();
+        } catch (e: any) {}
+      }
+
+      return res.json({ success: true, key, data: data || {} });
+    } catch (err: any) {
+      console.error('[API] /api/obm-settings GET error:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Atualizar configurações de OBM (evita permission-denied ou restrições no cliente)
+  app.post('/api/obm-settings/update', async (req, res) => {
+    const { isDbHealthy, db, clientDb } = getDeps();
+    const { key, data } = req.body;
+    if (!key || !data || typeof data !== 'object') {
+      return res.status(400).json({ success: false, error: 'Parâmetros inválidos' });
+    }
+
+    try {
+      const sanitized = cleanUndefined(data);
+      let saved = false;
+
+      if (db && isDbHealthy) {
+        try {
+          await withTimeout(db.collection('obm_settings').doc(key).set(sanitized, { merge: true }), 3000);
+          saved = true;
+        } catch (e: any) {
+          console.warn('[API] obm_settings Admin SDK save notice:', e.message);
+        }
+      }
+
+      if (!saved && clientDb) {
+        try {
+          await withTimeout(setDoc(doc(clientDb, 'obm_settings', key), sanitized, { merge: true }), 3000);
+          saved = true;
+        } catch (e: any) {
+          console.error('[API] obm_settings Client SDK save error:', e.message);
+        }
+      }
+
+      console.log(`[API] obm_settings/${key} atualizado com sucesso via API backend`);
+      return res.json({ success: true, key });
+    } catch (err: any) {
+      console.error('[API] /api/obm-settings/update error:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Escala 24h: consulta com suporte a backend
+  app.get('/api/escala24h', async (req, res) => {
+    try {
+      const { clientDb, isDbHealthy, db, normalizeObm } = getDeps();
+      const rawObm = (req.query.obm as string) || '10º GBM';
+      const date = (req.query.date as string) || '';
+      if (!date) return res.status(400).json({ success: false, error: 'date is required' });
+
+      const cleanObm = normalizeObm(rawObm);
+      const normalizedObm = cleanObm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+      const collectionName = `escala24h_${normalizedObm}`;
+
+      let data: any = null;
+      let exists = false;
+
+      if (db && isDbHealthy) {
+        try {
+          const snap: any = await withTimeout(db.collection(collectionName).doc(date).get(), 2500);
+          if (snap.exists) {
+            data = snap.data();
+            exists = true;
+          }
+        } catch (e: any) {
+          console.warn('[API] /api/escala24h Admin SDK get notice:', e.message);
+        }
+      }
+
+      if (!exists && clientDb) {
+        try {
+          const snap: any = await withTimeout(getDoc(doc(clientDb, collectionName, date)), 2500);
+          if (snap.exists()) {
+            data = snap.data();
+            exists = true;
+          }
+        } catch (e: any) {
+          console.error('[API] /api/escala24h Client SDK get error:', e.message);
+        }
+      }
+
+      return res.json({ success: true, exists, data });
+    } catch (err: any) {
+      console.error('[API] /api/escala24h error:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Escala 24h: salvamento confiável via backend com credenciais de admin
+  app.post('/api/escala24h/save', async (req, res) => {
+    try {
+      const { clientDb, isDbHealthy, db, normalizeObm } = getDeps();
+      const { obm, date, data } = req.body;
+      if (!date || !data) return res.status(400).json({ success: false, error: 'date and data are required' });
+
+      const rawObm = obm || '10º GBM';
+      const cleanObm = normalizeObm(rawObm);
+      const normalizedObm = cleanObm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+      const collectionName = `escala24h_${normalizedObm}`;
+      const sanitized = cleanUndefined(data);
+
+      let saved = false;
+      if (db && isDbHealthy) {
+        try {
+          await withTimeout(db.collection(collectionName).doc(date).set(sanitized, { merge: true }), 3000);
+          saved = true;
+        } catch (e: any) {
+          console.warn('[API] /api/escala24h/save Admin SDK notice:', e.message);
+        }
+      }
+
+      if (!saved && clientDb) {
+        try {
+          await withTimeout(setDoc(doc(clientDb, collectionName, date), sanitized, { merge: true }), 3000);
+          saved = true;
+        } catch (e: any) {
+          console.error('[API] /api/escala24h/save Client SDK error:', e.message);
+        }
+      }
+
+      console.log(`[API] ${collectionName}/${date} salvo com sucesso via API backend`);
+      return res.json({ success: true, collectionName, date });
+    } catch (err: any) {
+      console.error('[API] /api/escala24h/save error:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Generic Operational Document Get (immune to client issues)
+  app.get('/api/doc/get', async (req, res) => {
+    try {
+      const { clientDb, isDbHealthy, db } = getDeps();
+      const collectionName = (req.query.collection as string) || '';
+      const docId = (req.query.docId as string) || '';
+      if (!collectionName || !docId) {
+        return res.status(400).json({ success: false, error: 'collection and docId required' });
+      }
+
+      let data: any = null;
+      let exists = false;
+
+      if (db && isDbHealthy) {
+        try {
+          const snap: any = await withTimeout(db.collection(collectionName).doc(docId).get(), 2500);
+          if (snap.exists) {
+            data = snap.data();
+            exists = true;
+          }
+        } catch (e: any) {}
+      }
+
+      if (!exists && clientDb) {
+        try {
+          const snap: any = await withTimeout(getDoc(doc(clientDb, collectionName, docId)), 2500);
+          if (snap.exists()) {
+            data = snap.data();
+            exists = true;
+          }
+        } catch (e: any) {}
+      }
+
+      return res.json({ success: true, exists, data });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Generic Operational Document Save (admin-authenticated server bypass)
+  app.post('/api/doc/save', async (req, res) => {
+    try {
+      const { clientDb, isDbHealthy, db } = getDeps();
+      const { collection: collectionName, docId, data, merge = true } = req.body;
+      if (!collectionName || !docId || !data) {
+        return res.status(400).json({ success: false, error: 'collection, docId and data required' });
+      }
+
+      const sanitized = cleanUndefined(data);
+      let saved = false;
+
+      if (db && isDbHealthy) {
+        try {
+          await withTimeout(db.collection(collectionName).doc(docId).set(sanitized, { merge }), 3000);
+          saved = true;
+        } catch (e: any) {}
+      }
+
+      if (!saved && clientDb) {
+        try {
+          await withTimeout(setDoc(doc(clientDb, collectionName, docId), sanitized, { merge }), 3000);
+          saved = true;
+        } catch (e: any) {
+          console.error(`[API] Client SDK error saving ${collectionName}/${docId}:`, e.message);
+        }
+      }
+
+      return res.json({ success: true, collection: collectionName, docId });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Generic Operational Document Delete (admin-authenticated server bypass)
+  app.post('/api/doc/delete', async (req, res) => {
+    try {
+      const { clientDb, isDbHealthy, db } = getDeps();
+      const { collection: collectionName, docId } = req.body;
+      if (!collectionName || !docId) {
+        return res.status(400).json({ success: false, error: 'collection and docId required' });
+      }
+
+      let deleted = false;
+      if (db && isDbHealthy) {
+        try {
+          await withTimeout(db.collection(collectionName).doc(docId).delete(), 3000);
+          deleted = true;
+        } catch (e: any) {}
+      }
+
+      if (!deleted && clientDb) {
+        try {
+          await withTimeout(deleteDoc(doc(clientDb, collectionName, docId)), 3000);
+          deleted = true;
+        } catch (e: any) {
+          console.error(`[API] Client SDK error deleting ${collectionName}/${docId}:`, e.message);
+        }
+      }
+
+      return res.json({ success: true, collection: collectionName, docId });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
     }
   });
 

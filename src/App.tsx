@@ -186,8 +186,8 @@ const GrdModule = lazyWithRetry(() => import("./components/GrdModule").then((m) 
 const TerceirizadosModule = lazyWithRetry(() => import("./components/TerceirizadosModule").then((m) => ({ default: m.TerceirizadosModule })));
 const OfficerGrdModule = lazyWithRetry(() => import("./components/OfficerGrdModule").then((m) => ({ default: m.OfficerGrdModule })));
 const NucleoNauticoGrdModule = lazyWithRetry(() => import("./components/NucleoNauticoGrdModule").then((m) => ({ default: m.NucleoNauticoGrdModule })));
-const OfficerMedicosModule = lazyWithRetry(() => import("./components/OfficerMedicosModule").then((m) => ({ default: m.OfficerMedicosModule })));
-const OfficerConfigModule = lazyWithRetry(() => import("./components/OfficerConfigModule").then((m) => ({ default: m.OfficerConfigModule })));
+const OficiaisConfigModule = lazyWithRetry(() => import("./components/OficiaisConfigModule").then((m) => ({ default: m.OficiaisConfigModule })));
+const GestaoOficiaisMedicosModule = lazyWithRetry(() => import("./components/GestaoOficiaisMedicosModule").then((m) => ({ default: m.GestaoOficiaisMedicosModule })));
 const PublicCargaViewer = lazyWithRetry(() => import("./components/PublicCargaViewer").then((m) => ({ default: m.PublicCargaViewer })));
 const RefeitorioModule = lazyWithRetry(() => import("./components/RefeitorioModule").then((m) => ({ default: m.RefeitorioModule })));
 const AprovisionamentoModule = lazyWithRetry(() => import("./features/aprovisionamento/AprovisionamentoModule").then((m) => ({ default: m.AprovisionamentoModule })));
@@ -864,7 +864,45 @@ export default function App() {
                 }
               />
               <Route
+                path="/gestao-oficiais-medicos"
+                element={
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.05 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <GestaoOficiaisMedicosModule
+                      user={effectiveProfile!}
+                      obmContext={obmContext}
+                      setObmContext={setObmContext}
+                      availableObms={availableObms}
+                      onBack={() => navigate("/")}
+                    />
+                  </motion.div>
+                }
+              />
+              <Route
                 path="/oficiais-medicos"
+                element={
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.05 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <GestaoOficiaisMedicosModule
+                      user={effectiveProfile!}
+                      obmContext={obmContext}
+                      setObmContext={setObmContext}
+                      availableObms={availableObms}
+                      onBack={() => navigate("/")}
+                    />
+                  </motion.div>
+                }
+              />
+              <Route
+                path="/escala-oficiais-medicos"
                 element={
                   <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
@@ -1114,7 +1152,10 @@ export default function App() {
                     transition={{ duration: 0.3 }}
                     className="min-h-screen w-full fixed inset-0 z-50 bg-slate-50 overflow-y-auto"
                   >
-                    <OfficerConfigModule onClose={() => navigate("/")} />
+                    <OficiaisConfigModule 
+                      obmContext={obmContext} 
+                      onClose={() => navigate("/gestao-sad")} 
+                    />
                   </motion.div>
                 }
               />

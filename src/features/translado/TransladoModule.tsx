@@ -8,6 +8,7 @@ import {
   deleteDoc,
   runTransaction,
 } from "firebase/firestore";
+import { safeSaveDocument, safeDeleteDocument } from "../../lib/apiClient";
 import { UserProfile } from "../../types";
 import { useMilitars } from "../../contexts/MilitarContext";
 import {
@@ -92,8 +93,9 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
 
         if (snap.empty && !loadingVehicles) {
           // Auto-seed
-          await setDoc(
-            doc(db, "translado_vehicles", "van_10"),
+          await safeSaveDocument(
+            "translado_vehicles",
+            "van_10",
             cleanUndefined({
               name: "Van 10º GBM",
               unit: "10º GBM",
@@ -102,9 +104,11 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
               waypoints: "Verolme",
               status: "OPERANTE",
             }),
+            true
           );
-          await setDoc(
-            doc(db, "translado_vehicles", "van_16"),
+          await safeSaveDocument(
+            "translado_vehicles",
+            "van_16",
             cleanUndefined({
               name: "Van 16º OBM",
               unit: "16º OBM",
@@ -113,6 +117,7 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
               waypoints: "Verolme",
               status: "OPERANTE",
             }),
+            true
           );
         } else {
           // Auto migration to add Verolme and ensure 10º GBM destination
@@ -124,10 +129,11 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
               van10.waypoints === "Verone" ||
               van10.destination !== "10º GBM")
           ) {
-            await setDoc(
-              doc(db, "translado_vehicles", "van_10"),
+            await safeSaveDocument(
+              "translado_vehicles",
+              "van_10",
               cleanUndefined({ waypoints: "Verolme", destination: "10º GBM" }),
-              { merge: true },
+              true
             );
           }
           const van16 = v.find((van) => van.id === "van_16");
@@ -137,16 +143,21 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
               !van16.waypoints ||
               van16.waypoints === "Verone")
           ) {
-            await setDoc(
-              doc(db, "translado_vehicles", "van_16"),
+            await safeSaveDocument(
+              "translado_vehicles",
+              "van_16",
               cleanUndefined({ waypoints: "Verolme" }),
-              { merge: true },
+              true
             );
           }
           setVehicles(v);
           setLoadingVehicles(false);
         }
       },
+      (err) => {
+        console.warn("[TransladoModule] Vehicles notice:", err?.message);
+        setLoadingVehicles(false);
+      }
     );
     return () => unsub();
   }, [loadingVehicles]);
@@ -185,6 +196,9 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
         setTripData({ driver: null, passengers: Array(cap).fill(null) });
       }
       setLoadingTrip(false);
+    }, (err) => {
+      console.warn("[TransladoModule] Trip notice:", err?.message);
+      setLoadingTrip(false);
     });
     return () => unsub();
   }, [selectedVehicle, date, direction]);
@@ -193,8 +207,9 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
     if (!formData.name || !formData.origin || !formData.destination)
       return alert("Preencha os campos obrigatórios (Nome, Origem, Destino)");
     const id = formData.id || `veh_${Date.now()}`;
-    await setDoc(
-      doc(db, "translado_vehicles", id),
+    await safeSaveDocument(
+      "translado_vehicles",
+      id,
       cleanUndefined({
         name: formData.name,
         unit: formData.unit || "",
@@ -203,6 +218,7 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
         waypoints: formData.waypoints || "",
         status: formData.status || "OPERANTE",
       }),
+      true
     );
     setShowForm(false);
     setFormData({});
@@ -245,8 +261,9 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
       ? getShortName(privateFormData.createdByName)
       : getShortName(user.name, user.warName);
 
-    await setDoc(
-      doc(db, "translado_vehicles", id),
+    await safeSaveDocument(
+      "translado_vehicles",
+      id,
       cleanUndefined({
         name: privateFormData.name,
         unit: user.obm || "Particular",
@@ -262,6 +279,7 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
         createdByName: ownerShortName,
         createdByRank: privateFormData.createdByRank || user.rank || "",
       }),
+      true
     );
     setShowPrivateForm(false);
     setPrivateFormData({});
@@ -281,8 +299,8 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
         transaction.set(tripRef, newData);
       });
     } catch (e) {
-      console.error("Failed to save trip:", e);
-      await setDoc(doc(db, "translado_trips", tripId), cleanUndefined(newData));
+      console.warn("[TransladoModule] Transaction fallback to safeSaveDocument:", e);
+      await safeSaveDocument("translado_trips", tripId, cleanUndefined(newData), true);
     }
   };
 
@@ -859,7 +877,7 @@ export function TransladoModule({ user, onBack }: TransladoModuleProps) {
           if (!deleteVehicleId) return;
           const { id } = deleteVehicleId;
           setDeleteVehicleId(null);
-          await deleteDoc(doc(db, "translado_vehicles", id));
+          await safeDeleteDocument("translado_vehicles", id);
           if (selectedVehicle?.id === id) setSelectedVehicle(null);
         }}
       />

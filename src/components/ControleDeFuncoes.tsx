@@ -41,27 +41,12 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
   const [somenteAtivos, setSomenteAtivos] = useState(false);
 
   useEffect(() => {
-    if (!db || !obmContext) return;
+    if (!obmContext) return;
     const canonicalKey = getObmSettingsDocKey(obmContext);
-    const docRef = doc(db, "obm_settings", canonicalKey);
-    const unsub = onSnapshot(docRef, async (snap) => {
-      let rawCategories = snap.exists() ? snap.data()?.categorias_funcoes : null;
-      if (!rawCategories) {
-        const fallbacks = getObmSettingsFallbackKeys(obmContext).filter(k => k !== canonicalKey);
-        for (const fk of fallbacks) {
-          try {
-            const fallbackSnap = await getDoc(doc(db, "obm_settings", fk));
-            if (fallbackSnap.exists() && fallbackSnap.data()?.categorias_funcoes) {
-              rawCategories = fallbackSnap.data()?.categorias_funcoes;
-              setDoc(docRef, { categorias_funcoes: rawCategories }, { merge: true }).catch(() => {});
-              break;
-            }
-          } catch(e) {}
-        }
-      }
 
+    const migrateCategories = (rawCategories: any) => {
       if (rawCategories && Array.isArray(rawCategories)) {
-        const migrated = rawCategories.map((cat: any) => {
+        return rawCategories.map((cat: any) => {
           if (cat.activeProperty !== undefined) return cat;
           let activeProp = `dynamicFunctions.ativo_${cat.id}`;
           const newFunctions = [...(cat.functions || [])];
@@ -75,10 +60,46 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
           }
           return { ...cat, activeProperty: activeProp, functions: newFunctions };
         });
-        setCategories(migrated);
-      } else {
-        setCategories(DEFAULT_CATEGORIES);
       }
+      return DEFAULT_CATEGORIES;
+    };
+
+    // Fast initial fetch from backend API
+    fetch(`/api/obm-settings?key=${canonicalKey}`)
+      .then(res => res.json())
+      .then(result => {
+        if (result.success && result.data?.categorias_funcoes) {
+          setCategories(migrateCategories(result.data.categorias_funcoes));
+        }
+      })
+      .catch(() => {});
+
+    if (!db) return;
+    const docRef = doc(db, "obm_settings", canonicalKey);
+    const unsub = onSnapshot(docRef, async (snap) => {
+      let rawCategories = snap.exists() ? snap.data()?.categorias_funcoes : null;
+      if (!rawCategories) {
+        const fallbacks = getObmSettingsFallbackKeys(obmContext).filter(k => k !== canonicalKey);
+        for (const fk of fallbacks) {
+          try {
+            const fallbackSnap = await getDoc(doc(db, "obm_settings", fk));
+            if (fallbackSnap.exists() && fallbackSnap.data()?.categorias_funcoes) {
+              rawCategories = fallbackSnap.data()?.categorias_funcoes;
+              fetch('/api/obm-settings/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ key: canonicalKey, data: { categorias_funcoes: rawCategories } })
+              }).catch(() => {});
+              setDoc(docRef, { categorias_funcoes: rawCategories }, { merge: true }).catch(() => {});
+              break;
+            }
+          } catch(e) {}
+        }
+      }
+
+      setCategories(migrateCategories(rawCategories));
+    }, (err) => {
+      console.warn("Aviso ao sincronizar categorias_funcoes:", err);
     });
     return () => unsub();
   }, [obmContext]);
@@ -238,27 +259,20 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
       newData = { [path]: !currentState };
     }
 
+    // Optimistic UI update immediately
     updateMilitarLocal(safeRg, newData);
 
     try {
-      if (db) {
-        let updatePayload: any = {};
-        if (path.startsWith("viaturas.")) {
-          const key = path.split(".")[1];
-          updatePayload = { viaturas: { ...(militar.viaturas || {}), [key]: !getValue(militar, path) } };
-        } else if (path.startsWith("dynamicFunctions.")) {
-          const key = path.split(".")[1];
-          updatePayload = { dynamicFunctions: { ...(militar.dynamicFunctions || {}), [key]: !getValue(militar, path) } };
-        } else {
-          updatePayload = { [path]: !getValue(militar, path) };
-        }
-        const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
-        await fetch('/api/militar/update', {
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          method: 'POST',
-          body: JSON.stringify({ rg: safeRg, data: cleanUndefined(updatePayload) })
-        });
-      }
+      let token = '';
+      try {
+        token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+      } catch (tokenErr) {}
+
+      await fetch('/api/militar/update', {
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        method: 'POST',
+        body: JSON.stringify({ rg: safeRg, data: cleanUndefined(newData) })
+      });
       setTimeout(() => {
         setProcessing(null);
       }, 300);
@@ -312,29 +326,30 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
       updateMilitarLocal(safeRg, newData);
     });
 
+    let token = '';
+    try {
+      token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
+    } catch (tokenErr) {}
+
     await Promise.all(
       militarsToUpdate.map(async (m) => {
         if (!m.rg) return Promise.resolve();
         const safeRg = String(m.rg).replace(/^0+/, "").replace(/\D/g, "");
-        if (db) {
-          let updatePayload: any = {};
-          if (path.startsWith("viaturas.")) {
-            const key = path.split('.')[1];
-            updatePayload = { viaturas: { ...(m.viaturas || {}), [key]: newState } };
-          } else if (path.startsWith("dynamicFunctions.")) {
-            const key = path.split('.')[1];
-            updatePayload = { dynamicFunctions: { ...(m.dynamicFunctions || {}), [key]: newState } };
-          } else {
-            updatePayload = { [path]: newState };
-          }
-          const token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
-          return fetch('/api/militar/update', {
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            method: 'POST',
-            body: JSON.stringify({ rg: safeRg, data: cleanUndefined(updatePayload) })
-          }).catch(() => {});
+        let updatePayload: any = {};
+        if (path.startsWith("viaturas.")) {
+          const key = path.split('.')[1];
+          updatePayload = { viaturas: { ...(m.viaturas || {}), [key]: newState } };
+        } else if (path.startsWith("dynamicFunctions.")) {
+          const key = path.split('.')[1];
+          updatePayload = { dynamicFunctions: { ...(m.dynamicFunctions || {}), [key]: newState } };
+        } else {
+          updatePayload = { [path]: newState };
         }
-        return Promise.resolve();
+        return fetch('/api/militar/update', {
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          method: 'POST',
+          body: JSON.stringify({ rg: safeRg, data: cleanUndefined(updatePayload) })
+        }).catch(() => {});
       }),
     );
   };

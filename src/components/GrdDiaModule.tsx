@@ -90,6 +90,28 @@ export function GrdDiaModule({
   useEffect(() => {
     if (!docId || !selectedDate) return;
 
+    // Fast initial fetch from backend API
+    fetch(`/api/officer-scales?collection=grd_configs&docId=${docId}`)
+      .then(res => res.json())
+      .then(result => {
+        if (result.success && result.data) {
+          const data = result.data;
+          const serverRgs: string[] = data.days?.[selectedDate] || [];
+          const savedSlotsCount: number = data.slots?.[selectedDate] !== undefined 
+            ? data.slots[selectedDate] 
+            : (data.vagas?.[selectedDate] !== undefined ? data.vagas[selectedDate] : serverRgs.length || 4);
+
+          const count = Math.max(0, savedSlotsCount);
+          const paddedRgs: string[] = Array.from({ length: count }, (_, i) => serverRgs[i] || '');
+
+          setSlotsCount(count);
+          setGrdDayRgs(paddedRgs);
+          onGrdChange?.(paddedRgs, count);
+        }
+      })
+      .catch(() => {});
+
+    if (!db) return;
     const unsub = onSnapshot(doc(db, 'grd_configs', docId), (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
@@ -129,16 +151,37 @@ export function GrdDiaModule({
       localStorage.setItem(localCacheKey, JSON.stringify({ count: newCount, rgs: newRgs }));
     } catch {}
 
+    const payload = cleanUndefined({
+      days: {
+        [selectedDate]: newRgs
+      },
+      slots: {
+        [selectedDate]: newCount
+      }
+    });
+
     setSaving(true);
     try {
-      await setDoc(doc(db, 'grd_configs', docId), cleanUndefined({
-        days: {
-          [selectedDate]: newRgs
-        },
-        slots: {
-          [selectedDate]: newCount
+      // 1. Backend API persistence
+      await fetch('/api/officer-scales/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          collectionName: 'grd_configs',
+          docId,
+          data: payload,
+          merge: true
+        })
+      }).catch(err => console.warn('[GrdDiaModule] Backend API warning:', err));
+
+      // 2. Client setDoc for real-time reactivity
+      if (db) {
+        try {
+          await setDoc(doc(db, 'grd_configs', docId), payload, { merge: true });
+        } catch (dbErr) {
+          console.warn('[GrdDiaModule] Client setDoc warning (handled):', dbErr);
         }
-      }), { merge: true });
+      }
     } catch (error) {
       console.error("Erro salvando vagas de GRD:", error);
     } finally {

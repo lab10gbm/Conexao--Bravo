@@ -24,6 +24,7 @@ import { UserProfile } from "../../types";
 import { useMilitars } from "../../contexts/MilitarContext";
 import { db } from "../../lib/firebase";
 import { doc, onSnapshot, setDoc, collection, deleteDoc } from "firebase/firestore";
+import { safeSaveDocument } from "../../lib/apiClient";
 import { RankInsignia } from "../../components/RankInsignia";
 import { PatrimonyConfigPanel } from "../../components/PatrimonyConfigPanel";
 import { cleanUndefined, normalizeRg } from "../../lib/utils";
@@ -352,11 +353,11 @@ export function PatrimonyModule({
     }
     
     try {
-      await setDoc(doc(db, "patrimonioData", selectedSection.id), cleanUndefined({
+      await safeSaveDocument("patrimonioData", selectedSection.id, cleanUndefined({
               items: updatedItems,
               updatedAt: new Date().toISOString(),
               updatedBy: user.warName || user.name
-            }), { merge: true });
+            }), true);
       setIsSpreadsheetMode(false);
       setPastedText("");
     } catch (err) {
@@ -368,11 +369,11 @@ export function PatrimonyModule({
     if (!selectedSection || !db) return;
     if (confirm("Confirmar a exclusão dos dados personalizados para retornar aos itens padrões originais?")) {
       try {
-        await setDoc(doc(db, "patrimonioData", selectedSection.id), cleanUndefined({
+        await safeSaveDocument("patrimonioData", selectedSection.id, cleanUndefined({
                   items: null,
                   updatedAt: new Date().toISOString(),
                   updatedBy: user.warName || user.name
-                }), { merge: true });
+                }), true);
         
         setCustomSectionItems(prev => {
           const updated = { ...prev };
@@ -397,7 +398,6 @@ export function PatrimonyModule({
 
     try {
       const sectorId = "custom_" + Date.now();
-      const docRef = doc(db, "customSectors", sectorId);
       
       let finalDate = new Date().toISOString();
       try {
@@ -415,21 +415,21 @@ export function PatrimonyModule({
         insertedBy: user.warName || user.name,
       };
 
-      await setDoc(docRef, cleanUndefined(sectorData));
+      await safeSaveDocument("customSectors", sectorId, cleanUndefined(sectorData), true);
       
       // Also initialize empty data
-      await setDoc(doc(db, "patrimonioData", sectorId), cleanUndefined({
+      await safeSaveDocument("patrimonioData", sectorId, cleanUndefined({
               items: [],
               updatedAt: finalDate,
               updatedBy: user.warName || user.name
-            }), { merge: true });
+            }), true);
 
       // If a responsible is selected, set it in config immediately
       if (newSectorResponsible) {
-        await setDoc(doc(db, "patrimonioConfig", sectorId), cleanUndefined({
+        await safeSaveDocument("patrimonioConfig", sectorId, cleanUndefined({
                   responsavelId: newSectorResponsible,
                   auxSetorId: "",
-                }), { merge: true });
+                }), true);
       }
 
       setNewSectorName("");
@@ -477,11 +477,11 @@ export function PatrimonyModule({
       const items = [...getSectionItems(selectedSection)];
       const updatedItems = items.filter(i => i.id !== itemId);
       
-      await setDoc(doc(db, "patrimonioData", selectedSection.id), cleanUndefined({
+      await safeSaveDocument("patrimonioData", selectedSection.id, cleanUndefined({
               items: updatedItems,
               updatedAt: new Date().toISOString(),
               updatedBy: user.warName || user.name
-            }), { merge: true });
+            }), true);
     } catch (err) {
       console.error("Failed to delete item:", err);
       alert("Erro ao excluir o item.");
@@ -499,14 +499,15 @@ export function PatrimonyModule({
 
       items[index] = { ...items[index], [field]: value };
 
-      await setDoc(
-        doc(db, "patrimonioData", selectedSection.id),
+      await safeSaveDocument(
+        "patrimonioData",
+        selectedSection.id,
         cleanUndefined({
-                  items: items,
-                  updatedAt: new Date().toISOString(),
-                  updatedBy: user.warName || user.name,
-                }),
-        { merge: true },
+          items: items,
+          updatedAt: new Date().toISOString(),
+          updatedBy: user.warName || user.name,
+        }),
+        true,
       );
 
       setCustomSectionItems((prev) => ({
@@ -542,11 +543,11 @@ export function PatrimonyModule({
 
       items.push(itemToAdd);
 
-      await setDoc(doc(db, "patrimonioData", selectedSection.id), cleanUndefined({
+      await safeSaveDocument("patrimonioData", selectedSection.id, cleanUndefined({
               items: items,
               updatedAt: new Date().toISOString(),
               updatedBy: user.warName || user.name
-            }), { merge: true });
+            }), true);
 
       setIsAddingItem(false);
       setNewItem({ quantidade: 1, situacao: 'Operante', estado: 'Novo' });
@@ -567,11 +568,11 @@ export function PatrimonyModule({
       const itemToTransfer = currentItems[index];
       currentItems.splice(index, 1);
       
-      await setDoc(doc(db, "patrimonioData", selectedSection.id), cleanUndefined({
+      await safeSaveDocument("patrimonioData", selectedSection.id, cleanUndefined({
               items: currentItems,
               updatedAt: new Date().toISOString(),
               updatedBy: user.warName || user.name
-            }), { merge: true });
+            }), true);
 
       let targetItems: PatrimonioItem[] = [];
       const targetSection = [...patrimonioData, ...customSectors].find(s => s.id === targetSectionId);
@@ -587,11 +588,11 @@ export function PatrimonyModule({
 
       const newTargetItems = [...targetItems, { ...itemToTransfer }];
 
-      await setDoc(doc(db, "patrimonioData", targetSectionId), cleanUndefined({
+      await safeSaveDocument("patrimonioData", targetSectionId, cleanUndefined({
               items: newTargetItems,
               updatedAt: new Date().toISOString(),
               updatedBy: user.warName || user.name
-            }), { merge: true });
+            }), true);
 
       setTransferItemData(null);
       alert("Item transferido com sucesso!");
@@ -616,11 +617,11 @@ export function PatrimonyModule({
         return;
       }
 
-      await setDoc(doc(db, "patrimonioData", selectedSection.id), cleanUndefined({
+      await safeSaveDocument("patrimonioData", selectedSection.id, cleanUndefined({
               items: items,
               updatedAt: new Date().toISOString(),
               updatedBy: user.warName || user.name
-            }), { merge: true });
+            }), true);
 
       setEditingItem(null);
       setEditingOriginalId(null);
@@ -649,12 +650,13 @@ export function PatrimonyModule({
                 ? "signatureAuxPatrimonio"
                 : "signatureComandante";
 
-      await setDoc(
-        doc(db, "patrimonioConfig", selectedSection.id),
+      await safeSaveDocument(
+        "patrimonioConfig",
+        selectedSection.id,
         cleanUndefined({
-                  [fieldName]: signatureData,
-                }),
-        { merge: true },
+          [fieldName]: signatureData,
+        }),
+        true,
       );
     } catch (e) {
       console.error("Failed to sign:", e);
@@ -675,12 +677,13 @@ export function PatrimonyModule({
                 ? "signatureAuxPatrimonio"
                 : "signatureComandante";
 
-      await setDoc(
-        doc(db, "patrimonioConfig", selectedSection.id),
+      await safeSaveDocument(
+        "patrimonioConfig",
+        selectedSection.id,
         cleanUndefined({
-                  [fieldName]: null,
-                }),
-        { merge: true },
+          [fieldName]: null,
+        }),
+        true,
       );
     } catch (e) {
       console.error("Failed to remove sign:", e);

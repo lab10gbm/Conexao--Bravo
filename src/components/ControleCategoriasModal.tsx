@@ -272,11 +272,27 @@ export function ControleCategoriasModal({ isOpen, onClose, obmContext, initialCa
   }, [isOpen, initialCategories]);
 
   const handleSave = async () => {
-    if (!db) return;
     setSaving(true);
+    const docKey = getObmSettingsDocKey(obmContext);
+    const payload = cleanUndefined({ categorias_funcoes: categories });
+
     try {
-      const docRef = doc(db, "obm_settings", getObmSettingsDocKey(obmContext));
-      await setDoc(docRef, cleanUndefined({ categorias_funcoes: categories }), { merge: true });
+      // 1. Backend persistence via Admin SDK/backend credentials
+      await fetch('/api/obm-settings/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: docKey, data: payload })
+      }).catch(err => console.warn('[ControleCategorias] Backend API warning:', err));
+
+      // 2. Client-side setDoc for real-time reactivity
+      if (db) {
+        try {
+          const docRef = doc(db, "obm_settings", docKey);
+          await setDoc(docRef, payload, { merge: true });
+        } catch (dbErr) {
+          console.warn('[ControleCategorias] Client setDoc warning (handled):', dbErr);
+        }
+      }
       onClose();
     } catch (err) {
       console.error(err);

@@ -30,8 +30,18 @@ export function useOfficerScales({ obmContext, militars, selectedDate }: UseOffi
   useEffect(() => {
     if (!db) return;
     const rawObm = obmContext || "10º GBM";
-    const normalizedObm = rawObm === 'GLOBAL' ? '10º_GBM' : rawObm.replace(/\//g, '_').replace(/\s/g, '_');
+    const normalizedObm = rawObm === 'GLOBAL' ? '10º_GBM' : rawObm.replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_');
     
+    // 0. Fast load via API
+    fetch(`/api/officer-pool?obm=${encodeURIComponent(rawObm)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.config) {
+          setPoolConfig(data.config);
+        }
+      })
+      .catch(() => {});
+
     // Pool config listener
     const unsubPool = onSnapshot(doc(db, 'officer_pool_config', normalizedObm), (snap) => {
       if (snap.exists()) {
@@ -157,17 +167,20 @@ export function useOfficerScales({ obmContext, militars, selectedDate }: UseOffi
 
   const availableOfficers = useMemo(() => {
     if (!poolConfig || !poolConfig.servicosGrd) return [];
-    return militars.filter(m => poolConfig.servicosGrd.includes(m.rg || '')).sort(sortOfficersBySeniority);
+    const cleanList = (poolConfig.servicosGrd || []).map(r => String(r).trim());
+    return militars.filter(m => cleanList.includes(String(m.rg || '').trim())).sort(sortOfficersBySeniority);
   }, [militars, poolConfig]);
 
   const availableNauticoOfficers = useMemo(() => {
     if (!poolConfig || !poolConfig.nucleoNautico) return [];
-    return militars.filter(m => poolConfig.nucleoNautico.includes(m.rg || '')).sort(sortOfficersBySeniority);
+    const cleanList = (poolConfig.nucleoNautico || []).map(r => String(r).trim());
+    return militars.filter(m => cleanList.includes(String(m.rg || '').trim())).sort(sortOfficersBySeniority);
   }, [militars, poolConfig]);
 
   const availableMedicalOfficers = useMemo(() => {
     if (!poolConfig || !poolConfig.oficiaisMedicos) return [];
-    return militars.filter(m => poolConfig.oficiaisMedicos.includes(m.rg || '')).sort(sortOfficersBySeniority);
+    const cleanList = (poolConfig.oficiaisMedicos || []).map(r => String(r).trim());
+    return militars.filter(m => cleanList.includes(String(m.rg || '').trim())).sort(sortOfficersBySeniority);
   }, [militars, poolConfig]);
 
   const currentOfficerDay = officerScaleDays[selectedDate] || {};
@@ -186,18 +199,30 @@ export function useOfficerScales({ obmContext, militars, selectedDate }: UseOffi
   const matchedMedicoOficial = useMemo(() => findOfficerMilitary(medicoOficialValue), [medicoOficialValue, militars]);
 
   const handleSaveOficialDia = async (officerName: string) => {
-    if (!db || !selectedDate) return;
+    if (!selectedDate) return;
     setSavingOficialDia(true);
     try {
       const rawObm = obmContext || "10º GBM";
       const normalizedObm = rawObm === 'GLOBAL' ? '10º_GBM' : rawObm.replace(/\//g, '_').replace(/\s/g, '_');
-      await setDoc(doc(db, 'officer_scales', normalizedObm), cleanUndefined({
+      const payload = cleanUndefined({
         days: {
           [selectedDate]: {
             oficialDia: officerName
           }
         }
-      }), { merge: true });
+      });
+
+      // Persistência via backend API com credenciais seguras de servidor
+      await fetch('/api/officer-scales/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          collectionName: 'officer_scales',
+          docId: normalizedObm,
+          data: payload
+        })
+      }).catch(e => console.warn('[useOfficerScales] Aviso na API officer-scales/update:', e));
+
       setOfficerScaleDays(prev => ({
         ...prev,
         [selectedDate]: {
@@ -213,18 +238,30 @@ export function useOfficerScales({ obmContext, militars, selectedDate }: UseOffi
   };
 
   const handleSaveNauticoOficial = async (officerName: string) => {
-    if (!db || !selectedDate) return;
+    if (!selectedDate) return;
     setSavingNautico(true);
     try {
       const rawObm = obmContext || "10º GBM";
       const normalizedObm = rawObm === 'GLOBAL' ? '10º_GBM' : rawObm.replace(/\//g, '_').replace(/\s/g, '_');
-      await setDoc(doc(db, 'nautico_scales', normalizedObm), cleanUndefined({
+      const payload = cleanUndefined({
         days: {
           [selectedDate]: {
             oficialDia: officerName
           }
         }
-      }), { merge: true });
+      });
+
+      // Persistência via backend API com credenciais seguras de servidor
+      await fetch('/api/officer-scales/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          collectionName: 'nautico_scales',
+          docId: normalizedObm,
+          data: payload
+        })
+      }).catch(e => console.warn('[useOfficerScales] Aviso na API nautico_scales update:', e));
+
       setNauticoScaleDays(prev => ({
         ...prev,
         [selectedDate]: {
@@ -240,18 +277,30 @@ export function useOfficerScales({ obmContext, militars, selectedDate }: UseOffi
   };
 
   const handleSaveMedicoOficial = async (officerName: string) => {
-    if (!db || !selectedDate) return;
+    if (!selectedDate) return;
     setSavingMedico(true);
     try {
       const rawObm = obmContext || "10º GBM";
       const normalizedObm = rawObm === 'GLOBAL' ? '10º_GBM' : rawObm.replace(/\//g, '_').replace(/\s/g, '_');
-      await setDoc(doc(db, 'medico_scales', normalizedObm), cleanUndefined({
+      const payload = cleanUndefined({
         days: {
           [selectedDate]: {
             oficialDia: officerName
           }
         }
-      }), { merge: true });
+      });
+
+      // Persistência via backend API com credenciais seguras de servidor
+      await fetch('/api/officer-scales/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          collectionName: 'medico_scales',
+          docId: normalizedObm,
+          data: payload
+        })
+      }).catch(e => console.warn('[useOfficerScales] Aviso na API medico_scales update:', e));
+
       setMedicoScaleDays(prev => ({
         ...prev,
         [selectedDate]: {

@@ -57,7 +57,11 @@ export function PrintAdminSentinelasPermutas({
     Boolean(m) && Boolean(renderMilitar(m)) && isSentinelaVisible;
   const hasAnySul = [0, 1, 2, 3].some((i) => hasMilitar(sentinelas[i + 4]));
 
-  const rightSubSections = [
+  const totalComCount = (com1Militars?.length || 0) + (com2Militars?.length || 0);
+
+  // Se houver 2 ou mais comunicantes, exibe dois espaços separados: "COMUNICANTE 1:" e "COMUNICANTE 2:", cada militar em seu espaço
+  // Se houver apenas 1 comunicante (ou nenhum), exibe apenas 1 espaço limpo com título "COMUNICANTE:"
+  const comunicanteSections = totalComCount >= 2 ? [
     {
       key: 'COMUNICANTE 1',
       title: 'COMUNICANTE 1:',
@@ -75,7 +79,21 @@ export function PrintAdminSentinelasPermutas({
       toggleTitle: isCom2Visible
         ? 'Desativar Comunicante 2 no Gerar Escala'
         : 'Ativar Comunicante 2 no Gerar Escala'
-    },
+    }
+  ] : [
+    {
+      key: 'COMUNICANTE 1',
+      title: 'COMUNICANTE:',
+      visible: isCom1Visible,
+      militars: com1Militars.length > 0 ? com1Militars : com2Militars,
+      toggleTitle: isCom1Visible
+        ? 'Desativar Comunicante no Gerar Escala'
+        : 'Ativar Comunicante no Gerar Escala'
+    }
+  ];
+
+  const rightSubSections = [
+    ...comunicanteSections,
     {
       key: 'AUXILIAR RANCHO',
       title: 'AUXILIAR RANCHO:',

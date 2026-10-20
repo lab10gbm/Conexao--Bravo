@@ -141,12 +141,15 @@ export function PostosManagerPanel({ obmContext }: PostosManagerPanelProps) {
           '10º_GBM',
           '10°_GBM'
         ]));
-        for (const key of docKeys) {
-          try {
-            await setDoc(doc(db, "obm_settings", key), payload, { merge: true });
-          } catch (e) {
-            console.warn("Erro salvando key em obm_settings:", key, e);
-          }
+        // Persistência via Backend API com credenciais seguras de servidor
+        try {
+          await fetch('/api/obm-settings/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: docKeys[0], data: payload })
+          });
+        } catch (err) {
+          console.warn('[PostosManagerPanel] Erro na API obm-settings:', err);
         }
       }
 
@@ -190,10 +193,15 @@ export function PostosManagerPanel({ obmContext }: PostosManagerPanelProps) {
           '10º_GBM',
           '10°_GBM'
         ]));
-        for (const key of docKeys) {
-          try {
-            await setDoc(doc(db, "obm_settings", key), payload, { merge: true });
-          } catch {}
+        // Persistência via Backend API com credenciais seguras de servidor
+        try {
+          await fetch('/api/obm-settings/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: docKeys[0], data: payload })
+          });
+        } catch (err) {
+          console.warn('[PostosManagerPanel] Erro na API obm-settings:', err);
         }
       }
 

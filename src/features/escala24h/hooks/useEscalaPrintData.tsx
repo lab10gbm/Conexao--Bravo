@@ -662,11 +662,7 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
             return true;
           if (targetNorm === 'SENTINELA' && fNorm.includes('SENTINELA')) return true;
           if (targetNorm === 'COMUNICANTE' && fNorm.includes('COMUNICANTE')) return true;
-          if (
-            targetNorm === 'COMUNICANTE 1' &&
-            (fNorm === 'COMUNICANTE 1' || fNorm === 'COMUNICANTE')
-          )
-            return true;
+          if (targetNorm === 'COMUNICANTE 1' && fNorm === 'COMUNICANTE 1') return true;
           if (targetNorm === 'COMUNICANTE 2' && fNorm === 'COMUNICANTE 2') return true;
           if (
             targetNorm === 'ENCARREGADO DE MOTORISTA' &&
@@ -823,25 +819,42 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
     );
   };
 
-  const com1List = getByFunc('COMUNICANTE 1');
-  const com2List = getByFunc('COMUNICANTE 2');
-  const generalComList = getByFunc('COMUNICANTE');
+  // Obter todos os militares com função de comunicante (qualquer variação que inclua COMUNICANTE)
+  const allComRaw = getByFunc('COMUNICANTE');
+  const uniqueComMilitars: any[] = [];
+  const seenComRgs = new Set<string>();
+  allComRaw.forEach((m: any) => {
+    const id = m?.rg || m?.id;
+    if (id && !seenComRgs.has(id)) {
+      seenComRgs.add(id);
+      uniqueComMilitars.push(m);
+    }
+  });
 
-  const com1Militars: any[] =
-    com1List.length > 0
-      ? [...com1List]
-      : generalComList.length > 0
-      ? [generalComList[0]]
-      : [];
+  const explicitCom1 = uniqueComMilitars.find((m: any) => {
+    const funcs = selectedFunctions[m?.rg] || [];
+    return funcs.some(f => normalize(f) === 'COMUNICANTE 1');
+  });
+  const explicitCom2 = uniqueComMilitars.find((m: any) => {
+    const funcs = selectedFunctions[m?.rg] || [];
+    return funcs.some(f => normalize(f) === 'COMUNICANTE 2');
+  });
 
-  const usedCom1Ids = new Set(com1Militars.map((m) => m?.rg || m?.id));
-  const com2Militars: any[] = [
-    ...com2List,
-    ...generalComList.filter((m) => {
-      const id = m?.rg || m?.id;
-      return !usedCom1Ids.has(id) && !com2List.some((c: any) => (c?.rg || c?.id) === id);
-    })
-  ];
+  let com1Militars: any[] = [];
+  let com2Militars: any[] = [];
+
+  if (uniqueComMilitars.length === 1) {
+    com1Militars = [uniqueComMilitars[0]];
+    com2Militars = [];
+  } else if (uniqueComMilitars.length >= 2) {
+    if (explicitCom1 && explicitCom2 && explicitCom1.rg !== explicitCom2.rg) {
+      com1Militars = [explicitCom1];
+      com2Militars = [explicitCom2];
+    } else {
+      com1Militars = [uniqueComMilitars[0]];
+      com2Militars = [uniqueComMilitars[1]];
+    }
+  }
 
   const comunicantes = [...com1Militars, ...com2Militars];
   const auxRancho = getByFunc('AUXILIAR RANCHO');

@@ -3,6 +3,7 @@ import { getLocalIsoDateString, normalizeAlaField, cn, normalizeObm, getUserObmA
 import { useMilitars } from '../contexts/MilitarContext';
 import { db } from '../lib/firebase';
 import { collection, setDoc, doc, deleteDoc, onSnapshot, getDocs } from 'firebase/firestore';
+import { safeSaveDocRef, safeSaveDocument, safeDeleteDocument } from '../lib/apiClient';
 import { Plus, Calendar, X, Search, AlertCircle, CheckCircle2, UserPlus } from 'lucide-react';
 import { Afastamento } from '../features/ferias/types';
 import { AfastamentoAddForm } from '../features/ferias/components/AfastamentoAddForm';
@@ -176,7 +177,7 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
       const targetAla = newAla ? normalizeAlaField(newAla) : (militar?.ala ? normalizeAlaField(militar.ala) : '1');
 
       const newRef = doc(collection(db, 'afastamentos_alas'));
-      await setDoc(newRef, {
+      await safeSaveDocRef(newRef, {
         rg: normalizeRg(newRg),
         ala: targetAla,
         inicio: newInicio,
@@ -186,7 +187,7 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
         obs: newObs,
         obm: targetObm,
         createdAt: new Date().toISOString()
-      });
+      }, true);
       
       setSaveSuccessMsg(`Afastamento registrado com sucesso para o RG ${newRg}!`);
       setTimeout(() => setSaveSuccessMsg(''), 4000);
@@ -211,7 +212,7 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
     }
     if (!confirm("Tem certeza que deseja excluir este registro de afastamento?")) return;
     try {
-      await deleteDoc(doc(db, 'afastamentos_alas', id));
+      await safeDeleteDocument('afastamentos_alas', id);
     } catch (e: any) {
       console.error(e);
       alert("Erro ao excluir: " + e.message);
@@ -237,13 +238,13 @@ export function AfastamentosAlaModule({ obmContext, type = 'atuais', filterAla, 
     try {
       const updatedAla = editData.ala ? (normalizeAlaField(editData.ala) || editData.ala) : undefined;
       const updatedSituacao = editData.situacao || 'FERIAS';
-      await setDoc(doc(db, 'afastamentos_alas', editingId), {
+      await safeSaveDocument('afastamentos_alas', editingId, {
         ...editData,
         ala: updatedAla,
         situacao: updatedSituacao,
         tipoAfastamento: updatedSituacao,
         updatedAt: new Date().toISOString()
-      }, { merge: true });
+      }, true);
       setEditingId(null);
       setEditData({});
     } catch (e) {

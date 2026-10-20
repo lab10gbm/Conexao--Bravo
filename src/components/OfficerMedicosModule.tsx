@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useMilitars } from '../contexts/MilitarContext';
 import { db } from '../lib/firebase';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { 
   ChevronLeft, 
   ChevronRight, 
+  ChevronDown,
+  ChevronUp,
   Shield, 
   Search,
   X,
@@ -59,27 +61,78 @@ export function OfficerMedicosModule({ user, obmContext, setObmContext, availabl
   const [configTab, setConfigTab] = useState<'oficialDia' | 'sobreaviso'>('oficialDia');
   const [showConfig, setShowConfig] = useState(false);
   const [poolConfig, setPoolConfig] = useState<string[] | null>(null);
+  const [isQuotasExpanded, setIsQuotasExpanded] = useState(true);
 
   const isGlobal = obmContext === 'GLOBAL';
+  const poolDocId = (obmContext === 'GLOBAL' ? '10º_GBM' : (obmContext || '10º GBM')).replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_');
   // Normalize OBM for doc ID
   const obmId = isGlobal ? 'GLOBAL' : (obmContext || '10º GBM').replace(/\//g, '_').replace(/\s/g, '_');
   const docId = obmId;
 
   useEffect(() => {
-    if (isGlobal) return;
-    const unsub = onSnapshot(doc(db, 'officer_pool_config', docId), (snap) => {
+    let isMounted = true;
+
+    // 1. Carga inicial rápida via API
+    fetch(`/api/officer-pool?obm=${encodeURIComponent(obmContext || '10º GBM')}`)
+      .then(res => res.json())
+      .then(data => {
+        if (isMounted && data.success && data.config) {
+          const list = data.config.oficiaisMedicos;
+          if (Array.isArray(list) && list.length > 0) {
+            setPoolConfig(list.map((r: any) => String(r).trim()));
+          }
+        }
+      })
+      .catch(() => {});
+
+    // 2. Listener Firestore
+    const unsub = onSnapshot(doc(db, 'officer_pool_config', poolDocId), (snap) => {
+      if (!isMounted) return;
       if (snap.exists() && snap.data().oficiaisMedicos !== undefined) {
-        setPoolConfig(snap.data().oficiaisMedicos);
+        const rawList = snap.data().oficiaisMedicos || [];
+        setPoolConfig(rawList.map((r: any) => String(r).trim()));
       } else {
         setPoolConfig(null);
       }
+    }, (err) => {
+      console.warn('[OfficerMedicosModule] officer_pool_config notice:', err?.message);
     });
-    return () => unsub();
-  }, [docId, isGlobal]);
+    return () => {
+      isMounted = false;
+      unsub();
+    };
+  }, [poolDocId, obmContext]);
 
   useEffect(() => {
     setLoading(true);
+    let isMounted = true;
     
+    // Carga inicial rápida via API backend
+    const targetDoc = isGlobal ? '10º_GBM' : docId;
+    fetch(`/api/officer-scales?collection=medico_scales&docId=${encodeURIComponent(targetDoc)}`)
+      .then(res => res.json())
+      .then(res => {
+        if (!isMounted) return;
+        if (res.success && res.data) {
+          const data = res.data;
+          if (data.days && !isGlobal) {
+            setOfficerData(prev => ({ ...data.days, ...prev }));
+          }
+          const monthKey = format(currentDate, 'yyyy-MM');
+          if (data.lists && data.lists[monthKey]) {
+            const currentMonthLists = data.lists[monthKey];
+            if (Array.isArray(currentMonthLists)) {
+              setSelectedRgsOficialDia(currentMonthLists);
+              setSelectedRgsSobreaviso([]);
+            } else {
+              setSelectedRgsOficialDia(currentMonthLists.oficialDia || []);
+              setSelectedRgsSobreaviso(currentMonthLists.sobreaviso || []);
+            }
+          }
+        }
+      })
+      .catch(() => {});
+
     if (isGlobal) {
       let db10: Record<string, any> = {};
       let db26: Record<string, any> = {};
@@ -102,6 +155,8 @@ export function OfficerMedicosModule({ user, obmContext, setObmContext, availabl
           if (snap.exists()) db10 = snap.data().days || {};
           else db10 = {};
           updateMerged();
+      }, (err) => {
+          console.warn('[OfficerMedicosModule] unsub10 notice:', err?.message);
       });
       
       const unsub26 = onSnapshot(doc(db, 'medico_scales', '26º_GBM'), (snap) => {
@@ -109,12 +164,15 @@ export function OfficerMedicosModule({ user, obmContext, setObmContext, availabl
           else db26 = {};
           updateMerged();
           setLoading(false);
+      }, (err) => {
+          console.warn('[OfficerMedicosModule] unsub26 notice:', err?.message);
+          setLoading(false);
       });
       
       setSelectedRgsOficialDia([]);
       setSelectedRgsSobreaviso([]);
       
-      return () => { unsub10(); unsub26(); };
+      return () => { isMounted = false; unsub10(); unsub26(); };
     } else {
       const unsubscribe = onSnapshot(doc(db, 'medico_scales', docId), (snapshot) => {
         if (snapshot.exists()) {
@@ -145,9 +203,9 @@ export function OfficerMedicosModule({ user, obmContext, setObmContext, availabl
         setLoading(false);
       });
 
-      return () => unsubscribe();
+      return () => { isMounted = false; unsubscribe(); };
     }
-  }, [obmContext, currentDate]);
+  }, [obmContext, currentDate, docId, isGlobal]);
 
   const monthDaysOnly = useMemo(() => {
     return eachDayOfInterval({ 
@@ -172,19 +230,58 @@ export function OfficerMedicosModule({ user, obmContext, setObmContext, availabl
         setSelectedRgsSobreaviso(newSobreaviso);
     }
     
-    await setDoc(doc(db, 'medico_scales', docId), cleanUndefined({
-          lists: {
-            [monthKey]: {
-                oficialDia: newOficialDia,
-                sobreaviso: newSobreaviso
-            }
-          }
-        }), { merge: true });
+    const payload = cleanUndefined({
+      lists: {
+        [monthKey]: {
+          oficialDia: newOficialDia,
+          sobreaviso: newSobreaviso
+        }
+      }
+    });
+
+    // Persistência via backend API com credenciais administrativas
+    try {
+      await fetch('/api/officer-scales/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          collectionName: 'medico_scales',
+          docId,
+          data: payload
+        })
+      });
+    } catch (e: any) {
+      console.warn('[OfficerMedicosModule] Aviso na API ao atualizar oficiais médicos:', e?.message);
+    }
   };
 
+  const availableOfficers = useMemo(() => {
+    if (!poolConfig || poolConfig.length === 0) {
+      return militars
+        .filter(m => {
+          const rawMObm = m.obm ? m.obm : '10º GBM';
+          const mObm = rawMObm.replace(/º/g, '°').trim().toUpperCase();
+          const mAtuacao = (m.obmAtuacao || '').replace(/º/g, '°').trim().toUpperCase();
+          const ctxObm = (obmContext || '').replace(/º/g, '°').trim().toUpperCase();
+          if (ctxObm && ctxObm !== 'GLOBAL') {
+            const matchesObm = mObm === ctxObm || mAtuacao === ctxObm;
+            if (!matchesObm) return false;
+          }
+          const q = (m.quadro || '').toUpperCase();
+          return m.isMedico === true || q.includes('QOS/MÉD') || q.includes('QOS/MED');
+        })
+        .sort(sortOfficersBySeniority);
+    }
+    const cleanPool = (poolConfig || []).map(r => String(r).trim());
+    return militars
+      .filter(m => cleanPool.includes(String(m.rg || '').trim()))
+      .sort(sortOfficersBySeniority);
+  }, [militars, poolConfig, obmContext]);
+
   const distributionQuotas = useMemo(() => {
-    const currentActiveList = configTab === 'oficialDia' ? selectedRgsOficialDia : selectedRgsSobreaviso;
-    const activeOfficers = militars.filter(m => currentActiveList.includes(m.rg));
+    const rawList = configTab === 'oficialDia' ? selectedRgsOficialDia : selectedRgsSobreaviso;
+    const currentActiveList = (rawList || []).map(r => String(r).trim());
+    const activeOfficers = availableOfficers.filter(m => currentActiveList.includes(String(m.rg || '').trim()));
     if (activeOfficers.length === 0) return [];
 
     activeOfficers.sort(sortOfficersBySeniority);
@@ -275,7 +372,7 @@ export function OfficerMedicosModule({ user, obmContext, setObmContext, availabl
     });
 
     return dist;
-  }, [militars, selectedRgsOficialDia, selectedRgsSobreaviso, configTab, monthDaysOnly]);
+  }, [availableOfficers, selectedRgsOficialDia, selectedRgsSobreaviso, configTab, monthDaysOnly]);
 
   const handleGenerateScale = async () => {
     const label = configTab === 'oficialDia' ? 'Oficial Médico de Dia / Sobreaviso 1' : 'Sobreaviso Médico 2';
@@ -307,23 +404,41 @@ export function OfficerMedicosModule({ user, obmContext, setObmContext, availabl
                     }
                 });
             });
-            await setDoc(doc(db, 'medico_scales', docId), cleanUndefined({
+
+            // Atualização otimista no estado local
+            setOfficerData(prev => {
+              const updated = { ...prev };
+              Object.entries(newOfficerData).forEach(([d, vals]) => {
+                updated[d] = { ...(updated[d] || {}), ...vals };
+              });
+              return updated;
+            });
+
+            const payload = cleanUndefined({
                 days: newOfficerData
-            }), { merge: true });
+            });
+
+            // Persistência via API backend
+            try {
+              await fetch('/api/officer-scales/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  collectionName: 'medico_scales',
+                  docId,
+                  data: payload
+                })
+              });
+            } catch (e: any) {
+              console.warn('[OfficerMedicosModule] Aviso na API ao salvar escala automática:', e?.message);
+            }
         }
     } catch (err) {
-        console.error(err);
+        console.error('Erro ao gerar escala automática:', err);
     } finally {
         setSaving(false);
     }
   };
-
-  const availableOfficers = useMemo(() => {
-    if (!poolConfig) return [];
-    return militars
-      .filter(m => poolConfig.includes(m.rg || ''))
-      .sort(sortOfficersBySeniority);
-  }, [militars, poolConfig]);
 
   const updateOfficerDay = async (dateStr: string, field: string, value: string) => {
     setOfficerData(prev => ({
@@ -342,31 +457,59 @@ export function OfficerMedicosModule({ user, obmContext, setObmContext, availabl
          const realField = field.split('-')[1];
          const targetId = is10 ? '10º_GBM' : '26º_GBM';
          
-         const payload: Record<string, any> = {
+         const dayPayload: Record<string, any> = {
            [realField]: value
          };
          if (realField === 'oficialDia') {
-           payload.oficialMedico = value;
+           dayPayload.oficialMedico = value;
          }
 
-         await setDoc(doc(db, 'medico_scales', targetId), cleanUndefined({
+         const payload = cleanUndefined({
             days: {
-              [dateStr]: payload
+              [dateStr]: dayPayload
             }
-          }), { merge: true });
-      } else {
-          const payload: Record<string, any> = {
-            [field]: value
-          };
-          if (field === 'oficialDia') {
-            payload.oficialMedico = value;
-          }
+          });
 
-          await setDoc(doc(db, 'medico_scales', docId), cleanUndefined({
+         try {
+           await fetch('/api/officer-scales/update', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({
+               collectionName: 'medico_scales',
+               docId: targetId,
+               data: payload
+             })
+           });
+         } catch (e: any) {
+           console.warn('[OfficerMedicosModule] Aviso na API ao atualizar dia médico:', e?.message);
+         }
+      } else {
+         const dayPayload: Record<string, any> = {
+           [field]: value
+         };
+         if (field === 'oficialDia') {
+           dayPayload.oficialMedico = value;
+         }
+
+         const payload = cleanUndefined({
             days: {
-              [dateStr]: payload
+              [dateStr]: dayPayload
             }
-          }), { merge: true });
+          });
+
+         try {
+           await fetch('/api/officer-scales/update', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({
+               collectionName: 'medico_scales',
+               docId,
+               data: payload
+             })
+           });
+         } catch (e: any) {
+           console.warn('[OfficerMedicosModule] Aviso na API ao atualizar dia médico:', e?.message);
+         }
       }
     } catch (error) {
       console.error("Error saving Medico scale:", error);
@@ -436,15 +579,20 @@ export function OfficerMedicosModule({ user, obmContext, setObmContext, availabl
         {/* Distribuição e Configuração */}
         <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-4 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4 border-b border-slate-100 pb-3">
-            <h3 className="text-sm font-black uppercase tracking-widest text-rose-800 flex items-center gap-2">
-              <HeartPulse className="w-4 h-4 text-rose-600" /> Distribuição de Serviços (Médicos)
-            </h3>
-            <div className="flex gap-2">
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-widest text-rose-800 flex items-center gap-2">
+                <HeartPulse className="w-4 h-4 text-rose-600" /> Previsão de Cotas (Oficiais Médicos)
+              </h3>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                Vermelho: Fim de semana | Roxo: Sexta-feira | Preto: Seg-Qui
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
               <button 
                 onClick={() => setShowConfig(!showConfig)}
                 className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors flex items-center gap-1.5"
               >
-                <Users className="w-3.5 h-3.5" /> {showConfig ? 'Ocultar Médicos' : 'Configurar Médicos'}
+                <Users className="w-3.5 h-3.5" /> {showConfig ? 'Ocultar Seleção' : 'Selecionar Médicos'}
               </button>
               <button 
                 onClick={handleGenerateScale}
@@ -453,73 +601,102 @@ export function OfficerMedicosModule({ user, obmContext, setObmContext, availabl
               >
                 <Wand2 className="w-3.5 h-3.5" /> Gerar Automático
               </button>
-            </div>
-          </div>
-
-          {showConfig && !isGlobal && (
-            <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-xl">
-              <div className="flex gap-2 mb-4 border-b border-slate-200 pb-2">
-                 <button 
-                   onClick={() => setConfigTab('oficialDia')}
-                   className={cn("px-3 py-1 text-[11px] font-black uppercase tracking-widest rounded-t-lg transition-all", configTab === 'oficialDia' ? "bg-rose-700 text-white" : "bg-slate-200 text-slate-600 hover:bg-slate-300")}
-                 >OFICIAL MÉDICO DE DIA / SOBREAVISO 1</button>
-                 <button 
-                   onClick={() => setConfigTab('sobreaviso')}
-                   className={cn("px-3 py-1 text-[11px] font-black uppercase tracking-widest rounded-t-lg transition-all", configTab === 'sobreaviso' ? "bg-rose-700 text-white" : "bg-slate-200 text-slate-600 hover:bg-slate-300")}
-                 >SOBREAVISO MÉDICO 2</button>
-              </div>
-              <h4 className="text-xs font-bold uppercase text-slate-500 mb-3">
-                Selecione os Oficiais Médicos para a Escala ({configTab === 'oficialDia' ? 'Oficial Médico de Dia' : 'Sobreaviso Médico 2'}):
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1 custom-scrollbar">
-                {availableOfficers.map(mil => {
-                  const isSelected = configTab === 'oficialDia' ? selectedRgsOficialDia.includes(mil.rg) : selectedRgsSobreaviso.includes(mil.rg);
-                  return (
-                    <button
-                      key={mil.rg}
-                      onClick={() => handleToggleOfficer(mil.rg)}
-                      className={cn(
-                        "text-left p-2.5 rounded-xl border text-[11px] font-black uppercase tracking-wider flex items-center justify-between transition-all shadow-sm",
-                        isSelected ? "bg-rose-50 border-rose-500 text-rose-800" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
-                      )}
-                    >
-                      <span className="truncate">{mil.rank} {mil.warName || (mil.name || '').split(' ')[0]}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-rose-600 shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-sm">
-            <table className="w-full text-left text-[11px]">
-              <thead>
-                <tr className="bg-slate-100 text-slate-700 font-black uppercase tracking-widest border-b border-slate-200">
-                  <th className="px-3 py-2 border-r border-slate-200">Oficial Médico (Antiguidade)</th>
-                  <th className="px-3 py-2 border-r border-slate-200 text-center text-rose-600">Vermelha</th>
-                  <th className="px-3 py-2 border-r border-slate-200 text-center text-purple-600">Roxa</th>
-                  <th className="px-3 py-2 border-r border-slate-200 text-center text-slate-800">Preta</th>
-                  <th className="px-3 py-2 text-center text-emerald-700">Total (Cota)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {distributionQuotas.length === 0 ? (
-                   <tr><td colSpan={5} className="p-4 text-center text-slate-400 font-bold">Nenhum oficial médico configurado nesta OBM.</td></tr>
+              <button 
+                onClick={() => setIsQuotasExpanded(!isQuotasExpanded)}
+                className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg transition-colors flex items-center gap-1.5"
+                title={isQuotasExpanded ? "Recolher seção de cotas" : "Expandir seção de cotas"}
+              >
+                {isQuotasExpanded ? (
+                  <>
+                    <ChevronUp className="w-3.5 h-3.5" /> Recolher
+                  </>
                 ) : (
-                  distributionQuotas.map((officer) => (
-                    <tr key={officer.rg} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                      <td className="px-3 py-2 font-bold border-r border-slate-200 text-slate-800">{officer.name}</td>
-                      <td className="px-3 py-2 text-center border-r border-slate-200 font-bold text-rose-600">{officer.quotaRed}</td>
-                      <td className="px-3 py-2 text-center border-r border-slate-200 font-bold text-purple-600">{officer.quotaPurple}</td>
-                      <td className="px-3 py-2 text-center border-r border-slate-200 font-bold text-slate-700">{officer.quotaBlack}</td>
-                      <td className="px-3 py-2 text-center font-black text-emerald-700 bg-emerald-50/50">{officer.quotaTotal}</td>
-                    </tr>
-                  ))
+                  <>
+                    <ChevronDown className="w-3.5 h-3.5" /> Expandir Cotas
+                  </>
                 )}
-              </tbody>
-            </table>
+              </button>
+            </div>
           </div>
+
+          {!isQuotasExpanded ? (
+            <div className="flex items-center justify-between text-xs font-bold text-slate-500 py-1">
+              <span>{distributionQuotas.length} oficiais médicos configurados para {format(currentDate, 'MMMM yyyy', { locale: ptBR })}.</span>
+              <button
+                onClick={() => setIsQuotasExpanded(true)}
+                className="text-rose-700 hover:text-rose-800 text-xs font-black uppercase tracking-wider flex items-center gap-1"
+              >
+                Expandir Tabela <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <>
+              {showConfig && !isGlobal && (
+                <div className="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div className="flex gap-2 mb-4 border-b border-slate-200 pb-2">
+                     <button 
+                       onClick={() => setConfigTab('oficialDia')}
+                       className={cn("px-3 py-1 text-[11px] font-black uppercase tracking-widest rounded-t-lg transition-all", configTab === 'oficialDia' ? "bg-rose-700 text-white" : "bg-slate-200 text-slate-600 hover:bg-slate-300")}
+                     >OFICIAL MÉDICO DE DIA / SOBREAVISO 1</button>
+                     <button 
+                       onClick={() => setConfigTab('sobreaviso')}
+                       className={cn("px-3 py-1 text-[11px] font-black uppercase tracking-widest rounded-t-lg transition-all", configTab === 'sobreaviso' ? "bg-rose-700 text-white" : "bg-slate-200 text-slate-600 hover:bg-slate-300")}
+                     >SOBREAVISO MÉDICO 2</button>
+                  </div>
+                  <h4 className="text-xs font-bold uppercase text-slate-500 mb-3">
+                    Selecione os Oficiais Médicos para a Escala ({configTab === 'oficialDia' ? 'Oficial Médico de Dia' : 'Sobreaviso Médico 2'}):
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-48 overflow-y-auto p-1 custom-scrollbar">
+                    {availableOfficers.map(mil => {
+                      const isSelected = configTab === 'oficialDia' ? selectedRgsOficialDia.includes(mil.rg) : selectedRgsSobreaviso.includes(mil.rg);
+                      return (
+                        <button
+                          key={mil.rg}
+                          onClick={() => handleToggleOfficer(mil.rg)}
+                          className={cn(
+                            "text-left p-2.5 rounded-xl border text-[11px] font-black uppercase tracking-wider flex items-center justify-between transition-all shadow-sm",
+                            isSelected ? "bg-rose-50 border-rose-500 text-rose-800" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                          )}
+                        >
+                          <span className="truncate">{mil.rank} {mil.warName || (mil.name || '').split(' ')[0]}</span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-rose-600 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-sm">
+                <table className="w-full text-left text-[11px]">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-700 font-black uppercase tracking-widest border-b border-slate-200">
+                      <th className="px-3 py-2 border-r border-slate-200">Oficial Médico (Antiguidade)</th>
+                      <th className="px-3 py-2 border-r border-slate-200 text-center text-rose-600">FDS (Vermelho)</th>
+                      <th className="px-3 py-2 border-r border-slate-200 text-center text-purple-600">Sexta (Roxo)</th>
+                      <th className="px-3 py-2 border-r border-slate-200 text-center text-slate-800">Semana (Preto)</th>
+                      <th className="px-3 py-2 text-center text-emerald-700">Total (Cota)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {distributionQuotas.length === 0 ? (
+                       <tr><td colSpan={5} className="p-4 text-center text-slate-400 font-bold">Nenhum oficial médico configurado nesta OBM.</td></tr>
+                    ) : (
+                      distributionQuotas.map((officer) => (
+                        <tr key={officer.rg} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                          <td className="px-3 py-2 font-bold border-r border-slate-200 text-slate-800">{officer.name}</td>
+                          <td className="px-3 py-2 text-center border-r border-slate-200 font-bold text-rose-600">{officer.quotaRed}</td>
+                          <td className="px-3 py-2 text-center border-r border-slate-200 font-bold text-purple-600">{officer.quotaPurple}</td>
+                          <td className="px-3 py-2 text-center border-r border-slate-200 font-bold text-slate-700">{officer.quotaBlack}</td>
+                          <td className="px-3 py-2 text-center font-black text-emerald-700 bg-emerald-50/50">{officer.quotaTotal}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Tabela Principal da Escala Mensal */}

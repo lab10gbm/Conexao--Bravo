@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useMilitars } from '../../../contexts/MilitarContext';
 import { db } from '../../../lib/firebase';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { 
   ChevronLeft, 
   ChevronRight, 
+  ChevronDown,
+  ChevronUp,
   Anchor,
   Shield, 
   Search,
@@ -29,7 +31,7 @@ import {
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn, cleanUndefined } from '../../../lib/utils';
-import { parseRank, sortOfficersBySeniority } from '../../../lib/rankUtils';
+import { parseRank, sortOfficersBySeniority, COLS_OFICIAIS } from '../../../lib/rankUtils';
 import { resolveCanonicalScope, formatScopeLabel } from '../../../lib/canonicalScope';
 import { GenericOfficerGrdModuleProps } from '../types';
 import { calculateOfficerQuotas } from '../lib/officerQuotas';
@@ -59,31 +61,82 @@ export function GenericOfficerGrdModule({
   const [configTab, setConfigTab] = useState<'oficialDia' | 'sobreaviso'>('oficialDia');
   const [showConfig, setShowConfig] = useState(false);
   const [poolConfig, setPoolConfig] = useState<string[] | null>(null);
+  const [isQuotasExpanded, setIsQuotasExpanded] = useState(true);
 
   const isCyan = config.themeColor === 'cyan';
   const IconComponent = config.icon === 'anchor' ? Anchor : Shield;
 
   const isGlobal = obmContext === 'GLOBAL';
+  const poolDocId = (obmContext === 'GLOBAL' ? '10º_GBM' : (obmContext || '10º GBM')).replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_');
   const obmId = isGlobal ? 'GLOBAL' : (obmContext || '10º GBM').replace(/\//g, '_').replace(/\s/g, '_');
   const docId = obmId;
 
   // Listen to officer pool config
   useEffect(() => {
-    if (isGlobal) return;
-    const unsub = onSnapshot(doc(db, 'officer_pool_config', docId), (snap) => {
+    let isMounted = true;
+
+    // 1. Carga inicial rápida via API
+    fetch(`/api/officer-pool?obm=${encodeURIComponent(obmContext || '10º GBM')}`)
+      .then(res => res.json())
+      .then(data => {
+        if (isMounted && data.success && data.config) {
+          const list = data.config[config.poolConfigField];
+          if (Array.isArray(list) && list.length > 0) {
+            setPoolConfig(list.map((r: any) => String(r).trim()));
+          }
+        }
+      })
+      .catch(() => {});
+
+    // 2. Listener Firestore
+    const unsub = onSnapshot(doc(db, 'officer_pool_config', poolDocId), (snap) => {
+      if (!isMounted) return;
       if (snap.exists() && snap.data()[config.poolConfigField] !== undefined) {
-        setPoolConfig(snap.data()[config.poolConfigField]);
+        const rawList = snap.data()[config.poolConfigField] || [];
+        setPoolConfig(rawList.map((r: any) => String(r).trim()));
       } else {
         setPoolConfig(null);
       }
+    }, (err) => {
+      console.warn('[GenericOfficerGrdModule] officer_pool_config notice:', err?.message);
     });
-    return () => unsub();
-  }, [docId, isGlobal, config.poolConfigField]);
+    return () => {
+      isMounted = false;
+      unsub();
+    };
+  }, [poolDocId, config.poolConfigField, obmContext]);
 
   // Listen to monthly scales
   useEffect(() => {
     setLoading(true);
+    let isMounted = true;
     
+    // Carga inicial rápida via API backend
+    const targetDoc = isGlobal ? '10º_GBM' : docId;
+    fetch(`/api/officer-scales?collection=${encodeURIComponent(config.collectionName)}&docId=${encodeURIComponent(targetDoc)}`)
+      .then(res => res.json())
+      .then(res => {
+        if (!isMounted) return;
+        if (res.success && res.data) {
+          const data = res.data;
+          if (data.days && !isGlobal) {
+            setOfficerData(prev => ({ ...data.days, ...prev }));
+          }
+          const monthKey = format(currentDate, 'yyyy-MM');
+          if (data.lists && data.lists[monthKey]) {
+            const currentMonthLists = data.lists[monthKey];
+            if (Array.isArray(currentMonthLists)) {
+              setSelectedRgsOficialDia(currentMonthLists);
+              setSelectedRgsSobreaviso([]);
+            } else {
+              setSelectedRgsOficialDia(currentMonthLists.oficialDia || []);
+              setSelectedRgsSobreaviso(currentMonthLists.sobreaviso || []);
+            }
+          }
+        }
+      })
+      .catch(() => {});
+
     if (isGlobal) {
       let db10: Record<string, any> = {};
       let db26: Record<string, any> = {};
@@ -106,15 +159,19 @@ export function GenericOfficerGrdModule({
           if (snap.exists()) db10 = snap.data().days || {};
           else db10 = {};
           updateMerged();
+      }, (err) => {
+          console.warn('[GenericOfficerGrdModule] unsub10 notice:', err?.message);
       });
       
       const unsub26 = onSnapshot(doc(db, config.collectionName, '26º_GBM'), (snap) => {
           if (snap.exists()) db26 = snap.data().days || {};
           else db26 = {};
           updateMerged();
+      }, (err) => {
+          console.warn('[GenericOfficerGrdModule] unsub26 notice:', err?.message);
       });
       
-      return () => { unsub10(); unsub26(); };
+      return () => { isMounted = false; unsub10(); unsub26(); };
     } else {
       const unsubscribe = onSnapshot(doc(db, config.collectionName, docId), (snapshot) => {
         if (snapshot.exists()) {
@@ -145,9 +202,9 @@ export function GenericOfficerGrdModule({
         setLoading(false);
       });
 
-      return () => unsubscribe();
+      return () => { isMounted = false; unsubscribe(); };
     }
-  }, [obmContext, currentDate, config.collectionName, config.title]);
+  }, [obmContext, currentDate, config.collectionName, config.title, docId, isGlobal]);
 
   const monthDaysOnly = useMemo(() => {
     return eachDayOfInterval({ 
@@ -172,21 +229,56 @@ export function GenericOfficerGrdModule({
         setSelectedRgsSobreaviso(newSobreaviso);
     }
     
-    await setDoc(doc(db, config.collectionName, docId), cleanUndefined({
-          lists: {
-            [monthKey]: {
-                oficialDia: newOficialDia,
-                sobreaviso: newSobreaviso
-            }
-          }
-        }), { merge: true });
+    const payload = cleanUndefined({
+      lists: {
+        [monthKey]: {
+          oficialDia: newOficialDia,
+          sobreaviso: newSobreaviso
+        }
+      }
+    });
+
+    // Persistência via backend com credenciais seguras de servidor
+    try {
+      await fetch('/api/officer-scales/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          collectionName: config.collectionName,
+          docId,
+          data: payload
+        })
+      });
+    } catch (err: any) {
+      console.warn('[GenericOfficerGrdModule] Erro ao salvar:', err?.message);
+    }
   };
 
+  const availableOfficers = useMemo(() => {
+    if (!poolConfig || poolConfig.length === 0) {
+      return militars
+        .filter(m => {
+          const rawMObm = m.obm ? m.obm : '10º GBM';
+          const mObm = rawMObm.replace(/º/g, '°').trim().toUpperCase();
+          const ctxObm = (obmContext || '').replace(/º/g, '°').trim().toUpperCase();
+          if (ctxObm && ctxObm !== 'GLOBAL' && mObm !== ctxObm) return false;
+          const r = parseRank(m.rank);
+          return COLS_OFICIAIS.includes(r);
+        })
+        .sort(sortOfficersBySeniority);
+    }
+    const cleanPool = (poolConfig || []).map(r => String(r).trim());
+    return militars
+      .filter(m => cleanPool.includes(String(m.rg || '').trim()))
+      .sort(sortOfficersBySeniority);
+  }, [militars, poolConfig, obmContext]);
+
   const distributionQuotas = useMemo(() => {
-    const currentActiveList = configTab === 'oficialDia' ? selectedRgsOficialDia : selectedRgsSobreaviso;
-    const activeOfficers = militars.filter(m => currentActiveList.includes(m.rg));
+    const rawList = configTab === 'oficialDia' ? selectedRgsOficialDia : selectedRgsSobreaviso;
+    const currentActiveList = (rawList || []).map(r => String(r).trim());
+    const activeOfficers = availableOfficers.filter(m => currentActiveList.includes(String(m.rg || '').trim()));
     return calculateOfficerQuotas(activeOfficers, monthDaysOnly);
-  }, [militars, selectedRgsOficialDia, selectedRgsSobreaviso, configTab, monthDaysOnly]);
+  }, [availableOfficers, selectedRgsOficialDia, selectedRgsSobreaviso, configTab, monthDaysOnly]);
 
   const handleGenerateScale = async () => {
     const label = configTab === 'oficialDia' ? config.configSelectorLabel1 : config.configSelectorLabel2;
@@ -212,23 +304,41 @@ export function GenericOfficerGrdModule({
                     newOfficerData[day][configTab] = officer.name;
                 });
             });
-            await setDoc(doc(db, config.collectionName, docId), cleanUndefined({
+
+            // Atualização otimista no estado local
+            setOfficerData(prev => {
+              const updated = { ...prev };
+              Object.entries(newOfficerData).forEach(([d, vals]) => {
+                updated[d] = { ...(updated[d] || {}), ...vals };
+              });
+              return updated;
+            });
+
+            const payload = cleanUndefined({
                 days: newOfficerData
-            }), { merge: true });
+            });
+
+            // Persistência via API backend com credenciais seguras de servidor
+            try {
+              await fetch('/api/officer-scales/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  collectionName: config.collectionName,
+                  docId,
+                  data: payload
+                })
+              });
+            } catch (e: any) {
+              console.warn('[GenericOfficerGrdModule] Erro ao salvar escala automática:', e?.message);
+            }
         }
     } catch (err) {
-        console.error(err);
+        console.error('Erro ao gerar escala automática:', err);
     } finally {
         setSaving(false);
     }
   };
-
-  const availableOfficers = useMemo(() => {
-    if (!poolConfig) return [];
-    return militars
-      .filter(m => poolConfig.includes(m.rg || ''))
-      .sort(sortOfficersBySeniority);
-  }, [militars, poolConfig]);
 
   const updateOfficerDay = async (dateStr: string, field: string, value: string) => {
     setOfficerData(prev => ({
@@ -245,22 +355,49 @@ export function GenericOfficerGrdModule({
          const is10 = field.startsWith('10º_GBM');
          const realField = field.split('-')[1];
          const targetId = is10 ? '10º_GBM' : '26º_GBM';
-         
-         await setDoc(doc(db, config.collectionName, targetId), cleanUndefined({
+         const payload = cleanUndefined({
             days: {
               [dateStr]: {
                 [realField]: value
               }
             }
-          }), { merge: true });
+          });
+
+         try {
+           await fetch('/api/officer-scales/update', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({
+               collectionName: config.collectionName,
+               docId: targetId,
+               data: payload
+             })
+           });
+         } catch (e: any) {
+           console.warn('[GenericOfficerGrdModule] Erro na API ao atualizar dia:', e?.message);
+         }
       } else {
-          await setDoc(doc(db, config.collectionName, docId), cleanUndefined({
+         const payload = cleanUndefined({
             days: {
               [dateStr]: {
                 [field]: value
               }
             }
-          }), { merge: true });
+          });
+
+         try {
+           await fetch('/api/officer-scales/update', {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({
+               collectionName: config.collectionName,
+               docId,
+               data: payload
+             })
+           });
+         } catch (e: any) {
+           console.warn('[GenericOfficerGrdModule] Erro na API ao atualizar dia:', e?.message);
+         }
       }
     } catch (error) {
       console.error(`Error saving ${config.title} scale:`, error);
@@ -507,7 +644,126 @@ export function GenericOfficerGrdModule({
       )}
 
       {/* Main Table Content */}
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
+      <div className="flex-1 overflow-auto p-4 sm:p-6 space-y-6">
+        {/* Seção Superior Expansível: Previsão de Cotas / Tabela Configurada */}
+        {!isGlobal && (
+          <div className="bg-white border border-slate-200 shadow-md rounded-2xl p-4 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4 border-b border-slate-100 pb-3">
+              <div>
+                <h3 className={cn("text-sm font-black uppercase tracking-widest flex items-center gap-2", isCyan ? "text-cyan-800" : "text-emerald-800")}>
+                  <Shield className={cn("w-4 h-4", isCyan ? "text-cyan-600" : "text-emerald-600")} />
+                  Previsão de Cotas (Ordenado por Antiguidade)
+                </h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                  Vermelho: Fim de semana | Roxo: Sexta-feira | Preto: Seg-Qui
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Abas para alternar entre as 2 funções da escala */}
+                <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                  <button
+                    onClick={() => setConfigTab('oficialDia')}
+                    className={cn(
+                      "px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-md transition-all",
+                      configTab === 'oficialDia'
+                        ? (isCyan ? "bg-cyan-600 text-white shadow-sm" : "bg-emerald-600 text-white shadow-sm")
+                        : "text-slate-600 hover:text-slate-900"
+                    )}
+                  >
+                    {config.configSelectorLabel1}
+                  </button>
+                  <button
+                    onClick={() => setConfigTab('sobreaviso')}
+                    className={cn(
+                      "px-2.5 py-1 text-[10px] font-black uppercase tracking-wider rounded-md transition-all",
+                      configTab === 'sobreaviso'
+                        ? (isCyan ? "bg-cyan-600 text-white shadow-sm" : "bg-emerald-600 text-white shadow-sm")
+                        : "text-slate-600 hover:text-slate-900"
+                    )}
+                  >
+                    {config.configSelectorLabel2}
+                  </button>
+                </div>
+
+                {/* Botão para Configurar Oficiais */}
+                <button
+                  onClick={() => setShowConfig(true)}
+                  className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors flex items-center gap-1.5 border border-slate-200"
+                >
+                  <Users className="w-3.5 h-3.5" /> Configurar Seleção
+                </button>
+
+                {/* Botão de Expandir / Diminuir */}
+                <button
+                  onClick={() => setIsQuotasExpanded(!isQuotasExpanded)}
+                  className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg transition-colors flex items-center gap-1.5"
+                  title={isQuotasExpanded ? "Diminuir / Recolher seção" : "Expandir seção"}
+                >
+                  {isQuotasExpanded ? (
+                    <>
+                      <ChevronUp className="w-3.5 h-3.5" /> Recolher
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-3.5 h-3.5" /> Expandir Cotas
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {!isQuotasExpanded ? (
+              <div className="flex items-center justify-between text-xs font-bold text-slate-500 py-1">
+                <span>
+                  {distributionQuotas.length} oficiais configurados na cota de {configTab === 'oficialDia' ? config.configSelectorLabel1 : config.configSelectorLabel2} ({format(currentDate, 'MMMM yyyy', { locale: ptBR })}).
+                </span>
+                <button
+                  onClick={() => setIsQuotasExpanded(true)}
+                  className={cn("text-xs font-black uppercase tracking-wider flex items-center gap-1", isCyan ? "text-cyan-700 hover:text-cyan-800" : "text-emerald-700 hover:text-emerald-800")}
+                >
+                  Expandir Tabela <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px]">
+                      <th className="px-3 py-2 border-r border-slate-200">Oficial</th>
+                      <th className="px-3 py-2 border-r border-slate-200 text-center text-rose-600">FDS (Vermelho)</th>
+                      <th className="px-3 py-2 border-r border-slate-200 text-center text-purple-600">Sexta (Roxo)</th>
+                      <th className="px-3 py-2 border-r border-slate-200 text-center text-slate-700">Semana (Preto)</th>
+                      <th className={cn("px-3 py-2 text-center", isCyan ? "text-cyan-700" : "text-emerald-700")}>Total (Cota)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {distributionQuotas.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="text-center py-4 text-slate-400 italic">
+                          Nenhum oficial selecionado para cálculo nesta função. Clique em "Configurar Seleção" para selecionar.
+                        </td>
+                      </tr>
+                    ) : (
+                      distributionQuotas.map((dist) => (
+                        <tr key={dist.rg} className="hover:bg-slate-50">
+                          <td className="px-3 py-2 border-r border-slate-100 font-bold uppercase text-slate-700">{dist.name}</td>
+                          <td className="px-3 py-2 border-r border-slate-100 text-center font-black text-rose-600">{dist.quotaRed}</td>
+                          <td className="px-3 py-2 border-r border-slate-100 text-center font-black text-purple-600">{dist.quotaPurple}</td>
+                          <td className="px-3 py-2 border-r border-slate-100 text-center font-black text-slate-800">{dist.quotaBlack}</td>
+                          <td className={cn("px-3 py-2 text-center font-black", isCyan ? "text-cyan-700 bg-cyan-50" : "text-emerald-700 bg-emerald-50")}>
+                            {dist.quotaTotal}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="min-w-[1000px] bg-white border border-slate-300 shadow-xl overflow-hidden rounded-sm">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -650,10 +906,10 @@ export function GenericOfficerGrdModule({
                               </div>
 
                               <div className="max-h-48 overflow-y-auto space-y-1">
-                                {user && (
+                                {user && COLS_OFICIAIS.includes(parseRank(user.rank)) && (
                                    <button
                                      onClick={() => {
-                                       updateOfficerDay(dateStr, field, `${user.rank} ${user.warName || (user.name || '').split(' ')[0]}`);
+                                       updateOfficerDay(dateStr, field, `${parseRank(user.rank)} ${user.warName || (user.name || '').split(' ')[0]}`);
                                        setActiveSearchDay(null);
                                      }}
                                      className={cn(
@@ -668,20 +924,20 @@ export function GenericOfficerGrdModule({
                                      </div>
                                      <div className="flex-1">
                                        <span className="text-[11px] font-black uppercase block leading-tight">Escalar a Mim Mesmo</span>
-                                       <span className="text-[9px] font-bold opacity-75">{user.rank} {user.warName}</span>
+                                       <span className="text-[9px] font-bold opacity-75">{parseRank(user.rank)} {user.warName}</span>
                                      </div>
                                    </button>
                                 )}
 
-                                {militars
+                                {availableOfficers
                                   .filter(m => {
                                     if (!searchTerm) return true;
                                     const term = searchTerm.toLowerCase();
                                     return (m.name || '').toLowerCase().includes(term) ||
                                            (m.warName || '').toLowerCase().includes(term) ||
-                                           (m.rank || '').toLowerCase().includes(term);
+                                           (m.rank || '').toLowerCase().includes(term) ||
+                                           (m.rg || '').toString().includes(term);
                                   })
-                                  .slice(0, 15)
                                   .map(m => (
                                     <button
                                       key={m.rg}
@@ -689,12 +945,18 @@ export function GenericOfficerGrdModule({
                                         updateOfficerDay(dateStr, field, `${parseRank(m.rank)} ${m.warName || (m.name || '').split(' ')[0]}`);
                                         setActiveSearchDay(null);
                                       }}
-                                      className="w-full text-left p-1.5 hover:bg-slate-100 rounded text-[11px] font-black uppercase text-slate-700 flex items-center justify-between"
+                                      className="w-full text-left p-1.5 hover:bg-slate-100 rounded text-[11px] font-black uppercase text-slate-700 flex items-center justify-between cursor-pointer"
                                     >
                                       <span>{parseRank(m.rank)} {m.warName || (m.name || '').split(' ')[0]}</span>
                                       <span className="text-[9px] text-slate-400 font-mono">{m.rg}</span>
                                     </button>
                                   ))}
+
+                                {availableOfficers.length === 0 && (
+                                  <div className="p-3 text-center text-slate-400 text-xs">
+                                    Nenhum oficial configurado para este módulo. Acesse <strong>Configuração de Efetivo</strong>.
+                                  </div>
+                                )}
                               </div>
                             </div>
                           )}

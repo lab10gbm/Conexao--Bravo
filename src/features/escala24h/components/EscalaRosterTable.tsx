@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { 
-  Users, ArrowLeftRight, ArrowRightLeft, BriefcaseBusiness, Trash2, Star 
+  Users, ArrowLeftRight, ArrowRightLeft, BriefcaseBusiness, Trash2, Star,
+  UserMinus, CalendarOff
 } from 'lucide-react';
 import { parseRank } from '../../../lib/rankUtils';
 import { cn, formatMilitaryName, normalizeObm } from '../../../lib/utils';
@@ -37,6 +38,7 @@ export interface EscalaRosterTableProps {
   manuallyAddedRgs: Record<string, string[]>;
   selectedDate: string;
   onRemoveMilitaryFromScale: (militar: any, rg: string) => void;
+  onTransferToAfastamento?: (militar: any) => void;
   getAllowedOptions: (militar: any) => string[] | undefined;
   activeScaleFuncOptions: string[];
   functionUsageStats: any;
@@ -69,6 +71,7 @@ export function EscalaRosterTable({
   manuallyAddedRgs,
   selectedDate,
   onRemoveMilitaryFromScale,
+  onTransferToAfastamento,
   getAllowedOptions,
   activeScaleFuncOptions,
   functionUsageStats,
@@ -233,72 +236,93 @@ export function EscalaRosterTable({
                   </td>
 
                   <td className="py-1.5 px-2.5 border-r border-slate-100 relative group w-[1%] whitespace-nowrap">
-                    <div
-                      className={cn(
-                        "flex items-center gap-2 pr-1",
-                        isSwapped ? "opacity-40" : "",
-                      )}
-                    >
-                      <RankInsignia
-                        rankStr={militar.rank}
-                        className="w-4 h-4 flex-shrink-0"
-                      />
-                      <div className="flex flex-col text-left">
-                        <span className="text-[8.5px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-0.5">
-                          {parseRank(militar.rank)}
-                        </span>
-                        <span
-                          className={cn(
-                            "text-xs font-black leading-none mb-0.5 uppercase tracking-tight flex items-center gap-1",
-                            isSwapped
-                              ? "text-slate-600 line-through"
-                              : "text-slate-800",
-                          )}
-                        >
-                          <span>{militar.warName?.toUpperCase() || formatMilitaryName(militar.name || "")}</span>
-                          {!isSwapped && (selectedFunctions[rg] || []).some(fn => isPreferredAssignment(predefinicoes, rg, fn)) && (
-                            <span
-                              title="★ Escalado conforme preferência configurada pelo escalante"
-                              className="inline-flex items-center"
-                            >
-                              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 shrink-0 drop-shadow-2xs" />
-                            </span>
-                          )}
-                        </span>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="text-[8.5px] text-slate-400 font-mono tracking-widest leading-none">
-                            RG: {rg}
+                    <div className="flex items-center justify-between gap-3">
+                      <div
+                        className={cn(
+                          "flex items-center gap-2 pr-1",
+                          isSwapped ? "opacity-40" : "",
+                        )}
+                      >
+                        <RankInsignia
+                          rankStr={militar.rank}
+                          className="w-4 h-4 flex-shrink-0"
+                        />
+                        <div className="flex flex-col text-left">
+                          <span className="text-[8.5px] font-bold text-slate-500 uppercase tracking-widest leading-none mb-0.5">
+                            {parseRank(militar.rank)}
                           </span>
-                          <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-1 py-0.2 rounded">
-                            {militar.quadro?.split('/')[0] || 'S/Q'}
+                          <span
+                            className={cn(
+                              "text-xs font-black leading-none mb-0.5 uppercase tracking-tight flex items-center gap-1",
+                              isSwapped
+                                ? "text-slate-600 line-through"
+                                : "text-slate-800",
+                            )}
+                          >
+                            <span>{militar.warName?.toUpperCase() || formatMilitaryName(militar.name || "")}</span>
+                            {!isSwapped && (selectedFunctions[rg] || []).some(fn => isPreferredAssignment(predefinicoes, rg, fn)) && (
+                              <span
+                                title="★ Escalado conforme preferência configurada pelo escalante"
+                                className="inline-flex items-center"
+                              >
+                                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500 shrink-0 drop-shadow-2xs" />
+                              </span>
+                            )}
                           </span>
-                          {expedienteRgs.includes(rg) && (
-                            <span className="text-[7.5px] font-bold text-orange-600 bg-orange-100 px-1 py-0.2 rounded uppercase tracking-widest">
-                              EXPEDIENTE
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[8.5px] text-slate-400 font-mono tracking-widest leading-none">
+                              RG: {rg}
                             </span>
-                          )}
-                          {visibleRasApplications.some(a => a.militarRg === rg) && (
-                            <span className="text-[7.5px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-1 py-0.2 rounded uppercase tracking-widest flex items-center gap-0.5 shadow-2xs">
-                              <BriefcaseBusiness className="w-2.5 h-2.5 text-amber-600" />
-                              RAS {visibleRasApplications.find(a => a.militarRg === rg)?.oppDuration ? `(${visibleRasApplications.find(a => a.militarRg === rg)?.oppDuration}h)` : ''}
+                            <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-1 py-0.2 rounded">
+                              {militar.quadro?.split('/')[0] || 'S/Q'}
                             </span>
-                          )}
+                            {expedienteRgs.includes(rg) && (
+                              <span className="text-[7.5px] font-bold text-orange-600 bg-orange-100 px-1 py-0.2 rounded uppercase tracking-widest">
+                                EXPEDIENTE
+                              </span>
+                            )}
+                            {visibleRasApplications.some(a => a.militarRg === rg) && (
+                              <span className="text-[7.5px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-1 py-0.2 rounded uppercase tracking-widest flex items-center gap-0.5 shadow-2xs">
+                                <BriefcaseBusiness className="w-2.5 h-2.5 text-amber-600" />
+                                RAS {visibleRasApplications.find(a => a.militarRg === rg)?.oppDuration ? `(${visibleRasApplications.find(a => a.militarRg === rg)?.oppDuration}h)` : ''}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
+
+                      {/* Botões de Ação: Transferir para Afastamento e Remover da Relação Atual */}
+                      {!isSwapped && (
+                        <div className="flex items-center gap-1 shrink-0 opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                          {onTransferToAfastamento && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onTransferToAfastamento(militar);
+                              }}
+                              className="px-1.5 py-1 rounded-md bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 hover:border-amber-300 transition-all shadow-2xs cursor-pointer flex items-center gap-1"
+                              title="Transferir militar para Afastamentos (registra motivo e retira da escala)"
+                            >
+                              <CalendarOff className="w-3 h-3 text-amber-600" />
+                              <span className="hidden xl:inline text-[8px] font-black uppercase tracking-wider">Afastar</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onRemoveMilitaryFromScale(militar, rg);
+                            }}
+                            className="px-1.5 py-1 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 hover:border-rose-300 transition-all shadow-2xs cursor-pointer flex items-center gap-1"
+                            title={visibleRasApplications.some(a => a.militarRg === rg) ? "Excluir militar do RAS e da escala" : "Remover da relação atual (alteração temporária para este dia)"}
+                          >
+                            <UserMinus className="w-3 h-3 text-rose-600" />
+                            <span className="hidden xl:inline text-[8px] font-black uppercase tracking-wider">Remover</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    {(manuallyAddedRgs[selectedDate]?.includes(rg) || visibleRasApplications.some(a => a.militarRg === rg)) && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onRemoveMilitaryFromScale(militar, rg);
-                        }}
-                        className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded shadow-sm opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
-                        title={visibleRasApplications.some(a => a.militarRg === rg) ? "Excluir militar do RAS e da escala" : "Remover Adição Manual"}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    )}
                   </td>
 
                   <td

@@ -3,6 +3,7 @@ import { format, startOfWeek, addDays, startOfMonth, endOfMonth, eachDayOfInterv
 import { doc, setDoc, updateDoc, deleteField } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import { cleanUndefined } from '../../../lib/utils';
+import { safeSaveDocRef, safeSaveDocument } from '../../../lib/apiClient';
 import { safeArr } from '../lib/expedienteCalculos';
 import { UserProfile } from '../../../types';
 import type {
@@ -85,13 +86,13 @@ export function useExpedienteActions({
       expedienteDays: { ...(prev.expedienteDays || {}), [rg]: newExp }
     }));
 
-    await setDoc(
+    await safeSaveDocRef(
       monthDocRef,
       cleanUndefined({
         selections: { [rg]: newSels },
         expedienteDays: { [rg]: newExp }
       }),
-      { merge: true }
+      true
     );
 
     setActionFeedback({
@@ -119,13 +120,13 @@ export function useExpedienteActions({
       expedienteDays: { ...(prev.expedienteDays || {}), [rg]: newExp }
     }));
 
-    await setDoc(
+    await safeSaveDocRef(
       monthDocRef,
       cleanUndefined({
         selections: { [rg]: newSels },
         expedienteDays: { [rg]: newExp }
       }),
-      { merge: true }
+      true
     );
 
     setActionFeedback({
@@ -157,7 +158,7 @@ export function useExpedienteActions({
       }
     }));
 
-    await setDoc(
+    await safeSaveDocRef(
       monthDocRef,
       cleanUndefined({
         selections: {
@@ -165,7 +166,7 @@ export function useExpedienteActions({
           [rgB]: selsB
         }
       }),
-      { merge: true }
+      true
     );
 
     setActionFeedback({
@@ -201,13 +202,13 @@ export function useExpedienteActions({
       expedienteDays: { ...(prev.expedienteDays || {}), [rg]: newExp }
     }));
 
-    await setDoc(
+    await safeSaveDocRef(
       monthDocRef,
       cleanUndefined({
         selections: { [rg]: newSels },
         expedienteDays: { [rg]: newExp }
       }),
-      { merge: true }
+      true
     );
 
     setActionFeedback({
@@ -226,9 +227,7 @@ export function useExpedienteActions({
         .toUpperCase()
         .replace(/[^A-Z0-9]/g, '')
         .replace(/^0+/, '');
-      if (db) {
-        await setDoc(doc(db, 'militaries', safeRg), { ala: 'EXP' }, { merge: true });
-      }
+      await safeSaveDocument('militaries', safeRg, { ala: 'EXP' }, true);
       updateMilitarLocal(addMemberRg, { ala: 'EXP' });
       setAddMemberRg('');
       setMemberSearchTerm('');
@@ -265,9 +264,7 @@ export function useExpedienteActions({
         .replace(/[^A-Z0-9]/g, '')
         .replace(/^0+/, '');
 
-      if (db) {
-        await setDoc(doc(db, 'militaries', safeRg), { ala: alaValue }, { merge: true });
-      }
+      await safeSaveDocument('militaries', safeRg, { ala: alaValue }, true);
       updateMilitarLocal(rgToUpdate, { ala: alaValue });
 
       try {
@@ -319,12 +316,12 @@ export function useExpedienteActions({
         preferencesDetails: newPrefs
       }));
 
-      await setDoc(
+      await safeSaveDocRef(
         monthDocRef,
         cleanUndefined({
           selections: { ESCALANTE_PREF: sels }
         }),
-        { merge: true }
+        true
       );
       try {
         await updateDoc(monthDocRef, { [`preferencesDetails.${dayStr}`]: deleteField() });
@@ -334,10 +331,10 @@ export function useExpedienteActions({
         ...prev,
         selections: { ...prev.selections, ESCALANTE_PREF: sels }
       }));
-      await setDoc(
+      await safeSaveDocRef(
         monthDocRef,
         cleanUndefined({ selections: { ESCALANTE_PREF: sels } }),
-        { merge: true }
+        true
       );
     }
   };
@@ -345,7 +342,7 @@ export function useExpedienteActions({
   const updateExpQuota = async (rg: string, quota: number) => {
     const newQuotas = { ...data.expQuotas, [rg]: quota };
     setData((prev) => ({ ...prev, expQuotas: newQuotas }));
-    await setDoc(globalDocRef, cleanUndefined({ expQuotas: newQuotas }), { merge: true });
+    await safeSaveDocRef(globalDocRef, cleanUndefined({ expQuotas: newQuotas }), true);
   };
 
   const handleCycleCellStatus = async (rg: string, dayStr: string) => {
@@ -380,13 +377,13 @@ export function useExpedienteActions({
       expedienteDays: { ...(prev.expedienteDays || {}), [rg]: newExp }
     }));
 
-    await setDoc(
+    await safeSaveDocRef(
       monthDocRef,
       cleanUndefined({
         selections: { [rg]: newSels },
         expedienteDays: { [rg]: newExp }
       }),
-      { merge: true }
+      true
     );
   };
 
@@ -520,13 +517,13 @@ export function useExpedienteActions({
       }));
     }
 
-    await setDoc(
+    await safeSaveDocRef(
       targetDocRef,
       cleanUndefined({
         selections: { [rg]: newSels },
         expedienteDays: { [rg]: newExp }
       }),
-      { merge: true }
+      true
     );
   };
 
@@ -573,13 +570,13 @@ export function useExpedienteActions({
       }));
     }
 
-    await setDoc(
+    await safeSaveDocRef(
       targetDocRef,
       cleanUndefined({
         selections: { [rg]: newSels },
         expedienteDays: { [rg]: newExp }
       }),
-      { merge: true }
+      true
     );
   };
 
@@ -639,9 +636,7 @@ export function useExpedienteActions({
     console.log('newExpDays', newExpDays);
 
     setData((prev) => ({ ...prev, expedienteDays: newExpDays }));
-    await setDoc(monthDocRef, cleanUndefined({ expedienteDays: newExpDays }), {
-      merge: true
-    });
+    await safeSaveDocRef(monthDocRef, cleanUndefined({ expedienteDays: newExpDays }), true);
 
     setAutoExpStatus(true);
     setTimeout(() => setAutoExpStatus(false), 2000);
@@ -675,9 +670,7 @@ export function useExpedienteActions({
       } catch (e) {}
     } else {
       const newFbPrefs = { ...(data.preferencesDetails || {}), [dayStr]: fbDayData };
-      await setDoc(monthDocRef, cleanUndefined({ preferencesDetails: newFbPrefs }), {
-        merge: true
-      });
+      await safeSaveDocRef(monthDocRef, cleanUndefined({ preferencesDetails: newFbPrefs }), true);
     }
   };
 
@@ -779,7 +772,7 @@ export function useExpedienteActions({
           }
         : {})
     }));
-    await setDoc(monthDocRef, cleanUndefined(newMonthData), { merge: true });
+    await safeSaveDocRef(monthDocRef, cleanUndefined(newMonthData), true);
   };
 
   const handleToggleDay = async (day: Date) => {

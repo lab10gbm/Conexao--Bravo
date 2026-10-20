@@ -126,21 +126,21 @@ export function EstudoTecnicoGuarnicoesModule({
        if (prefix === 'AR') return 'CONDUTOR AR';
        if (prefix === 'ASE') return 'CONDUTOR ASE';
        if (prefix === 'ARC') return 'CONDUTOR ARC';
-       return 'CONDUTOR';
+       return prefix ? `CONDUTOR ${prefix}` : 'CONDUTOR';
     }
     if (slot === 'cg') {
        if (isMar) return 'CHEFE GUA MARITIMA';
        if (prefix === 'ABT') return 'CHEFE ABT';
        if (prefix === 'ABSL') return 'CHEFE ABSL';
        if (prefix === 'ARC') return 'AUXILIAR/CHEFE ARC';
-       return 'CHEFE GUA';
+       return prefix ? `CHEFE ${prefix}` : 'CHEFE';
     }
     if (isMar) return 'AUXILIAR MARITIMO';
     if (prefix === 'ABT') return 'AUXILIAR ABT';
     if (prefix === 'ABSL') return 'AUXILIAR ABSL';
     if (prefix === 'AR') return 'AUXILIAR AR';
     if (prefix === 'ASE') return 'AUXILIAR ASE';
-    return 'AUXILIAR GUA';
+    return prefix ? `AUXILIAR ${prefix}` : 'AUXILIAR';
   };
   const getSlotDisplayName = (v: any, slot: string) => {
     if (v.vtr) {
@@ -156,7 +156,6 @@ export function EstudoTecnicoGuarnicoesModule({
     const allowed = new Set<string>();
     
     if (militar.ativoCondutor) {
-      allowed.add('CONDUTOR');
       if (militar.ativoEncarregado) allowed.add('ENCARREGADO DE MOTORISTA');
       if (militar.ativoAbastecedor) allowed.add('ABASTECEDOR');
       if (militar.viaturas?.AR) allowed.add('CONDUTOR AR');
@@ -167,14 +166,12 @@ export function EstudoTecnicoGuarnicoesModule({
     }
     
     if (militar.ativoChefeGua) {
-      allowed.add('CHEFE GUA');
       if (militar.chefeAbsl) allowed.add('CHEFE ABSL');
       if (militar.chefeAbt) allowed.add('CHEFE ABT');
       allowed.add('AUXILIAR/CHEFE ARC');
     }
     
     if (militar.ativoAuxiliar) {
-      allowed.add('AUXILIAR GUA');
       if (militar.auxAbt) allowed.add('AUXILIAR ABT');
       if (militar.auxAbsl) allowed.add('AUXILIAR ABSL');
       if (militar.auxArc) allowed.add('AUXILIAR/CHEFE ARC');
@@ -222,6 +219,13 @@ export function EstudoTecnicoGuarnicoesModule({
     if (militar.isEscalante) {
       allowed.add('ESCALANTE');
     }
+    
+    allowed.delete('CONDUTOR');
+    allowed.delete('CHEFE GUA');
+    allowed.delete('CHEFE');
+    allowed.delete('AUXILIAR GUA');
+    allowed.delete('AUX GUA');
+    allowed.delete('AUXILIAR');
     
     return Array.from(allowed);
   };

@@ -40,6 +40,16 @@ export interface UserProfile {
   cursos?: string;
   cidade?: string;
   isOficial?: boolean;
+  isMedico?: boolean;
+  regiao?: string;
+  cba?: string;
+  gse?: boolean;
+  obmOrigem?: string;
+  obmAtuacao?: string;
+  funcao?: string;
+  tempoFuncao?: string;
+  admissionDate?: string;
+  ingresso?: string;
   idFuncional?: string;
   cel?: string;
   cel2?: string;

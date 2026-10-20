@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { LayoutGrid, X, BadgeInfo, CheckCircle2, Loader2, Shield } from 'lucide-react';
 import { format } from 'date-fns';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
 import { cleanUndefined } from '../../../lib/utils';
 import { UserProfile } from '../../../types';
 
@@ -92,7 +90,17 @@ export function GrdPasteModal({
 
       try {
         if (Object.keys(newPastedGrdData).length > 0) {
-          await setDoc(doc(db, 'grd_configs', docId), cleanUndefined({ days: newPastedGrdData }), { merge: true });
+          const payload = cleanUndefined({ days: newPastedGrdData });
+          await fetch('/api/officer-scales/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              collectionName: 'grd_configs',
+              docId,
+              data: payload,
+              merge: true
+            })
+          }).catch(err => console.warn('[GrdPasteModal] Backend API warning:', err));
         }
         setPasteResults({ success: successCount, errors });
       } catch (err) {
@@ -140,7 +148,17 @@ export function GrdPasteModal({
 
       try {
         if (Object.keys(newPastedOfficerData).length > 0) {
-          await setDoc(doc(db, 'officer_scales', obmId), cleanUndefined({ days: newPastedOfficerData }), { merge: true });
+          const payload = cleanUndefined({ days: newPastedOfficerData });
+          await fetch('/api/officer-scales/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              collectionName: 'officer_scales',
+              docId: obmId,
+              data: payload,
+              merge: true
+            })
+          }).catch(err => console.warn('[GrdPasteModal] Backend API warning:', err));
         }
         setPasteResults({ success: successCount, errors });
       } catch (err) {

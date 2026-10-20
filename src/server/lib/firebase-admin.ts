@@ -58,7 +58,16 @@ export function initFirebaseAdmin() {
   return true;
 }
 
+export function hasAdminCredentials(): boolean {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) return true;
+  const saFilePath = path.join(process.cwd(), 'service-account.json');
+  return fs.existsSync(saFilePath);
+}
+
 export const getAdminDb = () => {
+    if (!hasAdminCredentials()) {
+        return null;
+    }
     if (!isInitialized) initFirebaseAdmin();
     // Default to the correct database from config file
     const firebaseConfigPath = path.join(process.cwd(), 'firebase-applet-config.json');

@@ -78,17 +78,31 @@ export function CorrelacaoFuncoesModal({
 
       try {
         const canonicalKey = getObmSettingsDocKey(obmContext);
-        const docRef = doc(db, "obm_settings", canonicalKey);
-        let snapshot = await getDoc(docRef);
+        let loadedCorr: any = null;
+        let loadedQtds: any = null;
 
-        let loadedCorr = snapshot.exists()
-          ? snapshot.data()?.escala_regras?.correlation
-          : null;
-        let loadedQtds = snapshot.exists()
-          ? snapshot.data()?.escala_regras?.qtds
-          : null;
+        // Fast load from backend API
+        try {
+          const apiRes = await fetch(`/api/obm-settings?key=${canonicalKey}`);
+          const apiData = await apiRes.json();
+          if (apiData.success && apiData.data?.escala_regras) {
+            loadedCorr = apiData.data.escala_regras.correlation;
+            loadedQtds = apiData.data.escala_regras.qtds;
+          }
+        } catch(apiErr) {}
 
-        if (!loadedCorr) {
+        if (!loadedCorr && db) {
+          try {
+            const docRef = doc(db, "obm_settings", canonicalKey);
+            const snapshot = await getDoc(docRef);
+            if (snapshot.exists()) {
+              loadedCorr = snapshot.data()?.escala_regras?.correlation;
+              loadedQtds = snapshot.data()?.escala_regras?.qtds;
+            }
+          } catch(e) {}
+        }
+
+        if (!loadedCorr && db) {
           // Check fallbacks and migrate
           const fallbacks = getObmSettingsFallbackKeys(obmContext).filter(k => k !== canonicalKey);
           for (const fk of fallbacks) {
@@ -148,19 +162,31 @@ export function CorrelacaoFuncoesModal({
 
   const handleSave = async () => {
     setSaving(true);
+    const canonicalKey = getObmSettingsDocKey(obmContext);
+    const payload = cleanUndefined({
+      escala_regras: {
+        correlation,
+        qtds,
+      },
+    });
+
     try {
-      const canonicalKey = getObmSettingsDocKey(obmContext);
-      const docRef = doc(db, "obm_settings", canonicalKey);
-      await setDoc(
-        docRef,
-        cleanUndefined({
-          escala_regras: {
-            correlation,
-            qtds,
-          },
-        }),
-        { merge: true }
-      );
+      // 1. Backend persistence via API
+      await fetch('/api/obm-settings/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: canonicalKey, data: payload })
+      }).catch(err => console.warn('[CorrelacaoFuncoes] Backend API warning:', err));
+
+      // 2. Client-side setDoc for real-time reactivity
+      if (db) {
+        try {
+          const docRef = doc(db, "obm_settings", canonicalKey);
+          await setDoc(docRef, payload, { merge: true });
+        } catch (dbErr) {
+          console.warn('[CorrelacaoFuncoes] Client setDoc warning (handled):', dbErr);
+        }
+      }
       onClose();
     } catch (err) {
       console.error("Failed to save settings:", err);

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { setDoc } from 'firebase/firestore';
 import { cn, cleanUndefined } from '../../../lib/utils';
+import { safeSaveDocRef } from '../../../lib/apiClient';
 import { UserProfile } from '../../../types';
 import { ExpedienteData } from '../types';
 import { safeArr } from '../lib/expedienteCalculos';
@@ -737,7 +738,7 @@ export const ExpedienteCalendarView: React.FC<ExpedienteCalendarViewProps> = ({
                               [req.rg]: newSels
                             }
                           };
-                          await setDoc(monthDocRef, cleanUndefined(newMonthData), { merge: true });
+                          await safeSaveDocRef(monthDocRef, cleanUndefined(newMonthData), true);
                         }}
                         className="flex-1 bg-green-500 hover:bg-green-600 text-white text-[9px] font-black uppercase py-1.5 rounded transition-colors"
                       >
@@ -747,7 +748,7 @@ export const ExpedienteCalendarView: React.FC<ExpedienteCalendarViewProps> = ({
                         onClick={async () => {
                           // Reject
                           const updatedRequests = data.swapRequests!.map(r => r.id === req.id ? { ...r, status: 'rejected' as const } : r);
-                          await setDoc(monthDocRef, cleanUndefined({ swapRequests: updatedRequests }), { merge: true });
+                          await safeSaveDocRef(monthDocRef, cleanUndefined({ swapRequests: updatedRequests }), true);
                         }}
                         className="flex-1 bg-red-500 hover:bg-red-600 text-white text-[9px] font-black uppercase py-1.5 rounded transition-colors"
                       >

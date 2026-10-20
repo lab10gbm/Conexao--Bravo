@@ -7,14 +7,14 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
-    "start": "node dist/server.cjs",
-    "preview": "vite preview",
-    "next:dev": "next dev",
-    "next:build": "next build",
-    "next:start": "next start",
-    "clean": "rm -rf dist",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "dev:legacy": "tsx watch server.ts",
+    "build:legacy": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "start:legacy": "node dist/server.cjs",
+    "preview": "next start",
+    "clean": "rm -rf .next dist",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

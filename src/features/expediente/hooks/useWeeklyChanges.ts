@@ -4,6 +4,7 @@ import { ptBR } from 'date-fns/locale';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import { cleanUndefined, formatMilitaryName } from '../../../lib/utils';
+import { safeSaveDocRef } from '../../../lib/apiClient';
 import { safeArr } from '../lib/expedienteCalculos';
 import type {
   WeeklyChangeRequest,
@@ -193,9 +194,7 @@ export function useWeeklyChanges({
       }));
     }
 
-    await setDoc(targetDocRef, cleanUndefined({ weeklyChangeRequests: updated }), {
-      merge: true
-    });
+    await safeSaveDocRef(targetDocRef, cleanUndefined({ weeklyChangeRequests: updated }), true);
     setShowWeeklyChangeModal(false);
     setActionFeedback({
       type: 'success',
@@ -238,13 +237,13 @@ export function useWeeklyChanges({
           }
         });
 
-        await setDoc(
+        await safeSaveDocRef(
           docRef,
           cleanUndefined({
             selections: { [req.rg]: userSels },
             expedienteDays: { [req.rg]: userExp }
           }),
-          { merge: true }
+          true
         );
 
         if (mKey === monthKey) {
@@ -292,10 +291,10 @@ export function useWeeklyChanges({
         }
       );
 
-      await setDoc(
+      await safeSaveDocRef(
         reqDocRef,
         cleanUndefined({ weeklyChangeRequests: updatedRequests }),
-        { merge: true }
+        true
       );
 
       if (reqMonthKey === monthKey) {
@@ -358,10 +357,10 @@ export function useWeeklyChanges({
         }
       );
 
-      await setDoc(
+      await safeSaveDocRef(
         reqDocRef,
         cleanUndefined({ weeklyChangeRequests: updatedRequests }),
-        { merge: true }
+        true
       );
 
       if (reqMonthKey === monthKey) {
@@ -400,10 +399,10 @@ export function useWeeklyChanges({
         (r: WeeklyChangeRequest) => r.id !== reqId
       );
 
-      await setDoc(
+      await safeSaveDocRef(
         reqDocRef,
         cleanUndefined({ weeklyChangeRequests: updatedRequests }),
-        { merge: true }
+        true
       );
 
       if (reqMonthKey === monthKey) {

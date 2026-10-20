@@ -23,6 +23,9 @@ import { lazyWithRetry } from "../lib/lazyWithRetry";
 const EscalaPrintView = lazyWithRetry(() => import("./EscalaPrintView").then(m => ({ default: m.EscalaPrintView })));
 const RequestPermuta = lazyWithRetry(() => import("./RequestPermuta").then(m => ({ default: m.RequestPermuta })));
 import { AfastamentosAlaModule } from "./AfastamentosAlaModule";
+import { AdicionarMilitarModal } from "./AdicionarMilitarModal";
+import { TransferirAfastamentoModal } from "../features/escala24h/components/TransferirAfastamentoModal";
+import { ConfirmarRemocaoModal } from "../features/escala24h/components/ConfirmarRemocaoModal";
 import { ExpedienteDiaModule } from "./ExpedienteDiaModule";
 import { GrdDiaModule } from "./GrdDiaModule";
 import { SentinelasSection } from "./SentinelasSection";
@@ -143,6 +146,9 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
   const [addMilitarSearch, setAddMilitarSearch] = useState('');
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showAddMilitarModal, setShowAddMilitarModal] = useState(false);
+  const [militarToAfastar, setMilitarToAfastar] = useState<any | null>(null);
+  const [militarToConfirmRemove, setMilitarToConfirmRemove] = useState<{ militar: any; rg: string } | null>(null);
   const [globalSearchResults, setGlobalSearchResults] = useState<any[]>([]);
   const [extraMilitars, setExtraMilitars] = useState<any[]>([]);
   const addMenuRef = useRef<HTMLDivElement>(null);
@@ -1456,6 +1462,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         permutasCount={permutas.length}
         savingState={savingState}
         onOpenPermutaModal={() => setIsPermutaModalOpen(true)}
+        onOpenAddMilitar={() => setShowAddMilitarModal(true)}
         onOpenSorteio={setSorteioScope}
         onOpenPredefinicoes={() => setIsPreferenciasModalOpen(true)}
         onLimparFuncoes={handleLimparFuncoes}
@@ -1575,7 +1582,8 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           rasApplications={rasApplications}
           manuallyAddedRgs={manuallyAddedRgs}
           selectedDate={selectedDate}
-          onRemoveMilitaryFromScale={handleRemoveMilitaryFromScale}
+          onRemoveMilitaryFromScale={(m, rg) => setMilitarToConfirmRemove({ militar: m, rg })}
+          onTransferToAfastamento={(m) => setMilitarToAfastar(m)}
           getAllowedOptions={getRawAllowedOptions}
           activeScaleFuncOptions={activeScaleFuncOptions}
           functionUsageStats={functionUsageStats}
@@ -1792,6 +1800,47 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         undoSnapshot={undoSnapshot}
         onUndoFuncoes={handleUndoFuncoes}
         actionNotice={actionNotice}
+      />
+
+      {/* Modal de Confirmação para Remover da Relação Atual */}
+      <ConfirmarRemocaoModal
+        isOpen={Boolean(militarToConfirmRemove)}
+        onClose={() => setMilitarToConfirmRemove(null)}
+        militar={militarToConfirmRemove?.militar}
+        selectedDate={selectedDate}
+        onConfirm={() => {
+          if (militarToConfirmRemove) {
+            handleRemoveMilitaryFromScale(militarToConfirmRemove.militar, militarToConfirmRemove.rg);
+            setMilitarToConfirmRemove(null);
+          }
+        }}
+      />
+
+      {/* Modal para Transferir Militar para Afastamentos */}
+      <TransferirAfastamentoModal
+        isOpen={Boolean(militarToAfastar)}
+        onClose={() => setMilitarToAfastar(null)}
+        militar={militarToAfastar}
+        selectedDate={selectedDate}
+        obmContext={obmContext}
+        onSuccess={(m, situacao) => {
+          handleRemoveMilitaryFromScale(m, m.rg);
+          setActionNotice(`Militar ${parseRank(m.rank)} ${m.warName || m.name} transferido para Afastamento (${situacao}).`);
+          setTimeout(() => setActionNotice(null), 4000);
+        }}
+      />
+
+      {/* Modal para Adicionar Militar Diretamente ao Banco de Dados e Servidor */}
+      <AdicionarMilitarModal
+        isOpen={showAddMilitarModal}
+        onClose={() => setShowAddMilitarModal(false)}
+        obmContext={obmContext}
+        initialAla={identifiedAlaStr || '1'}
+        onSuccess={(novoMilitar) => {
+          refreshMilitars();
+          setActionNotice(`Militar ${parseRank(novoMilitar.rank)} ${novoMilitar.warName || novoMilitar.name} cadastrado com sucesso no servidor!`);
+          setTimeout(() => setActionNotice(null), 4000);
+        }}
       />
     </div>
   );

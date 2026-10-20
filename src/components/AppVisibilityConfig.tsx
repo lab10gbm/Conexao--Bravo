@@ -287,6 +287,16 @@ export const MODULE_CATALOG: ModuleCatalogItem[] = [
     defaultGroups: ['ADMIN', 'ESCALANTE']
   },
   {
+    id: 'gestao-oficiais-medicos',
+    name: 'Oficiais Médicos',
+    description: 'Efetivo Médico, GSE, lotações por região e designação de médicos para OBMs',
+    section: 'moderador',
+    sectionLabel: 'Painel de Moderação',
+    icon: Stethoscope,
+    color: 'bg-rose-700 shadow-rose-200',
+    defaultGroups: ['ADMIN', 'ESCALANTE']
+  },
+  {
     id: 'configuracoes',
     name: 'Configurações',
     description: 'Painel geral do sistema, papéis, regras de alas e visibilidade',

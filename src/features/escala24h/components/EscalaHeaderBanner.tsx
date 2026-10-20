@@ -2,7 +2,7 @@ import React from 'react';
 import { 
   Calendar as CalendarIcon, CalendarRange, Users, ArrowRightLeft, 
   Shield, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, 
-  Clock, Printer 
+  Clock, Printer, UserPlus 
 } from 'lucide-react';
 import { format, parseISO, addDays, subDays, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -25,6 +25,7 @@ export interface EscalaHeaderBannerProps {
   permutasCount: number;
   savingState: 'idle' | 'saving' | 'saved';
   onOpenPermutaModal: () => void;
+  onOpenAddMilitar?: () => void;
   onOpenSorteio: (scope: SorteioScope) => void;
   onOpenPredefinicoes: () => void;
   onLimparFuncoes: (scope: SorteioScope | 'tudo') => void;
@@ -45,6 +46,7 @@ export function EscalaHeaderBanner({
   permutasCount,
   savingState,
   onOpenPermutaModal,
+  onOpenAddMilitar,
   onOpenSorteio,
   onOpenPredefinicoes,
   onLimparFuncoes,
@@ -235,6 +237,19 @@ export function EscalaHeaderBanner({
             <ArrowRightLeft className="w-3.5 h-3.5" />
             <span>Gerar Permuta</span>
           </button>
+
+          {/* Botão Adicionar Militar ao Servidor */}
+          {onOpenAddMilitar && (
+            <button
+              type="button"
+              onClick={onOpenAddMilitar}
+              className="h-8 px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-black uppercase tracking-wider text-[10.5px] shadow-2xs hover:shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer shrink-0 border border-blue-400/30"
+              title="Cadastrar novo militar definitivamente no servidor e banco de dados"
+            >
+              <UserPlus className="w-3.5 h-3.5 text-blue-100" />
+              <span>Adicionar Militar</span>
+            </button>
+          )}
 
           {/* Sorteio dividido (Viaturas | Administrativas | ⚙) + Limpar ▾ */}
           <SorteioActionBar

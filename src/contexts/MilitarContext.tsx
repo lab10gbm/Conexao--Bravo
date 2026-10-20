@@ -23,38 +23,14 @@ interface MilitarContextType {
 const MilitarContext = createContext<MilitarContextType | undefined>(undefined);
 
 export function MilitarProvider({ children }: { children: ReactNode }) {
-  const [militars, setMilitars] = useState<UserProfile[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const cached = localStorage.getItem('militars_cache_v2');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch {}
-    return [];
-  });
-  const [loading, setLoading] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    try {
-      const cached = localStorage.getItem('militars_cache_v2');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return false;
-      }
-    } catch {}
-    return true;
-  });
-  const cacheVersionRef = useRef<number>(
-    typeof window !== 'undefined' ? Number(localStorage.getItem('militars_cache_version') || '0') : 0
-  );
+  const [militars, setMilitars] = useState<UserProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const cacheVersionRef = useRef<number>(0);
 
-  const fetchMilitars = async (retryCount = 0) => {
+  const fetchMilitars = async (retryCount = 0, force = false) => {
     try {
       // Checagem leve de versão no servidor (RAM gratuita, 0 leituras do Firestore)
-      if (militars.length > 0 && retryCount === 0 && typeof window !== 'undefined') {
+      if (!force && militars.length > 0 && retryCount === 0 && typeof window !== 'undefined') {
         try {
           const vRes = await fetch('/api/militar/version', { cache: 'no-store' });
           if (vRes.ok) {
@@ -133,6 +109,18 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    try {
+      const cached = localStorage.getItem('militars_cache_v2');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMilitars(parsed);
+          setLoading(false);
+        }
+      }
+      cacheVersionRef.current = Number(localStorage.getItem('militars_cache_version') || '0');
+    } catch {}
+
     // Ensure Firebase auth session is present (anonymous fallback if not logged in)
     if (!auth.currentUser) {
       signInAnonymously(auth).catch(() => {});
@@ -159,10 +147,7 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
           if (data.version && data.version > cacheVersionRef.current) {
             console.log(`[MilitarContext] Cache version changed (${cacheVersionRef.current} -> ${data.version}). Fetching updates...`);
             cacheVersionRef.current = data.version;
-            try {
-              localStorage.setItem('militars_cache_version', String(data.version));
-            } catch {}
-            fetchMilitars();
+            fetchMilitars(0, true);
           }
         } catch (e) {
           console.error('[MilitarContext] Error parsing SSE data:', e);
@@ -194,17 +179,28 @@ export function MilitarProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshMilitars = async (rg?: string) => {
-    await fetchMilitars();
+    await fetchMilitars(0, true);
   };
 
   const updateMilitarLocal = (rg: string, updates: Partial<UserProfile>) => {
     const safeTarget = normalizeRgHelper(rg);
-    setMilitars(prev => prev.map(m => {
-      if (normalizeRgHelper(m.rg) === safeTarget || m.uid === rg) {
-        return { ...m, ...updates };
-      }
-      return m;
-    }));
+    setMilitars(prev => {
+      const next = prev.map(m => {
+        if (normalizeRgHelper(m.rg) === safeTarget || m.uid === rg) {
+          return {
+            ...m,
+            ...updates,
+            viaturas: updates.viaturas ? { ...(m.viaturas || {}), ...updates.viaturas } : m.viaturas,
+            dynamicFunctions: updates.dynamicFunctions ? { ...(m.dynamicFunctions || {}), ...updates.dynamicFunctions } : m.dynamicFunctions
+          };
+        }
+        return m;
+      });
+      try {
+        localStorage.setItem('militars_cache_v2', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   };
 
   const deleteMilitar = async (rg: string): Promise<boolean> => {

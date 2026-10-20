@@ -138,12 +138,17 @@ export const isMilitarAllowedForFn = (
   const gNorm = normalizeFnName(genericName);
   return allowed.some((a) => {
     const aNorm = normalizeFnName(a);
-    return (
-      isEquivalentFn(aNorm, sNorm) ||
-      isEquivalentFn(aNorm, gNorm) ||
-      sNorm.includes(aNorm) ||
-      aNorm.includes(sNorm)
-    );
+    if (isEquivalentFn(aNorm, sNorm) || isEquivalentFn(aNorm, gNorm)) {
+      return true;
+    }
+    if (aNorm === 'CONDUTOR' || aNorm === 'CHEFE' || aNorm === 'AUXILIAR') {
+      return false;
+    }
+    // Evita colisão entre AR e ARC
+    if ((aNorm === 'CONDUTOR AR' || aNorm === 'AUXILIAR AR' || aNorm.endsWith(' AR')) && (sNorm.includes('ARC') || gNorm.includes('ARC'))) {
+      return false;
+    }
+    return sNorm.includes(aNorm) || aNorm.includes(sNorm);
   });
 };
 

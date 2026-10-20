@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAdminDb } from '../../../server/lib/firebase-admin';
 import { db as clientDb } from '../../../lib/firebase';
 import { collection, getDocs, query as firestoreQuery, where } from 'firebase/firestore';
-import { normalizeObm } from '../../../lib/utils';
+import { normalizeObm, withTimeout } from '../../../lib/utils';
 import { resolveCanonicalScope, isSameUnit, isSameScope } from '../../../lib/canonicalScope';
 
 export const dynamic = 'force-dynamic';
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
         q = q.where('scope.unitId', '==', targetUnit);
       }
 
-      const snap = await q.get();
+      const snap: any = await withTimeout(q.get(), 2500);
       militars = snap.docs.map((d: any) => {
         const data = d.data() as any;
         return {
@@ -62,8 +62,8 @@ export async function GET(request: Request) {
         } else if (targetUnit) {
           q = firestoreQuery(q, where('scope.unitId', '==', targetUnit));
         }
-        const snap = await getDocs(q);
-        militars = snap.docs.map((d) => {
+        const snap: any = await withTimeout(getDocs(q), 2500);
+        militars = snap.docs.map((d: any) => {
           const data = d.data() as any;
           return {
             id: d.id,
@@ -73,15 +73,17 @@ export async function GET(request: Request) {
         });
       } catch (clientErr) {
         // Fallback amplo se índice composto ainda não foi criado
-        const snap = await getDocs(collection(clientDb, 'militaries'));
-        militars = snap.docs.map((d) => {
-          const data = d.data() as any;
-          return {
-            id: d.id,
-            ...data,
-            scope: data.scope || resolveCanonicalScope(data.obm)
-          };
-        });
+        try {
+          const snap: any = await withTimeout(getDocs(collection(clientDb, 'militaries')), 2500);
+          militars = snap.docs.map((d: any) => {
+            const data = d.data() as any;
+            return {
+              id: d.id,
+              ...data,
+              scope: data.scope || resolveCanonicalScope(data.obm)
+            };
+          });
+        } catch (e: any) {}
       }
     }
 

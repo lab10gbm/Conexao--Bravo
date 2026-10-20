@@ -9,6 +9,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+  agentRules: false,
 };
 
 export default nextConfig;

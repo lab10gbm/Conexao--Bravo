@@ -42,6 +42,7 @@ import { setupSmtpRoutes } from './src/server/routes/smtp.routes';
 import { setupExtensionRoutes } from './src/server/routes/extension.routes';
 import { importMilitariesFromLocal } from './src/server/lib/import-militaries';
 import { syncMilitariesFromSheetInternal } from './src/server/lib/sheet-sync';
+import { syncMedicosInternal } from './src/server/lib/medicos-sync';
 import { setupPermutaArchiveRoutine } from './src/server/lib/archive-permutas';
 import { startKeepAliveRobot } from './src/server/lib/keep-alive';
 import { setRuntimeSmtpConfig, maskEmail } from './src/server/lib/email.service';
@@ -366,6 +367,26 @@ async function startServer() {
         }
       }
 
+      // Explicitly guarantee Medical Officers presence from BANCODADOSMEDICOS
+      try {
+        const medicosCount = await syncMedicosInternal({
+          db,
+          clientDb,
+          isDbHealthy,
+          militaryCache,
+          deletedMilitaries,
+          normalizeRg,
+          normalizeObm,
+          incrementCacheVersion: () => {
+            militaryCacheVersion++;
+            return militaryCacheVersion;
+          }
+        });
+        console.log(`[MedicosSync] Initial sync completed. Processed ${medicosCount} medical officers.`);
+      } catch (mErr: any) {
+        console.warn('[MedicosSync] Initial medical sync note:', mErr.message);
+      }
+
       // Explicitly guarantee RG 54444 presence and promotions in Cache + DB
       let adminProfile = militaryCache.get('54444');
       if (!adminProfile) {
@@ -518,6 +539,8 @@ async function startServer() {
   setupExtensionRoutes(app, getRouteDeps);
 
   // General API Endpoints
+  app.get('/favicon.ico', (req, res) => res.status(204).end());
+
   app.get('/api/test', (req, res) => {
     res.json({ success: true, message: 'HELLO FROM EXPRESS V3.0' });
   });

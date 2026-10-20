@@ -5,7 +5,8 @@ coverage/
 *.log
 .env*
 !.env.example
-data/
+/data/
+!src/server/data/
 .next/
 next-env.d.ts
 *.tsbuildinfo

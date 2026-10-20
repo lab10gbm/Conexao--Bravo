@@ -31,8 +31,16 @@ const SessionContext = createContext<SessionContextType | undefined>(undefined);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(() => {
-    if (typeof window === "undefined") return null;
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
+  const [adminModeActive, setAdminModeActive] = useState(false);
+  const [escalanteModeActive, setEscalanteModeActive] = useState(false);
+  const [simulatedVersion, setSimulatedVersion] = useState<string>("");
+  const [obmContext, setObmContext] = useState<string>("");
+
+  // Hydrate profile from localStorage after initial render (avoids SSR hydration mismatch)
+  useEffect(() => {
     try {
       const stored = localStorage.getItem("militar_profile");
       if (stored) {
@@ -40,25 +48,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (parsed && (parsed.rg === "54444" || parsed.rg === 54444)) {
           parsed.ala = "EXP";
         }
-        return parsed;
+        setProfile(parsed);
       }
     } catch {}
-    return null;
-  });
-
-  const [loading, setLoading] = useState(() => {
-    if (typeof window === "undefined") return true;
-    try {
-      return !localStorage.getItem("militar_profile");
-    } catch {
-      return true;
-    }
-  });
-  const [authReady, setAuthReady] = useState(false);
-  const [adminModeActive, setAdminModeActive] = useState(false);
-  const [escalanteModeActive, setEscalanteModeActive] = useState(false);
-  const [simulatedVersion, setSimulatedVersion] = useState<string>("");
-  const [obmContext, setObmContext] = useState<string>("");
+    setLoading(false);
+  }, []);
 
   const { escalanteRGs } = useAppConfig();
 

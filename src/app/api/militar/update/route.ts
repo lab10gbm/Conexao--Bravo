@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { getAdminDb } from '../../../../server/lib/firebase-admin';
 import { db as clientDb } from '../../../../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
-import { normalizeRg, cleanUndefined } from '../../../../lib/utils';
+import { normalizeRg, cleanUndefined, withTimeout } from '../../../../lib/utils';
+import { bumpMilitarCacheVersion } from '../../../../server/lib/militar-cache-tracker';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,28 +17,61 @@ export async function POST(request: Request) {
     }
 
     const safeRg = normalizeRg(rg);
-    const sanitizedData = cleanUndefined({
+    let currentRecord: any = null;
+
+    try {
+      const adminDb = getAdminDb();
+      if (adminDb) {
+        const snap: any = await withTimeout(adminDb.collection('militaries').doc(safeRg).get(), 2000);
+        if (snap && snap.exists) currentRecord = snap.data();
+      }
+    } catch (e: any) {}
+
+    if (!currentRecord && clientDb) {
+      try {
+        const { getDoc } = await import('firebase/firestore');
+        const snap: any = await withTimeout(getDoc(doc(clientDb, 'militaries', safeRg)), 2000);
+        if (snap && snap.exists()) currentRecord = snap.data();
+      } catch (e: any) {}
+    }
+
+    const mergedData = {
+      ...(currentRecord || {}),
       ...data,
-      updatedAt: new Date().toISOString(),
-    });
+      id: safeRg,
+      rg: safeRg,
+      viaturas: { ...((currentRecord && currentRecord.viaturas) || {}), ...(data.viaturas || {}) },
+      dynamicFunctions: { ...((currentRecord && currentRecord.dynamicFunctions) || {}), ...(data.dynamicFunctions || {}) },
+      updatedAt: new Date().toISOString()
+    };
+
+    const sanitizedData = cleanUndefined(mergedData);
 
     let saved = false;
 
     // 1. Try Firebase Admin
     try {
       const adminDb = getAdminDb();
-      await adminDb.collection('militaries').doc(safeRg).set(sanitizedData, { merge: true });
-      await adminDb.collection('users').doc(safeRg).set(sanitizedData, { merge: true });
-      saved = true;
-    } catch (adminErr) {
+      if (adminDb) {
+        await withTimeout(adminDb.collection('militaries').doc(safeRg).set(sanitizedData, { merge: true }), 2500);
+        await withTimeout(adminDb.collection('users').doc(safeRg).set(sanitizedData, { merge: true }), 2500);
+        saved = true;
+      }
+    } catch (adminErr) {}
+
+    if (!saved && clientDb) {
       // 2. Fallback to Client Firestore
       try {
-        await setDoc(doc(clientDb, 'militaries', safeRg), sanitizedData, { merge: true });
-        await setDoc(doc(clientDb, 'users', safeRg), sanitizedData, { merge: true });
+        await withTimeout(setDoc(doc(clientDb, 'militaries', safeRg), sanitizedData, { merge: true }), 2500);
+        await withTimeout(setDoc(doc(clientDb, 'users', safeRg), sanitizedData, { merge: true }), 2500);
         saved = true;
       } catch (clientErr: any) {
         return NextResponse.json({ success: false, error: clientErr.message }, { status: 500 });
       }
+    }
+
+    if (saved) {
+      bumpMilitarCacheVersion();
     }
 
     return NextResponse.json({ success: saved, rg: safeRg });

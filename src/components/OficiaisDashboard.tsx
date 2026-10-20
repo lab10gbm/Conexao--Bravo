@@ -15,6 +15,7 @@ import {
 import { OfficerGrdModule } from './OfficerGrdModule';
 import { NucleoNauticoGrdModule } from './NucleoNauticoGrdModule';
 import { OfficerMedicosModule } from './OfficerMedicosModule';
+import { GestaoOficiaisMedicosModule } from './GestaoOficiaisMedicosModule';
 import { OficiaisConfigModule } from './OficiaisConfigModule';
 import { cn } from '../lib/utils';
 import { motion } from 'motion/react';
@@ -193,7 +194,7 @@ export function OficiaisDashboard({
     );
   }
 
-  // Sub-view 3: Oficiais Médicos
+  // Sub-view 3: Oficiais Médicos (Módulo da OBM, idêntico aos de Serviços e Náutico)
   if (activeApp === 'oficiais-medicos') {
     return (
       <div className="flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -210,7 +211,7 @@ export function OficiaisDashboard({
                 </span>
               </h2>
               <p className="text-sm font-medium text-slate-500 mt-0.5">
-                Serviços e Escala Médica Hospitalar e Operacional.
+                Serviços e Escala Médica Hospitalar e Operacional da OBM.
               </p>
             </div>
           </div>
@@ -284,7 +285,7 @@ export function OficiaisDashboard({
       </div>
 
       {/* Grid de Módulos (Estilo Painel do Escalante) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full mb-8">
         {OFICIAIS_APPS.map((app) => {
           const Icon = app.icon;
           return (

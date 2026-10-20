@@ -3,7 +3,7 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "../../../contexts/SessionContext";
-import { OficiaisDashboard } from "../../../components/OficiaisDashboard";
+import { GestaoOficiaisMedicosModule } from "../../../components/GestaoOficiaisMedicosModule";
 
 export default function OficiaisMedicosPage() {
   const router = useRouter();
@@ -13,13 +13,12 @@ export default function OficiaisMedicosPage() {
 
   return (
     <div className="w-full">
-      <OficiaisDashboard
+      <GestaoOficiaisMedicosModule
         user={effectiveProfile}
         obmContext={obmContext}
         setObmContext={setObmContext}
         availableObms={availableObms}
         onBack={() => router.push("/")}
-        initialApp="oficiais-medicos"
       />
     </div>
   );

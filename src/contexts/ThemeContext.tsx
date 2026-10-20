@@ -14,22 +14,19 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const THEME_STORAGE_KEY = "conexao_bravo_theme";
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
+  const [theme, setThemeState] = useState<Theme>("light");
+
+  // Load saved theme on client mount to match SSR initial render
+  useEffect(() => {
     try {
-      if (typeof window !== "undefined") {
-        const stored = localStorage.getItem(THEME_STORAGE_KEY);
-        if (stored === "dark" || stored === "light") {
-          return stored;
-        }
-        if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
-          return "dark";
-        }
+      const stored = localStorage.getItem(THEME_STORAGE_KEY);
+      if (stored === "dark" || stored === "light") {
+        setThemeState(stored);
+      } else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        setThemeState("dark");
       }
-    } catch {
-      // fallback
-    }
-    return "light";
-  });
+    } catch {}
+  }, []);
 
   useEffect(() => {
     try {

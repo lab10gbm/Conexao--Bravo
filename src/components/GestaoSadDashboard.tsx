@@ -31,7 +31,7 @@ export function GestaoSadDashboard({ user, onNavigate, onBack }: GestaoSadDashbo
     {
       id: 'oficiais-config',
       label: 'Configurar Oficiais',
-      description: 'OBM e Promoções',
+      description: 'Efetivo e Escalas',
       icon: Settings2,
       color: 'bg-slate-800 shadow-slate-300'
     },

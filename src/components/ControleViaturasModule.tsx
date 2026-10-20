@@ -190,6 +190,14 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
           '10_gbm',
           '10_GBM'
         ]));
+        // 1. Backend API persistence
+        fetch('/api/obm-settings/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: docKeys[0], data: payload })
+        }).catch(err => console.warn('[ControleViaturasModule] Backend API warning:', err));
+
+        // 2. Client-side setDoc
         for (const key of docKeys) {
           try {
             const docRef = doc(db, "obm_settings", key);
@@ -262,6 +270,14 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
           '10_gbm',
           '10_GBM'
         ]));
+        // 1. Backend API persistence
+        fetch('/api/obm-settings/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: docKeys[0], data: payload })
+        }).catch(err => console.warn('[ControleViaturasModule] Backend API warning:', err));
+
+        // 2. Client-side setDoc
         for (const key of docKeys) {
           try {
             const docRef = doc(db, "obm_settings", key);

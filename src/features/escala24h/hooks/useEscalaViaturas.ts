@@ -175,14 +175,23 @@ export function useEscalaViaturas({ obmContext, user, selectedDate }: UseEscalaV
       setViaturasInfo(pattern);
       isViaturasCustomizedForDate.current = false;
 
-      if (db && selectedDate) {
-        const normalizedObm = cleanObm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-        const docRef = doc(db, `escala24h_${normalizedObm}`, selectedDate);
-        await setDoc(docRef, {
+      if (selectedDate) {
+        const payload = {
           viaturasInfo: pattern,
           viaturasCustomizedForDate: false,
           updatedAt: new Date().toISOString()
-        }, { merge: true });
+        };
+
+        // Persistência via Backend API com credenciais seguras de servidor
+        fetch('/api/escala24h/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            obm: cleanObm,
+            date: selectedDate,
+            data: payload
+          })
+        }).catch(err => console.warn('[useEscalaViaturas] Backend API notice:', err));
       }
 
       setPatternAppliedMessage(`Padrão da OBM aplicado com sucesso! (${pattern.length} viaturas)`);
