@@ -16,6 +16,9 @@ import {
   Users,
   Wand2,
   Check,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
   Stethoscope,
   HeartPulse
 } from 'lucide-react';
@@ -374,6 +377,45 @@ export function OfficerMedicosModule({ user, obmContext, setObmContext, availabl
     return dist;
   }, [availableOfficers, selectedRgsOficialDia, selectedRgsSobreaviso, configTab, monthDaysOnly]);
 
+  const getOfficerFilledDays = (distRg: string, distName: string) => {
+    const militarObj = availableOfficers.find(m => String(m.rg || '').trim() === String(distRg || '').trim());
+    const warName = militarObj?.warName?.trim().toUpperCase() || '';
+    const cleanName = (militarObj?.name || '').trim().toUpperCase();
+    const firstName = cleanName.split(' ')[0] || '';
+    const upperDistName = distName.trim().toUpperCase();
+
+    let filledRed = 0;
+    let filledPurple = 0;
+    let filledBlack = 0;
+
+    monthDaysOnly.forEach(day => {
+      const dateStr = format(day, 'yyyy-MM-dd');
+      const assignedVal = (
+        configTab === 'oficialDia' 
+          ? (officerData[dateStr]?.oficialDia || officerData[dateStr]?.oficialMedico) 
+          : officerData[dateStr]?.sobreaviso
+      )?.trim().toUpperCase() || '';
+      
+      if (!assignedVal) return;
+
+      const isMatch =
+        assignedVal === upperDistName ||
+        (warName && assignedVal.includes(warName)) ||
+        (distRg && assignedVal.includes(distRg)) ||
+        (firstName && assignedVal.endsWith(' ' + firstName));
+
+      if (isMatch) {
+        const dayOfWeek = getDay(day);
+        if (dayOfWeek === 0 || dayOfWeek === 6) filledRed++;
+        else if (dayOfWeek === 5) filledPurple++;
+        else filledBlack++;
+      }
+    });
+
+    const filledTotal = filledRed + filledPurple + filledBlack;
+    return { filledRed, filledPurple, filledBlack, filledTotal };
+  };
+
   const handleGenerateScale = async () => {
     const label = configTab === 'oficialDia' ? 'Oficial Médico de Dia / Sobreaviso 1' : 'Sobreaviso Médico 2';
     if (!window.confirm(`Isso irá sobrescrever a coluna de ${label} com a distribuição automática. Deseja continuar?`)) return;
@@ -675,22 +717,74 @@ export function OfficerMedicosModule({ user, obmContext, setObmContext, availabl
                       <th className="px-3 py-2 border-r border-slate-200 text-center text-rose-600">FDS (Vermelho)</th>
                       <th className="px-3 py-2 border-r border-slate-200 text-center text-purple-600">Sexta (Roxo)</th>
                       <th className="px-3 py-2 border-r border-slate-200 text-center text-slate-800">Semana (Preto)</th>
-                      <th className="px-3 py-2 text-center text-emerald-700">Total (Cota)</th>
+                      <th className="px-3 py-2 border-r border-slate-200 text-center text-emerald-700">Total (Cota)</th>
+                      <th className="px-3 py-2 text-center text-slate-700">Validação / Preenchimento</th>
                     </tr>
                   </thead>
                   <tbody>
                     {distributionQuotas.length === 0 ? (
-                       <tr><td colSpan={5} className="p-4 text-center text-slate-400 font-bold">Nenhum oficial médico configurado nesta OBM.</td></tr>
+                       <tr><td colSpan={6} className="p-4 text-center text-slate-400 font-bold">Nenhum oficial médico configurado nesta OBM.</td></tr>
                     ) : (
-                      distributionQuotas.map((officer) => (
-                        <tr key={officer.rg} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                          <td className="px-3 py-2 font-bold border-r border-slate-200 text-slate-800">{officer.name}</td>
-                          <td className="px-3 py-2 text-center border-r border-slate-200 font-bold text-rose-600">{officer.quotaRed}</td>
-                          <td className="px-3 py-2 text-center border-r border-slate-200 font-bold text-purple-600">{officer.quotaPurple}</td>
-                          <td className="px-3 py-2 text-center border-r border-slate-200 font-bold text-slate-700">{officer.quotaBlack}</td>
-                          <td className="px-3 py-2 text-center font-black text-emerald-700 bg-emerald-50/50">{officer.quotaTotal}</td>
-                        </tr>
-                      ))
+                      distributionQuotas.map((officer) => {
+                        const { filledRed, filledPurple, filledBlack, filledTotal } = getOfficerFilledDays(officer.rg, officer.name);
+                        const isComplete = officer.quotaTotal > 0 && filledTotal === officer.quotaTotal;
+                        const isExceeded = officer.quotaTotal > 0 && filledTotal > officer.quotaTotal;
+                        const isPartial = officer.quotaTotal > 0 && filledTotal > 0 && filledTotal < officer.quotaTotal;
+                        const isZero = officer.quotaTotal > 0 && filledTotal === 0;
+
+                        return (
+                          <tr key={officer.rg} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                            <td className="px-3 py-2 font-bold border-r border-slate-200 text-slate-800">{officer.name}</td>
+                            <td className="px-3 py-2 text-center border-r border-slate-200 font-bold text-rose-600">{officer.quotaRed}</td>
+                            <td className="px-3 py-2 text-center border-r border-slate-200 font-bold text-purple-600">{officer.quotaPurple}</td>
+                            <td className="px-3 py-2 text-center border-r border-slate-200 font-bold text-slate-700">{officer.quotaBlack}</td>
+                            <td className="px-3 py-2 text-center font-black text-emerald-700 bg-emerald-50/50 border-r border-slate-200">{officer.quotaTotal}</td>
+                            <td className="px-3 py-1.5 text-center">
+                              <div className="flex flex-col items-center justify-center">
+                                {isComplete && (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-sm">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Preenchido ({filledTotal}/{officer.quotaTotal})
+                                  </span>
+                                )}
+                                {isExceeded && (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-cyan-100 text-cyan-800 border border-cyan-300 shadow-sm">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-cyan-600" /> Excedente ({filledTotal}/{officer.quotaTotal})
+                                  </span>
+                                )}
+                                {isPartial && (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 shadow-sm">
+                                    <Clock className="w-3.5 h-3.5 text-amber-600" /> {filledTotal}/{officer.quotaTotal} (Falta {officer.quotaTotal - filledTotal})
+                                  </span>
+                                )}
+                                {isZero && (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                    <AlertCircle className="w-3.5 h-3.5 text-rose-500" /> Pendente (0/{officer.quotaTotal})
+                                  </span>
+                                )}
+                                {officer.quotaTotal === 0 && (
+                                  <span className="text-[10px] font-bold text-slate-400 italic">Sem cota</span>
+                                )}
+
+                                {officer.quotaTotal > 0 && (
+                                  <div className="text-[9px] text-slate-400 font-medium mt-0.5 flex items-center gap-1.5 whitespace-nowrap">
+                                    <span className={cn(filledRed >= officer.quotaRed ? "text-slate-600" : "text-rose-600 font-bold")}>
+                                      {filledRed}/{officer.quotaRed} FDS
+                                    </span>
+                                    <span>·</span>
+                                    <span className={cn(filledPurple >= officer.quotaPurple ? "text-slate-600" : "text-purple-600 font-bold")}>
+                                      {filledPurple}/{officer.quotaPurple} Sex
+                                    </span>
+                                    <span>·</span>
+                                    <span className={cn(filledBlack >= officer.quotaBlack ? "text-slate-600" : "text-slate-700 font-bold")}>
+                                      {filledBlack}/{officer.quotaBlack} Sem
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
