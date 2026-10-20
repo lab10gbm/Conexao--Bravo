@@ -850,7 +850,7 @@ export function RefeitorioModule({ user, onBack, initialTab = 'cardapio' }: Refe
                     {col.items.map((item: any, idx: number) => {
                       if (typeof item === 'string') {
                         return (
-                          <div key={idx} className="group bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between gap-2">
+                          <div key={`item-${col.dataKey}-${idx}`} className="group bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between gap-2">
                             <p className="text-[10px] font-bold text-slate-700 uppercase leading-snug">{item}</p>
                             <button 
                               type="button"
@@ -871,7 +871,7 @@ export function RefeitorioModule({ user, onBack, initialTab = 'cardapio' }: Refe
                         );
                       } else if (item && item.isCategory) {
                         return (
-                          <div key={idx} className="bg-slate-100/50 p-2 sm:p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-2">
+                          <div key={`cat-${col.dataKey}-${idx}`} className="bg-slate-100/50 p-2 sm:p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-2">
                             <div className="flex items-center justify-between group">
                               <p className="text-[10px] font-black text-indigo-700 uppercase">{item.name}</p>
                               <button 
@@ -892,7 +892,7 @@ export function RefeitorioModule({ user, onBack, initialTab = 'cardapio' }: Refe
                             </div>
                             <div className="flex flex-wrap gap-1 mt-1">
                                {item.items.map((subItem: string, subIdx: number) => (
-                                  <span key={subIdx} className="bg-white border border-slate-200 group/sub relative text-slate-600 px-2 py-1.5 flex items-center gap-1 rounded-lg text-[9px] font-bold uppercase pr-5 shadow-sm">
+                                  <span key={`sub-${col.dataKey}-${idx}-${subIdx}`} className="bg-white border border-slate-200 group/sub relative text-slate-600 px-2 py-1.5 flex items-center gap-1 rounded-lg text-[9px] font-bold uppercase pr-5 shadow-sm">
                                      {subItem}
                                      <button 
                                        type="button"
@@ -1080,9 +1080,11 @@ export function RefeitorioModule({ user, onBack, initialTab = 'cardapio' }: Refe
         </div>
       </div>
 
+      {/* Modal QR Code */}
       <AnimatePresence>
         {showQrCode && (
           <motion.div
+            key="refeitorio-qrcode-modal"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -1166,20 +1168,24 @@ export function RefeitorioModule({ user, onBack, initialTab = 'cardapio' }: Refe
             </motion.div>
           </motion.div>
         )}
+      </AnimatePresence>
 
-        {/* Modal de Gestão/Edição */}
-        <AnimatePresence>
-          {isEditing && (
-            <RefeitorioEditModal 
-               onClose={() => setIsEditing(false)} 
-               editIndex={editingIndex} 
-            />
-          )}
-        </AnimatePresence>
+      {/* Modal de Gestão/Edição */}
+      <AnimatePresence>
+        {isEditing && (
+          <RefeitorioEditModal 
+             key="refeitorio-edit-modal"
+             onClose={() => setIsEditing(false)} 
+             editIndex={editingIndex} 
+          />
+        )}
+      </AnimatePresence>
 
-        {/* Modal de Relatório */}
+      {/* Modal de Relatório */}
+      <AnimatePresence>
         {showReport && (
           <motion.div
+            key="refeitorio-report-modal"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -1316,6 +1322,7 @@ export function RefeitorioModule({ user, onBack, initialTab = 'cardapio' }: Refe
       <AnimatePresence>
         {confirmAction && (
           <motion.div
+            key="refeitorio-confirm-modal"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
