@@ -64,7 +64,7 @@ export function PermutaModule({
         <>
           <WeeklyMonitor user={user} obmContext={obmContext} onRequestPermuta={onDateClick} />
           
-          <div className="grid grid-cols-1 gap-6 sm:gap-12 mt-6 sm:mt-12">
+          <div className="grid grid-cols-1 gap-3 sm:gap-12 mt-3 sm:mt-12">
             {isExpedienteMilitary && (
               <section id="expediente-scheduler">
                 <ExpedienteScheduler 

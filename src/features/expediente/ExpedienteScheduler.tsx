@@ -512,7 +512,7 @@ export function ExpedienteScheduler({
   return (
     <div
       id="expediente-scheduler"
-      className="mb-6 sm:mb-12 border-2 border-slate-300 rounded-xl overflow-hidden shadow-sm bg-white"
+      className="mb-3 sm:mb-12 border border-slate-200 sm:border-2 sm:border-slate-300 rounded-xl overflow-hidden shadow-2xs sm:shadow-sm bg-white"
     >
       {/* Cabeçalho Interativo ou Fixo */}
       {isCollapsible ? (
@@ -521,38 +521,38 @@ export function ExpedienteScheduler({
           onClick={() => setIsExpanded(!isExpanded)}
           aria-expanded={isExpanded}
           className={cn(
-            'w-full flex flex-col md:flex-row md:items-center justify-between p-4 sm:p-6 transition-all text-left gap-4 cursor-pointer',
+            'w-full flex flex-row items-center justify-between p-2.5 sm:p-6 transition-all text-left gap-2 sm:gap-4 cursor-pointer',
             isExpanded
               ? 'bg-indigo-50/70 border-b-2 border-slate-200 hover:bg-indigo-100/50'
               : 'bg-white hover:bg-slate-50'
           )}
         >
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <div
               className={cn(
-                'p-3 rounded-lg border-2 transition-colors shadow-xs',
+                'p-1.5 sm:p-3 rounded-lg border sm:border-2 transition-colors shadow-2xs shrink-0',
                 isExpanded
                   ? 'bg-indigo-100 border-indigo-300 text-indigo-700'
                   : 'bg-slate-100 border-slate-200 text-slate-600'
               )}
             >
-              <CalendarRange className="w-6 h-6" />
+              <CalendarRange className="w-4 h-4 sm:w-6 sm:h-6" />
             </div>
-            <div className="text-left flex flex-col items-start gap-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">
+            <div className="text-left flex flex-col items-start min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <h3 className="text-xs sm:text-lg font-black text-slate-800 uppercase tracking-tight truncate">
                   Escala do Expediente
                 </h3>
                 <div className="text-[9px] font-black text-indigo-500 bg-indigo-100/90 px-2 py-0.5 rounded uppercase tracking-widest hidden sm:block border border-indigo-200">
                   OPERAÇÕES EXP
                 </div>
                 {!isExpanded && (
-                  <span className="text-[9px] font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-wider border border-indigo-200">
+                  <span className="hidden sm:inline-block text-[9px] font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-wider border border-indigo-200">
                     DASHBOARD
                   </span>
                 )}
               </div>
-              <p className="text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">
+              <p className="hidden sm:block text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">
                 {isExpanded
                   ? 'Planejamento e Registro de Serviços 24h e Expediente Semanal'
                   : 'Painel compacto da escala de expediente • Clique para expandir ou recolher'}
@@ -560,7 +560,7 @@ export function ExpedienteScheduler({
             </div>
           </div>
 
-          <div className="flex items-center gap-3 self-end md:self-center shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <div className="hidden sm:flex flex-col items-end mr-1 text-right">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                 {isExpanded ? 'Escala Aberta' : 'Status Resumido'}
@@ -573,16 +573,17 @@ export function ExpedienteScheduler({
             </div>
             <div
               className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-black text-xs uppercase tracking-wider transition-all',
+                'flex items-center gap-1 sm:gap-1.5 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg border font-black text-[10px] sm:text-xs uppercase tracking-wider transition-all',
                 isExpanded
                   ? 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
-                  : 'bg-indigo-600 border-indigo-600 text-white shadow-xs hover:bg-indigo-700'
+                  : 'bg-indigo-600 border-indigo-600 text-white shadow-2xs hover:bg-indigo-700'
               )}
             >
-              <span>{isExpanded ? 'RECOLHER SEÇÃO' : 'EXPANDIR SEÇÃO'}</span>
+              <span>{isExpanded ? 'RECOLHER' : 'EXPANDIR'}</span>
+              <span className="hidden sm:inline"> SEÇÃO</span>
               <ChevronDown
                 className={cn(
-                  'w-4 h-4 transition-transform duration-300',
+                  'w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-300',
                   isExpanded && 'rotate-180'
                 )}
               />
@@ -590,21 +591,21 @@ export function ExpedienteScheduler({
           </div>
         </button>
       ) : (
-        <div className="w-full flex items-center justify-between p-4 sm:p-6 bg-indigo-50/70 border-b-2 border-slate-200">
-          <div className="flex items-center gap-4">
-            <div className="p-3 rounded-lg border-2 bg-indigo-100 border-indigo-300 shadow-sm">
-              <CalendarRange className="w-6 h-6 text-indigo-700" />
+        <div className="w-full flex items-center justify-between p-2.5 sm:p-6 bg-indigo-50/70 border-b-2 border-slate-200">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <div className="p-1.5 sm:p-3 rounded-lg border-2 bg-indigo-100 border-indigo-300 shadow-sm">
+              <CalendarRange className="w-4 h-4 sm:w-6 sm:h-6 text-indigo-700" />
             </div>
-            <div className="text-left flex flex-col items-start gap-1">
+            <div className="text-left flex flex-col items-start gap-0.5 sm:gap-1">
               <div className="flex items-center gap-2">
-                <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">
+                <h3 className="text-xs sm:text-lg font-black text-slate-800 uppercase tracking-tight">
                   Escala do Expediente
                 </h3>
                 <div className="text-[9px] font-black text-indigo-500 bg-indigo-100/90 px-2 py-0.5 rounded uppercase tracking-widest hidden sm:block border border-indigo-200">
                   OPERAÇÕES EXP
                 </div>
               </div>
-              <p className="text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">
+              <p className="hidden sm:block text-[10px] sm:text-xs text-slate-500 font-bold uppercase tracking-widest mt-0.5">
                 Planejamento e Registro de Serviços 24h e Expediente Semanal
               </p>
             </div>
@@ -618,73 +619,74 @@ export function ExpedienteScheduler({
         const sortedSels = [...(userSels || [])].sort();
 
         return (
-          <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-50 via-slate-100/40 to-slate-50 border-t border-slate-200 flex flex-col gap-4">
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4 flex-1">
+          <div className="p-2 sm:p-5 bg-gradient-to-r from-slate-50 via-slate-100/40 to-slate-50 border-t border-slate-200 flex flex-col gap-1.5 sm:gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-12 gap-1.5 sm:gap-4 flex-1">
               {/* Mês Referência */}
-              <div className="md:col-span-3 p-4 bg-white rounded-2xl border border-slate-200 shadow-2xs flex flex-col justify-center gap-1 hover:border-slate-300 transition-colors">
-                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5 mb-1">
-                  <Calendar className="w-4 h-4 text-slate-400" /> Mês Referência
+              <div className="col-span-1 md:col-span-3 order-1 p-2 sm:p-4 bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-2xs flex flex-col justify-center gap-0.5 sm:gap-1 hover:border-slate-300 transition-colors">
+                <span className="text-[9px] sm:text-[10px] font-black uppercase text-slate-400 tracking-wider sm:tracking-widest flex items-center gap-1 sm:gap-1.5 sm:mb-1">
+                  <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-slate-400 shrink-0" />
+                  <span className="hidden sm:inline">Mês Referência</span>
+                  <span className="sm:hidden">Mês</span>
                 </span>
-                <span className="text-lg font-black text-slate-800 capitalize leading-none">
+                <span className="text-xs sm:text-lg font-black text-slate-800 capitalize leading-tight truncate">
                   {format(currentMonth, 'MMMM', { locale: ptBR })}
                 </span>
-                <span className="text-sm font-bold text-slate-500 capitalize">
+                <span className="text-[10px] sm:text-sm font-bold text-slate-500 capitalize leading-none">
                   {format(currentMonth, 'yyyy', { locale: ptBR })}
                 </span>
               </div>
 
               {/* Serviços 24h */}
-              <div className="md:col-span-6 p-4 bg-gradient-to-br from-indigo-50/80 to-blue-50/50 rounded-2xl border border-indigo-100 shadow-2xs flex flex-col gap-3 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+              <div className="col-span-2 md:col-span-6 order-3 md:order-2 p-2 sm:p-4 bg-gradient-to-br from-indigo-50/80 to-blue-50/50 rounded-xl sm:rounded-2xl border border-indigo-100 shadow-2xs flex flex-col gap-1.5 sm:gap-3 relative overflow-hidden">
+                <div className="hidden sm:block absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
                   <Clock className="w-32 h-32 text-indigo-900" />
                 </div>
 
-                <div className="relative z-10 flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b border-indigo-200/50 pb-3">
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest flex items-center gap-1.5">
-                      <Clock className="w-4 h-4 text-indigo-500" /> Serviços 24h
+                <div className="relative z-10 flex flex-row items-center justify-between gap-2 border-b border-indigo-200/50 pb-1.5 sm:pb-3">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-500 shrink-0" />
+                    <span className="text-[10px] sm:text-xs font-black uppercase text-indigo-900 tracking-wider">
+                      Serviços 24h:
                     </span>
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-3xl font-black text-indigo-950 leading-none">
-                        {userSels.length + subShifts.length}
-                      </span>
-                      <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">
-                        {userReq > 0 ? `(Previstos: ${userReq})` : 'Marcados'}
-                      </span>
-                    </div>
+                    <span className="text-xs sm:text-2xl font-black text-indigo-950 leading-none">
+                      {userSels.length + subShifts.length}
+                    </span>
+                    <span className="text-[9px] font-bold text-indigo-600 sm:uppercase">
+                      {userReq > 0 ? `(Prev: ${userReq})` : 'Marcados'}
+                    </span>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 text-[9px] font-black tracking-widest uppercase mb-1">
-                    <span className="bg-white/70 text-indigo-800 px-2.5 py-1 rounded-md border border-indigo-200 shadow-sm flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
-                      {userSels.length} Ordinários
+                  <div className="flex items-center gap-1 sm:gap-2 text-[8px] sm:text-[9px] font-black tracking-wider uppercase shrink-0">
+                    <span className="bg-white/80 text-indigo-800 px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded border border-indigo-200 shadow-2xs flex items-center gap-1">
+                      <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-indigo-500"></span>
+                      {userSels.length} Ord.
                     </span>
                     {subShifts.length > 0 && (
-                      <span className="bg-purple-100/90 text-purple-800 px-2.5 py-1 rounded-md border border-purple-300 shadow-sm flex items-center gap-1">
-                        <ArrowUpDown className="w-3 h-3 text-purple-500" />
-                        +{subShifts.length} Permuta{subShifts.length > 1 ? 's' : ''}
+                      <span className="bg-purple-100/90 text-purple-800 px-1.5 py-0.5 sm:px-2.5 sm:py-1 rounded border border-purple-300 shadow-2xs flex items-center gap-1">
+                        <ArrowUpDown className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-purple-500" />
+                        +{subShifts.length} Perm.
                       </span>
                     )}
                   </div>
                 </div>
 
-                <div className="relative z-10 flex flex-wrap gap-2 mt-1">
+                <div className="relative z-10 flex flex-wrap gap-1.5 sm:gap-2 mt-0.5 sm:mt-1">
                   {userSels.length === 0 && subShifts.length === 0 && (
-                    <span className="text-xs font-bold text-slate-400 italic py-2">
+                    <span className="text-[10px] sm:text-xs font-bold text-slate-400 italic py-0.5 sm:py-2">
                       Nenhum serviço 24h agendado.
                     </span>
                   )}
                   {sortedSels.map((s) => (
                     <div
                       key={s}
-                      className="bg-white border-2 border-indigo-100 shadow-sm px-2.5 py-1.5 rounded-xl flex items-center gap-2 hover:border-indigo-300 transition-colors"
+                      className="bg-white border border-indigo-200 sm:border-2 shadow-2xs px-1.5 py-0.5 sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl flex items-center gap-1 sm:gap-2 hover:border-indigo-300 transition-colors"
                     >
-                      <div className="w-6 h-6 rounded-lg bg-indigo-50 flex items-center justify-center border border-indigo-100">
-                        <span className="text-[10px] font-black text-indigo-600">
+                      <div className="w-4 h-4 sm:w-6 sm:h-6 rounded bg-indigo-50 flex items-center justify-center border border-indigo-100">
+                        <span className="text-[9px] sm:text-[10px] font-black text-indigo-600">
                           {format(new Date(`${s}T12:00:00`), 'dd')}
                         </span>
                       </div>
-                      <span className="text-[10px] font-black text-indigo-900 uppercase tracking-wider pr-1">
+                      <span className="text-[9px] sm:text-[10px] font-black text-indigo-900 uppercase tracking-wider pr-0.5">
                         {format(new Date(`${s}T12:00:00`), 'MMM', { locale: ptBR })}
                       </span>
                     </div>
@@ -692,28 +694,28 @@ export function ExpedienteScheduler({
                   {subShifts.map((s, i) => (
                     <div
                       key={`sub-${i}`}
-                      className="bg-purple-600 border-2 border-purple-700 shadow-md px-2.5 py-1.5 rounded-xl flex flex-col justify-center hover:bg-purple-700 transition-colors"
+                      className="bg-purple-600 border border-purple-700 sm:border-2 shadow-2xs px-2 py-0.5 sm:px-2.5 sm:py-1.5 rounded-lg sm:rounded-xl flex items-center sm:flex-col justify-center gap-1.5 sm:gap-0 hover:bg-purple-700 transition-colors"
                       title={`Substituindo ${s.otherPartyName} (${s.status})`}
                     >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-1.5">
-                          <ArrowUpDown className="w-3.5 h-3.5 text-purple-200" />
-                          <span className="text-[11px] font-black text-white">
+                      <div className="flex items-center justify-between gap-1.5 sm:gap-3">
+                        <div className="flex items-center gap-1">
+                          <ArrowUpDown className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-purple-200" />
+                          <span className="text-[9px] sm:text-[11px] font-black text-white">
                             {format(s.date, 'dd/MM')}
                           </span>
                         </div>
                         <span
                           className={cn(
-                            'text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded',
+                            'text-[7px] sm:text-[8px] font-black uppercase tracking-wider px-1 py-0.2 rounded',
                             s.status === 'pending'
                               ? 'bg-amber-400/20 text-amber-200'
                               : 'bg-emerald-400/20 text-emerald-200'
                           )}
                         >
-                          {s.status === 'pending' ? 'Pendente' : 'Deferido'}
+                          {s.status === 'pending' ? 'Pend.' : 'Def.'}
                         </span>
                       </div>
-                      <span className="text-[8px] font-bold text-purple-200 uppercase tracking-widest mt-1">
+                      <span className="text-[7px] sm:text-[8px] font-bold text-purple-200 uppercase tracking-wider mt-0 sm:mt-1">
                         Subs. {s.otherPartyName?.split(' ')[0] || 'Militar'}
                       </span>
                     </div>
@@ -722,28 +724,30 @@ export function ExpedienteScheduler({
               </div>
 
               {/* Semana Atual */}
-              <div className="md:col-span-3 p-4 bg-white rounded-2xl border border-slate-200 shadow-2xs flex flex-col justify-center gap-1 hover:border-slate-300 transition-colors">
-                <span className="text-[10px] font-black uppercase text-sky-500 tracking-widest flex items-center gap-1.5 mb-1">
-                  <Briefcase className="w-4 h-4 text-sky-500" /> Semana Atual
+              <div className="col-span-1 md:col-span-3 order-2 md:order-3 p-2 sm:p-4 bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-2xs flex flex-col justify-center gap-0.5 sm:gap-1 hover:border-slate-300 transition-colors">
+                <span className="text-[9px] sm:text-[10px] font-black uppercase text-sky-500 tracking-wider sm:tracking-widest flex items-center gap-1 sm:gap-1.5 sm:mb-1">
+                  <Briefcase className="w-3 h-3 sm:w-4 sm:h-4 text-sky-500 shrink-0" />
+                  <span className="hidden sm:inline">Semana Atual</span>
+                  <span className="sm:hidden">Semana</span>
                 </span>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-3xl font-black text-sky-950 leading-none">
+                <div className="flex items-baseline gap-1 leading-none">
+                  <span className="text-xs sm:text-3xl font-black text-sky-950 leading-none">
                     {currentWeekExpCount}
                   </span>
-                  <span className="text-xs font-bold text-slate-500 capitalize leading-none mb-1">
+                  <span className="text-[10px] sm:text-xs font-bold text-slate-500 capitalize leading-none">
                     Dias
                   </span>
                 </div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 border-t border-slate-100 pt-1.5">
+                <span className="hidden sm:block text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 border-t border-slate-100 pt-1.5">
                   De Expediente
                 </span>
               </div>
             </div>
 
             {pendingUserWeeklyChangesCount > 0 && (
-              <div className="flex items-center justify-end mt-1 shrink-0">
-                <span className="text-[10px] font-black text-amber-800 bg-amber-100/90 border border-amber-300 px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm">
-                  <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+              <div className="flex items-center justify-end mt-0.5 sm:mt-1 shrink-0">
+                <span className="text-[9px] sm:text-[10px] font-black text-amber-800 bg-amber-100/90 border border-amber-300 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs">
+                  <AlertCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600" />
                   {pendingUserWeeklyChangesCount} alteração pendente
                 </span>
               </div>

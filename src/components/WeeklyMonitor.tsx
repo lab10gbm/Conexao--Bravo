@@ -633,11 +633,32 @@ export function WeeklyMonitor({
   const scrollToMobileDay = (index: number) => {
     setSelectedMobileDayIndex(index);
     if (cardsContainerRef.current) {
-      const cardWidth = 290;
-      cardsContainerRef.current.scrollTo({
-        left: index * cardWidth,
-        behavior: "smooth",
-      });
+      const cardElements = cardsContainerRef.current.children;
+      if (cardElements && cardElements[index]) {
+        (cardElements[index] as HTMLElement).scrollIntoView({
+          behavior: "smooth",
+          inline: "start",
+          block: "nearest",
+        });
+      } else {
+        const cardWidth = 190;
+        cardsContainerRef.current.scrollTo({
+          left: index * cardWidth,
+          behavior: "smooth",
+        });
+      }
+    }
+  };
+
+  const handleCardsScroll = () => {
+    if (!cardsContainerRef.current) return;
+    const container = cardsContainerRef.current;
+    const scrollLeft = container.scrollLeft;
+    const firstCard = container.children[0] as HTMLElement | undefined;
+    const cardWidth = firstCard ? firstCard.offsetWidth + 8 : 190;
+    const activeIndex = Math.round(scrollLeft / cardWidth);
+    if (activeIndex >= 0 && activeIndex < daysData.length && activeIndex !== selectedMobileDayIndex) {
+      setSelectedMobileDayIndex(activeIndex);
     }
   };
 
@@ -1199,7 +1220,8 @@ export function WeeklyMonitor({
               {mobileViewMode === "cards" && (
                 <div
                   ref={cardsContainerRef}
-                  className="w-full flex lg:grid lg:grid-cols-7 gap-2.5 sm:gap-3 overflow-x-auto lg:overflow-visible snap-x snap-mandatory custom-scrollbar pb-2"
+                  onScroll={handleCardsScroll}
+                  className="w-full flex lg:grid lg:grid-cols-7 gap-2 sm:gap-3 overflow-x-auto lg:overflow-visible snap-x snap-mandatory custom-scrollbar pb-2"
                 >
                   {daysData.map((item) => {
                     const {
@@ -1254,127 +1276,122 @@ export function WeeklyMonitor({
                               : `Solicitar permuta para ${format(day, "dd/MM/yyyy")}`
                           }
                           className={cn(
-                            // Mobile: comfortable width with no truncation; Desktop: auto column
-                            "w-[270px] xs:w-[290px] sm:w-[310px] lg:w-auto shrink-0 lg:shrink snap-start",
-                            "rounded-2xl border transition-all duration-300 flex flex-col justify-between overflow-hidden relative group bg-white shadow-xs",
+                            // Mobile: compact balanced square proportions; Desktop: auto column
+                            "w-[185px] xs:w-[200px] sm:w-[225px] lg:w-auto shrink-0 lg:shrink snap-start",
+                            "rounded-xl sm:rounded-2xl border transition-all duration-300 flex flex-col justify-between overflow-hidden relative group bg-white shadow-2xs hover:shadow-md",
                             hasActivePermuta
                               ? "cursor-default border-slate-200"
-                              : "cursor-pointer hover:shadow-md hover:-translate-y-0.5",
+                              : "cursor-pointer hover:-translate-y-0.5",
                             !hasActivePermuta && isUrgent
                               ? "border-amber-300 ring-2 ring-amber-400/20"
                               : !hasActivePermuta
                                 ? "border-slate-200 hover:border-blue-400"
                                 : "",
-                            isToday ? "ring-2 ring-blue-500/80 ring-offset-2" : "",
+                            isToday ? "ring-2 ring-blue-500/80 ring-offset-1 sm:ring-offset-2" : "",
                           )}
                         >
                           {/* Top colored Ala accent bar */}
-                          <div className={cn("h-2 w-full", alaConfig.accent)} />
+                          <div className={cn("h-1.5 sm:h-2 w-full", alaConfig.accent)} />
 
                           {/* Card Upper Info: Day, Date, Ala */}
-                          <div className="p-3 sm:p-3.5 pb-2.5 flex-1 flex flex-col justify-between">
+                          <div className="p-2 sm:p-3 pb-1.5 sm:pb-2 flex-1 flex flex-col justify-between">
                             <div>
                               {/* Day of Week & Today Badge */}
-                              <div className="flex items-center justify-between gap-1 mb-1">
-                                <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-slate-500 truncate">
+                              <div className="flex items-center justify-between gap-1 mb-0.5">
+                                <span className="text-[9px] sm:text-[10.5px] font-black uppercase tracking-wider text-slate-500 truncate">
                                   {format(day, "EEEE", { locale: ptBR })}
                                 </span>
                                 {isToday && (
-                                  <span className="bg-blue-600 text-white text-[8.5px] sm:text-[9px] font-black px-1.5 py-0.5 rounded tracking-wider shadow-2xs shrink-0">
+                                  <span className="bg-blue-600 text-white text-[7.5px] sm:text-[8.5px] font-black px-1.5 py-0.5 rounded tracking-wider shadow-2xs shrink-0">
                                     HOJE
                                   </span>
                                 )}
                               </div>
 
-                              {/* Big Date Number & Month */}
-                              <div className="flex items-baseline gap-1.5 my-0.5">
-                                <span className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight leading-none">
-                                  {format(day, "dd")}
-                                </span>
-                                <span className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">
-                                  {format(day, "MMM", { locale: ptBR })}
-                                </span>
-                              </div>
+                              {/* Big Date Number & Month & Ala in balanced row */}
+                              <div className="flex items-baseline justify-between gap-1 my-0.5">
+                                <div className="flex items-baseline gap-1">
+                                  <span className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-none">
+                                    {format(day, "dd")}
+                                  </span>
+                                  <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                    {format(day, "MMM", { locale: ptBR })}
+                                  </span>
+                                </div>
 
-                              {/* Ala on duty badge */}
-                              <div className="mt-1.5 flex items-center gap-1.5">
-                                <span
-                                  className={cn(
-                                    "w-2 h-2 rounded-full shrink-0",
-                                    alaConfig.dot,
-                                  )}
-                                />
-                                <span
-                                  className={cn(
-                                    "text-[10.5px] sm:text-[11px] font-black uppercase tracking-wide truncate",
-                                    alaConfig.text,
-                                  )}
-                                >
-                                  {alaConfig.name}
-                                </span>
+                                {/* Ala on duty badge */}
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <span
+                                    className={cn(
+                                      "w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full shrink-0",
+                                      alaConfig.dot,
+                                    )}
+                                  />
+                                  <span
+                                    className={cn(
+                                      "text-[9.5px] sm:text-[10.5px] font-black uppercase tracking-wide truncate",
+                                      alaConfig.text,
+                                    )}
+                                  >
+                                    {alaConfig.name}
+                                  </span>
+                                </div>
                               </div>
                             </div>
 
-                            {/* Personal Military Duty Indicator (FULL DISPLAY, NO TRUNCATION) */}
-                            <div className="mt-2.5">
+                            {/* Personal Military Duty Indicator (Compact) */}
+                            <div className="mt-1.5">
                               <div
                                 title={dutyBadge.tooltip}
                                 className={cn(
-                                  "py-1 px-2 rounded-xl text-[9.5px] sm:text-[10px] flex flex-col justify-center gap-0.5 transition-all text-center",
+                                  "py-1 px-1.5 rounded-lg text-[8.5px] sm:text-[9.5px] flex items-center justify-center gap-1 transition-all text-center",
                                   dutyBadge.badgeClass,
                                 )}
                               >
-                                <div className="flex items-center justify-center gap-1">
-                                  {dutyBadge.icon === "shield" && (
-                                    <Shield className="w-3.5 h-3.5 shrink-0" />
-                                  )}
-                                  {dutyBadge.icon === "clock" && (
-                                    <Clock className="w-3.5 h-3.5 shrink-0" />
-                                  )}
-                                  {dutyBadge.icon === "check" && (
-                                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                                  )}
-                                  {dutyBadge.icon === "alert" && (
-                                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                                  )}
-                                  {dutyBadge.icon === "cross" && (
-                                    <X className="w-3.5 h-3.5 shrink-0" />
-                                  )}
-                                  {dutyBadge.icon === "calendar" && (
-                                    <Calendar className="w-3.5 h-3.5 shrink-0" />
-                                  )}
-                                  <span className="font-black leading-tight">
-                                    {dutyBadge.text}
-                                  </span>
-                                </div>
-                                {dutyBadge.subtext && (
-                                  <span className="text-[8.5px] font-semibold opacity-90 truncate">
-                                    {dutyBadge.subtext}
-                                  </span>
+                                {dutyBadge.icon === "shield" && (
+                                  <Shield className="w-3 h-3 shrink-0" />
                                 )}
+                                {dutyBadge.icon === "clock" && (
+                                  <Clock className="w-3 h-3 shrink-0" />
+                                )}
+                                {dutyBadge.icon === "check" && (
+                                  <CheckCircle2 className="w-3 h-3 shrink-0" />
+                                )}
+                                {dutyBadge.icon === "alert" && (
+                                  <AlertTriangle className="w-3 h-3 shrink-0" />
+                                )}
+                                {dutyBadge.icon === "cross" && (
+                                  <X className="w-3 h-3 shrink-0" />
+                                )}
+                                {dutyBadge.icon === "calendar" && (
+                                  <Calendar className="w-3 h-3 shrink-0" />
+                                )}
+                                <span className="font-bold leading-tight truncate">
+                                  {dutyBadge.text}
+                                </span>
                               </div>
                             </div>
                           </div>
 
                           {/* Middle Deadline Box */}
-                          <div className="px-3 py-2 sm:px-3.5 sm:py-2.5 bg-slate-50/90 border-t border-b border-slate-100 flex flex-col gap-1">
+                          <div className="px-2 py-1.5 sm:px-3 sm:py-2 bg-slate-50/90 border-t border-b border-slate-100 flex flex-col gap-1">
                             {/* Urgency Pill */}
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between gap-1">
                               {isUrgent ? (
-                                <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-1.5 sm:px-2 py-0.5 rounded-full animate-pulse">
-                                  <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                                <span className="inline-flex items-center gap-1 text-[8px] sm:text-[9px] font-black text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded-full animate-pulse">
+                                  <AlertTriangle className="w-2.5 h-2.5 text-amber-600 shrink-0" />
                                   <span>ÚLTIMAS HORAS</span>
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-1.5 sm:px-2 py-0.5 rounded-full">
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                <span className="inline-flex items-center gap-1 text-[8px] sm:text-[9px] font-black text-emerald-800 bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 rounded-full">
+                                  <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
                                   <span>PRAZO ABERTO</span>
                                 </span>
                               )}
                             </div>
 
                             {/* Deadline Date */}
-                            <div className="text-[9px] sm:text-[10px] text-slate-500 font-medium mt-0.5 truncate">
+                            <div className="text-[8.5px] sm:text-[9.5px] text-slate-500 font-medium truncate">
                               Limite:{" "}
                               <span className="font-bold text-slate-800">
                                 {deadlineFormatted}
@@ -1382,10 +1399,10 @@ export function WeeklyMonitor({
                             </div>
 
                             {/* Live Ticking Countdown */}
-                            <div className="mt-0.5 flex items-center gap-1.5 text-[10px] sm:text-xs font-mono font-black text-slate-900 bg-white border border-slate-200 rounded-lg px-2 py-1 shadow-2xs">
+                            <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-mono font-black text-slate-900 bg-white border border-slate-200 rounded-md px-1.5 py-0.5 shadow-2xs">
                               <Timer
                                 className={cn(
-                                  "w-3.5 h-3.5 shrink-0",
+                                  "w-3 h-3 shrink-0",
                                   isUrgent ? "text-amber-600" : "text-blue-600",
                                 )}
                               />
@@ -1394,23 +1411,23 @@ export function WeeklyMonitor({
                           </div>
 
                           {/* Card Action Footer */}
-                          <div className="p-2.5 sm:p-3 bg-white">
+                          <div className="p-2 sm:p-2.5 bg-white">
                             {hasActivePermuta ? (
                               <div className={cn(
-                                "w-full py-2 px-2.5 rounded-xl text-[10px] sm:text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-2xs border",
+                                "w-full py-1.5 px-2 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 shadow-2xs border",
                                 permuta?.status === "accepted"
                                   ? "bg-emerald-50 border-emerald-200 text-emerald-800"
                                   : "bg-amber-50 border-amber-200 text-amber-800"
                               )}>
                                 {permuta?.status === "accepted" ? (
                                   <>
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                    <span>Permuta Deferida</span>
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                    <span className="truncate">Deferida</span>
                                   </>
                                 ) : (
                                   <>
-                                    <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                    <span>Permuta em Andamento</span>
+                                    <Clock className="w-3 h-3 text-amber-600 shrink-0" />
+                                    <span className="truncate">Em Andamento</span>
                                   </>
                                 )}
                               </div>
@@ -1421,10 +1438,10 @@ export function WeeklyMonitor({
                                   e.stopPropagation();
                                   onRequestPermuta?.(day);
                                 }}
-                                className="w-full py-2 px-2.5 rounded-xl bg-slate-900 hover:bg-blue-600 active:bg-blue-700 text-white text-[10px] sm:text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-xs group-hover:bg-blue-600"
+                                className="w-full py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-blue-600 active:bg-blue-700 text-white text-[9px] sm:text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all shadow-xs group-hover:bg-blue-600 cursor-pointer"
                               >
                                 <span>Solicitar Permuta</span>
-                                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                                <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform shrink-0" />
                               </button>
                             )}
                           </div>
@@ -1446,120 +1463,115 @@ export function WeeklyMonitor({
                             : `Prazo regulamentar de permuta esgotado para ${format(day, "dd/MM/yyyy")}`
                         }
                         className={cn(
-                          // Mobile: comfortable width with no truncation; Desktop: auto column
-                          "w-[270px] xs:w-[290px] sm:w-[310px] lg:w-auto shrink-0 lg:shrink snap-start",
-                          "rounded-2xl border border-slate-200 bg-slate-50/70 text-slate-500 transition-all duration-300 flex flex-col justify-between overflow-hidden relative",
-                          isToday ? "ring-2 ring-slate-400 ring-offset-2" : "",
+                          // Mobile: compact balanced square proportions; Desktop: auto column
+                          "w-[185px] xs:w-[200px] sm:w-[225px] lg:w-auto shrink-0 lg:shrink snap-start",
+                          "rounded-xl sm:rounded-2xl border border-slate-200 bg-slate-50/70 text-slate-500 transition-all duration-300 flex flex-col justify-between overflow-hidden relative shadow-2xs",
+                          isToday ? "ring-2 ring-slate-400 ring-offset-1 sm:ring-offset-2" : "",
                         )}
                       >
                         {/* Top muted Ala accent bar */}
-                        <div className={cn("h-2 w-full opacity-35", alaConfig.accent)} />
+                        <div className={cn("h-1.5 sm:h-2 w-full opacity-35", alaConfig.accent)} />
 
                         {/* Card Upper Info: Day, Date, Ala */}
-                        <div className="p-3 sm:p-3.5 pb-2.5 flex-1 flex flex-col justify-between">
+                        <div className="p-2 sm:p-3 pb-1.5 sm:pb-2 flex-1 flex flex-col justify-between">
                           <div>
                             {/* Day of Week & Today Badge */}
-                            <div className="flex items-center justify-between gap-1 mb-1">
-                              <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400 truncate">
+                            <div className="flex items-center justify-between gap-1 mb-0.5">
+                              <span className="text-[9px] sm:text-[10.5px] font-bold uppercase tracking-wider text-slate-400 truncate">
                                 {format(day, "EEEE", { locale: ptBR })}
                               </span>
                               {isToday && (
-                                <span className="bg-slate-400 text-white text-[8.5px] sm:text-[9px] font-black px-1.5 py-0.5 rounded tracking-wider shadow-2xs shrink-0">
+                                <span className="bg-slate-400 text-white text-[7.5px] sm:text-[8.5px] font-black px-1.5 py-0.5 rounded tracking-wider shadow-2xs shrink-0">
                                   HOJE
                                 </span>
                               )}
                             </div>
 
-                            {/* Big Date Number & Month */}
-                            <div className="flex items-baseline gap-1.5 my-0.5">
-                              <span className="text-2xl sm:text-3xl font-black text-slate-400 tracking-tight leading-none">
-                                {format(day, "dd")}
-                              </span>
-                              <span className="text-[11px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest">
-                                {format(day, "MMM", { locale: ptBR })}
-                              </span>
-                            </div>
+                            {/* Big Date Number & Month & Ala */}
+                            <div className="flex items-baseline justify-between gap-1 my-0.5">
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-xl sm:text-2xl font-black text-slate-400 tracking-tight leading-none">
+                                  {format(day, "dd")}
+                                </span>
+                                <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                  {format(day, "MMM", { locale: ptBR })}
+                                </span>
+                              </div>
 
-                            {/* Ala on duty */}
-                            <div className="mt-1.5 flex items-center gap-1.5 opacity-60">
-                              <span
-                                className={cn(
-                                  "w-2 h-2 rounded-full shrink-0",
-                                  alaConfig.dot,
-                                )}
-                              />
-                              <span className="text-[10.5px] sm:text-[11px] font-bold uppercase tracking-wide text-slate-600 truncate">
-                                {alaConfig.name}
-                              </span>
+                              {/* Ala on duty */}
+                              <div className="flex items-center gap-1 opacity-60 shrink-0">
+                                <span
+                                  className={cn(
+                                    "w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full shrink-0",
+                                    alaConfig.dot,
+                                  )}
+                                />
+                                <span className="text-[9.5px] sm:text-[10.5px] font-bold uppercase tracking-wide text-slate-600 truncate">
+                                  {alaConfig.name}
+                                </span>
+                              </div>
                             </div>
                           </div>
 
                           {/* Personal Military Duty Indicator (Muted) */}
-                          <div className="mt-2.5">
+                          <div className="mt-1.5">
                             <div
                               title={dutyBadge.tooltip}
                               className={cn(
-                                "py-1 px-2 rounded-xl text-[9.5px] sm:text-[10px] flex flex-col justify-center gap-0.5 transition-all text-center",
+                                "py-1 px-1.5 rounded-lg text-[8.5px] sm:text-[9.5px] flex items-center justify-center gap-1 transition-all text-center",
                                 dutyBadge.expiredClass,
                               )}
                             >
-                              <div className="flex items-center justify-center gap-1">
-                                {dutyBadge.icon === "shield" && (
-                                  <Shield className="w-3.5 h-3.5 shrink-0 opacity-80" />
-                                )}
-                                {dutyBadge.icon === "clock" && (
-                                  <Clock className="w-3.5 h-3.5 shrink-0 opacity-80" />
-                                )}
-                                {dutyBadge.icon === "check" && (
-                                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0 opacity-80" />
-                                )}
-                                {dutyBadge.icon === "alert" && (
-                                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 opacity-80" />
-                                )}
-                                {dutyBadge.icon === "cross" && (
-                                  <X className="w-3.5 h-3.5 shrink-0 opacity-80" />
-                                )}
-                                {dutyBadge.icon === "calendar" && (
-                                  <Calendar className="w-3.5 h-3.5 shrink-0 opacity-80" />
-                                )}
-                                <span className="font-bold leading-tight">
-                                  {dutyBadge.text}
-                                </span>
-                              </div>
-                              {dutyBadge.subtext && (
-                                <span className="text-[8.5px] font-medium opacity-80 truncate">
-                                  {dutyBadge.subtext}
-                                </span>
+                              {dutyBadge.icon === "shield" && (
+                                <Shield className="w-3 h-3 shrink-0 opacity-80" />
                               )}
+                              {dutyBadge.icon === "clock" && (
+                                <Clock className="w-3 h-3 shrink-0 opacity-80" />
+                              )}
+                              {dutyBadge.icon === "check" && (
+                                <CheckCircle2 className="w-3 h-3 shrink-0 opacity-80" />
+                              )}
+                              {dutyBadge.icon === "alert" && (
+                                <AlertTriangle className="w-3 h-3 shrink-0 opacity-80" />
+                              )}
+                              {dutyBadge.icon === "cross" && (
+                                <X className="w-3 h-3 shrink-0 opacity-80" />
+                              )}
+                              {dutyBadge.icon === "calendar" && (
+                                <Calendar className="w-3 h-3 shrink-0 opacity-80" />
+                              )}
+                              <span className="font-bold leading-tight truncate">
+                                {dutyBadge.text}
+                              </span>
                             </div>
                           </div>
                         </div>
 
                         {/* Middle Deadline Box (Expired) */}
-                        <div className="px-3 py-2 sm:px-3.5 sm:py-2.5 bg-slate-100/80 border-t border-b border-slate-200/80 flex flex-col gap-1">
-                          <div className="flex items-center justify-between">
-                            <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded-full">
-                              <Lock className="w-2.5 h-2.5 text-slate-500" />
+                        <div className="px-2 py-1.5 sm:px-3 sm:py-2 bg-slate-100/80 border-t border-b border-slate-200/80 flex flex-col gap-1">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="inline-flex items-center gap-1 text-[8px] sm:text-[9px] font-bold text-slate-600 bg-slate-200 px-1.5 py-0.5 rounded-full">
+                              <Lock className="w-2.5 h-2.5 text-slate-500 shrink-0" />
                               <span>PRAZO ENCERRADO</span>
                             </span>
                           </div>
 
-                          <div className="text-[9px] sm:text-[10px] text-slate-400 font-medium mt-0.5 truncate">
+                          <div className="text-[8.5px] sm:text-[9.5px] text-slate-400 font-medium truncate">
                             Encerrou:{" "}
                             <span className="text-slate-500 line-through">
                               {deadlineFormatted}
                             </span>
                           </div>
 
-                          <div className="mt-0.5 flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold text-slate-400 bg-slate-200/60 rounded-lg px-2 py-1">
+                          <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-semibold text-slate-400 bg-slate-200/60 rounded-md px-1.5 py-0.5">
                             {hasActivePermuta ? (
                               <>
-                                <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
-                                <span className="truncate">{permuta?.status === "accepted" ? "Permuta Homologada" : "Permuta Solicitada"}</span>
+                                <CheckCircle2 className="w-3 h-3 shrink-0 text-emerald-600" />
+                                <span className="truncate">{permuta?.status === "accepted" ? "Homologada" : "Solicitada"}</span>
                               </>
                             ) : (
                               <>
-                                <Clock className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                <Clock className="w-3 h-3 shrink-0 text-slate-400" />
                                 <span className="truncate">72h úteis esgotadas</span>
                               </>
                             )}
@@ -1567,29 +1579,29 @@ export function WeeklyMonitor({
                         </div>
 
                         {/* Card Action Footer */}
-                        <div className="p-2.5 sm:p-3 bg-slate-50/70">
+                        <div className="p-2 sm:p-2.5 bg-slate-50/70">
                           {hasActivePermuta ? (
                             <div className={cn(
-                              "w-full py-2 px-2.5 rounded-xl text-[10px] sm:text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-2xs border",
+                              "w-full py-1.5 px-2 rounded-lg text-[9px] sm:text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 shadow-2xs border",
                               permuta?.status === "accepted"
                                 ? "bg-emerald-50 border-emerald-200 text-emerald-800"
                                 : "bg-amber-50 border-amber-200 text-amber-800"
                             )}>
                               {permuta?.status === "accepted" ? (
                                 <>
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                  <span>Permuta Deferida</span>
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                  <span className="truncate">Deferida</span>
                                 </>
                               ) : (
                                 <>
-                                  <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                  <span>Permuta em Andamento</span>
+                                  <Clock className="w-3 h-3 text-amber-600 shrink-0" />
+                                  <span className="truncate">Em Andamento</span>
                                 </>
                               )}
                             </div>
                           ) : (
-                            <div className="w-full py-2 px-2.5 rounded-xl bg-slate-200/70 text-slate-400 text-[10px] sm:text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-not-allowed">
-                              <Lock className="w-3.5 h-3.5 text-slate-400" />
+                            <div className="w-full py-1.5 px-2 rounded-lg bg-slate-200/70 text-slate-400 text-[9px] sm:text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 cursor-not-allowed">
+                              <Lock className="w-3 h-3 text-slate-400 shrink-0" />
                               <span>Indisponível</span>
                             </div>
                           )}

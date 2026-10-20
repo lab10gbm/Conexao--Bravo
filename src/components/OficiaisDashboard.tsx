@@ -402,54 +402,49 @@ export function OficiaisDashboard({
         {renderHeaderActions()}
       </div>
 
-      {/* Grid de Módulos e Seções Ativas da Unidade */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full mb-8">
+      {/* Grid de Módulos e Seções Ativas da Unidade - Proporções Idênticas à Homepage */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3.5 md:gap-4 w-full mb-6 sm:mb-8">
         {displayApps.map((app) => {
           const Icon = app.icon;
           return (
             <motion.button
               key={app.id}
-              whileHover={{ y: -6, scale: 1.02 }}
+              whileHover={{ y: -4, scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => setActiveApp(app.id)}
               className={cn(
-                "bg-white border-2 border-slate-100 rounded-[2rem] p-6 sm:p-7 flex flex-col items-center justify-between gap-5 shadow-sm transition-all text-center group relative overflow-hidden cursor-pointer",
-                "hover:shadow-xl hover:border-indigo-100"
+                "bg-white dark:bg-[#141c2e] border border-slate-300 dark:border-slate-700/80 hover:border-indigo-500 dark:hover:border-indigo-400 rounded-2xl p-3 sm:p-4 md:p-4.5 flex flex-col items-center justify-center gap-2 sm:gap-3 shadow-xs hover:shadow-md transition-all text-center group relative overflow-hidden cursor-pointer",
+                "hover:shadow-lg"
               )}
             >
               {/* Badge superior */}
-              <div className="w-full flex justify-end">
-                <span className="text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 group-hover:bg-indigo-100 group-hover:text-indigo-700 transition-colors">
-                  {app.badge}
-                </span>
-              </div>
+              {app.badge ? (
+                <div className="absolute top-2 sm:top-2.5 right-2 sm:right-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-[7px] sm:text-[8px] font-black py-0.5 px-2 rounded-full uppercase tracking-wider flex items-center gap-1 shadow-2xs z-10">
+                  <span>{app.badge}</span>
+                </div>
+              ) : (
+                <div className="hidden" />
+              )}
 
               {/* Ícone */}
               <div
                 className={cn(
-                  `w-20 h-20 rounded-2xl ${app.color} flex items-center justify-center text-white shadow-lg transition-transform group-hover:rotate-6`
+                  `w-10 h-10 sm:w-13 sm:h-13 md:w-14 md:h-14 rounded-xl sm:rounded-2xl ${app.color} flex items-center justify-center text-white shadow-md transition-transform group-hover:rotate-6`
                 )}
               >
-                <Icon className="w-10 h-10" />
+                <Icon className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7" />
               </div>
 
               {/* Informações */}
-              <div className="flex flex-col items-center gap-1.5">
-                <h3 className="font-black text-slate-800 uppercase tracking-tight text-base sm:text-lg leading-tight group-hover:text-indigo-600 transition-colors">
+              <div className="w-full">
+                <h3 className="font-black text-slate-800 dark:text-slate-100 uppercase tracking-tighter text-[11px] sm:text-xs md:text-sm leading-tight truncate px-1 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                   {app.label}
                 </h3>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                  {app.subtitle}
-                </span>
-                <p className="text-xs text-slate-500 font-medium mt-1 leading-relaxed max-w-xs">
-                  {app.description}
-                </p>
-              </div>
-
-              {/* Botão de Acesso */}
-              <div className="w-full pt-4 border-t border-slate-100 flex items-center justify-center gap-2 text-[11px] font-black uppercase tracking-wider text-indigo-600 group-hover:text-indigo-800 transition-colors">
-                <span>Acessar Módulo</span>
-                <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                {(app.subtitle || app.description) && (
+                  <p className="text-[8px] sm:text-[9.5px] text-slate-400 dark:text-slate-400 font-bold uppercase tracking-widest mt-0.5 sm:mt-1 transition-colors line-clamp-1 group-hover:text-slate-600 dark:group-hover:text-slate-300">
+                    {app.subtitle || app.description}
+                  </p>
+                )}
               </div>
             </motion.button>
           );
@@ -457,22 +452,22 @@ export function OficiaisDashboard({
       </div>
 
       {/* Banner Informativo da Sincronização */}
-      <div className="p-6 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-3xl text-white shadow-lg border border-indigo-900/50 flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-600/30 border border-indigo-400/30 flex items-center justify-center shrink-0 text-amber-300">
-            <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+      <div className="p-4 sm:p-6 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl sm:rounded-3xl text-white shadow-md border border-indigo-900/50 flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-6">
+        <div className="flex items-center gap-3 sm:gap-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-indigo-600/30 border border-indigo-400/30 flex items-center justify-center shrink-0 text-amber-300">
+            <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-400" />
           </div>
           <div>
-            <h4 className="text-sm sm:text-base font-black uppercase tracking-tight">
+            <h4 className="text-xs sm:text-base font-black uppercase tracking-tight">
               Sincronização em Tempo Real com a Escala 24h
             </h4>
-            <p className="text-xs text-slate-300 font-medium mt-0.5 max-w-2xl">
+            <p className="text-[10px] sm:text-xs text-slate-300 font-medium mt-0.5 max-w-2xl">
               As designações de Oficial de Dia nas seções ativas de {obmContext || '10º GBM'} alimentam diretamente a seção consolidada de oficiais na Escala 24h.
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl bg-white/10 text-slate-200 border border-white/10">
+        <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+          <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl bg-white/10 text-slate-200 border border-white/10">
             {obmContext || '10º GBM'}
           </span>
         </div>

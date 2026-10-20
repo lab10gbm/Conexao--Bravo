@@ -24,8 +24,11 @@ import {
   collection,
   getDocs,
   getDoc,
-  onSnapshot,
+  setLogLevel,
 } from 'firebase/firestore';
+
+// Suppress internal Firestore connection reset/retry noise (RST_STREAM / Code 13 INTERNAL / Code 14 UNAVAILABLE)
+setLogLevel('silent');
 import {
   getAuth,
   signInWithEmailAndPassword,
@@ -300,23 +303,24 @@ async function startServer() {
           isCacheLoaded = true;
           console.log(`[Cache] Preloaded ${militaryCache.size} militaries into memory using Client SDK.`);
 
-          onSnapshot(
-            collection(clientDb, 'militaries'),
-            (snapshot) => {
+          // Synchronize military cache periodically via unary getDocs to avoid gRPC Listen stream drops/resets in Node
+          const syncMilitaryCache = async () => {
+            try {
+              if (!clientDb) return;
+              const freshSnap = await getDocs(collection(clientDb, 'militaries'));
               let hasChanges = false;
-              snapshot.docChanges().forEach((change) => {
-                const docRg = normalizeRg(change.doc.id);
+              freshSnap.forEach((d) => {
+                const docRg = normalizeRg(d.id);
                 if (deletedMilitaries && deletedMilitaries.has(docRg)) {
-                  militaryCache.delete(change.doc.id);
+                  militaryCache.delete(d.id);
                   militaryCache.delete(docRg);
                   return;
                 }
-                if (change.type === 'added' || change.type === 'modified') {
-                  militaryCache.set(change.doc.id, change.doc.data());
-                  hasChanges = true;
-                } else if (change.type === 'removed') {
-                  militaryCache.delete(change.doc.id);
-                  militaryCache.delete(docRg);
+                const existing = militaryCache.get(docRg);
+                const fresh = d.data();
+                if (!existing || JSON.stringify(existing) !== JSON.stringify(fresh)) {
+                  militaryCache.set(d.id, fresh);
+                  militaryCache.set(docRg, fresh);
                   hasChanges = true;
                 }
               });
@@ -324,9 +328,15 @@ async function startServer() {
                 militaryCacheVersion++;
                 cacheEvents.emit('update', militaryCacheVersion);
               }
-            },
-            (err) => console.warn('[Cache Sync] Client SDK listener error:', err.message),
-          );
+            } catch (pollErr: any) {
+              // Silently ignore transient network glitches during background sync
+            }
+          };
+
+          const pollTimer = setInterval(syncMilitaryCache, 45000);
+          if (typeof pollTimer.unref === 'function') {
+            pollTimer.unref();
+          }
         } catch (clientErr: any) {
           console.error('[Cache] Failed to load cache with Client SDK:', clientErr.message);
         }
@@ -456,7 +466,24 @@ async function startServer() {
     });
 
   const app = express();
-  const PORT = 3000;
+  let PORT = 3000;
+  let HOST = '0.0.0.0';
+
+  // Parse supervisor / CLI arguments safely (handles --host, --port, -H, -p)
+  const argv = process.argv.slice(2);
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if ((arg === '--port' || arg === '-p') && argv[i + 1]) {
+      PORT = parseInt(argv[i + 1], 10) || PORT;
+    } else if (arg.startsWith('--port=')) {
+      PORT = parseInt(arg.split('=')[1], 10) || PORT;
+    }
+    if ((arg === '--host' || arg === '-H') && argv[i + 1]) {
+      HOST = argv[i + 1];
+    } else if (arg.startsWith('--host=')) {
+      HOST = arg.split('=')[1];
+    }
+  }
 
   // Middleware setup
   app.use((req, res, next) => {
@@ -687,8 +714,8 @@ async function startServer() {
     });
   }
 
-  const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  const server = app.listen(PORT, HOST, () => {
+    console.log(`Server running on http://${HOST}:${PORT}`);
     startKeepAliveRobot(PORT);
   });
 

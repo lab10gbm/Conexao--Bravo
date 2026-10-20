@@ -81,12 +81,11 @@ export default function DashboardLayout({
   );
 
   const navItems = [
-    { href: "/", label: "Início", icon: Home },
-    { href: "/permutas", label: "Permutas", icon: ArrowLeftRight },
-    { href: "/ras", label: "RAS", icon: Award },
-    { href: "/escalante", label: "Escala 24h", icon: Calendar },
-    { href: "/efetivo", label: "Efetivo", icon: Users },
-    { href: "/refeitorio", label: "Rancho", icon: Utensils },
+    { href: "/", label: "INÍCIO", icon: Home },
+    { href: "/em-desenvolvimento", label: "ESCALA", icon: Calendar },
+    { href: "/refeitorio", label: "RANCHO", icon: Utensils },
+    { href: "/permutas", label: "PERMUTAS", icon: ArrowLeftRight },
+    { href: "/perfil", label: "PERFIL", icon: UserIcon },
   ];
 
   return (
@@ -201,20 +200,6 @@ export default function DashboardLayout({
               onNavigateToPermutas={() => router.push("/permutas")}
             />
 
-            {/* Dark Mode */}
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className={`w-9 h-9 sm:w-10 sm:h-10 transition-all rounded-xl flex items-center justify-center shrink-0 border ${
-                isDark
-                  ? "bg-amber-400/15 text-amber-300 border-amber-400/40"
-                  : "text-white/70 hover:text-white hover:bg-white/10 border-white/10"
-              }`}
-              title="Alternar tema"
-            >
-              {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-200" />}
-            </button>
-
             {/* Admin Toggle */}
             {hasAdminAccess && (
               <button
@@ -235,21 +220,19 @@ export default function DashboardLayout({
             <div className="relative">
               <button
                 onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                className="flex items-center gap-2 group hover:bg-white/5 p-1 rounded-2xl transition-all"
+                className="flex items-center gap-2 group hover:bg-white/5 py-1 px-2 rounded-2xl transition-all cursor-pointer"
+                aria-label="Menu do Militar"
               >
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center border border-slate-600/50">
-                  <UserIcon className="w-4 h-4 sm:w-5 sm:h-5 text-slate-300" />
-                </div>
-                <div className="hidden sm:flex flex-col text-left">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider leading-none">
+                <div className="flex flex-col text-left">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider leading-none mb-0.5">
                     {effectiveProfile?.rank}
                   </span>
-                  <span className="text-xs font-black text-slate-100 uppercase tracking-tight leading-tight">
+                  <span className="text-xs sm:text-sm font-black text-slate-100 uppercase tracking-tight leading-tight">
                     {effectiveProfile?.warName || effectiveProfile?.name}
                   </span>
                 </div>
                 <ChevronDown
-                  className={`w-4 h-4 text-slate-400 transition-transform ${
+                  className={`w-4 h-4 text-slate-400 group-hover:text-white transition-transform ml-1 ${
                     userDropdownOpen ? "-rotate-180" : ""
                   }`}
                 />
@@ -261,23 +244,69 @@ export default function DashboardLayout({
                     className="fixed inset-0 z-40 bg-black/10"
                     onClick={() => setUserDropdownOpen(false)}
                   />
-                  <div className="absolute right-0 mt-2 w-48 bg-[#1D1D1D] rounded-xl shadow-2xl border border-zinc-700/50 overflow-hidden z-50 p-2 text-white">
+                  <div className="absolute right-0 mt-2 w-52 bg-[#1D1D1D] rounded-xl shadow-2xl border border-zinc-700/50 overflow-hidden z-50 p-2 text-white animate-in fade-in slide-in-from-top-2">
                     <div className="p-2 border-b border-zinc-800 text-center">
                       <p className="text-xs font-bold truncate">{effectiveProfile?.name}</p>
                       <p className="text-[9px] text-zinc-400 font-black uppercase mt-0.5">
                         {effectiveProfile?.rank} • {effectiveProfile?.ala || "EXP"}
                       </p>
                     </div>
-                    <button
-                      onClick={() => {
-                        setUserDropdownOpen(false);
-                        handleSignOut();
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors mt-1"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      Sair do Sistema
-                    </button>
+
+                    <div className="py-1 space-y-1">
+                      {/* Modo Noturno (Lua / Sol) */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleTheme();
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-zinc-300 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer group"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`p-1.5 rounded-lg ${isDark ? "bg-amber-400/20 text-amber-400" : "bg-indigo-500/20 text-indigo-300"}`}>
+                            {isDark ? (
+                              <Sun className="w-3.5 h-3.5 text-amber-400" />
+                            ) : (
+                              <Moon className="w-3.5 h-3.5 text-indigo-300" />
+                            )}
+                          </div>
+                          <span>Modo Noturno</span>
+                        </div>
+                        <span
+                          className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
+                            isDark
+                              ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                              : "bg-zinc-800 text-zinc-400"
+                          }`}
+                        >
+                          {isDark ? "Ativo" : "Inativo"}
+                        </span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          router.push("/atualizacao");
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-zinc-300 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+                      >
+                        <UserIcon className="w-4 h-4 text-zinc-400" />
+                        Atualização Cadastral
+                      </button>
+
+                      <div className="my-1 border-t border-zinc-800" />
+
+                      <button
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          handleSignOut();
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Sair do Sistema
+                      </button>
+                    </div>
                   </div>
                 </>
               )}
@@ -292,7 +321,7 @@ export default function DashboardLayout({
       </main>
 
       {/* Mobile Bottom Navigation Bar */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--color-brand-dark)]/95 backdrop-blur-md border-t border-white/10 px-2 py-1.5 flex items-center justify-around shadow-2xl">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-[#121927] border-t border-slate-200 dark:border-slate-800 px-2 py-2 flex items-center justify-around shadow-2xl">
         {navItems.map((item) => {
           const active =
             item.href === "/"
@@ -303,11 +332,11 @@ export default function DashboardLayout({
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-colors ${
-                active ? "text-red-500 font-extrabold" : "text-slate-400 hover:text-white"
+              className={`flex flex-col items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-colors ${
+                active ? "text-[var(--color-brand-red)] font-extrabold" : "text-slate-400 dark:text-slate-500 hover:text-slate-800 dark:hover:text-white"
               }`}
             >
-              <Icon className="w-5 h-5" />
+              <Icon className="w-5 h-5" strokeWidth={active ? 2.5 : 2} />
               <span>{item.label}</span>
             </Link>
           );

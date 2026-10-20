@@ -1,8 +1,10 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
-import { initializeFirestore } from 'firebase/firestore';
+import { initializeFirestore, setLogLevel } from 'firebase/firestore';
 import fs from 'fs';
 import path from 'path';
+
+setLogLevel('silent');
 
 let serverDb: any = null;
 let serverAuthPromise: Promise<any> | null = null;

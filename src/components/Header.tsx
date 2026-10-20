@@ -577,22 +577,48 @@ export function Header({
         theme.panel,
       )}
     >
-      <div className="p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6 min-w-0">
-          <div className="flex-1 min-w-0 w-full">
-            <div className="flex items-start sm:items-center gap-2 mb-3 sm:mb-2">
-              <div className="w-1.5 sm:w-2 h-7 bg-[var(--color-brand-red)] shrink-0" />
+      <div className="p-3 sm:p-6">
+        <div className="flex flex-row items-center justify-between gap-2 xs:gap-3 sm:gap-6 min-w-0 w-full">
+          <div className="flex-1 min-w-0 pr-1">
+            {/* Texto de Unidade acima da apresentação */}
+            <div className="flex items-center gap-1 font-mono text-[8px] xs:text-[9px] sm:text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.1em] mb-1 sm:mb-2 px-0.5">
+              <span className="text-slate-400 dark:text-slate-500 shrink-0">Unidade:</span>
+              {availableObms && availableObms.length > 1 && setObmContext ? (
+                <select
+                  value={obmContext}
+                  onChange={(e) => setObmContext(e.target.value)}
+                  className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-black rounded px-1.5 py-0.5 outline-none focus:border-[var(--color-brand-red)] transition-colors max-w-[120px] xs:max-w-[140px] sm:max-w-none text-ellipsis text-[8px] xs:text-[9px] sm:text-[10px]"
+                >
+                  {availableObms.map((obm) => {
+                    const label = obm === 'GLOBAL' ? '🌐 TODAS AS UNIDADES' : formatScopeLabel(resolveCanonicalScope(obm));
+                    return (
+                      <option key={obm} value={obm}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+              ) : (
+                <span className="font-black text-slate-700 dark:text-slate-300 text-[8px] xs:text-[9px] sm:text-[10px] uppercase">
+                  {obmContext || profile.obm || '10º GBM'}
+                </span>
+              )}
+            </div>
+
+            {/* Linha da Apresentação do Militar */}
+            <div className="flex items-center gap-1.5 xs:gap-2 min-w-0">
+              <div className="w-1 sm:w-1.5 h-6 sm:h-7 bg-[var(--color-brand-red)] shrink-0 rounded-full" />
 
               <div className="relative shrink-0">
                 <button
                   onClick={() => setIsExpanded(!isExpanded)}
                   className={cn(
-                    "px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 sm:gap-2 transition-all relative shadow-xs cursor-pointer",
+                    "px-1.5 py-1 sm:px-2.5 sm:py-1.5 rounded-lg flex items-center gap-1 sm:gap-2 transition-all relative shadow-xs cursor-pointer",
                     pendingActionCount > 0
                       ? "text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 ring-2 ring-amber-400/50"
                       : notifications.length > 0 || epiRequestActive
                         ? "text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200"
-                        : "text-[var(--color-brand-red)] bg-red-50 hover:bg-red-100 border border-red-100",
+                        : "text-[var(--color-brand-red)] bg-red-50 dark:bg-red-950/40 hover:bg-red-100 border border-red-100 dark:border-red-900/50",
                   )}
                   title={
                     pendingActionCount > 0
@@ -601,13 +627,13 @@ export function Header({
                   }
                 >
                   <div className="relative">
-                    <Bell className={cn("w-4 h-4 sm:w-5 sm:h-5", pendingActionCount > 0 && "animate-bounce text-amber-700")} />
+                    <Bell className={cn("w-3.5 h-3.5 sm:w-5 sm:h-5", pendingActionCount > 0 && "animate-bounce text-amber-700")} />
                     {(notifications.length > 0 || epiRequestActive) && (
                       <motion.span
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
                         className={cn(
-                          "absolute -top-1.5 -right-2 min-w-4 h-4 px-1 flex items-center justify-center text-[9px] font-black rounded-full border border-white leading-none",
+                          "absolute -top-1.5 -right-2 min-w-3.5 h-3.5 sm:min-w-4 sm:h-4 px-0.5 sm:px-1 flex items-center justify-center text-[8px] sm:text-[9px] font-black rounded-full border border-white dark:border-slate-900 leading-none",
                           pendingActionCount > 0
                             ? "bg-amber-600 text-white animate-pulse"
                             : "bg-red-500 text-white"
@@ -618,29 +644,29 @@ export function Header({
                     )}
                   </div>
                   <motion.div animate={{ rotate: isExpanded ? 180 : 0 }}>
-                    <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4" strokeWidth={3} />
+                    <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 text-[var(--color-brand-red)]" strokeWidth={3} />
                   </motion.div>
                 </button>
               </div>
 
               {/* Rank Insignia */}
-              <div className="mr-1 mt-1 sm:mr-4 shrink-0 text-[var(--color-brand-red)]">
+              <div className="mr-0.5 sm:mr-3 shrink-0 text-[var(--color-brand-red)]">
                 <RankInsignia
                   rankStr={profile.rank}
-                  className="scale-[1.4] sm:scale-[2.2] origin-center sm:origin-left"
+                  className="scale-[1.1] sm:scale-[1.8] min-[880px]:scale-[2.2] origin-left"
                 />
               </div>
 
               <div
-                className={`flex flex-col min-w-0 ${["CORONEL", "TENENTE CORONEL", "MAJOR", "CAPITÃO", "1º TENENTE", "2º TENENTE", "ASP OF", "CADETE"].includes(profile.rank?.trim()?.toUpperCase() || "") ? "ml-8 sm:ml-36" : "ml-2 sm:ml-10"}`}
+                className={`flex flex-col min-w-0 ${["CORONEL", "TENENTE CORONEL", "MAJOR", "CAPITÃO", "1º TENENTE", "2º TENENTE", "ASP OF", "CADETE"].includes(profile.rank?.trim()?.toUpperCase() || "") ? "ml-4 sm:ml-28 min-[880px]:ml-36" : "ml-0.5 sm:ml-4 min-[880px]:ml-8"}`}
               >
-                <div className="flex items-center gap-2">
-                  <h2 className="text-[10px] sm:text-sm font-black text-[var(--color-brand-red)] uppercase tracking-[0.2em] mb-0.5 truncate">
+                <div className="flex items-center gap-1">
+                  <h2 className="text-[8px] xs:text-[9px] sm:text-sm font-black text-[var(--color-brand-red)] uppercase tracking-[0.15em] sm:tracking-[0.2em] mb-0.5 truncate">
                     {profile.rank}
                   </h2>
                 </div>
-                <div className="flex items-center flex-wrap gap-2">
-                  <h2 className="text-lg sm:text-2xl font-black text-[var(--color-brand-dark)] uppercase tracking-tight break-words line-clamp-2">
+                <div className="flex items-center flex-wrap gap-1 sm:gap-2">
+                  <h2 className="text-xs xs:text-sm sm:text-xl min-[880px]:text-2xl font-black text-[var(--color-brand-dark)] dark:text-slate-100 uppercase tracking-tight truncate max-w-[85px] xs:max-w-[120px] sm:max-w-none">
                     {profile.warName || profile.name}
                   </h2>
                   {(() => {
@@ -657,188 +683,205 @@ export function Header({
                         <button
                           onClick={onToggleAdminMode}
                           className={cn(
-                            "p-1.5 sm:p-2 rounded-lg sm:rounded-xl flex items-center justify-center border transition-all shadow-sm active:scale-95 cursor-pointer shrink-0 mt-1 sm:mt-0",
+                            "p-1 sm:p-2 rounded-md sm:rounded-xl flex items-center justify-center border transition-all shadow-xs active:scale-95 cursor-pointer shrink-0",
                             adminModeActive
                               ? "bg-indigo-600 text-white border-indigo-700 shadow-indigo-100/50 hover:bg-indigo-700"
-                              : "bg-white/80 text-slate-600 border-slate-300 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-300",
+                              : "bg-white/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-300",
                           )}
                           title={adminModeActive ? "Modo Moderador Ativo (clique para desativar)" : "Ativar Modo Moderador"}
                           aria-label="Modo Moderador"
                         >
-                          <ShieldCheck className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                          <ShieldCheck className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
                         </button>
                       );
                     }
 
                     return (
                       <span
-                        className="bg-amber-100 text-amber-700 p-1.5 rounded-lg flex items-center justify-center border border-amber-200 shrink-0 mt-1 sm:mt-0"
+                        className="bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 p-1 rounded-md flex items-center justify-center border border-amber-200 dark:border-amber-800 shrink-0"
                         title="Moderador"
                         aria-label="Moderador"
                       >
-                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <ShieldCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       </span>
                     );
                   })()}
                 </div>
               </div>
             </div>
-            {availableObms && availableObms.length > 1 && setObmContext && (
-              <div className="flex items-center gap-1.5 font-mono text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em] mt-2 px-1 sm:px-0">
-                <span className="text-slate-400 shrink-0">Unidade:</span>
-                <select
-                  value={obmContext}
-                  onChange={(e) => setObmContext(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 text-slate-600 font-black rounded px-2 py-1 outline-none focus:border-[var(--color-brand-red)] transition-colors max-w-[120px] sm:max-w-none text-ellipsis"
-                >
-                  {availableObms.map((obm) => {
-                    const label = obm === 'GLOBAL' ? '🌐 TODAS AS UNIDADES' : formatScopeLabel(resolveCanonicalScope(obm));
-                    return (
-                      <option key={obm} value={obm}>
-                        {label}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-            )}
           </div>
 
-          <div
-            className={cn(
-              "shrink-0",
-              isOfficerMode || isExp
-                ? "flex items-center mt-4 min-[880px]:mt-0"
-                : "hidden sm:grid grid-cols-2 min-[880px]:grid-cols-4 gap-1.5 sm:gap-2 min-[880px]:gap-2 mt-4 min-[880px]:mt-0 self-center min-[880px]:self-auto",
-            )}
-          >
+          {/* Cubo com Informações da Escala (à direita) */}
+          <div className="shrink-0 flex items-center justify-end">
             {isOfficerMode ? (
-              <div className="p-3 rounded-lg shadow-sm border border-[var(--color-brand-red)] bg-red-50 text-[var(--color-brand-red)] w-auto min-w-[200px] text-center flex flex-col items-center justify-center">
-                <div className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
+              <div className="p-1.5 xs:p-2 sm:p-3 rounded-xl shadow-xs border border-[var(--color-brand-red)] bg-red-50 dark:bg-red-950/40 text-[var(--color-brand-red)] text-center flex flex-col items-center justify-center shrink-0 w-auto min-w-[90px] xs:min-w-[105px] sm:min-w-[170px] max-w-[130px] sm:max-w-none">
+                <div className="text-[7px] xs:text-[8px] sm:text-[10px] font-black uppercase tracking-wider whitespace-nowrap">
                   FUNÇÃO / CHEFIA
                 </div>
-                <div className="text-[12px] font-black leading-none uppercase">
+                <div className="text-[10px] xs:text-[11.5px] sm:text-[12px] font-black leading-tight uppercase truncate max-w-full">
                   {profile.officerRole || "A SER DEFINIDO"}
                 </div>
               </div>
             ) : isExp ? (
-              <div className="p-2.5 sm:p-3 rounded-lg shadow-sm border border-slate-300 bg-slate-100 text-slate-800 w-auto min-w-[180px] text-center flex flex-col items-center justify-center">
-                <div className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest whitespace-nowrap text-slate-500">
+              <div className="p-1.5 xs:p-2 sm:p-3 rounded-xl shadow-xs border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 text-center flex flex-col items-center justify-center shrink-0 w-auto min-w-[90px] xs:min-w-[105px] sm:min-w-[170px] max-w-[130px] sm:max-w-none">
+                <div className="text-[7px] xs:text-[8px] sm:text-[10px] font-black uppercase tracking-wider whitespace-nowrap text-slate-500 dark:text-slate-400">
                   REGIME / ESCALA
                 </div>
-                <div className="text-[13px] sm:text-[14px] font-black leading-tight uppercase text-slate-800">
+                <div className="text-[10.5px] xs:text-[12px] sm:text-[14px] font-black leading-tight uppercase text-slate-800 dark:text-slate-100">
                   EXPEDIENTE
                 </div>
                 {userRegime ? (
-                  <div className="text-[9px] font-bold text-slate-500 uppercase mt-0.5 max-w-[220px] truncate">
+                  <div className="text-[7px] xs:text-[8px] sm:text-[9.5px] font-bold text-slate-500 dark:text-slate-400 uppercase mt-0.5 truncate max-w-full">
                     {userRegime}
                   </div>
                 ) : null}
               </div>
             ) : (
               <>
-                <div
-                  className={cn(
-                    "rounded-lg shadow-sm text-center flex flex-col items-center justify-center border transition-all",
-                    "w-[72px] sm:w-20 min-[880px]:w-20 py-2 sm:py-2.5 min-[880px]:p-3",
-                    alaType === "1"
-                      ? "bg-emerald-600 text-white border-transparent"
-                      : "bg-white text-slate-400 border-slate-200",
-                  )}
-                >
+                {/* Mobile view: single active Ala cube */}
+                <div className="flex sm:hidden">
                   <div
                     className={cn(
-                      "text-[8px] uppercase font-bold",
-                      alaType === "1" ? "opacity-80" : "",
+                      "rounded-xl shadow-xs text-center flex flex-col items-center justify-center border p-1.5 shrink-0 min-w-[90px] xs:min-w-[105px] max-w-[125px]",
+                      alaType === "1"
+                        ? "bg-emerald-600 text-white border-transparent"
+                        : alaType === "2"
+                          ? "bg-rose-600 text-white border-transparent"
+                          : alaType === "3"
+                            ? "bg-sky-600 text-white border-transparent"
+                            : alaType === "4"
+                              ? "bg-amber-500 text-white border-transparent"
+                              : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700",
                     )}
                   >
-                    Ala 1
-                  </div>
-                  <div
-                    className={cn(
-                      "text-[9px] sm:text-[10px] font-black leading-tight min-[880px]:leading-none",
-                      alaType === "1" ? "" : "text-slate-300",
-                    )}
-                  >
-                    VERDE
-                  </div>
-                </div>
-                <div
-                  className={cn(
-                    "rounded-lg shadow-sm text-center flex flex-col items-center justify-center border transition-all",
-                    "w-[72px] sm:w-20 min-[880px]:w-20 py-2 sm:py-2.5 min-[880px]:p-3",
-                    alaType === "2"
-                      ? "bg-rose-600 text-white border-transparent"
-                      : "bg-white text-slate-400 border-slate-200",
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "text-[8px] uppercase font-bold",
-                      alaType === "2" ? "opacity-80" : "",
-                    )}
-                  >
-                    Ala 2
-                  </div>
-                  <div
-                    className={cn(
-                      "text-[9px] sm:text-[10px] font-black leading-tight min-[880px]:leading-none",
-                      alaType === "2" ? "" : "text-slate-300",
-                    )}
-                  >
-                    VERMELHO
+                    <div className="text-[7px] xs:text-[7.5px] uppercase font-bold opacity-80 whitespace-nowrap">
+                      REGIME / ESCALA
+                    </div>
+                    <div className="text-[10.5px] xs:text-[11.5px] font-black leading-tight uppercase whitespace-nowrap">
+                      {alaType ? `ALA ${alaType}` : "SEM ALA"}
+                    </div>
+                    <div className="text-[7px] xs:text-[7.5px] font-black tracking-widest uppercase opacity-90">
+                      {alaType === "1"
+                        ? "VERDE"
+                        : alaType === "2"
+                          ? "VERMELHO"
+                          : alaType === "3"
+                            ? "AZUL"
+                            : alaType === "4"
+                              ? "AMARELO"
+                              : ""}
+                    </div>
                   </div>
                 </div>
-                <div
-                  className={cn(
-                    "rounded-lg shadow-sm text-center flex flex-col items-center justify-center border transition-all",
-                    "w-[72px] sm:w-20 min-[880px]:w-20 py-2 sm:py-2.5 min-[880px]:p-3",
-                    alaType === "3"
-                      ? "bg-sky-600 text-white border-transparent"
-                      : "bg-white text-slate-400 border-slate-200",
-                  )}
-                >
+
+                {/* Tablet and Desktop view: 4 alas */}
+                <div className="hidden sm:grid grid-cols-2 min-[880px]:grid-cols-4 gap-1.5 sm:gap-2">
                   <div
                     className={cn(
-                      "text-[8px] uppercase font-bold",
-                      alaType === "3" ? "opacity-80" : "",
+                      "rounded-lg shadow-sm text-center flex flex-col items-center justify-center border transition-all",
+                      "w-[72px] sm:w-20 min-[880px]:w-20 py-2 sm:py-2.5 min-[880px]:p-3",
+                      alaType === "1"
+                        ? "bg-emerald-600 text-white border-transparent"
+                        : "bg-white dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700",
                     )}
                   >
-                    Ala 3
+                    <div
+                      className={cn(
+                        "text-[8px] uppercase font-bold",
+                        alaType === "1" ? "opacity-80" : "",
+                      )}
+                    >
+                      Ala 1
+                    </div>
+                    <div
+                      className={cn(
+                        "text-[9px] sm:text-[10px] font-black leading-tight min-[880px]:leading-none",
+                        alaType === "1" ? "" : "text-slate-300 dark:text-slate-500",
+                      )}
+                    >
+                      VERDE
+                    </div>
                   </div>
+
                   <div
                     className={cn(
-                      "text-[9px] sm:text-[10px] font-black leading-tight min-[880px]:leading-none",
-                      alaType === "3" ? "" : "text-slate-300",
+                      "rounded-lg shadow-sm text-center flex flex-col items-center justify-center border transition-all",
+                      "w-[72px] sm:w-20 min-[880px]:w-20 py-2 sm:py-2.5 min-[880px]:p-3",
+                      alaType === "2"
+                        ? "bg-rose-600 text-white border-transparent"
+                        : "bg-white dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700",
                     )}
                   >
-                    AZUL
+                    <div
+                      className={cn(
+                        "text-[8px] uppercase font-bold",
+                        alaType === "2" ? "opacity-80" : "",
+                      )}
+                    >
+                      Ala 2
+                    </div>
+                    <div
+                      className={cn(
+                        "text-[9px] sm:text-[10px] font-black leading-tight min-[880px]:leading-none",
+                        alaType === "2" ? "" : "text-slate-300 dark:text-slate-500",
+                      )}
+                    >
+                      VERMELHO
+                    </div>
                   </div>
-                </div>
-                <div
-                  className={cn(
-                    "rounded-lg shadow-sm text-center flex flex-col items-center justify-center border transition-all",
-                    "w-[72px] sm:w-20 min-[880px]:w-20 py-2 sm:py-2.5 min-[880px]:p-3",
-                    alaType === "4"
-                      ? "bg-amber-500 text-white border-transparent"
-                      : "bg-white text-slate-400 border-slate-200",
-                  )}
-                >
+
                   <div
                     className={cn(
-                      "text-[8px] uppercase font-bold",
-                      alaType === "4" ? "opacity-80" : "",
+                      "rounded-lg shadow-sm text-center flex flex-col items-center justify-center border transition-all",
+                      "w-[72px] sm:w-20 min-[880px]:w-20 py-2 sm:py-2.5 min-[880px]:p-3",
+                      alaType === "3"
+                        ? "bg-sky-600 text-white border-transparent"
+                        : "bg-white dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700",
                     )}
                   >
-                    Ala 4
+                    <div
+                      className={cn(
+                        "text-[8px] uppercase font-bold",
+                        alaType === "3" ? "opacity-80" : "",
+                      )}
+                    >
+                      Ala 3
+                    </div>
+                    <div
+                      className={cn(
+                        "text-[9px] sm:text-[10px] font-black leading-tight min-[880px]:leading-none",
+                        alaType === "3" ? "" : "text-slate-300 dark:text-slate-500",
+                      )}
+                    >
+                      AZUL
+                    </div>
                   </div>
+
                   <div
                     className={cn(
-                      "text-[9px] sm:text-[10px] font-black leading-tight min-[880px]:leading-none",
-                      alaType === "4" ? "" : "text-slate-300",
+                      "rounded-lg shadow-sm text-center flex flex-col items-center justify-center border transition-all",
+                      "w-[72px] sm:w-20 min-[880px]:w-20 py-2 sm:py-2.5 min-[880px]:p-3",
+                      alaType === "4"
+                        ? "bg-amber-500 text-white border-transparent"
+                        : "bg-white dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700",
                     )}
                   >
-                    AMARELO
+                    <div
+                      className={cn(
+                        "text-[8px] uppercase font-bold",
+                        alaType === "4" ? "opacity-80" : "",
+                      )}
+                    >
+                      Ala 4
+                    </div>
+                    <div
+                      className={cn(
+                        "text-[9px] sm:text-[10px] font-black leading-tight min-[880px]:leading-none",
+                        alaType === "4" ? "" : "text-slate-300 dark:text-slate-500",
+                      )}
+                    >
+                      AMARELO
+                    </div>
                   </div>
                 </div>
               </>

@@ -1487,13 +1487,13 @@ export default function App() {
       </footer>
 
       {/* Mobile Bottom Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex items-center justify-around z-[100] pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-[#121927] border-t border-slate-200 dark:border-slate-800 flex items-center justify-around z-[100] pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
         {[
-          { icon: Home, label: "Início", path: "/" },
-          { icon: Calendar, label: "Escala", path: "/em-desenvolvimento" },
-          { icon: Utensils, label: "Rancho", path: "/refeitorio" },
-          { icon: ArrowLeftRight, label: "Permutas", path: "/permutas" },
-          { icon: User, label: "Perfil", path: "/perfil" },
+          { icon: Home, label: "INÍCIO", path: "/" },
+          { icon: Calendar, label: "ESCALA", path: "/em-desenvolvimento" },
+          { icon: Utensils, label: "RANCHO", path: "/refeitorio" },
+          { icon: ArrowLeftRight, label: "PERMUTAS", path: "/permutas" },
+          { icon: User, label: "PERFIL", path: "/perfil" },
         ].map((item, idx) => {
           const isActive =
             location.pathname === item.path ||
@@ -1502,18 +1502,18 @@ export default function App() {
             <button
               key={idx}
               onClick={() => navigate(item.path)}
-              className={`flex flex-col items-center justify-center w-full py-3 gap-1 transition-colors ${
+              className={`flex flex-col items-center justify-center w-full py-2.5 gap-1 transition-colors cursor-pointer ${
                 isActive
                   ? "text-[var(--color-brand-red)]"
-                  : "text-slate-400 hover:text-slate-900"
+                  : "text-slate-400 dark:text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
               }`}
             >
               <item.icon
-                className={`w-5 h-5 ${isActive && item.icon !== Home && item.icon !== ArrowLeftRight && item.icon !== Utensils && item.icon !== Calendar ? "fill-current" : ""}`}
+                className="w-5 h-5"
                 strokeWidth={isActive ? 2.5 : 2}
               />
               <span
-                className={`text-[9px] font-black uppercase tracking-wider ${isActive ? "opacity-100" : "opacity-70"}`}
+                className={`text-[9px] font-black uppercase tracking-wider ${isActive ? "opacity-100 font-extrabold" : "opacity-80"}`}
               >
                 {item.label}
               </span>

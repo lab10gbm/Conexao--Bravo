@@ -12,9 +12,10 @@ interface UseExpedienteDataOptions {
   selectedObm: string;
   currentMonth: Date;
   obmContext?: string;
+  isOfficerOnly?: boolean;
 }
 
-export function useExpedienteData({ selectedObm, currentMonth, obmContext }: UseExpedienteDataOptions) {
+export function useExpedienteData({ selectedObm, currentMonth, obmContext, isOfficerOnly = false }: UseExpedienteDataOptions) {
   const [data, setData] = useState<ExpedienteData>({
     requirements: {},
     selections: {},
@@ -37,9 +38,11 @@ export function useExpedienteData({ selectedObm, currentMonth, obmContext }: Use
   const [generalPermutas, setGeneralPermutas] = useState<PermutaRequest[]>([]);
 
   const normalizedObm = selectedObm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+  const collectionPrefix = isOfficerOnly ? 'expediente_oficiais_' : 'expediente_';
+  const globalPrefix = isOfficerOnly ? 'expediente_global_oficiais_' : 'expediente_global_';
   const monthKey = format(currentMonth, 'yyyy-MM');
-  const monthDocRef = doc(db, `expediente_${normalizedObm}`, monthKey);
-  const globalDocRef = doc(db, 'config', `expediente_global_${normalizedObm}`);
+  const monthDocRef = doc(db, `${collectionPrefix}${normalizedObm}`, monthKey);
+  const globalDocRef = doc(db, 'config', `${globalPrefix}${normalizedObm}`);
 
   // Listener: Afastamentos
   useEffect(() => {
@@ -100,9 +103,10 @@ export function useExpedienteData({ selectedObm, currentMonth, obmContext }: Use
 
     // 1. Initial backend load to guarantee data even with client permission blocks
     let isMounted = true;
+    const expCollection = `${collectionPrefix}${normalizedObm}`;
     Promise.all([
-      fetch(`/api/doc/get?collection=${encodeURIComponent(`expediente_${normalizedObm}`)}&docId=${encodeURIComponent(monthKey)}`).then(r => r.json()).catch(() => null),
-      fetch(`/api/doc/get?collection=${encodeURIComponent(`expediente_${normalizedObm}`)}&docId=global`).then(r => r.json()).catch(() => null),
+      fetch(`/api/doc/get?collection=${encodeURIComponent(expCollection)}&docId=${encodeURIComponent(monthKey)}`).then(r => r.json()).catch(() => null),
+      fetch(`/api/doc/get?collection=${encodeURIComponent(expCollection)}&docId=global`).then(r => r.json()).catch(() => null),
       fetch(`/api/doc/get?collection=grd_configs&docId=${encodeURIComponent(grdDocId)}`).then(r => r.json()).catch(() => null)
     ]).then(([mRes, gRes, grdRes]) => {
       if (!isMounted) return;
@@ -181,6 +185,8 @@ export function useExpedienteData({ selectedObm, currentMonth, obmContext }: Use
     normalizedObm,
     monthKey,
     monthDocRef,
-    globalDocRef
+    globalDocRef,
+    collectionPrefix,
+    isOfficerOnly
   };
 }

@@ -30,6 +30,7 @@ interface UseWeeklyChangesProps {
   selectedWeekMonday: Date;
   getDayStatus: (rg: string, dayStr: string) => DayStatusResult;
   setActionFeedback: (fb: { type: 'success' | 'error'; message: string } | null) => void;
+  collectionPrefix?: string;
 }
 
 export function useWeeklyChanges({
@@ -47,7 +48,8 @@ export function useWeeklyChanges({
   fullWeekDays,
   selectedWeekMonday,
   getDayStatus,
-  setActionFeedback
+  setActionFeedback,
+  collectionPrefix = 'expediente_'
 }: UseWeeklyChangesProps) {
   const [showWeeklyChangeModal, setShowWeeklyChangeModal] = useState(false);
   const [proposedWeeklyChanges, setProposedWeeklyChanges] = useState<
@@ -169,7 +171,7 @@ export function useWeeklyChanges({
     const targetDocRef =
       weekMondayMonthKey === monthKey
         ? monthDocRef
-        : doc(db, `expediente_${normalizedObm}`, weekMondayMonthKey);
+        : doc(db, `${collectionPrefix}${normalizedObm}`, weekMondayMonthKey);
     const dataSource =
       weekMondayMonthKey === monthKey
         ? data
@@ -218,7 +220,7 @@ export function useWeeklyChanges({
         const docRef =
           mKey === monthKey
             ? monthDocRef
-            : doc(db, `expediente_${normalizedObm}`, mKey);
+            : doc(db, `${collectionPrefix}${normalizedObm}`, mKey);
         const source = mKey === monthKey ? data : extraMonthData[mKey] || {};
 
         let userSels = safeArr(source.selections?.[req.rg]);
@@ -273,7 +275,7 @@ export function useWeeklyChanges({
       const reqDocRef =
         reqMonthKey === monthKey
           ? monthDocRef
-          : doc(db, `expediente_${normalizedObm}`, reqMonthKey);
+          : doc(db, `${collectionPrefix}${normalizedObm}`, reqMonthKey);
       const source =
         reqMonthKey === monthKey ? data : extraMonthData[reqMonthKey] || {};
 
@@ -337,7 +339,7 @@ export function useWeeklyChanges({
       const reqDocRef =
         reqMonthKey === monthKey
           ? monthDocRef
-          : doc(db, `expediente_${normalizedObm}`, reqMonthKey);
+          : doc(db, `${collectionPrefix}${normalizedObm}`, reqMonthKey);
       const source =
         reqMonthKey === monthKey ? data : extraMonthData[reqMonthKey] || {};
 
@@ -391,7 +393,7 @@ export function useWeeklyChanges({
       const reqDocRef =
         reqMonthKey === monthKey
           ? monthDocRef
-          : doc(db, `expediente_${normalizedObm}`, reqMonthKey);
+          : doc(db, `${collectionPrefix}${normalizedObm}`, reqMonthKey);
       const source =
         reqMonthKey === monthKey ? data : extraMonthData[reqMonthKey] || {};
 

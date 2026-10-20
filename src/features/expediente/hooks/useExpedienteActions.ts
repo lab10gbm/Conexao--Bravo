@@ -36,6 +36,7 @@ interface UseExpedienteActionsProps {
   setActionFeedback: (fb: { type: 'success' | 'error'; message: string } | null) => void;
   setMilitaryMoveModal: React.Dispatch<React.SetStateAction<any>>;
   setQuickAddModal: React.Dispatch<React.SetStateAction<any>>;
+  collectionPrefix?: string;
 }
 
 export function useExpedienteActions({
@@ -61,7 +62,8 @@ export function useExpedienteActions({
   updateMilitarLocal,
   setActionFeedback,
   setMilitaryMoveModal,
-  setQuickAddModal
+  setQuickAddModal,
+  collectionPrefix = 'expediente_'
 }: UseExpedienteActionsProps) {
   const [addMemberRg, setAddMemberRg] = useState('');
   const [memberSearchTerm, setMemberSearchTerm] = useState('');
@@ -399,7 +401,7 @@ export function useExpedienteActions({
     const targetDocRef =
       dayMonthKey === monthKey
         ? monthDocRef
-        : doc(db, `expediente_${normalizedObm}`, dayMonthKey);
+        : doc(db, `${collectionPrefix}${normalizedObm}`, dayMonthKey);
     const dataSource =
       dayMonthKey === monthKey ? data : extraMonthData[dayMonthKey] || {};
 
@@ -533,7 +535,7 @@ export function useExpedienteActions({
     const targetDocRef =
       dayMonthKey === monthKey
         ? monthDocRef
-        : doc(db, `expediente_${normalizedObm}`, dayMonthKey);
+        : doc(db, `${collectionPrefix}${normalizedObm}`, dayMonthKey);
     const dataSource =
       dayMonthKey === monthKey ? data : extraMonthData[dayMonthKey] || {};
 
