@@ -66,99 +66,23 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
     }
   }, [isModeratorOrEscalante, viewMode]);
 
-  useEffect(() => {
-    // Safety timeout: if Firestore takes too long, stop loading
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 5000);
-
-    // Scope: 3 days ago for standard users to avoid loading old history, admins get the same or maybe 60 days
-    const daysAgo = adminMode ? 60 : 3;
-    const startDate = format(subDays(new Date(), daysAgo), 'yyyy-MM-dd');
-
-    const q = query(
-      collection(db, 'permutas'),
-      where('date', '>=', startDate),
-      orderBy('date', 'asc')
-    );
-
-    let isMounted = true;
-    let unsubSnapshot: (() => void) | undefined;
-    
-    unsubSnapshot = onSnapshot(q, (snapshot) => {
-      clearTimeout(timer);
-      if (!isMounted) return;
-      
-      const data = snapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id
-      })) as PermutaRequest[];
-      
-      const targetScope = resolveCanonicalScope(obmContext);
-      const isGlobalAccess = obmContext === 'GLOBAL' || user?.isAdmin;
-      const filteredByObm = data.filter(p => {
-        if (isGlobalAccess) return true;
-        if (p.scope) {
-          return p.scope.unitId === targetScope.unitId;
-        }
-        return !p.obm || getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm));
-      });
-      
-      if (adminMode) {
-        setPermutas(filteredByObm);
-        localStorage.setItem('cache_permutas', JSON.stringify(filteredByObm));
-      } else {
-        const userCleanRg = normalizeRg(user?.rg);
-        const filtered = filteredByObm.filter(p => 
-          p.status === PermutaStatus.ACCEPTED || 
-          p.status === PermutaStatus.PENDING ||
-          p.status === 'scheduled' ||
-          (userCleanRg && (normalizeRg(p.requesterRg) === userCleanRg || normalizeRg(p.substituteRg) === userCleanRg)) ||
-          p.requesterId === (user?.uid || '') ||
-          p.acceptedById === (user?.uid || '') ||
-          p.substituteId === (user?.uid || '') ||
-          p.isLookingForSubstitute
-        );
-        setPermutas(filtered);
-        localStorage.setItem('cache_permutas', JSON.stringify(filtered));
+  const processAndSetPermutas = React.useCallback((data: PermutaRequest[]) => {
+    const targetScope = resolveCanonicalScope(obmContext);
+    const isGlobalAccess = obmContext === 'GLOBAL' || user?.isAdmin;
+    const filteredByObm = data.filter(p => {
+      if (isGlobalAccess) return true;
+      if (p.scope) {
+        return p.scope.unitId === targetScope.unitId;
       }
-      setLoading(false);
-    }, (error) => {
-      clearTimeout(timer);
-      if (isMounted) {
-          setLoading(false);
-          handleFirestoreError(error, OperationType.LIST, 'permutas', false);
-      }
+      return !p.obm || getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm));
     });
 
-    return () => { 
-        isMounted = false;
-        clearTimeout(timer);
-        if (unsubSnapshot) unsubSnapshot();
-    };
-  }, [user?.uid, user?.isAdmin, user?.rg, obmContext, adminMode]);
-
-  // Refresh manual function
-  const handleManualRefresh = async () => {
-    setLoading(true);
-    const daysAgo = adminMode ? 60 : 3;
-    const startDate = format(subDays(new Date(), daysAgo), 'yyyy-MM-dd');
-
-    const q = query(
-      collection(db, 'permutas'),
-      where('date', '>=', startDate),
-      orderBy('date', 'asc')
-    );
-    try {
-      const snapshot = await getDocs(q);
-      const data = snapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id
-      })) as PermutaRequest[];
-      
-      const filteredByObm = data.filter(p => !p.obm || getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm)));
+    if (adminMode) {
+      setPermutas(filteredByObm);
+      try { localStorage.setItem('cache_permutas', JSON.stringify(filteredByObm)); } catch(e) {}
+    } else {
       const userCleanRg = normalizeRg(user?.rg);
-      const filtered = adminMode ? filteredByObm : filteredByObm.filter(p => 
+      const filtered = filteredByObm.filter(p => 
         p.status === PermutaStatus.ACCEPTED || 
         p.status === PermutaStatus.PENDING ||
         p.status === 'scheduled' ||
@@ -169,11 +93,101 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
         p.isLookingForSubstitute
       );
       setPermutas(filtered);
-      localStorage.setItem('cache_permutas', JSON.stringify(filtered));
-    } catch(e) {
-      console.error(e);
+      try { localStorage.setItem('cache_permutas', JSON.stringify(filtered)); } catch(e) {}
     }
     setLoading(false);
+  }, [obmContext, user?.isAdmin, user?.rg, user?.uid, adminMode]);
+
+  const fetchFromServer = React.useCallback(async () => {
+    try {
+      const daysAgo = adminMode ? 60 : 30;
+      const res = await fetch(`/api/permutas?obm=${encodeURIComponent(obmContext || '')}&daysAgo=${daysAgo}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.permutas)) {
+          processAndSetPermutas(json.permutas);
+          return true;
+        }
+      }
+    } catch (e) {
+      console.warn('[PermutaBoard] Server fetch warning:', e);
+    }
+    return false;
+  }, [adminMode, obmContext, processAndSetPermutas]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    // Safety timeout: stop spinner after 3 seconds
+    const timer = setTimeout(() => {
+      if (isMounted) setLoading(false);
+    }, 3000);
+
+    // Initial fetch from server API to bypass adblockers
+    fetchFromServer();
+
+    // Secondary client listener for realtime updates
+    const daysAgo = adminMode ? 60 : 30;
+    const startDate = format(subDays(new Date(), daysAgo), 'yyyy-MM-dd');
+
+    const q = query(
+      collection(db, 'permutas'),
+      where('date', '>=', startDate),
+      orderBy('date', 'asc')
+    );
+
+    let unsubSnapshot: (() => void) | undefined;
+    try {
+      unsubSnapshot = onSnapshot(q, (snapshot) => {
+        clearTimeout(timer);
+        if (!isMounted) return;
+        const data = snapshot.docs.map(doc => ({
+          ...doc.data(),
+          id: doc.id
+        })) as PermutaRequest[];
+        processAndSetPermutas(data);
+      }, (error) => {
+        clearTimeout(timer);
+        // Client snapshot blocked or failed, fallback to server fetch
+        if (isMounted) {
+          fetchFromServer();
+        }
+      });
+    } catch (e) {
+      clearTimeout(timer);
+      if (isMounted) fetchFromServer();
+    }
+
+    return () => { 
+      isMounted = false;
+      clearTimeout(timer);
+      if (unsubSnapshot) unsubSnapshot();
+    };
+  }, [obmContext, adminMode, fetchFromServer, processAndSetPermutas]);
+
+  // Refresh manual function
+  const handleManualRefresh = async () => {
+    setLoading(true);
+    await fetchFromServer();
+    setLoading(false);
+  };
+
+  // Helper for resilient Firestore writes with server fallback
+  const updatePermuta = async (id: string, updates: Record<string, any>) => {
+    const sanitized = cleanUndefined(updates);
+    try {
+      await updateDoc(doc(db, 'permutas', id), {
+        ...sanitized,
+        updatedAt: serverTimestamp()
+      });
+    } catch (clientErr) {
+      console.warn('[PermutaBoard] Client update failed, fallback to /api/permutas/update:', clientErr);
+      await fetch('/api/permutas/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, updates: sanitized })
+      });
+    }
   };
 
   const confirmSign = async () => {
@@ -214,12 +228,9 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
       const nextRequesterSigned = isRequester ? true : Boolean(signPermuta.requesterSigned);
       const nextSubstituteSigned = isSubstitute ? true : Boolean(signPermuta.substituteSigned);
 
-      await updateDoc(doc(db, 'permutas', signPermuta.id), cleanUndefined({
+      await updatePermuta(signPermuta.id, {
         requesterSigned: nextRequesterSigned,
         substituteSigned: nextSubstituteSigned,
-        updatedAt: serverTimestamp()
-      })).catch(error => {
-        handleFirestoreError(error, OperationType.UPDATE, `permutas/${signPermuta.id}`);
       });
       
       setPermutas(prev => prev.map(p => {
@@ -335,7 +346,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
       const updates: any = {
         isLookingForSubstitute: false,
         status: isMonthOpen ? PermutaStatus.PENDING : PermutaStatus.SCHEDULED,
-        updatedAt: serverTimestamp()
+        updatedAt: Date.now()
       };
 
       if (role === 'requester') {
@@ -353,9 +364,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
          updates.requesterSigned = false; // Revoke creator signature so they must accept the volunteer
       }
 
-      await updateDoc(doc(db, 'permutas', permuta.id), cleanUndefined(updates)).catch(error => {
-        handleFirestoreError(error, OperationType.UPDATE, `permutas/${permuta.id}`);
-      });
+      await updatePermuta(permuta.id, updates);
 
       setPermutas(prev => prev.map(p => 
         p.id === permuta.id ? { ...p, ...updates } : p
@@ -384,16 +393,15 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
         return;
       }
 
-      await updateDoc(doc(db, 'permutas', cancelPermuta.id), cleanUndefined({
-              status: PermutaStatus.CANCELLED,
-              cancellationRequested: false,
-              cancelledByRg: user.rg,
-              updatedAt: serverTimestamp()
-            })).catch(error => {
-        handleFirestoreError(error, OperationType.UPDATE, `permutas/${cancelPermuta.id}`);
-      });
+      const cancelUpdates = {
+        status: PermutaStatus.CANCELLED,
+        cancellationRequested: false,
+        cancelledByRg: user.rg,
+      };
+
+      await updatePermuta(cancelPermuta.id, cancelUpdates);
       setPermutas(prev => prev.map(p => 
-        p.id === cancelPermuta.id ? { ...p, status: PermutaStatus.CANCELLED, cancellationRequested: false, cancelledByRg: user.rg } : p
+        p.id === cancelPermuta.id ? { ...p, ...cancelUpdates } : p
       ));
       setCancelPermuta(null);
     } catch (error) {
@@ -405,16 +413,14 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
     if (!permuta.id) return;
     if (!window.confirm(`Deseja realmente homologar o cancelamento desta permuta deferida do dia ${format(new Date(permuta.date + 'T00:00:00'), 'dd/MM/yyyy')}?`)) return;
     try {
-      await updateDoc(doc(db, 'permutas', permuta.id), cleanUndefined({
+      const approveUpdates = {
         status: PermutaStatus.CANCELLED,
         cancellationRequested: false,
         cancelledByRg: user.rg,
-        updatedAt: serverTimestamp()
-      })).catch(error => {
-        handleFirestoreError(error, OperationType.UPDATE, `permutas/${permuta.id}`);
-      });
+      };
+      await updatePermuta(permuta.id, approveUpdates);
       setPermutas(prev => prev.map(p => 
-        p.id === permuta.id ? { ...p, status: PermutaStatus.CANCELLED, cancellationRequested: false, cancelledByRg: user.rg } : p
+        p.id === permuta.id ? { ...p, ...approveUpdates } : p
       ));
       alert("Cancelamento de permuta homologado e deferido com sucesso.");
     } catch (err) {
@@ -427,14 +433,12 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
     if (!permuta.id) return;
     if (!window.confirm("Deseja recusar o pedido de cancelamento e manter a permuta deferida?")) return;
     try {
-      await updateDoc(doc(db, 'permutas', permuta.id), cleanUndefined({
+      const rejectUpdates = {
         cancellationRequested: false,
-        updatedAt: serverTimestamp()
-      })).catch(error => {
-        handleFirestoreError(error, OperationType.UPDATE, `permutas/${permuta.id}`);
-      });
+      };
+      await updatePermuta(permuta.id, rejectUpdates);
       setPermutas(prev => prev.map(p => 
-        p.id === permuta.id ? { ...p, cancellationRequested: false } : p
+        p.id === permuta.id ? { ...p, ...rejectUpdates } : p
       ));
       alert("Solicitação de cancelamento recusada. A permuta permanece ativa e deferida.");
     } catch (err) {
@@ -458,24 +462,19 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
         ? `${parseRank(user.rank)} ${user.warName}`
         : (user.name || `Militar RG ${user.rg}`);
 
-      await updateDoc(doc(db, 'permutas', requestCancelPermuta.id), cleanUndefined({
+      const reqUpdates = {
         cancellationRequested: true,
         cancellationReason: cancellationReasonText.trim(),
         cancellationRequestedBy: requesterLabel,
         cancellationRequestedRg: user.rg || '',
-        cancellationRequestedAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      })).catch(error => {
-        handleFirestoreError(error, OperationType.UPDATE, `permutas/${requestCancelPermuta.id}`);
-      });
+      };
+
+      await updatePermuta(requestCancelPermuta.id, reqUpdates);
 
       setPermutas(prev => prev.map(p => 
         p.id === requestCancelPermuta.id ? {
           ...p,
-          cancellationRequested: true,
-          cancellationReason: cancellationReasonText.trim(),
-          cancellationRequestedBy: requesterLabel,
-          cancellationRequestedRg: user.rg || ''
+          ...reqUpdates
         } : p
       ));
 
@@ -493,12 +492,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
   const handleStatusChange = async (permuta: PermutaRequest, newStatus: PermutaStatus) => {
     if (!permuta.id) return;
     try {
-      await updateDoc(doc(db, 'permutas', permuta.id), cleanUndefined({
-              status: newStatus,
-              updatedAt: serverTimestamp()
-            })).catch(error => {
-        handleFirestoreError(error, OperationType.UPDATE, `permutas/${permuta.id}`);
-      });
+      await updatePermuta(permuta.id, { status: newStatus });
       setPermutas(prev => prev.map(p => 
         p.id === permuta.id ? { ...p, status: newStatus } : p
       ));
@@ -514,14 +508,21 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
   const handleArchiveDay = async (itemsToArchive: PermutaRequest[]) => {
     if (!window.confirm('Arquivar todas as permutas deste dia?')) return;
     try {
-      const batch = writeBatch(db);
-      const archivedIds = new Set<string>();
-      for (const p of itemsToArchive) {
-        if (!p.id) continue;
-        batch.update(doc(db, 'permutas', p.id), { archived: true, updatedAt: serverTimestamp() });
-        archivedIds.add(p.id);
+      const idsToArchive = itemsToArchive.map(p => p.id).filter(Boolean) as string[];
+      try {
+        const batch = writeBatch(db);
+        for (const id of idsToArchive) {
+          batch.update(doc(db, 'permutas', id), { archived: true, updatedAt: serverTimestamp() });
+        }
+        await batch.commit();
+      } catch (clientErr) {
+        await fetch('/api/permutas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'batch-archive', ids: idsToArchive })
+        });
       }
-      await batch.commit();
+      const archivedIds = new Set(idsToArchive);
       setPermutas(prev => prev.filter(p => p.id && !archivedIds.has(p.id)));
     } catch (error) {
       console.error('Error archiving permutas', error);

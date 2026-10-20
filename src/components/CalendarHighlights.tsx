@@ -40,6 +40,49 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
   const [pendingMySignature, setPendingMySignature] = useState<PermutaRequest[]>([]);
   const [lookingForSubstitute, setLookingForSubstitute] = useState<PermutaRequest[]>([]);
 
+  // Initial server fetch to bypass client adblockers and permission blocks
+  useEffect(() => {
+    let isMounted = true;
+    const fetchPermutasFromApi = async () => {
+      try {
+        const res = await fetch(`/api/permutas?obm=${encodeURIComponent(obmContext || '')}&daysAgo=60`);
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!isMounted || !json.success || !Array.isArray(json.permutas)) return;
+
+        const all = json.permutas as PermutaRequest[];
+        const filteredByObm = all.filter(p => !p.archived && (!p.obm || getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm))));
+
+        // 1. Ofertas
+        const ofertas = filteredByObm.filter(p => p.isLookingForSubstitute);
+        setLookingForSubstitute(ofertas);
+
+        // 2. Pending my signature
+        if (user?.rg) {
+          const safeRg = normalizeRg(user.rg);
+          const pending = filteredByObm.filter(p => {
+             const strReq = normalizeRg(p.requesterRg);
+             const strSub = normalizeRg(p.substituteRg);
+             if (p.status !== PermutaStatus.PENDING && p.status !== PermutaStatus.SCHEDULED) return false;
+
+             const userIsReq = Boolean(safeRg && strReq === safeRg);
+             const userIsSub = Boolean(safeRg && strSub === safeRg);
+
+             if (userIsReq && !p.requesterSigned) return true;
+             if (userIsSub && !p.substituteSigned) return true;
+             return false;
+          });
+          setPendingMySignature(pending);
+        }
+      } catch (err) {
+        console.warn("[CalendarHighlights] API fetch notice:", err);
+      }
+    };
+
+    fetchPermutasFromApi();
+    return () => { isMounted = false; };
+  }, [obmContext, user?.rg]);
+
   useEffect(() => {
     let isMounted = true;
     
@@ -50,14 +93,17 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
       where('isLookingForSubstitute', '==', true)
     );
     
-    const unsub = onSnapshot(q, (snapshot) => {
-      if (!isMounted) return;
-      const ofertas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PermutaRequest));
-      const filteredByObm = ofertas.filter(p => !p.archived && (!p.obm || getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm))));
-      setLookingForSubstitute(filteredByObm);
-    }, (error) => {
-      console.error("Error fetching ofertas in highlights:", error);
-    });
+    let unsub = () => {};
+    try {
+      unsub = onSnapshot(q, (snapshot) => {
+        if (!isMounted) return;
+        const ofertas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PermutaRequest));
+        const filteredByObm = ofertas.filter(p => !p.archived && (!p.obm || getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm))));
+        setLookingForSubstitute(filteredByObm);
+      }, (error) => {
+        console.warn("Client snapshot for ofertas in highlights notice (handled via API):", error?.message);
+      });
+    } catch (e) {}
 
     return () => {
       isMounted = false;
@@ -80,30 +126,33 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
       where('date', '<=', endDate)
     );
     
-    const unsubPerms = onSnapshot(qPerm, (snapshot) => {
-      if (!isMounted) return;
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PermutaRequest));
-      
-      const filteredByObm = data.filter(p => !p.obm || getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm)));
-      const safeRg = normalizeRg(user.rg);
-      
-      const pending = filteredByObm.filter(p => {
-         const strReq = normalizeRg(p.requesterRg);
-         const strSub = normalizeRg(p.substituteRg);
-         if (p.status !== PermutaStatus.PENDING && p.status !== PermutaStatus.SCHEDULED) return false;
-         
-         const userIsReq = Boolean(safeRg && strReq === safeRg);
-         const userIsSub = Boolean(safeRg && strSub === safeRg);
-         
-         if (userIsReq && !p.requesterSigned) return true;
-         if (userIsSub && !p.substituteSigned) return true;
-         return false;
-      });
+    let unsubPerms = () => {};
+    try {
+      unsubPerms = onSnapshot(qPerm, (snapshot) => {
+        if (!isMounted) return;
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PermutaRequest));
+        
+        const filteredByObm = data.filter(p => !p.obm || getUserObmAccess(normalizeObm(obmContext), normalizeObm(obmContext) === 'GLOBAL').includes(normalizeObm(p.obm)));
+        const safeRg = normalizeRg(user.rg);
+        
+        const pending = filteredByObm.filter(p => {
+           const strReq = normalizeRg(p.requesterRg);
+           const strSub = normalizeRg(p.substituteRg);
+           if (p.status !== PermutaStatus.PENDING && p.status !== PermutaStatus.SCHEDULED) return false;
+           
+           const userIsReq = Boolean(safeRg && strReq === safeRg);
+           const userIsSub = Boolean(safeRg && strSub === safeRg);
+           
+           if (userIsReq && !p.requesterSigned) return true;
+           if (userIsSub && !p.substituteSigned) return true;
+           return false;
+        });
 
-      setPendingMySignature(pending);
-    }, (error) => {
-      if (isMounted) console.error("Error fetching permutas for highlights:", error);
-    });
+        setPendingMySignature(pending);
+      }, (error) => {
+        if (isMounted) console.warn("Snapshot notice for permutas in highlights (handled via API):", error?.message);
+      });
+    } catch (e) {}
 
     return () => { 
       isMounted = false; 
@@ -429,85 +478,94 @@ export function MonthDetail({ month, user, userAla, obmContext, userRg, onDateSe
         }
     });
 
-    // Fetch global permutas from 'permutas' collection covering this month
+    // Fetch global permutas from server API covering this month (bypasses adblockers)
     const startDate = format(start, 'yyyy-MM-dd');
     const endDate = format(end, 'yyyy-MM-dd');
-    
+
+    const applyGlobalPermutas = (globalPermutas: any[]) => {
+      setPermutaStatusDays(prev => {
+        const pUpdated = { ...prev };
+        globalPermutas.forEach((p: any) => {
+          if (p.archived) return;
+          const statusClean = String(p.status || '').toLowerCase().trim();
+          if (statusClean === 'cancelled' || statusClean === 'rejected') return;
+
+          const isSub = matchesMilitar(user, p.substituteRg, p.substituteId, p.substituteName) ||
+                        matchesMilitar(user, p.acceptedById, p.acceptedById, p.acceptedByName);
+
+          const isReq = matchesMilitar(user, p.requesterRg, p.requesterId, p.requesterName) ||
+                        (p.submittedByRg && normalizeRg(p.submittedByRg) === userCleanRg);
+
+          if (!isSub && !isReq) return;
+
+          const dateStr = p.date || p.day;
+          if (!dateStr || typeof dateStr !== 'string') return;
+
+          const isApproved = statusClean === 'accepted' || statusClean === 'approved';
+
+          if (isSub) {
+            const existing = pUpdated[dateStr];
+            if (!existing || isApproved || existing.type !== 'SV_PERMUTA') {
+              pUpdated[dateStr] = {
+                type: isApproved ? 'SV_PERMUTA' : 'SV_PERMUTA_PENDING',
+                partnerName: p.requesterName || (p.requesterRg ? `RG ${p.requesterRg}` : 'Militar Solicitante'),
+                partnerRg: p.requesterRg,
+                status: statusClean,
+                is24h: true,
+                permutaId: p.id
+              };
+            }
+          } else if (isReq) {
+            const existing = pUpdated[dateStr];
+            if (!existing || (existing.type !== 'SV_PERMUTA' && existing.type !== 'SV_PERMUTA_PENDING')) {
+              pUpdated[dateStr] = {
+                type: isApproved ? 'FOLGA_PERMUTA' : 'FOLGA_PERMUTA_PENDING',
+                partnerName: p.substituteName || p.acceptedByName || (p.substituteRg ? `RG ${p.substituteRg}` : 'Militar Substituto'),
+                partnerRg: p.substituteRg,
+                status: statusClean,
+                is24h: false,
+                permutaId: p.id
+              };
+            }
+          }
+        });
+        return pUpdated;
+      });
+    };
+
+    fetch(`/api/permutas?startDate=${startDate}&endDate=${endDate}&obm=${encodeURIComponent(obmContext || '')}`)
+      .then(res => res.json())
+      .then(json => {
+        if (json.success && Array.isArray(json.permutas)) {
+          applyGlobalPermutas(json.permutas);
+        }
+      })
+      .catch(err => {
+        console.warn('[MonthDetail] Permutas API fetch notice:', err?.message);
+      });
+
     const qPermutas = query(
         collection(db, 'permutas'),
         where('date', '>=', startDate),
         where('date', '<=', endDate)
     );
 
-    const unsubPermutas = onSnapshot(qPermutas, (snapshot) => {
+    let unsubPermutas = () => {};
+    try {
+      unsubPermutas = onSnapshot(qPermutas, (snapshot) => {
         const globalPermutas = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-        
-        setPermutaStatusDays(prev => {
-            const pUpdated = { ...prev };
-            
-            globalPermutas.forEach((p: any) => {
-                if (p.archived) return;
-                const statusClean = String(p.status || '').toLowerCase().trim();
-                if (statusClean === 'cancelled' || statusClean === 'rejected') return;
-
-                const isSub = matchesMilitar(user, p.substituteRg, p.substituteId, p.substituteName) ||
-                              matchesMilitar(user, p.acceptedById, p.acceptedById, p.acceptedByName);
-
-                const isReq = matchesMilitar(user, p.requesterRg, p.requesterId, p.requesterName) ||
-                              (p.submittedByRg && normalizeRg(p.submittedByRg) === userCleanRg);
-
-                if (!isSub && !isReq) return;
-
-                const dateStr = p.date || p.day;
-                if (!dateStr || typeof dateStr !== 'string') return;
-
-                const isApproved = statusClean === 'accepted' || statusClean === 'approved';
-                const isPending = statusClean === 'pending' || statusClean === 'scheduled';
-
-                if (isSub) {
-                    // O militar substitui outro: ELE TRABALHA 24H NESTE DIA!
-                    // Se deferida: SV_PERMUTA (Serviço 24h Deferido)
-                    // Se pendente: SV_PERMUTA_PENDING (Serviço 24h Pendente de homologação)
-                    const existing = pUpdated[dateStr];
-                    if (!existing || isApproved || existing.type !== 'SV_PERMUTA') {
-                        pUpdated[dateStr] = {
-                            type: isApproved ? 'SV_PERMUTA' : 'SV_PERMUTA_PENDING',
-                            partnerName: p.requesterName || (p.requesterRg ? `RG ${p.requesterRg}` : 'Militar Solicitante'),
-                            partnerRg: p.requesterRg,
-                            status: statusClean,
-                            is24h: true,
-                            permutaId: p.id
-                        };
-                    }
-                } else if (isReq) {
-                    // O militar solicitou substituto para passar seu serviço
-                    // Se deferida: FOLGA_PERMUTA (Folga regulamentar)
-                    // Se pendente: FOLGA_PERMUTA_PENDING (Plantão com permuta pendente)
-                    const existing = pUpdated[dateStr];
-                    if (!existing || (existing.type !== 'SV_PERMUTA' && existing.type !== 'SV_PERMUTA_PENDING')) {
-                        pUpdated[dateStr] = {
-                            type: isApproved ? 'FOLGA_PERMUTA' : 'FOLGA_PERMUTA_PENDING',
-                            partnerName: p.substituteName || p.acceptedByName || (p.substituteRg ? `RG ${p.substituteRg}` : 'Militar Substituto'),
-                            partnerRg: p.substituteRg,
-                            status: statusClean,
-                            is24h: false,
-                            permutaId: p.id
-                        };
-                    }
-                }
-            });
-            return pUpdated;
-        });
-    }, (error) => {
-        console.error("Erro ao escutar permutas no MonthDetail:", error);
-    });
+        applyGlobalPermutas(globalPermutas);
+      }, (error) => {
+        console.warn("Notice: Permutas snapshot in MonthDetail handled via API:", error?.message);
+      });
+    } catch (e) {}
 
     return () => {
       unsubOpps();
       unsubApps();
-        unsubGrd();
-        unsubExp();
-        unsubPermutas();
+      unsubGrd();
+      unsubExp();
+      unsubPermutas();
     };
   }, [obmContext, userRg, month, user?.uid, user?.name, user?.warName]);
 
