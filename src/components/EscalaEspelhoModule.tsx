@@ -602,13 +602,19 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
             if (fallbackSnap.exists()) {
               const fbData = fallbackSnap.data();
               if (fbData) {
-                data = { ...fbData, ...data };
-                setDoc(docRef, cleanUndefined({
-                  escala_regras: data?.escala_regras || fbData.escala_regras,
-                  escala_preferencias: data?.escala_preferencias || fbData.escala_preferencias,
-                  categorias_funcoes: data?.categorias_funcoes || fbData.categorias_funcoes,
-                  viaturas_config: data?.viaturas_config || fbData.viaturas_config
-                }), { merge: true }).catch(() => {});
+                fetch('/api/obm-settings/update', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    key: canonicalKey,
+                    data: cleanUndefined({
+                      escala_regras: data?.escala_regras || fbData.escala_regras,
+                      escala_preferencias: data?.escala_preferencias || fbData.escala_preferencias,
+                      categorias_funcoes: data?.categorias_funcoes || fbData.categorias_funcoes,
+                      viaturas_config: data?.viaturas_config || fbData.viaturas_config
+                    })
+                  })
+                }).catch(() => {});
                 break;
               }
             }
@@ -1231,9 +1237,28 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           ativasData[vtrName] = rgsForVtr;
         });
 
-        await setDoc(doc(db, 'guarnicoes', 'ativas'), cleanUndefined(ativasData), { merge: false });
+        // 1. Persistência via API do backend com credenciais seguras de servidor (elimina FirebaseError de permissões)
+        await fetch('/api/doc/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            collection: 'guarnicoes',
+            docId: 'ativas',
+            data: cleanUndefined(ativasData),
+            merge: false
+          })
+        }).catch(err => {
+          console.warn('[EscalaEspelhoModule] Aviso na API ao sincronizar guarnicoes/ativas:', err);
+        });
+
+        // 2. Fallback no cliente se permitido
+        try {
+          await setDoc(doc(db, 'guarnicoes', 'ativas'), cleanUndefined(ativasData), { merge: false });
+        } catch (clientWriteErr: any) {
+          // Handled via /api/doc/save
+        }
       } catch (e) {
-        console.error("Erro ao sincronizar com Painel do Comunicante:", e);
+        console.warn("Aviso ao sincronizar com Painel do Comunicante:", e);
       }
     }
   };
@@ -1387,7 +1412,19 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         postosData: postosData || null
       };
 
-      await setDoc(doc(db, "registro_escalas_24h", docId), cleanUndefined(payload));
+      await fetch('/api/doc/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          collection: 'registro_escalas_24h',
+          docId,
+          data: cleanUndefined(payload),
+          merge: true
+        })
+      });
+      try {
+        await setDoc(doc(db, "registro_escalas_24h", docId), cleanUndefined(payload));
+      } catch (clientWriteErr) {}
       alert("Escala registrada e assinada com sucesso!");
     } catch (err) {
       console.error(err);
@@ -1500,6 +1537,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         {/* SEÇÃO CONEXÃO DE ESCALAS DE OFICIAIS */}
         <EscalaOficiaisSection
           obmContext={obmContext}
+          selectedDate={selectedDate}
           loadingOfficerScale={loadingOfficerScale}
           loadingNauticoScale={loadingNauticoScale}
           loadingMedicoScale={loadingMedicoScale}

@@ -47,6 +47,7 @@ import { db } from '../lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { parseRank } from '../lib/rankUtils';
 import { RankInsignia } from './RankInsignia';
+import { OfficerSectionItem, getDefaultSectionsForObm } from '../types/officerSections';
 
 export interface EscalanteDashboardCalendarProps {
   selectedDate: string;
@@ -136,6 +137,39 @@ export function EscalanteDashboardCalendar({
 
   const nextMonth = () => setCurrentMonth((prev) => addMonths(prev, 1));
   const prevMonth = () => setCurrentMonth((prev) => subMonths(prev, 1));
+
+  // Carrega seções ativas configuradas para a OBM / DBM
+  const [sections, setSections] = useState<OfficerSectionItem[]>(() => getDefaultSectionsForObm(obmContext));
+
+  useEffect(() => {
+    let isMounted = true;
+    const cleanObm = obmContext === 'GLOBAL' ? '10º GBM' : (obmContext || '10º GBM');
+    const docId = cleanObm.replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_');
+
+    fetch(`/api/officer-sections?obm=${encodeURIComponent(cleanObm)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (isMounted && data.success && Array.isArray(data.sections)) {
+          setSections(data.sections);
+        }
+      })
+      .catch(() => {});
+
+    const unsub = onSnapshot(doc(db, 'officer_sections_config', docId), (snap) => {
+      if (!isMounted) return;
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data.sections) && data.sections.length > 0) {
+          setSections(data.sections);
+        }
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsub();
+    };
+  }, [obmContext]);
 
   // Carrega em tempo real os dados de expediente do mês (selections, expedienteDays, preferencesDetails)
   const [monthExpedienteData, setMonthExpedienteData] = useState<{
@@ -685,41 +719,46 @@ export function EscalanteDashboardCalendar({
                 Oficiais Escalados no Dia
               </span>
               <div className="flex flex-col gap-1.5 text-xs">
-                {/* Oficial de Dia */}
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
-                    <Award className="w-3 h-3 text-amber-500" /> Of. de Dia:
-                  </span>
-                  <span className="font-black text-slate-800 text-[11px] truncate max-w-[160px] uppercase">
-                    {oficialDiaValue || (
-                      <span className="text-slate-400 font-bold text-[10px] italic">Não Definido</span>
-                    )}
-                  </span>
-                </div>
+                {sections.filter(s => s.enabled).map((sec) => {
+                  let val = '';
+                  let IconComp = Award;
+                  let iconColor = 'text-amber-500';
 
-                {/* Núcleo Náutico */}
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
-                    <Anchor className="w-3 h-3 text-cyan-500" /> Náutico:
-                  </span>
-                  <span className="font-black text-slate-800 text-[11px] truncate max-w-[160px] uppercase">
-                    {nauticoOficialValue || (
-                      <span className="text-slate-400 font-bold text-[10px] italic">Não Definido</span>
-                    )}
-                  </span>
-                </div>
+                  if (sec.id === 'servicos-grd') {
+                    val = oficialDiaValue;
+                    IconComp = Award;
+                    iconColor = 'text-amber-500';
+                  } else if (sec.id === 'nucleo-nautico') {
+                    val = nauticoOficialValue;
+                    IconComp = Anchor;
+                    iconColor = 'text-cyan-500';
+                  } else if (sec.id === 'oficiais-medicos') {
+                    val = medicoOficialValue;
+                    IconComp = Stethoscope;
+                    iconColor = 'text-rose-500';
+                  } else {
+                    IconComp = Shield;
+                    iconColor = 'text-indigo-500';
+                  }
 
-                {/* Oficial Médico */}
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
-                    <Stethoscope className="w-3 h-3 text-rose-500" /> Médico:
+                  return (
+                    <div key={sec.id} className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
+                        <IconComp className={cn("w-3 h-3", iconColor)} /> {sec.badge || sec.name}:
+                      </span>
+                      <span className="font-black text-slate-800 text-[11px] truncate max-w-[160px] uppercase">
+                        {val || (
+                          <span className="text-slate-400 font-bold text-[10px] italic">Não Definido</span>
+                        )}
+                      </span>
+                    </div>
+                  );
+                })}
+                {sections.filter(s => s.enabled).length === 0 && (
+                  <span className="text-slate-400 font-bold text-[10px] italic text-center py-1">
+                    Nenhuma seção ativada nesta OBM
                   </span>
-                  <span className="font-black text-slate-800 text-[11px] truncate max-w-[160px] uppercase">
-                    {medicoOficialValue || (
-                      <span className="text-slate-400 font-bold text-[10px] italic">Não Definido</span>
-                    )}
-                  </span>
-                </div>
+                )}
               </div>
             </div>
 
