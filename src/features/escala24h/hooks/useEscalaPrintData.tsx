@@ -20,6 +20,7 @@ import {
 } from '../../../lib/utils';
 import { getStoredAlaNomenclatures } from '../../../lib/alaUtils';
 import { OfficerVisibility, UserProfile } from '../../../types';
+import { OfficerSectionItem, getDefaultSectionsForObm } from '../../../types/officerSections';
 import { generatePrintHtmlDocument } from '../lib/printHtmlGenerator';
 
 export interface UseEscalaPrintDataProps {
@@ -47,6 +48,8 @@ export interface UseEscalaPrintDataProps {
   sentinelaSlots?: any[];
   onRegister?: (data: { isSigned: boolean }) => Promise<void> | void;
   onClose?: () => void;
+  sections?: OfficerSectionItem[];
+  customOfficerValues?: Record<string, string>;
 }
 
 export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
@@ -119,19 +122,77 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
     } catch {}
   }, [viaturaTableLayout]);
 
+  // 1. Seções de oficiais configuradas para a OBM
+  const [sections, setSections] = useState<OfficerSectionItem[]>(() => {
+    if (props.sections && props.sections.length > 0) return props.sections;
+    const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+    const cleanObm = normalizeObm(rawObm);
+    return getDefaultSectionsForObm(cleanObm);
+  });
+
+  useEffect(() => {
+    if (props.sections && props.sections.length > 0) {
+      setSections(props.sections);
+    }
+  }, [props.sections]);
+
+  useEffect(() => {
+    if (props.sections && props.sections.length > 0) return;
+    let isMounted = true;
+    const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+    const cleanObm = normalizeObm(rawObm);
+    const docId = cleanObm.replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_');
+
+    fetch(`/api/officer-sections?obm=${encodeURIComponent(cleanObm)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (isMounted && data.success && Array.isArray(data.sections)) {
+          setSections(data.sections);
+        }
+      })
+      .catch(() => {});
+
+    const unsub = onSnapshot(doc(db, 'officer_sections_config', docId), (snap) => {
+      if (!isMounted) return;
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data.sections) && data.sections.length > 0) {
+          setSections(data.sections);
+        }
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsub();
+    };
+  }, [obmContext, user?.obm, props.sections]);
+
   const [officerVisibility, setOfficerVisibility] = useState<OfficerVisibility>(() => {
     if (propOfficerVisibility) return propOfficerVisibility;
+    const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : '10º GBM';
+    const cleanObm = normalizeObm(rawObm);
+    const defaultSections = getDefaultSectionsForObm(cleanObm);
+    const isNauticaDef = defaultSections.find(s => s.id === 'nucleo-nautico')?.enabled ?? false;
+    const isMedicoDef = defaultSections.find(s => s.id === 'oficiais-medicos')?.enabled ?? false;
     try {
-      const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : '10º GBM';
-      const cleanObm = normalizeObm(rawObm);
       const saved = localStorage.getItem(`escala_officer_visibility_${cleanObm}`);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          ...parsed,
+          showSection: parsed.showSection !== false,
+          showOficialDia: parsed.showOficialDia !== false,
+          showOficialNautica: isNauticaDef ? (parsed.showOficialNautica !== false) : false,
+          showOficialMedico: isMedicoDef ? (parsed.showOficialMedico !== false) : false,
+        };
+      }
     } catch {}
     return {
       showSection: true,
       showOficialDia: true,
-      showOficialNautica: true,
-      showOficialMedico: true
+      showOficialNautica: isNauticaDef,
+      showOficialMedico: isMedicoDef
     };
   });
 
@@ -172,35 +233,108 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
     });
   };
 
-  const toggleOfficerVisibility = (
-    key: 'showOficialDia' | 'showOficialNautica' | 'showOficialMedico'
-  ) => {
+  // Seções habilitadas para esta OBM
+  const isDiaEnabled = sections.find(s => s.id === 'servicos-grd')?.enabled ?? true;
+  const isNauticaEnabled = sections.find(s => s.id === 'nucleo-nautico')?.enabled ?? false;
+  const isMedicoEnabled = sections.find(s => s.id === 'oficiais-medicos')?.enabled ?? false;
+
+  const isSectionVisible = officerVisibility.showSection !== false;
+  const isDiaVisible = isSectionVisible && isDiaEnabled && officerVisibility.showOficialDia !== false;
+  const isNauticaVisible =
+    isSectionVisible && isNauticaEnabled && officerVisibility.showOficialNautica !== false;
+  const isMedicoVisible =
+    isSectionVisible && isMedicoEnabled && officerVisibility.showOficialMedico !== false;
+
+  const customSections = useMemo(() => {
+    return sections.filter(s => s.isCustom && s.enabled);
+  }, [sections]);
+
+  const allOfficerItems = useMemo(() => {
+    const list = [
+      {
+        id: 'servicos-grd',
+        key: 'showOficialDia',
+        title: 'OFICIAL DE DIA E PRONTIDÃO',
+        label: 'Oficial de Dia',
+        value: oficialDia,
+        enabled: isDiaEnabled,
+        isVisible: isDiaVisible
+      },
+      {
+        id: 'nucleo-nautico',
+        key: 'showOficialNautica',
+        title: 'OFICIAL DA NÁUTICA',
+        label: 'Oficial da Náutica',
+        value: oficialNautica,
+        enabled: isNauticaEnabled,
+        isVisible: isNauticaVisible
+      },
+      {
+        id: 'oficiais-medicos',
+        key: 'showOficialMedico',
+        title: 'OFICIAL MÉDICO',
+        label: 'Oficial Médico',
+        value: oficialMedico,
+        enabled: isMedicoEnabled,
+        isVisible: isMedicoVisible
+      }
+    ];
+
+    customSections.forEach(sec => {
+      const isVis = isSectionVisible && (officerVisibility as any)[`show_${sec.id}`] !== false;
+      list.push({
+        id: sec.id,
+        key: `show_${sec.id}`,
+        title: (sec.name || 'OFICIAL').toUpperCase(),
+        label: sec.name,
+        value: props.customOfficerValues?.[sec.id] || '',
+        enabled: true,
+        isVisible: isVis
+      });
+    });
+
+    return list;
+  }, [
+    isDiaEnabled, isDiaVisible, oficialDia,
+    isNauticaEnabled, isNauticaVisible, oficialNautica,
+    isMedicoEnabled, isMedicoVisible, oficialMedico,
+    customSections, isSectionVisible, officerVisibility, props.customOfficerValues
+  ]);
+
+  const enabledOfficerItems = useMemo(() => {
+    return allOfficerItems.filter(item => item.enabled);
+  }, [allOfficerItems]);
+
+  const activeOfficerItems = useMemo(() => {
+    return enabledOfficerItems.filter(item => item.isVisible);
+  }, [enabledOfficerItems]);
+
+  const totalOfficerCount = enabledOfficerItems.length;
+  const activeOfficerCount = activeOfficerItems.length;
+  const hasAnyVisibleOfficer = activeOfficerCount > 0;
+
+  const toggleOfficerVisibility = (key: string) => {
     handleUpdateOfficerVisibility((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      next.showSection =
-        next.showOficialDia || next.showOficialNautica || next.showOficialMedico;
+      const currentVal = (prev as any)[key] !== false;
+      const next: any = { ...prev, [key]: !currentVal };
+      const anyVisible = enabledOfficerItems.some(item => {
+        if (item.key === key) return !currentVal;
+        return next[item.key] !== false;
+      });
+      next.showSection = anyVisible;
       return next;
     });
   };
 
   const setAllOfficersVisibility = (visible: boolean) => {
-    handleUpdateOfficerVisibility(() => ({
-      showSection: visible,
-      showOficialDia: visible,
-      showOficialNautica: visible,
-      showOficialMedico: visible
-    }));
+    handleUpdateOfficerVisibility((prev) => {
+      const next: any = { ...prev, showSection: visible };
+      enabledOfficerItems.forEach(item => {
+        next[item.key] = visible;
+      });
+      return next;
+    });
   };
-
-  const isSectionVisible = officerVisibility.showSection !== false;
-  const isDiaVisible = isSectionVisible && officerVisibility.showOficialDia !== false;
-  const isNauticaVisible =
-    isSectionVisible && officerVisibility.showOficialNautica !== false;
-  const isMedicoVisible =
-    isSectionVisible && officerVisibility.showOficialMedico !== false;
-  const hasAnyVisibleOfficer = isDiaVisible || isNauticaVisible || isMedicoVisible;
-  const activeOfficerCount =
-    (isDiaVisible ? 1 : 0) + (isNauticaVisible ? 1 : 0) + (isMedicoVisible ? 1 : 0);
 
   const [adminRolesVisibility, setAdminRolesVisibility] = useState<
     Record<string, boolean>
@@ -1110,6 +1244,9 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
     isMedicoVisible,
     hasAnyVisibleOfficer,
     activeOfficerCount,
+    totalOfficerCount,
+    enabledOfficerItems,
+    activeOfficerItems,
     adminRolesVisibility,
     showAdminMenu,
     setShowAdminMenu,

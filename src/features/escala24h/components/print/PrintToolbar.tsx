@@ -28,10 +28,12 @@ export interface PrintToolbarProps {
   officerMenuRef: React.RefObject<HTMLDivElement>;
   hasAnyVisibleOfficer: boolean;
   activeOfficerCount: number;
+  totalOfficerCount?: number;
+  enabledOfficerItems?: Array<{ id: string; key: string; label: string; isVisible: boolean }>;
   isDiaVisible: boolean;
   isNauticaVisible: boolean;
   isMedicoVisible: boolean;
-  toggleOfficerVisibility: (key: 'showOficialDia' | 'showOficialNautica' | 'showOficialMedico') => void;
+  toggleOfficerVisibility: (key: any) => void;
   setAllOfficersVisibility: (v: boolean) => void;
   officerTableLayout: 'colunas' | 'linhas';
   setOfficerTableLayout: (layout: 'colunas' | 'linhas') => void;
@@ -63,6 +65,8 @@ export function PrintToolbar({
   officerMenuRef,
   hasAnyVisibleOfficer,
   activeOfficerCount,
+  totalOfficerCount,
+  enabledOfficerItems,
   isDiaVisible,
   isNauticaVisible,
   isMedicoVisible,
@@ -123,10 +127,10 @@ export function PrintToolbar({
           type="button"
           onClick={() => setShowLogoModal(true)}
           className="bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-3 py-2 rounded-lg font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs text-xs"
-          title="Carregar ou alterar as fotos/logos do 10º GBM e CBA VII"
+          title="Configurar brasões do cabeçalho e marca d'água central de fundo da escala"
         >
           <Shield className="w-4 h-4 text-amber-700" />
-          <span>Brasões (Fotos)</span>
+          <span>Brasões & Marca d'Água</span>
         </button>
 
         <button
@@ -201,7 +205,7 @@ export function PrintToolbar({
             ) : (
               <EyeOff className="w-4 h-4 text-rose-600" />
             )}
-            <span>Oficiais ({activeOfficerCount}/3)</span>
+            <span>Oficiais ({activeOfficerCount}/{totalOfficerCount ?? 3})</span>
             <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
           </button>
 
@@ -221,35 +225,51 @@ export function PrintToolbar({
               </div>
 
               <div className="space-y-1.5">
-                <label className="flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer">
-                  <span className="text-[11px] font-bold text-slate-800">Oficial de Dia</span>
-                  <input
-                    type="checkbox"
-                    checked={isDiaVisible}
-                    onChange={() => toggleOfficerVisibility('showOficialDia')}
-                    className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
-                  />
-                </label>
+                {enabledOfficerItems && enabledOfficerItems.length > 0 ? (
+                  enabledOfficerItems.map((item) => (
+                    <label key={item.key} className="flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer">
+                      <span className="text-[11px] font-bold text-slate-800">{item.label}</span>
+                      <input
+                        type="checkbox"
+                        checked={item.isVisible}
+                        onChange={() => toggleOfficerVisibility(item.key)}
+                        className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
+                      />
+                    </label>
+                  ))
+                ) : (
+                  <>
+                    <label className="flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer">
+                      <span className="text-[11px] font-bold text-slate-800">Oficial de Dia</span>
+                      <input
+                        type="checkbox"
+                        checked={isDiaVisible}
+                        onChange={() => toggleOfficerVisibility('showOficialDia')}
+                        className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
+                      />
+                    </label>
 
-                <label className="flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer">
-                  <span className="text-[11px] font-bold text-slate-800">Oficial da Náutica</span>
-                  <input
-                    type="checkbox"
-                    checked={isNauticaVisible}
-                    onChange={() => toggleOfficerVisibility('showOficialNautica')}
-                    className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
-                  />
-                </label>
+                    <label className="flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer">
+                      <span className="text-[11px] font-bold text-slate-800">Oficial da Náutica</span>
+                      <input
+                        type="checkbox"
+                        checked={isNauticaVisible}
+                        onChange={() => toggleOfficerVisibility('showOficialNautica')}
+                        className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
+                      />
+                    </label>
 
-                <label className="flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer">
-                  <span className="text-[11px] font-bold text-slate-800">Oficial Médico</span>
-                  <input
-                    type="checkbox"
-                    checked={isMedicoVisible}
-                    onChange={() => toggleOfficerVisibility('showOficialMedico')}
-                    className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
-                  />
-                </label>
+                    <label className="flex items-center justify-between p-1.5 hover:bg-slate-50 rounded-lg cursor-pointer">
+                      <span className="text-[11px] font-bold text-slate-800">Oficial Médico</span>
+                      <input
+                        type="checkbox"
+                        checked={isMedicoVisible}
+                        onChange={() => toggleOfficerVisibility('showOficialMedico')}
+                        className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
+                      />
+                    </label>
+                  </>
+                )}
               </div>
 
               <div className="pt-2 border-t border-slate-100 mt-2">
@@ -267,7 +287,7 @@ export function PrintToolbar({
                         : 'text-slate-600 hover:text-slate-900'
                     )}
                   >
-                    3 Colunas
+                    Colunas
                   </button>
                   <button
                     type="button"

@@ -4,6 +4,14 @@ import { LogoDecimoGbm } from '../../../../components/LogoDecimoGbm';
 import { LogoCbaSete } from '../../../../components/LogoCbaSete';
 import { cn } from '../../../../lib/utils';
 
+export interface ActiveOfficerItem {
+  id: string;
+  key: string;
+  title: string;
+  value?: string;
+  isVisible: boolean;
+}
+
 export interface PrintHeaderOficiaisProps {
   setShowLogoModal: (v: boolean) => void;
   dateStr: string;
@@ -15,10 +23,11 @@ export interface PrintHeaderOficiaisProps {
   isDiaVisible: boolean;
   isNauticaVisible: boolean;
   isMedicoVisible: boolean;
-  toggleOfficerVisibility: (key: 'showOficialDia' | 'showOficialNautica' | 'showOficialMedico') => void;
+  toggleOfficerVisibility: (key: any) => void;
   oficialDia?: string;
   oficialNautica?: string;
   oficialMedico?: string;
+  activeOfficers?: ActiveOfficerItem[];
 }
 
 export function PrintHeaderOficiais({
@@ -35,8 +44,18 @@ export function PrintHeaderOficiais({
   toggleOfficerVisibility,
   oficialDia,
   oficialNautica,
-  oficialMedico
+  oficialMedico,
+  activeOfficers
 }: PrintHeaderOficiaisProps) {
+  // Monta lista apenas com as funções ativas configuradas
+  const items: ActiveOfficerItem[] = activeOfficers !== undefined
+    ? activeOfficers
+    : [
+        ...(isDiaVisible ? [{ id: 'dia', key: 'showOficialDia', title: 'OFICIAL DE DIA E PRONTIDÃO', value: oficialDia, isVisible: true }] : []),
+        ...(isNauticaVisible ? [{ id: 'nautica', key: 'showOficialNautica', title: 'OFICIAL DA NÁUTICA', value: oficialNautica, isVisible: true }] : []),
+        ...(isMedicoVisible ? [{ id: 'medico', key: 'showOficialMedico', title: 'OFICIAL MÉDICO', value: oficialMedico, isVisible: true }] : []),
+      ];
+
   return (
     <div className="flex flex-col w-full mb-2 border-b border-black mt-1 print:mt-4 text-center justify-between">
       <div className="flex flex-col w-full">
@@ -85,7 +104,8 @@ export function PrintHeaderOficiais({
       {/* CÉLULA HORIZONTAL DO NOME DA ALA ACIMA DOS OFICIAIS */}
       <div
         className={cn(
-          'w-full border-t-2 border-x-2 border-b border-black py-0.5 px-2 text-center font-black uppercase text-[10px] sm:text-[11px] tracking-wider leading-tight escala-ala-header',
+          'w-full border-t-2 border-x-2 border-black py-0.5 px-2 text-center font-black uppercase text-[10px] sm:text-[11px] tracking-wider leading-tight escala-ala-header',
+          items.length > 0 ? 'border-b' : 'border-b-2',
           headerColorClass
         )}
         style={headerBgStyle}
@@ -93,198 +113,114 @@ export function PrintHeaderOficiais({
         {alaCustomNames[String(alaTheme.num)] || alaTheme.name}
       </div>
 
-      {/* OFICIAIS TABLE */}
-      {officerTableLayout === 'linhas' ? (
-        <table className="w-full border-collapse border-x-2 border-b border-black table-fixed text-xs select-none">
-          <tbody>
-            <tr className="border-b border-black group/officer-row h-[18px]">
-              <td
+      {/* OFICIAIS TABLE - APENAS SE HOUVER FUNÇÕES ATIVAS */}
+      {items.length > 0 && (
+        officerTableLayout === 'linhas' ? (
+          <table className="w-full border-collapse border-x-2 border-b-2 border-black table-fixed text-xs select-none">
+            <tbody>
+              {items.map((officer, idx) => (
+                <tr
+                  key={officer.id}
+                  className={cn(
+                    "group/officer-row h-[18px]",
+                    idx < items.length - 1 && "border-b border-black"
+                  )}
+                >
+                  <td
+                    className={cn(
+                      'w-[42%] sm:w-[38%] border-r border-black px-2.5 py-0.5 font-bold uppercase text-[9px] sm:text-[10px] text-left escala-ala-header',
+                      headerColorClass
+                    )}
+                    style={headerBgStyle}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span>{officer.title}:</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleOfficerVisibility(officer.key)}
+                        className="print:hidden opacity-0 group-hover/officer-row:opacity-100 hover:opacity-100 text-slate-700 hover:text-rose-700 transition-opacity p-0.5 rounded cursor-pointer"
+                        title={`Ocultar ${officer.title}`}
+                      >
+                        <EyeOff className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </td>
+                  <td className="px-3 py-0.5 font-bold uppercase text-[10.5px] sm:text-[11px] text-left">
+                    {officer.value ? (
+                      <span className="font-black underline">{officer.value}</span>
+                    ) : (
+                      <span className="text-slate-400 font-normal italic text-[10px] select-none">-</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          /* COLUNAS LADO A LADO - APENAS FUNÇÕES ATIVAS */
+          <table className="w-full border-collapse border-x-2 border-b-2 border-black table-fixed text-xs select-none">
+            <thead>
+              <tr
                 className={cn(
-                  'w-[42%] sm:w-[38%] border-r border-black px-2.5 py-0.5 font-bold uppercase text-[9px] sm:text-[10px] text-left escala-ala-header',
+                  'font-bold border-b border-black text-center text-[9px] sm:text-[10px] uppercase tracking-tight leading-none escala-ala-header',
                   headerColorClass
                 )}
                 style={headerBgStyle}
               >
-                <div className="flex items-center justify-between">
-                  <span>OFICIAL DE DIA E PRONTIDÃO:</span>
-                  <button
-                    type="button"
-                    onClick={() => toggleOfficerVisibility('showOficialDia')}
-                    className="print:hidden opacity-0 group-hover/officer-row:opacity-100 hover:opacity-100 text-slate-700 hover:text-rose-700 transition-opacity p-0.5 rounded cursor-pointer"
-                    title={isDiaVisible ? 'Desativar Oficial de Dia' : 'Ativar Oficial de Dia'}
-                  >
-                    {isDiaVisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                  </button>
-                </div>
-              </td>
-              <td className="px-3 py-0.5 font-bold uppercase text-[10.5px] sm:text-[11px] text-left">
-                {isDiaVisible ? (
-                  oficialDia ? (
-                    <span className="font-black underline">{oficialDia}</span>
-                  ) : (
-                    <span className="text-slate-400 font-normal italic text-[10px] select-none">-</span>
-                  )
-                ) : (
-                  <span className="opacity-0 select-none">&nbsp;</span>
-                )}
-              </td>
-            </tr>
-            <tr className="border-b border-black group/officer-row h-[18px]">
-              <td
-                className={cn(
-                  'w-[42%] sm:w-[38%] border-r border-black px-2.5 py-0.5 font-bold uppercase text-[9px] sm:text-[10px] text-left escala-ala-header',
-                  headerColorClass
-                )}
-                style={headerBgStyle}
-              >
-                <div className="flex items-center justify-between">
-                  <span>OFICIAL DA NÁUTICA:</span>
-                  <button
-                    type="button"
-                    onClick={() => toggleOfficerVisibility('showOficialNautica')}
-                    className="print:hidden opacity-0 group-hover/officer-row:opacity-100 hover:opacity-100 text-slate-700 hover:text-rose-700 transition-opacity p-0.5 rounded cursor-pointer"
-                    title={isNauticaVisible ? 'Desativar Oficial da Náutica' : 'Ativar Oficial da Náutica'}
-                  >
-                    {isNauticaVisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                  </button>
-                </div>
-              </td>
-              <td className="px-3 py-0.5 font-bold uppercase text-[10.5px] sm:text-[11px] text-left">
-                {isNauticaVisible ? (
-                  oficialNautica ? (
-                    <span className="font-black underline">{oficialNautica}</span>
-                  ) : (
-                    <span className="text-slate-400 font-normal italic text-[10px] select-none">-</span>
-                  )
-                ) : (
-                  <span className="opacity-0 select-none">&nbsp;</span>
-                )}
-              </td>
-            </tr>
-            <tr className="group/officer-row h-[18px]">
-              <td
-                className={cn(
-                  'w-[42%] sm:w-[38%] border-r border-black px-2.5 py-0.5 font-bold uppercase text-[9px] sm:text-[10.5px] text-left escala-ala-header',
-                  headerColorClass
-                )}
-                style={headerBgStyle}
-              >
-                <div className="flex items-center justify-between">
-                  <span>OFICIAL MÉDICO:</span>
-                  <button
-                    type="button"
-                    onClick={() => toggleOfficerVisibility('showOficialMedico')}
-                    className="print:hidden opacity-0 group-hover/officer-row:opacity-100 hover:opacity-100 text-slate-700 hover:text-rose-700 transition-opacity p-0.5 rounded cursor-pointer"
-                    title={isMedicoVisible ? 'Desativar Oficial Médico' : 'Ativar Oficial Médico'}
-                  >
-                    {isMedicoVisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                  </button>
-                </div>
-              </td>
-              <td className="px-3 py-0.5 font-bold uppercase text-[10.5px] sm:text-[11px] text-left">
-                {isMedicoVisible ? (
-                  oficialMedico ? (
-                    <span className="font-black underline">{oficialMedico}</span>
-                  ) : (
-                    <span className="text-slate-400 font-normal italic text-[10px] select-none">-</span>
-                  )
-                ) : (
-                  <span className="opacity-0 select-none">&nbsp;</span>
-                )}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      ) : (
-        /* 3 COLUNAS LADO A LADO */
-        <table className="w-full border-collapse border-x-2 border-b border-black table-fixed text-xs select-none">
-          <thead>
-            <tr
-              className={cn(
-                'font-bold border-b border-black text-center text-[9px] sm:text-[10px] uppercase tracking-tight leading-none escala-ala-header',
-                headerColorClass
-              )}
-              style={headerBgStyle}
-            >
-              <th className="border-r border-black py-[2px] px-1.5 w-[34%] escala-ala-header relative group/officer-col">
-                <div className="flex items-center justify-center relative">
-                  <span className="truncate">OFICIAL DE DIA E PRONTIDÃO</span>
-                  <button
-                    type="button"
-                    onClick={() => toggleOfficerVisibility('showOficialDia')}
-                    className="print:hidden opacity-0 group-hover/officer-col:opacity-100 hover:opacity-100 text-slate-700 hover:text-rose-700 transition-opacity p-0.5 rounded cursor-pointer absolute right-0"
-                    title={isDiaVisible ? 'Desativar Oficial de Dia' : 'Ativar Oficial de Dia'}
-                  >
-                    {isDiaVisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                  </button>
-                </div>
-              </th>
-              <th className="border-r border-black py-[2px] px-1.5 w-[33%] escala-ala-header relative group/officer-col">
-                <div className="flex items-center justify-center relative">
-                  <span className="truncate">OFICIAL DA NÁUTICA</span>
-                  <button
-                    type="button"
-                    onClick={() => toggleOfficerVisibility('showOficialNautica')}
-                    className="print:hidden opacity-0 group-hover/officer-col:opacity-100 hover:opacity-100 text-slate-700 hover:text-rose-700 transition-opacity p-0.5 rounded cursor-pointer absolute right-0"
-                    title={isNauticaVisible ? 'Desativar Oficial da Náutica' : 'Ativar Oficial da Náutica'}
-                  >
-                    {isNauticaVisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                  </button>
-                </div>
-              </th>
-              <th className="py-[2px] px-1.5 w-[33%] escala-ala-header relative group/officer-col">
-                <div className="flex items-center justify-center relative">
-                  <span className="truncate">OFICIAL MÉDICO</span>
-                  <button
-                    type="button"
-                    onClick={() => toggleOfficerVisibility('showOficialMedico')}
-                    className="print:hidden opacity-0 group-hover/officer-col:opacity-100 hover:opacity-100 text-slate-700 hover:text-rose-700 transition-opacity p-0.5 rounded cursor-pointer absolute right-0"
-                    title={isMedicoVisible ? 'Desativar Oficial Médico' : 'Ativar Oficial Médico'}
-                  >
-                    {isMedicoVisible ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                  </button>
-                </div>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr className="text-center font-bold text-[11px] uppercase h-5 sm:h-6">
-              <td className="border-r border-black py-0.5 px-1.5 align-middle">
-                {isDiaVisible ? (
-                  oficialDia ? (
-                    <span className="font-black underline tracking-tight">{oficialDia}</span>
-                  ) : (
-                    <span className="text-slate-400 font-normal italic text-[10px] select-none">-</span>
-                  )
-                ) : (
-                  <span className="opacity-0 select-none">&nbsp;</span>
-                )}
-              </td>
-              <td className="border-r border-black py-0.5 px-1.5 align-middle">
-                {isNauticaVisible ? (
-                  oficialNautica ? (
-                    <span className="font-black underline tracking-tight">{oficialNautica}</span>
-                  ) : (
-                    <span className="text-slate-400 font-normal italic text-[10px] select-none">-</span>
-                  )
-                ) : (
-                  <span className="opacity-0 select-none">&nbsp;</span>
-                )}
-              </td>
-              <td className="py-0.5 px-1.5 align-middle">
-                {isMedicoVisible ? (
-                  oficialMedico ? (
-                    <span className="font-black underline tracking-tight">{oficialMedico}</span>
-                  ) : (
-                    <span className="text-slate-400 font-normal italic text-[10px] select-none">-</span>
-                  )
-                ) : (
-                  <span className="opacity-0 select-none">&nbsp;</span>
-                )}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                {items.map((officer, idx) => {
+                  const widthPercent = (100 / items.length).toFixed(2) + '%';
+                  const isLast = idx === items.length - 1;
+                  return (
+                    <th
+                      key={officer.id}
+                      style={{ width: widthPercent }}
+                      className={cn(
+                        'py-[2px] px-1.5 escala-ala-header relative group/officer-col',
+                        !isLast && 'border-r border-black'
+                      )}
+                    >
+                      <div className="flex items-center justify-center relative">
+                        <span className="truncate">{officer.title}</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleOfficerVisibility(officer.key)}
+                          className="print:hidden opacity-0 group-hover/officer-col:opacity-100 hover:opacity-100 text-slate-700 hover:text-rose-700 transition-opacity p-0.5 rounded cursor-pointer absolute right-0"
+                          title={`Ocultar ${officer.title}`}
+                        >
+                          <EyeOff className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="text-center font-bold text-[11px] uppercase h-5 sm:h-6">
+                {items.map((officer, idx) => {
+                  const widthPercent = (100 / items.length).toFixed(2) + '%';
+                  const isLast = idx === items.length - 1;
+                  return (
+                    <td
+                      key={officer.id}
+                      style={{ width: widthPercent }}
+                      className={cn(
+                        'py-0.5 px-1.5 align-middle',
+                        !isLast && 'border-r border-black'
+                      )}
+                    >
+                      {officer.value ? (
+                        <span className="font-black underline tracking-tight">{officer.value}</span>
+                      ) : (
+                        <span className="text-slate-400 font-normal italic text-[10px] select-none">-</span>
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            </tbody>
+          </table>
+        )
       )}
     </div>
   );

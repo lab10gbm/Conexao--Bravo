@@ -36,6 +36,7 @@ import { EscalanteDashboardCalendar } from "./EscalanteDashboardCalendar";
 import { CategoryConfig, DEFAULT_CATEGORIES, getAvailableControlFunctions } from "./ControleCategoriasModal";
 const SorteioFuncoesModal = lazyWithRetry(() => import("./SorteioFuncoesModal").then(m => ({ default: m.SorteioFuncoesModal })));
 import { SorteioScope, SorteioResult, SorteioMilitar, clearFunctionsByScope } from "../lib/sorteioFuncoes";
+import { OfficerSectionItem, getDefaultSectionsForObm } from "../types/officerSections";
 
 import {
   cleanUndefined,
@@ -361,18 +362,94 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   }, [selectedDate, obmContext, militars, afastamentos]);
 
   const [showPrintView, setShowPrintView] = useState(false);
+
+  // Seções configuradas para a OBM
+  const [officerSections, setOfficerSections] = useState<OfficerSectionItem[]>(() =>
+    getDefaultSectionsForObm(obmContext || user?.obm || '10º GBM')
+  );
+  const [customOfficerValues, setCustomOfficerValues] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let isMounted = true;
+    const cleanObm = obmContext === 'GLOBAL' ? '10º GBM' : (obmContext || user?.obm || '10º GBM');
+    const docId = cleanObm.replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_');
+
+    fetch(`/api/officer-sections?obm=${encodeURIComponent(cleanObm)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (isMounted && data.success && Array.isArray(data.sections)) {
+          setOfficerSections(data.sections);
+        }
+      })
+      .catch(() => {});
+
+    const unsub = onSnapshot(doc(db, 'officer_sections_config', docId), (snap) => {
+      if (!isMounted) return;
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data.sections) && data.sections.length > 0) {
+          setOfficerSections(data.sections);
+        }
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsub();
+    };
+  }, [obmContext, user?.obm]);
+
+  useEffect(() => {
+    if (!selectedDate) return;
+    let isMounted = true;
+    const cleanObm = obmContext === 'GLOBAL' ? '10º GBM' : (obmContext || user?.obm || '10º GBM');
+    const docId = cleanObm.replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_');
+
+    const unsub = onSnapshot(doc(db, 'officer_scales', docId), (snap) => {
+      if (!isMounted) return;
+      if (snap.exists()) {
+        const days = snap.data()?.days || {};
+        const dayData = days[selectedDate] || {};
+        const customVals: Record<string, string> = {};
+        officerSections.forEach(sec => {
+          if (sec.isCustom && dayData[sec.id]) {
+            customVals[sec.id] = dayData[sec.id];
+          }
+        });
+        setCustomOfficerValues(customVals);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsub();
+    };
+  }, [obmContext, selectedDate, officerSections, user?.obm]);
+
   const [officerVisibility, setOfficerVisibility] = useState<OfficerVisibility>(() => {
+    const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+    const cleanObm = normalizeObm(rawObm);
+    const defaultSections = getDefaultSectionsForObm(cleanObm);
+    const isNauticaDef = defaultSections.find(s => s.id === 'nucleo-nautico')?.enabled ?? false;
+    const isMedicoDef = defaultSections.find(s => s.id === 'oficiais-medicos')?.enabled ?? false;
     try {
-      const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
-      const cleanObm = normalizeObm(rawObm);
       const saved = localStorage.getItem(`escala_officer_visibility_${cleanObm}`);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          ...parsed,
+          showSection: parsed.showSection !== false,
+          showOficialDia: parsed.showOficialDia !== false,
+          showOficialNautica: isNauticaDef ? (parsed.showOficialNautica !== false) : false,
+          showOficialMedico: isMedicoDef ? (parsed.showOficialMedico !== false) : false,
+        };
+      }
     } catch {}
     return {
       showSection: true,
       showOficialDia: true,
-      showOficialNautica: true,
-      showOficialMedico: true,
+      showOficialNautica: isNauticaDef,
+      showOficialMedico: isMedicoDef,
     };
   });
 
@@ -424,23 +501,31 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
     });
   };
 
-  const handleToggleOfficerVisibility = (key: 'showSection' | 'showOficialDia' | 'showOficialNautica' | 'showOficialMedico') => {
+  const handleToggleOfficerVisibility = (key: any) => {
     setOfficerVisibility(prev => {
       let next: OfficerVisibility;
       if (key === 'showSection') {
         const nextVal = !prev.showSection;
         next = {
+          ...prev,
           showSection: nextVal,
           showOficialDia: nextVal,
           showOficialNautica: nextVal,
           showOficialMedico: nextVal,
         };
+        officerSections.forEach(sec => {
+          if (sec.isCustom) {
+            next[`show_${sec.id}`] = nextVal;
+          }
+        });
       } else {
+        const currentVal = (prev as any)[key] !== false;
         next = {
           ...prev,
-          [key]: !prev[key]
+          [key]: !currentVal
         };
-        next.showSection = next.showOficialDia || next.showOficialNautica || next.showOficialMedico;
+        const anyVisible = Object.entries(next).some(([k, v]) => k !== 'showSection' && Boolean(v));
+        next.showSection = anyVisible;
       }
       try {
         const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
@@ -1394,9 +1479,9 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         viaturasInfo,
         officerVisibility,
         adminRolesVisibility,
-        oficialDia: (officerVisibility.showSection !== false && officerVisibility.showOficialDia !== false) ? oficialDiaValue : '',
-        oficialNautica: (officerVisibility.showSection !== false && officerVisibility.showOficialNautica !== false) ? nauticoOficialValue : '',
-        oficialMedico: (officerVisibility.showSection !== false && officerVisibility.showOficialMedico !== false) ? medicoOficialValue : '',
+        oficialDia: (officerVisibility.showSection !== false && officerVisibility.showOficialDia !== false && (officerSections.find(s => s.id === 'servicos-grd')?.enabled ?? true)) ? oficialDiaValue : '',
+        oficialNautica: (officerVisibility.showSection !== false && officerVisibility.showOficialNautica !== false && (officerSections.find(s => s.id === 'nucleo-nautico')?.enabled ?? false)) ? nauticoOficialValue : '',
+        oficialMedico: (officerVisibility.showSection !== false && officerVisibility.showOficialMedico !== false && (officerSections.find(s => s.id === 'oficiais-medicos')?.enabled ?? false)) ? medicoOficialValue : '',
         expedienteMilitars: (expedienteMilitars || []).map(m => ({
           rg: m.rg,
           name: m.name,
@@ -1563,6 +1648,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           availableMedicalOfficers={availableMedicalOfficers}
           onSaveMedicoOficial={handleSaveMedicoOficial}
           savingMedico={savingMedico}
+          sections={officerSections}
         />
 
         {/* SECTION 1: Permutas Deferidas */}
@@ -1802,6 +1888,8 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
               } catch {}
             }}
             user={user}
+            sections={officerSections}
+            customOfficerValues={customOfficerValues}
             onRegister={handleRegisterEscala}
             onClose={() => setShowPrintView(false)}
           />

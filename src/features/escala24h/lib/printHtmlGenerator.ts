@@ -59,6 +59,14 @@ export function generatePrintHtmlDocument(
       htmlEl.style.setProperty('print-color-adjust', 'exact', 'important');
     });
 
+    // Garantir URLs absolutos em todas as imagens (incluindo marca d'água e brasões)
+    const imgs = clone.querySelectorAll("img");
+    imgs.forEach((img) => {
+      if (img.src) {
+        img.src = img.src;
+      }
+    });
+
     return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -152,10 +160,25 @@ export function generatePrintHtmlDocument(
       print-color-adjust: exact !important;
       color-adjust: exact !important;
     }
+    .escala-watermark {
+      position: absolute !important;
+      inset: 0 !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      pointer-events: none !important;
+      z-index: 10 !important;
+      overflow: hidden !important;
+    }
+    .escala-watermark img {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
   </style>
 </head>
 <body class="bg-white text-black p-2 pt-4">
-  <div class="max-w-[1200px] mx-auto bg-white relative text-black font-sans text-[11px] leading-tight flex flex-col pt-2">
+  <div class="max-w-[1200px] mx-auto bg-white relative text-black font-sans text-[11px] leading-tight flex flex-col pt-2 min-h-[280mm]">
     ${clone.innerHTML}
   </div>
   <script>

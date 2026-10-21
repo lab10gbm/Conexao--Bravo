@@ -6,7 +6,9 @@ export interface OfficerVisibility {
   showOficialDia: boolean;
   showOficialNautica: boolean;
   showOficialMedico: boolean;
+  [key: string]: boolean | undefined;
 }
+
 
 export enum PermutaStatus {
   PENDING = 'pending',

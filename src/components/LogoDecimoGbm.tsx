@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { cn } from '../lib/utils';
 
+export const OFFICIAL_10GBM_LOGO = '/brasao-10gbm.png';
+
 interface LogoProps {
   className?: string;
   allowUpload?: boolean;
@@ -14,11 +16,13 @@ export function LogoDecimoGbm({ className, allowUpload = false }: LogoProps) {
       return null;
     }
   });
+  const [imgError, setImgError] = useState(false);
 
   useEffect(() => {
     const handleUpdate = () => {
       try {
         setCustomSrc(localStorage.getItem('logo_10gbm_custom'));
+        setImgError(false);
       } catch {}
     };
     window.addEventListener('logos_updated', handleUpdate);
@@ -33,6 +37,7 @@ export function LogoDecimoGbm({ className, allowUpload = false }: LogoProps) {
         const result = event.target?.result as string;
         if (result) {
           setCustomSrc(result);
+          setImgError(false);
           try {
             localStorage.setItem('logo_10gbm_custom', result);
             window.dispatchEvent(new Event('logos_updated'));
@@ -43,17 +48,18 @@ export function LogoDecimoGbm({ className, allowUpload = false }: LogoProps) {
     }
   };
 
-  if (customSrc) {
+  const effectiveSrc = customSrc === 'vector' ? null : (customSrc || OFFICIAL_10GBM_LOGO);
+
+  if (effectiveSrc && !imgError) {
     return (
       <div className={cn("relative group inline-flex items-center justify-center", className)}>
         <img
-          src={customSrc}
-          alt="10º GBM - Décimo Grupamento de Bombeiro Militar"
+          src={effectiveSrc}
+          alt="10º GBM - Angra dos Reis"
           className="max-h-full max-w-full object-contain"
           referrerPolicy="no-referrer"
           onError={() => {
-            // fallback if image fails
-            setCustomSrc(null);
+            setImgError(true);
           }}
         />
         {allowUpload && (

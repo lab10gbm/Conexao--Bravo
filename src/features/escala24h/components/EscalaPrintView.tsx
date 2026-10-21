@@ -11,6 +11,47 @@ import { PrintChamadaExpedienteGrd } from './print/PrintChamadaExpedienteGrd';
 export function EscalaPrintView(props: UseEscalaPrintDataProps) {
   const data = useEscalaPrintData(props);
 
+  // Configurações da Marca d'Água Central da Escala
+  const [watermarkCustom, setWatermarkCustom] = React.useState<string | null>(() => {
+    try {
+      return localStorage.getItem('escala_watermark_custom');
+    } catch {
+      return null;
+    }
+  });
+
+  const [watermarkEnabled, setWatermarkEnabled] = React.useState<boolean>(() => {
+    try {
+      const val = localStorage.getItem('escala_watermark_enabled');
+      return val !== null ? val === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const [watermarkOpacity, setWatermarkOpacity] = React.useState<number>(() => {
+    try {
+      const val = localStorage.getItem('escala_watermark_opacity');
+      return val ? parseFloat(val) : 0.08;
+    } catch {
+      return 0.08;
+    }
+  });
+
+  React.useEffect(() => {
+    const handleUpdate = () => {
+      try {
+        setWatermarkCustom(localStorage.getItem('escala_watermark_custom'));
+        const en = localStorage.getItem('escala_watermark_enabled');
+        setWatermarkEnabled(en !== null ? en === 'true' : true);
+        const op = localStorage.getItem('escala_watermark_opacity');
+        setWatermarkOpacity(op ? parseFloat(op) : 0.08);
+      } catch {}
+    };
+    window.addEventListener('logos_updated', handleUpdate);
+    return () => window.removeEventListener('logos_updated', handleUpdate);
+  }, []);
+
   return (
     <div
       className="fixed inset-0 bg-slate-800/90 z-[200] overflow-y-auto print:absolute print:inset-0 print:bg-white print:z-[9999] print:block keep-light"
@@ -28,6 +69,8 @@ export function EscalaPrintView(props: UseEscalaPrintDataProps) {
         officerMenuRef={data.officerMenuRef}
         hasAnyVisibleOfficer={data.hasAnyVisibleOfficer}
         activeOfficerCount={data.activeOfficerCount}
+        totalOfficerCount={data.totalOfficerCount}
+        enabledOfficerItems={data.enabledOfficerItems}
         isDiaVisible={data.isDiaVisible}
         isNauticaVisible={data.isNauticaVisible}
         isMedicoVisible={data.isMedicoVisible}
@@ -103,8 +146,47 @@ export function EscalaPrintView(props: UseEscalaPrintDataProps) {
               print-color-adjust: exact !important;
               color-adjust: exact !important;
             }
+            .escala-watermark {
+              position: absolute !important;
+              inset: 0 !important;
+              display: flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+              pointer-events: none !important;
+              z-index: 10 !important;
+              overflow: hidden !important;
+            }
+            .escala-watermark img {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
+            }
           }
         `}</style>
+
+        {/* Marca d'Água Central da Escala */}
+        {watermarkEnabled && (
+          <div
+            className="escala-watermark pointer-events-none select-none absolute inset-0 flex items-center justify-center z-10 overflow-hidden"
+            aria-hidden="true"
+          >
+            <img
+              src={watermarkCustom || '/brasao-cbmerj-watermark.png'}
+              alt="Marca d'água CBMERJ"
+              style={{
+                opacity: watermarkOpacity,
+                maxWidth: data.isExpandedView ? '560px' : '460px',
+                maxHeight: data.isExpandedView ? '560px' : '460px',
+                width: '58%',
+                objectFit: 'contain',
+                mixBlendMode: 'multiply',
+                WebkitPrintColorAdjust: 'exact',
+                printColorAdjust: 'exact',
+              }}
+              className="transform -translate-y-4"
+            />
+          </div>
+        )}
 
         {/* 1. Header & Oficiais */}
         <PrintHeaderOficiais
@@ -122,6 +204,7 @@ export function EscalaPrintView(props: UseEscalaPrintDataProps) {
           oficialDia={props.oficialDia}
           oficialNautica={props.oficialNautica}
           oficialMedico={props.oficialMedico}
+          activeOfficers={data.activeOfficerItems}
         />
 
         {/* 2. Viaturas */}

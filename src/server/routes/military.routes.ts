@@ -6,6 +6,7 @@ import path from 'path';
 import { resolveCanonicalScope } from "../../lib/canonicalScope";
 import { cleanUndefined, withTimeout } from "../../lib/utils";
 import { syncMedicosInternal } from "../lib/medicos-sync";
+import { getDefaultSectionsForObm, OfficerSectionItem } from "../../types/officerSections";
 
 export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
   app.get('/api/militar/version', (req, res) => {
@@ -838,6 +839,114 @@ app.post('/api/militar/emprestar', async (req, res) => {
     } catch (err: any) {
       console.error('[Transfer] Erro na transferência:', err);
       return res.status(500).json({ success: false, error: err.message || 'Erro ao transferir militar' });
+    }
+  });
+
+  // Obter seções configuradas de oficiais por OBM
+  app.get('/api/officer-sections', async (req, res) => {
+    const { isDbHealthy, db, clientDb, normalizeObm } = getDeps();
+    const rawObm = (req.query.obm as string) || '10º GBM';
+    const cleanObm = rawObm === 'GLOBAL' ? '10º GBM' : normalizeObm(rawObm);
+    const docId = cleanObm.replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_');
+
+    let sections: OfficerSectionItem[] = getDefaultSectionsForObm(cleanObm);
+
+    try {
+      let data: any = null;
+      if (db && isDbHealthy) {
+        try {
+          const snap = await db.collection('officer_sections_config').doc(docId).get();
+          if (snap.exists) data = snap.data();
+        } catch (e: any) {
+          console.warn('[API] officer_sections_config Admin SDK read notice:', e.message);
+        }
+      }
+      if (!data && clientDb) {
+        try {
+          const snap = await getDoc(doc(clientDb, 'officer_sections_config', docId));
+          if (snap.exists()) data = snap.data();
+        } catch (e: any) {
+          console.warn('[API] officer_sections_config Client SDK read notice:', e.message);
+        }
+      }
+
+      if (data && Array.isArray(data.sections) && data.sections.length > 0) {
+        sections = data.sections;
+      }
+
+      return res.json({
+        success: true,
+        obm: cleanObm,
+        docId,
+        sections
+      });
+    } catch (err: any) {
+      console.error('[API] /api/officer-sections error:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Atualizar seções configuradas de oficiais por OBM
+  app.post('/api/officer-sections/update', async (req, res) => {
+    const { isDbHealthy, db, clientDb, normalizeObm } = getDeps();
+    const { obm, sections } = req.body;
+
+    const rawObm = obm || '10º GBM';
+    const cleanObm = rawObm === 'GLOBAL' ? '10º GBM' : normalizeObm(rawObm);
+    const docId = cleanObm.replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_');
+
+    if (!Array.isArray(sections)) {
+      return res.status(400).json({ success: false, error: 'Formato inválido para seções.' });
+    }
+
+    const payload = {
+      obm: cleanObm,
+      docId,
+      updatedAt: new Date().toISOString(),
+      sections: sections.map((sec: any) => ({
+        id: String(sec.id || '').trim(),
+        name: String(sec.name || '').trim(),
+        subtitle: String(sec.subtitle || '').trim(),
+        description: String(sec.description || '').trim(),
+        badge: String(sec.badge || '').trim(),
+        icon: String(sec.icon || 'shield').trim(),
+        color: String(sec.color || 'indigo').trim(),
+        enabled: Boolean(sec.enabled),
+        isCustom: Boolean(sec.isCustom),
+        col1Name: sec.col1Name || 'OFICIAL DE DIA / CMT OP / SOBREAVISO 1 / GRD 1',
+        col2Name: sec.col2Name || 'SOBREAVISO 2 / GRD 2'
+      }))
+    };
+
+    try {
+      let saved = false;
+      if (db && isDbHealthy) {
+        try {
+          await db.collection('officer_sections_config').doc(docId).set(payload, { merge: true });
+          saved = true;
+        } catch (e: any) {
+          console.warn('[API] officer_sections_config Admin SDK save notice:', e.message);
+        }
+      }
+      if (!saved && clientDb) {
+        try {
+          await setDoc(doc(clientDb, 'officer_sections_config', docId), payload, { merge: true });
+          saved = true;
+        } catch (e: any) {
+          console.error('[API] officer_sections_config Client SDK save error:', e.message);
+        }
+      }
+
+      console.log(`[API] officer_sections_config atualizado com sucesso para ${docId}`);
+      return res.json({
+        success: true,
+        obm: cleanObm,
+        docId,
+        sections: payload.sections
+      });
+    } catch (err: any) {
+      console.error('[API] /api/officer-sections/update error:', err);
+      return res.status(500).json({ success: false, error: err.message });
     }
   });
 

@@ -42,6 +42,7 @@ export interface EscalaOficiaisSectionProps {
   onSaveMedicoOficial: (name: string) => Promise<void>;
   savingMedico: boolean;
   onNavigate?: (path: string) => void;
+  sections?: OfficerSectionItem[];
 }
 
 const SECTION_ICONS: Record<string, LucideIcon> = {
@@ -163,6 +164,7 @@ export function EscalaOficiaisSection({
   onSaveMedicoOficial,
   savingMedico,
   onNavigate,
+  sections: propSections,
 }: EscalaOficiaisSectionProps) {
   const handleNavigate = (path: string) => {
     if (onNavigate) {
@@ -173,7 +175,14 @@ export function EscalaOficiaisSection({
   };
 
   // Carrega dinamicamente as seções configuradas para esta OBM/DBM
-  const [sections, setSections] = useState<OfficerSectionItem[]>(() => getDefaultSectionsForObm(obmContext));
+  const [sections, setSections] = useState<OfficerSectionItem[]>(() => (propSections && propSections.length > 0) ? propSections : getDefaultSectionsForObm(obmContext));
+
+  useEffect(() => {
+    if (propSections && propSections.length > 0) {
+      setSections(propSections);
+    }
+  }, [propSections]);
+
   const [customOfficerValues, setCustomOfficerValues] = useState<Record<string, string>>({});
   const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
   const [customOfficerInput, setCustomOfficerInput] = useState<string>('');

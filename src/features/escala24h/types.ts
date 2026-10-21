@@ -37,6 +37,8 @@ export interface SorteioFeedback {
   undoable?: boolean;
 }
 
+import { OfficerSectionItem } from '../../types/officerSections';
+
 export interface EscalaPrintViewProps {
   selectedDate: string;
   identifiedAla: number | string;
@@ -62,6 +64,8 @@ export interface EscalaPrintViewProps {
   sentinelaSlots?: SentinelaSlot[];
   onRegister?: () => void;
   onClose: () => void;
+  sections?: OfficerSectionItem[];
+  customOfficerValues?: Record<string, string>;
 }
 
 export interface OfficerAssignment {
