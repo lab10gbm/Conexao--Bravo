@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, ArrowLeftRight } from 'lucide-react';
 import { cn } from '../../../../lib/utils';
 import { getEarliestStartTime } from '../../../../lib/sentinelaUtils';
 
@@ -144,8 +144,12 @@ export function PrintAdminSentinelasPermutas({
                   []
               },
               {
-                label: 'RESP. FAXINA:',
+                label: 'ENC. FAXINA:',
                 values:
+                  adminRoles['ENC. FAXINA:'] ||
+                  adminRoles['ENC. FAXINA'] ||
+                  adminRoles['ENC FAXINA:'] ||
+                  adminRoles['ENC FAXINA'] ||
                   adminRoles['RESP. FAXINA:'] ||
                   adminRoles['RESP. FAXINA'] ||
                   adminRoles['RESP. P/ FAXINA:'] ||
@@ -387,16 +391,58 @@ export function PrintAdminSentinelasPermutas({
           >
             PERMUTAS AUTORIZADAS:
           </div>
-          <div className="py-1 px-2 flex flex-wrap gap-3 items-center min-h-[20px]">
+          <div className="py-2 px-3 min-h-[26px]">
             {permutasAtivas.length > 0 ? (
-              permutasAtivas.map((p: any, idx: number) => (
-                <div key={idx} className="uppercase text-[9.5px] flex items-center gap-1.5">
-                  <span className="font-bold">Sai:</span> {renderMilitar(p.req)}{' '}
-                  <span className="font-bold ml-1.5">Entra:</span> {renderMilitar(p.sub)}
-                </div>
-              ))
+              <div className="flex flex-wrap items-start gap-x-8 gap-y-2.5">
+                {permutasAtivas.map((p: any, idx: number) => {
+                  const subMilitar = p.sub;
+                  const reqMilitar = p.req;
+                  const subRg = subMilitar?.rg || p.raw?.substituteRg || '';
+                  const reqRg = reqMilitar?.rg || p.raw?.requesterRg || '';
+
+                  return (
+                    <div
+                      key={idx}
+                      className="inline-flex items-start gap-2 py-0.5"
+                    >
+                      {/* Rótulos: ENTRA (em cima) e SAI (em baixo com símbolo de permuta) */}
+                      <div className="flex flex-col shrink-0 gap-0.5 justify-center min-w-[50px]">
+                        <span className="font-black text-[9px] uppercase tracking-tight text-slate-900 leading-tight">
+                          ENTRA:
+                        </span>
+                        <span className="font-black text-[9px] uppercase tracking-tight text-slate-900 leading-tight flex items-center gap-1">
+                          SAI :
+                          <span className="inline-flex items-center justify-center bg-amber-500 text-white rounded-[3px] w-3.5 h-3.5 shrink-0 shadow-xs">
+                            <ArrowLeftRight className="w-2.5 h-2.5 text-white stroke-[2.5]" />
+                          </span>
+                        </span>
+                      </div>
+
+                      {/* Militares: Posto/Graduação e Nome com RG entre parênteses */}
+                      <div className="flex flex-col min-w-0 gap-0.5 justify-center">
+                        <div className="text-[9.5px] font-bold text-black uppercase leading-tight flex items-center gap-1 whitespace-nowrap">
+                          {renderMilitar(subMilitar, { hideRank: false })}
+                          {subRg && (
+                            <span className="font-bold text-black">
+                              ({subRg})
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[9.5px] font-bold text-black uppercase leading-tight flex items-center gap-1 whitespace-nowrap">
+                          {renderMilitar(reqMilitar, { hideRank: false })}
+                          {reqRg && (
+                            <span className="font-bold text-black">
+                              ({reqRg})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             ) : (
-              <div className="w-full text-center font-normal text-slate-500 italic text-[9.5px]">
+              <div className="w-full text-center font-normal text-slate-500 italic text-[9.5px] py-0.5">
                 Nenhuma permuta foi realizada.
               </div>
             )}

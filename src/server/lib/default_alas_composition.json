@@ -200,11 +200,11 @@
   "20734": {
     "rg": "20734",
     "name": "EDSON MARCOS E SILVA MENEZES",
-    "warName": "MENEZES",
-    "rank": "SUBTENENTE",
-    "ala": null,
-    "obm": "2/10",
-    "quadro": "Q05/97"
+    "warName": "EDSON MENEZES",
+    "rank": "2º TENENTE",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": "QOE/Com/97"
   },
   "20846": {
     "rg": "20846",
@@ -687,10 +687,10 @@
     "rg": "24172",
     "name": "LUIS ALBERTO SANTOS DE PAULA",
     "warName": "DE PAULA",
-    "rank": "SUBTENENTE",
-    "ala": null,
-    "obm": "2/10",
-    "quadro": "Q10/98"
+    "rank": "2º TENENTE",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": "QOA/98"
   },
   "24336": {
     "rg": "24336",
@@ -839,11 +839,11 @@
   "27871": {
     "rg": "27871",
     "name": "SEBASTIÃO CLEBER BRANDÃO NEVES",
-    "warName": "CLEBER",
-    "rank": "SUBTENENTE",
-    "ala": null,
-    "obm": "2/10",
-    "quadro": "Q00/00"
+    "warName": "CLEBER NEVES",
+    "rank": "2º TENENTE",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": "QOA/00"
   },
   "27899": {
     "rg": "27899",
@@ -2410,5 +2410,50 @@
     "ala": "4",
     "obm": "10º GBM",
     "quadro": "TEMP/00/22"
+  },
+  "53448": {
+    "rg": "53448",
+    "name": "EDUARDO JOSE FERREIRA SANT ANNA CORREA",
+    "warName": "SANT ANNA",
+    "rank": "1º TENENTE",
+    "ala": "OFICIAIS",
+    "obm": "10º GBM",
+    "quadro": "QOC/19"
+  },
+  "54952": {
+    "rg": "54952",
+    "name": "RYAN GALDINO DE AGUIAR",
+    "warName": "AGUIAR",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q08/25"
+  },
+  "61514": {
+    "rg": "61514",
+    "name": "LUCAS AGRA DE FREITAS",
+    "warName": "AGRA",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q03/25"
+  },
+  "2200812": {
+    "rg": "2200812",
+    "name": "SAMUEL DA SILVA BRITO",
+    "warName": "SILVA BRITO",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "TEMP/00/22"
+  },
+  "54477": {
+    "rg": "54477",
+    "name": "WASHINGTON WILLIAN CHAGAS DA MAIA",
+    "warName": "WILLIAN",
+    "rank": "SOLDADO",
+    "ala": null,
+    "obm": "10º GBM",
+    "quadro": "Q00/24"
   }
 }

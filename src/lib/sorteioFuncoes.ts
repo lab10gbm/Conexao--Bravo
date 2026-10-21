@@ -144,8 +144,13 @@ export const isMilitarAllowedForFn = (
     if (aNorm === 'CONDUTOR' || aNorm === 'CHEFE' || aNorm === 'AUXILIAR') {
       return false;
     }
-    // Evita colisão entre AR e ARC
-    if ((aNorm === 'CONDUTOR AR' || aNorm === 'AUXILIAR AR' || aNorm.endsWith(' AR')) && (sNorm.includes('ARC') || gNorm.includes('ARC'))) {
+    // Evita colisão entre AR e ARC em ambas as direções
+    const isAArc = aNorm.includes('ARC');
+    const isSArc = sNorm.includes('ARC') || gNorm.includes('ARC');
+    const isAAr = (aNorm === 'CONDUTOR AR' || aNorm === 'AUXILIAR AR' || aNorm.endsWith(' AR') || /\bAR\b/.test(aNorm)) && !isAArc;
+    const isSAr = (sNorm === 'CONDUTOR AR' || sNorm === 'AUXILIAR AR' || sNorm.endsWith(' AR') || /\bAR\b/.test(sNorm) || /\bAR\b/.test(gNorm)) && !isSArc;
+
+    if ((isAArc && isSAr) || (isAAr && isSArc)) {
       return false;
     }
     return sNorm.includes(aNorm) || aNorm.includes(sNorm);

@@ -89,7 +89,7 @@ export const DEFAULT_CATEGORIES: CategoryConfig[] = [
     name: "Cbs E Sds",
     activeProperty: "ativoCbsSds",
     functions: [
-      { id: "faxina", name: "Resp Faxina" },
+      { id: "faxina", name: "Enc. Faxina" },
       { id: "sentinela", name: "Sentinela" },
       { id: "deposito", name: "Dia ao Depósito" },
       { id: "toqueDeFogo", name: "Toque de Fogo" },

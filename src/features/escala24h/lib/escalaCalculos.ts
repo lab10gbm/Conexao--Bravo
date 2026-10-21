@@ -227,7 +227,10 @@ export const getRawAllowedOptions = (
     if (militar.auxRancho) allowed.add('AUXILIAR RANCHO');
     if (militar.toqueDeFogo) allowed.add('TOQUE DE FOGO');
     if (militar.deposito) allowed.add('DIA AO DEPOSITO');
-    if (militar.faxina) allowed.add('RESP FAXINA');
+    if (militar.faxina) {
+      allowed.add('ENC. FAXINA');
+      allowed.add('RESP FAXINA');
+    }
     if (militar.disponivelCbsSds) allowed.add('DISPONIVEL CBS/SDS');
   }
   

@@ -360,7 +360,7 @@ export function PrintToolbar({
                 {[
                   { key: 'ADJUNTO', label: 'Adjunto' },
                   { key: 'ENCARREGADO DE MOTORISTA', label: 'Enc. Motorista' },
-                  { key: 'RESP FAXINA', label: 'Resp. Faxina' },
+                  { key: 'RESP FAXINA', label: 'Enc. Faxina' },
                   { key: 'SGT DIA', label: 'Sargento de Dia' },
                   { key: 'CMT GUARDA', label: 'Comandante da Guarda' },
                   { key: 'DIA AO DEPOSITO', label: 'Dia ao Depósito' },

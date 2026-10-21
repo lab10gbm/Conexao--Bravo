@@ -183,11 +183,21 @@ export function PrintViaturasTable({
     if (!forceRender && (!v || v[slot] === false || v.blocked?.includes(slot)))
       return null;
     const funcName = getSlotName(v, slot, defaultName);
-    const rawSigla = (v?.vtr || defaultName || '').split(/[-_\s]/);
-    const sigla =
-      rawSigla[0] === 'CHEFE' || rawSigla[0] === 'CONDUTOR' || rawSigla[0] === 'AUXILIAR'
-        ? rawSigla[1] || ''
-        : rawSigla[0] || '';
+    const vtrName = (v?.vtr || '').trim().toUpperCase();
+    const rawSigla = vtrName ? vtrName.split(/[-_\s]/)[0] : '';
+    const cleanSigla = rawSigla.startsWith('AR') && rawSigla !== 'ARC' ? 'AR' : rawSigla;
+    const sigla = cleanSigla || (
+      defaultName.includes('ARC') ? 'ARC' :
+      /\bAR\b/.test(defaultName) ? 'AR' :
+      (defaultName || '').split(/[-_\s]/).pop() || ''
+    );
+
+    const matchRoleSigla = (funcText: string, targetSigla: string) => {
+      if (!targetSigla) return true;
+      if (targetSigla === 'AR') return /\bAR\b/.test(funcText) && !/\bARC\b/.test(funcText);
+      if (targetSigla === 'ARC') return /\bARC\b/.test(funcText);
+      return funcText.includes(targetSigla);
+    };
 
     // 1. Primary check
     const candidates = getByFunc(funcName);
@@ -212,7 +222,7 @@ export function PrintViaturasTable({
         if (usedMilitars.has(m.rg)) return false;
         const funcs = (selectedFunctions[m.rg] || []).map(normalize);
         return funcs.some(
-          (f) => f.includes('CHEFE') && (sigla ? f.includes(sigla) : true)
+          (f) => f.includes('CHEFE') && matchRoleSigla(f, sigla)
         );
       });
       if (anyChefeSigla.length > 0) {

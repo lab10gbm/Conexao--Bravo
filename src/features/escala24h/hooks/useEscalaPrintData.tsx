@@ -442,6 +442,9 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
     const allAdminKeys = [
       'ADJUNTO',
       'ENCARREGADO DE MOTORISTA',
+      'ENC. FAXINA',
+      'ENC FAXINA',
+      'RESP. FAXINA',
       'RESP FAXINA',
       'SGT DIA',
       'CMT GUARDA',
@@ -478,8 +481,9 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
 
   const getAdminRoleMappedKey = (label: string): string => {
     const clean = label.replace(/[:.]/g, '').trim().toUpperCase();
-    if (clean.includes('ENCARREGADO') || clean.includes('MOTORISTA') || clean.includes('ENC')) return 'ENCARREGADO DE MOTORISTA';
     if (clean.includes('FAXINA')) return 'RESP FAXINA';
+    if ((clean.includes('ENCARREGADO') || clean.includes('ENC')) && clean.includes('MOTORISTA')) return 'ENCARREGADO DE MOTORISTA';
+    if (clean.includes('MOTORISTA')) return 'ENCARREGADO DE MOTORISTA';
     if (clean.includes('SGT')) return 'SGT DIA';
     if (clean.includes('CMT')) return 'CMT GUARDA';
     if (clean.includes('DEPOSITO') || clean.includes('DEPÓSITO'))
@@ -828,6 +832,9 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
 
   const getByFunc = (funcName: string) => {
     const targetNorm = normalize(funcName);
+    const hasArc = (str: string) => /\bARC\b/.test(str);
+    const hasArOnly = (str: string) => /\bAR\b/.test(str) && !/\bARC\b/.test(str);
+
     return baseRoster
       .filter((m: any) => {
         const rg = m.rg || '';
@@ -835,6 +842,34 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
         const hasSelectedFunc = funcs.some((f: string) => {
           const fNorm = normalize(f);
           if (fNorm === targetNorm) return true;
+
+          // Isolamento estrito entre AR e ARC (evita direcionamento errado de CONDUTOR DE ARC vs AR)
+          if (hasArc(targetNorm) && !hasArc(fNorm)) return false;
+          if (hasArc(fNorm) && !hasArc(targetNorm)) return false;
+          if (hasArOnly(targetNorm) && hasArc(fNorm)) return false;
+          if (hasArOnly(fNorm) && hasArc(targetNorm)) return false;
+
+          // Se ambos forem AR (e não ARC), verificar match para Condutores e Auxiliares
+          if (hasArOnly(targetNorm) && hasArOnly(fNorm)) {
+            const isCondTarget = targetNorm.includes('CONDUTOR') || targetNorm.startsWith('COND');
+            const isCondFunc = fNorm.includes('CONDUTOR') || fNorm.startsWith('COND');
+            if (isCondTarget && isCondFunc) return true;
+
+            const isAuxTarget = targetNorm.includes('AUXILIAR') || targetNorm.startsWith('AUX');
+            const isAuxFunc = fNorm.includes('AUXILIAR') || fNorm.startsWith('AUX');
+            if (isAuxTarget && isAuxFunc) return true;
+          }
+
+          // Se ambos forem ARC, verificar match para Condutores e Auxiliares/Chefes
+          if (hasArc(targetNorm) && hasArc(fNorm)) {
+            const isCondTarget = targetNorm.includes('CONDUTOR') || targetNorm.startsWith('COND');
+            const isCondFunc = fNorm.includes('CONDUTOR') || fNorm.startsWith('COND');
+            if (isCondTarget && isCondFunc) return true;
+
+            const isAuxOrChefeTarget = targetNorm.includes('AUX') || targetNorm.includes('CHEFE');
+            const isAuxOrChefeFunc = fNorm.includes('AUX') || fNorm.includes('CHEFE');
+            if (isAuxOrChefeTarget && isAuxOrChefeFunc) return true;
+          }
 
           if (
             targetNorm === 'AUXILIAR RANCHO' &&
@@ -859,7 +894,7 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
               (fNorm.includes('ENC') && fNorm.includes('MOTORISTA')))
           )
             return true;
-          if (targetNorm === 'RESP FAXINA' && fNorm.includes('FAXINA')) return true;
+          if (targetNorm.includes('FAXINA') && fNorm.includes('FAXINA')) return true;
           if (
             targetNorm === 'DIA AO DEPOSITO' &&
             (fNorm.includes('DEPOSITO') || fNorm === 'DEPOSITO')
@@ -883,6 +918,11 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
             return true;
           if (targetNorm === 'ADJUNTO' && fNorm.includes('ADJUNTO')) return true;
           if (targetNorm === 'ABASTECEDOR' && fNorm.includes('ABASTECEDOR')) return true;
+
+          // Funções genéricas puras não devem casar soltas em viaturas específicas
+          if (fNorm === 'CONDUTOR' || fNorm === 'CHEFE' || fNorm === 'AUXILIAR') {
+            return false;
+          }
 
           if (f.trim().toUpperCase() === funcName.trim().toUpperCase()) return true;
           return fNorm.includes(targetNorm) || targetNorm.includes(fNorm);
@@ -1115,9 +1155,13 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
     'ENC. MOTORISTA:': getByFunc('ENCARREGADO DE MOTORISTA'),
     'ENC.  MOTORISTA:': getByFunc('ENCARREGADO DE MOTORISTA'),
     'ENC. MOTORISTA': getByFunc('ENCARREGADO DE MOTORISTA'),
-    'RESP. P/ FAXINA:': getByFunc('RESP FAXINA'),
-    'RESP. FAXINA:': getByFunc('RESP FAXINA'),
-    'RESP. FAXINA': getByFunc('RESP FAXINA'),
+    'ENC. FAXINA:': getByFunc('ENC. FAXINA'),
+    'ENC. FAXINA': getByFunc('ENC. FAXINA'),
+    'ENC FAXINA:': getByFunc('ENC. FAXINA'),
+    'ENC FAXINA': getByFunc('ENC. FAXINA'),
+    'RESP. P/ FAXINA:': getByFunc('ENC. FAXINA'),
+    'RESP. FAXINA:': getByFunc('ENC. FAXINA'),
+    'RESP. FAXINA': getByFunc('ENC. FAXINA'),
     'SGT DE DIA:': getByFunc('SGT DIA'),
     'CMT DA GUARDA:': getByFunc('CMT GUARDA')
   };
@@ -1203,12 +1247,29 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
   }, [baseRoster, permutasOut, militars, expedienteMilitars]);
 
   const permutasAtivas = Array.from(permutasOut.values()).map((p: any) => {
-    const sub = militars.find((x: any) => x.rg === p.substituteRg);
-    const req = militars.find((x: any) => x.rg === p.requesterRg);
+    const cleanSubRg = normalizeRg(p.substituteRg || '');
+    const cleanReqRg = normalizeRg(p.requesterRg || '');
+    const sub =
+      (militars || []).find((x: any) => normalizeRg(x.rg) === cleanSubRg) ||
+      (militars || []).find((x: any) => x.rg === p.substituteRg) || {
+        rg: p.substituteRg,
+        warName: p.substituteWarName || p.substituteName,
+        name: p.substituteName,
+        rank: p.substituteRank
+      };
+    const req =
+      (militars || []).find((x: any) => normalizeRg(x.rg) === cleanReqRg) ||
+      (militars || []).find((x: any) => x.rg === p.requesterRg) || {
+        rg: p.requesterRg,
+        warName: p.requesterWarName || p.requesterName,
+        name: p.requesterName,
+        rank: p.requesterRank
+      };
     return {
       req,
       sub,
-      text: `Sai: ${formatRankAndName(req)} - Entra: ${formatRankAndName(sub)}`
+      raw: p,
+      text: `Entra: ${formatRankAndName(sub)} (${sub.rg || p.substituteRg}) - Sai: ${formatRankAndName(req)} (${req.rg || p.requesterRg})`
     };
   });
 

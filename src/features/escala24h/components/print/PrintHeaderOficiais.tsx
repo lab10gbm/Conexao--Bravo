@@ -3,6 +3,8 @@ import { Eye, EyeOff } from 'lucide-react';
 import { LogoDecimoGbm } from '../../../../components/LogoDecimoGbm';
 import { LogoCbaSete } from '../../../../components/LogoCbaSete';
 import { cn } from '../../../../lib/utils';
+import { UserProfile } from '../../../../types';
+import { resolveCanonicalScope, getCanonicalRegionalCommand, getCanonicalUnit } from '../../../../lib/canonicalScope';
 
 export interface ActiveOfficerItem {
   id: string;
@@ -28,6 +30,8 @@ export interface PrintHeaderOficiaisProps {
   oficialNautica?: string;
   oficialMedico?: string;
   activeOfficers?: ActiveOfficerItem[];
+  obmContext?: string;
+  user?: UserProfile;
 }
 
 export function PrintHeaderOficiais({
@@ -45,8 +49,22 @@ export function PrintHeaderOficiais({
   oficialDia,
   oficialNautica,
   oficialMedico,
-  activeOfficers
+  activeOfficers,
+  obmContext,
+  user
 }: PrintHeaderOficiaisProps) {
+  // Resolução dinâmica do escopo canônico da OBM imersa
+  const effectiveObm = (obmContext && obmContext !== 'GLOBAL') ? obmContext : (user?.obm || '10º GBM');
+  const scope = resolveCanonicalScope(effectiveObm);
+  const regionalCommand = getCanonicalRegionalCommand(scope?.cbaId);
+  const cbaName = regionalCommand?.name || 'Comando de Bombeiro de Área VII – Costa Verde';
+  const cbaShortName = regionalCommand?.shortName || 'CBA VII';
+
+  const unit = getCanonicalUnit(scope?.unitId || '10_gbm');
+  const unitName = scope?.unitId === '10_gbm'
+    ? 'DÉCIMO GRUPAMENTO DE BOMBEIRO MILITAR-ANGRA DOS REIS'
+    : (unit?.name ? unit.name.toUpperCase() : 'DÉCIMO GRUPAMENTO DE BOMBEIRO MILITAR-ANGRA DOS REIS');
+
   // Monta lista apenas com as funções ativas configuradas
   const items: ActiveOfficerItem[] = activeOfficers !== undefined
     ? activeOfficers
@@ -76,8 +94,8 @@ export function PrintHeaderOficiais({
           <div className="font-bold flex flex-col justify-start items-center text-center px-1 flex-1 leading-tight -mt-1 sm:-mt-1.5 pt-0">
             <div className="text-[13px] sm:text-[14px] flex flex-col justify-start items-center text-center tracking-tight leading-tight">
               <span>CORPO DE BOMBEIROS MILITAR DO ESTADO DO RIO DE JANEIRO</span>
-              <span>COMANDO DE BOMBEIROS DA COSTA VERDE</span>
-              <span>DÉCIMO GRUPAMENTO DE BOMBEIRO MILITAR-ANGRA DOS REIS</span>
+              <span>{cbaName}</span>
+              <span>{unitName}</span>
             </div>
 
             {/* Texto da Escala integrado */}
@@ -87,11 +105,11 @@ export function PrintHeaderOficiais({
             </div>
           </div>
 
-          {/* Lado direito: CBA7 */}
+          {/* Lado direito: CBA */}
           <div
             onClick={() => setShowLogoModal(true)}
             className="w-20 h-24 sm:w-24 sm:h-28 print:w-[86px] print:h-[102px] flex items-start justify-center shrink-0 cursor-pointer relative group rounded-sm hover:outline hover:outline-1 hover:outline-emerald-400 transition-transform hover:scale-102 ml-2 sm:ml-4 pt-0"
-            title="CBA VII - Clique para carregar ou alterar esta imagem"
+            title={`${cbaShortName} - Clique para carregar ou alterar esta imagem`}
           >
             <LogoCbaSete
               className="w-full h-full object-contain object-top max-h-[92px] sm:max-h-[105px] print:max-h-[96px]"

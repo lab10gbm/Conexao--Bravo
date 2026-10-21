@@ -212,6 +212,8 @@ export function EscalaPrintView(props: UseEscalaPrintDataProps) {
           oficialNautica={props.oficialNautica}
           oficialMedico={props.oficialMedico}
           activeOfficers={data.activeOfficerItems}
+          obmContext={props.obmContext}
+          user={props.user}
         />
 
         {/* 2. Viaturas */}
