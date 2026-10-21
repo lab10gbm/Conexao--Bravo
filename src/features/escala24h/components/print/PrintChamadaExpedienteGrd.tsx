@@ -1,6 +1,6 @@
 import React from 'react';
 import { cn, normalizeRg, normalizeAlaField } from '../../../../lib/utils';
-import { parseRank, formatRankAndName } from '../../../../lib/rankUtils';
+import { parseRank, formatRankAndName, isOfficer } from '../../../../lib/rankUtils';
 import { UserProfile } from '../../../../types';
 
 export interface PrintChamadaExpedienteGrdProps {
@@ -101,6 +101,52 @@ export function PrintChamadaExpedienteGrd({
     return set;
   }, [expedienteMilitars, militars]);
 
+  const rankSummary = React.useMemo(() => {
+    const counts: Record<string, number> = {
+      OFICIAL: 0,
+      SUBTENENTE: 0,
+      SARGENTO: 0,
+      CABO: 0,
+      SOLDADO: 0,
+    };
+
+    (activeMembersList || []).forEach((item: any) => {
+      const mil = item.militar || item;
+      const rawRank = mil?.rank || mil?.postoGrad || (item.label ? item.label.split(' ')[0] : '');
+      const parsed = parseRank(rawRank);
+
+      if (isOfficer(rawRank) || isOfficer(parsed)) {
+        counts.OFICIAL++;
+      } else if (parsed === 'SUBTEN' || parsed.includes('SUB') || parsed.includes('ST')) {
+        counts.SUBTENENTE++;
+      } else if (parsed.includes('SGT') || parsed.includes('SARGENTO')) {
+        counts.SARGENTO++;
+      } else if (parsed === 'CB' || parsed.includes('CABO')) {
+        counts.CABO++;
+      } else if (parsed === 'SD' || parsed.includes('SOLDADO')) {
+        counts.SOLDADO++;
+      } else {
+        const up = String(rawRank).toUpperCase();
+        if (up.includes('SD') || up.includes('SOL')) counts.SOLDADO++;
+        else if (up.includes('CB') || up.includes('CAB')) counts.CABO++;
+        else if (up.includes('SGT') || up.includes('SAR')) counts.SARGENTO++;
+        else if (up.includes('SUB') || up.includes('ST')) counts.SUBTENENTE++;
+        else if (isOfficer(up)) counts.OFICIAL++;
+        else counts.SOLDADO++;
+      }
+    });
+
+    const parts: string[] = [];
+    if (counts.OFICIAL > 0) parts.push(`OFICIAL (${counts.OFICIAL})`);
+    if (counts.SUBTENENTE > 0) parts.push(`SUBTENENTE (${counts.SUBTENENTE})`);
+    if (counts.SARGENTO > 0) parts.push(`SARGENTO (${counts.SARGENTO})`);
+    if (counts.CABO > 0) parts.push(`CABO (${counts.CABO})`);
+    if (counts.SOLDADO > 0) parts.push(`SOLDADO (${counts.SOLDADO})`);
+
+    const total = (activeMembersList || []).length;
+    return { parts, total };
+  }, [activeMembersList]);
+
   return (
     <>
       {/* CHAMADA GERAL E RAS */}
@@ -135,7 +181,8 @@ export function PrintChamadaExpedienteGrd({
           <tr>
             <td className="border-r border-black p-1.5 px-3 align-top text-[9.5px] font-bold">
               {activeMembersList.length > 0 ? (
-                <div
+                <>
+                  <div
                   className={cn(
                     'grid gap-y-1',
                     activeMembersList.length > 24
@@ -175,6 +222,19 @@ export function PrintChamadaExpedienteGrd({
                         </span>
                         <span className="truncate whitespace-nowrap font-bold text-slate-900">
                           {militarName}
+                          {m.isPermuta && (
+                            <span
+                              className="inline font-black text-orange-600 ml-0.5 tracking-normal whitespace-nowrap"
+                              style={{
+                                color: '#ea580c',
+                                WebkitPrintColorAdjust: 'exact',
+                                printColorAdjust: 'exact'
+                              }}
+                              title="Militar em permuta autorizada (Substituto)"
+                            >
+                              (P)
+                            </span>
+                          )}
                         </span>
                         {isFromExpediente && (
                           <span
@@ -192,7 +252,19 @@ export function PrintChamadaExpedienteGrd({
                     );
                   })}
                 </div>
-              ) : (
+                {/* Linha de Quantitativo da Chamada Geral */}
+                {activeMembersList.length > 0 && rankSummary.parts.length > 0 && (
+                  <div className="mt-2 pt-1 border-t border-black/40 flex items-center justify-between text-[9px] font-bold uppercase tracking-tight text-slate-900">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span>{rankSummary.parts.join(' , ')}</span>
+                    </div>
+                    <span className="font-black text-slate-900 shrink-0 ml-2">
+                      TOTAL: {rankSummary.total}
+                    </span>
+                  </div>
+                )}
+              </>
+            ) : (
                 <div className="text-center font-normal text-slate-500 italic py-2">
                   Nenhum militar na chamada geral.
                 </div>
@@ -242,7 +314,7 @@ export function PrintChamadaExpedienteGrd({
 
         <div className="p-1.5 px-3 border-b-2 border-black text-[10px] min-h-[30px] font-bold">
           {expedienteMilitars.length > 0 ? (
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-x-4 gap-y-1">
+            <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-x-4 gap-y-1">
               {expedienteMilitars.map((m: any, idx: number) => {
                 const cleanRg = normalizeRg(m.rg || m.militar?.rg || '');
                 const milFromPool = (militars || []).find((x: any) => normalizeRg(x.rg) === cleanRg);

@@ -1005,17 +1005,15 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
 
   const renderPermutaBadge = () => (
     <span
-      className="inline-flex items-center justify-center px-1 py-[0.5px] ml-1 rounded text-[8px] sm:text-[8.5px] font-black leading-none bg-orange-100 text-orange-600 border border-orange-400 shrink-0 align-middle shadow-2xs"
+      className="inline font-black text-orange-600 ml-0.5 tracking-normal whitespace-nowrap"
       style={{
-        backgroundColor: '#ffedd5',
         color: '#ea580c',
-        borderColor: '#fb923c',
         WebkitPrintColorAdjust: 'exact',
         printColorAdjust: 'exact'
       }}
       title="Militar em permuta autorizada (Substituto)"
     >
-      ℗
+      (P)
     </span>
   );
 
@@ -1102,8 +1100,8 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
               )}
             >
               {rawName}
+              {isPermuta && renderPermutaBadge()}
             </span>
-            {isPermuta && renderPermutaBadge()}
             {isRas && renderRasBadge()}
           </div>
         </div>
@@ -1113,9 +1111,11 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
     if (!formatted) return '';
     if (!isRas && !isPermuta) return formatted;
     return (
-      <span className="inline-flex items-center gap-0.5">
-        <span>{formatted}</span>
-        {isPermuta && renderPermutaBadge()}
+      <span className="inline-flex items-center gap-1">
+        <span>
+          {formatted}
+          {isPermuta && renderPermutaBadge()}
+        </span>
         {isRas && renderRasBadge()}
       </span>
     );
@@ -1311,9 +1311,10 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
 
         return {
           rg: resolved?.rg || m?.rg || cleanRg,
-          militar: resolved,
+          militar: isSwapped ? { ...resolved, isPermuta: true } : resolved,
           label,
-          isExpediente
+          isExpediente,
+          isPermuta: isSwapped
         };
       })
       .sort((a: any, b: any) => sortAllBySeniority(a.militar, b.militar));
