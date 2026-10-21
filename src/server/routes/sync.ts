@@ -1,9 +1,9 @@
 import express from "express";
 import { FieldValue } from 'firebase-admin/firestore';
-import { getAdminDb } from "../lib/firebase-admin";
+import { getAdminDb } from "../lib/firebase-admin.ts";
 import { writeBatch, doc, serverTimestamp } from 'firebase/firestore';
-import { parseRank } from "../../lib/rankUtils";
-import { enrichDatabaseScope } from "../lib/scope-enricher";
+import { parseRank } from "../../lib/rankUtils.ts";
+import { enrichDatabaseScope } from "../lib/scope-enricher.ts";
 
 export function setupSyncRoutes(app: express.Express, getDeps: () => any) {
   const syncRouter = express.Router();

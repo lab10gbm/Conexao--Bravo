@@ -1,8 +1,8 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { getDay, subDays, addDays } from 'date-fns';
-import { OBM_HIERARCHY } from '../constants';
-export { getParentObm, getRasSharedObms } from './canonicalScope';
+import { OBM_HIERARCHY } from '../constants.ts';
+export { getParentObm, getRasSharedObms } from './canonicalScope.ts';
 
 export function normalizeObm(obm?: string): string {
   if (!obm) return '10º GBM';

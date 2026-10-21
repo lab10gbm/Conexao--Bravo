@@ -9,8 +9,8 @@
  * - Suporta execução com dry-run (simulação) obrigatória por padrão
  */
 
-import { resolveCanonicalScope, formatScopeLabel, isSameScope } from '../../lib/canonicalScope';
-import type { ScopeContext } from '../../types/scope';
+import { resolveCanonicalScope, formatScopeLabel, isSameScope } from '../../lib/canonicalScope.ts';
+import type { ScopeContext } from '../../types/scope.ts';
 import {
   collection,
   getDocs,

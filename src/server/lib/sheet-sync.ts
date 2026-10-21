@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { FieldValue } from 'firebase-admin/firestore';
 import { serverTimestamp, writeBatch, doc } from 'firebase/firestore';
-import { resolveCanonicalScope } from '../../lib/canonicalScope';
+import { resolveCanonicalScope } from '../../lib/canonicalScope.ts';
 
 interface SyncOptions {
   db: any;

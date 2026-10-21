@@ -5,9 +5,9 @@ import {
   getEffectiveSmtpConfig,
   testSmtpConnection,
   maskEmail,
-  SmtpConfig,
-} from '../lib/email.service';
-import { verifyFirebaseSession } from './auth';
+  type SmtpConfig,
+} from '../lib/email.service.ts';
+import { verifyFirebaseSession } from './auth.ts';
 
 export function setupSmtpRoutes(app: express.Express, getDeps: () => any) {
   app.get('/api/admin/smtp', verifyFirebaseSession, async (req: any, res) => {

@@ -14,7 +14,7 @@ import type {
   MilitaryUnit,
   Subunit,
   ScopedPermissions
-} from '../types/scope';
+} from '../types/scope.ts';
 
 export type {
   ScopeContext,

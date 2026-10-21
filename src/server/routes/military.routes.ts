@@ -1,12 +1,12 @@
-import { verifyFirebaseSession, optionalFirebaseSession } from "./auth";
+import { verifyFirebaseSession, optionalFirebaseSession } from "./auth.ts";
 import express from 'express';
 import { collection, getDocs, getDoc, doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import fs from 'fs';
 import path from 'path';
-import { resolveCanonicalScope } from "../../lib/canonicalScope";
-import { cleanUndefined, withTimeout } from "../../lib/utils";
-import { syncMedicosInternal } from "../lib/medicos-sync";
-import { getDefaultSectionsForObm, OfficerSectionItem } from "../../types/officerSections";
+import { resolveCanonicalScope } from "../../lib/canonicalScope.ts";
+import { cleanUndefined, withTimeout } from "../../lib/utils.ts";
+import { syncMedicosInternal } from "../lib/medicos-sync.ts";
+import { getDefaultSectionsForObm, type OfficerSectionItem } from "../../types/officerSections.ts";
 
 export function setupMilitaryRoutes(app: express.Express, getDeps: () => any) {
   app.get('/api/militar/version', (req, res) => {

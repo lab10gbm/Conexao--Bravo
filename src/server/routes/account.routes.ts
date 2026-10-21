@@ -10,7 +10,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
-import { sendPasswordResetEmail, maskEmail } from '../lib/email.service';
+import { sendPasswordResetEmail, maskEmail } from '../lib/email.service.ts';
 
 interface PasswordResetRequest {
   rg: string;
