@@ -36,19 +36,19 @@ import {
   signInAnonymously,
 } from 'firebase/auth';
 
-import { authRouter, verifyFirebaseSession } from './src/server/routes/auth';
-import { setupSyncRoutes } from './src/server/routes/sync';
-import { setupMilitaryRoutes } from './src/server/routes/military.routes';
-import { setupServiceRoutes } from './src/server/routes/services.routes';
-import { setupAccountRoutes } from './src/server/routes/account.routes';
-import { setupSmtpRoutes } from './src/server/routes/smtp.routes';
-import { setupExtensionRoutes } from './src/server/routes/extension.routes';
-import { importMilitariesFromLocal } from './src/server/lib/import-militaries';
-import { syncMilitariesFromSheetInternal } from './src/server/lib/sheet-sync';
-import { syncMedicosInternal } from './src/server/lib/medicos-sync';
-import { setupPermutaArchiveRoutine } from './src/server/lib/archive-permutas';
-import { startKeepAliveRobot } from './src/server/lib/keep-alive';
-import { setRuntimeSmtpConfig, maskEmail } from './src/server/lib/email.service';
+import { authRouter, verifyFirebaseSession } from './src/server/routes/auth.ts';
+import { setupSyncRoutes } from './src/server/routes/sync.ts';
+import { setupMilitaryRoutes } from './src/server/routes/military.routes.ts';
+import { setupServiceRoutes } from './src/server/routes/services.routes.ts';
+import { setupAccountRoutes } from './src/server/routes/account.routes.ts';
+import { setupSmtpRoutes } from './src/server/routes/smtp.routes.ts';
+import { setupExtensionRoutes } from './src/server/routes/extension.routes.ts';
+import { importMilitariesFromLocal } from './src/server/lib/import-militaries.ts';
+import { syncMilitariesFromSheetInternal } from './src/server/lib/sheet-sync.ts';
+import { syncMedicosInternal } from './src/server/lib/medicos-sync.ts';
+import { setupPermutaArchiveRoutine } from './src/server/lib/archive-permutas.ts';
+import { startKeepAliveRobot } from './src/server/lib/keep-alive.ts';
+import { setRuntimeSmtpConfig, maskEmail } from './src/server/lib/email.service.ts';
 
 // Initialize Firebase configuration
 const firebaseConfigPath = path.join(process.cwd(), 'firebase-applet-config.json');
@@ -466,8 +466,8 @@ async function startServer() {
     });
 
   const app = express();
-  let PORT = 3000;
-  let HOST = '0.0.0.0';
+  let PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+  let HOST = process.env.HOST || '0.0.0.0';
 
   // Parse supervisor / CLI arguments safely (handles --host, --port, -H, -p)
   const argv = process.argv.slice(2);

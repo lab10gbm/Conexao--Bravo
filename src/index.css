@@ -50,6 +50,10 @@ body {
   [data-theme="light"] *,
   #escala-print-sheet,
   #escala-print-sheet *,
+  .escala-print-sheet,
+  .escala-print-sheet *,
+  .escala-print-container,
+  .escala-print-container *,
   .escala-sections-container > div,
   input,
   select,
@@ -500,7 +504,7 @@ html.dark .escala-sections-container > div:not(.keep-light, .keep-light *, [data
   }
   @page {
     size: A4 portrait;
-    margin: 8mm 6mm;
+    margin: 0 6mm 6mm 6mm;
   }
   html, body {
     background: white !important;
@@ -510,6 +514,15 @@ html.dark .escala-sections-container > div:not(.keep-light, .keep-light *, [data
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     color-adjust: exact !important;
+  }
+  #escala-print-sheet,
+  .escala-print-container,
+  .escala-print-sheet {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    ring: none !important;
+    -webkit-box-shadow: none !important;
   }
   .print\:hidden,
   [class*="print:hidden"] {

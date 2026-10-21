@@ -359,7 +359,7 @@ export function PrintToolbar({
               <div className="space-y-1">
                 {[
                   { key: 'ADJUNTO', label: 'Adjunto' },
-                  { key: 'ENCARREGADO DE MOTORISTA', label: 'Encarregado de Motoristas' },
+                  { key: 'ENCARREGADO DE MOTORISTA', label: 'Enc. Motorista' },
                   { key: 'RESP FAXINA', label: 'Resp. Faxina' },
                   { key: 'SGT DIA', label: 'Sargento de Dia' },
                   { key: 'CMT GUARDA', label: 'Comandante da Guarda' },

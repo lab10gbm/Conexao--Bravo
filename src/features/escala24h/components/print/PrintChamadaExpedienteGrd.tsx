@@ -80,6 +80,27 @@ export function PrintChamadaExpedienteGrd({
   const hasGrd = grdMilitarsList.length > 0;
   const obmName = (obmContext || '10º GBM').split('-')[0].trim();
 
+  const expedienteRgSet = React.useMemo(() => {
+    const set = new Set<string>();
+    (expedienteMilitars || []).forEach((em: any) => {
+      const clean = normalizeRg(em?.rg || em?.militar?.rg || '');
+      if (clean) set.add(clean);
+    });
+    (militars || []).forEach((mil: any) => {
+      const clean = normalizeRg(mil?.rg || '');
+      if (!clean) return;
+      const alaStr = normalizeAlaField(mil?.ala);
+      if (
+        alaStr === 'EXPEDIENTE' ||
+        (mil?.ala && String(mil.ala).trim().toUpperCase().includes('EXP')) ||
+        (mil?.setor && !mil?.ala)
+      ) {
+        set.add(clean);
+      }
+    });
+    return set;
+  }, [expedienteMilitars, militars]);
+
   return (
     <>
       {/* CHAMADA GERAL E RAS */}
@@ -133,11 +154,21 @@ export function PrintChamadaExpedienteGrd({
                         .filter(Boolean)
                         .join(' ') ||
                       m.rg;
+
+                    const cleanRg = normalizeRg(m.rg || m.militar?.rg || '');
+                    const isFromExpediente =
+                      m.isExpediente ||
+                      m.isExp ||
+                      m.fromExpediente ||
+                      expedienteRgSet.has(cleanRg) ||
+                      normalizeAlaField(m.militar?.ala) === 'EXPEDIENTE' ||
+                      (m.militar?.ala && String(m.militar.ala).trim().toUpperCase().includes('EXP'));
+
                     return (
                       <div
                         key={idx}
                         className="flex items-center gap-1.5 min-w-0"
-                        title={militarName}
+                        title={isFromExpediente ? `${militarName} (Expediente)` : militarName}
                       >
                         <span className="font-mono text-slate-700 shrink-0">
                           {m.rg} -
@@ -145,6 +176,18 @@ export function PrintChamadaExpedienteGrd({
                         <span className="truncate whitespace-nowrap font-bold text-slate-900">
                           {militarName}
                         </span>
+                        {isFromExpediente && (
+                          <span
+                            className="text-[7.5px] font-black text-amber-900 bg-amber-100/90 border border-amber-300 px-1 py-[0.5px] rounded ml-0.5 shrink-0 uppercase tracking-tight"
+                            style={{
+                              WebkitPrintColorAdjust: 'exact',
+                              printColorAdjust: 'exact',
+                            }}
+                            title="Militar do Expediente"
+                          >
+                            EXP
+                          </span>
+                        )}
                       </div>
                     );
                   })}
@@ -201,7 +244,20 @@ export function PrintChamadaExpedienteGrd({
           {expedienteMilitars.length > 0 ? (
             <div className="grid grid-cols-3 sm:grid-cols-4 gap-x-4 gap-y-1">
               {expedienteMilitars.map((m: any, idx: number) => {
-                const sectorName = m.sector || m.militar?.setor;
+                const cleanRg = normalizeRg(m.rg || m.militar?.rg || '');
+                const milFromPool = (militars || []).find((x: any) => normalizeRg(x.rg) === cleanRg);
+                const rawSector =
+                  m.sector ||
+                  m.setor ||
+                  m.secao ||
+                  m.militar?.setor ||
+                  m.militar?.secao ||
+                  m.militar?.sector ||
+                  milFromPool?.setor ||
+                  milFromPool?.secao ||
+                  milFromPool?.sector ||
+                  '';
+                const sectorName = rawSector.trim() === 'Expediente Geral' ? '' : rawSector.trim();
                 return (
                   <div key={idx} className="flex items-center gap-1.5 truncate">
                     <span className="font-mono text-slate-700 shrink-0">
@@ -211,12 +267,24 @@ export function PrintChamadaExpedienteGrd({
                       {renderMilitar(m.militar || m)}
                     </span>
                     {sectorName && (
-                      <span className="text-[7.5px] font-bold text-slate-600 bg-slate-100 border border-slate-300 px-1 rounded ml-0.5 shrink-0 uppercase">
+                      <span
+                        className="text-[7.5px] font-bold text-slate-700 bg-slate-100 border border-slate-300 px-1 py-[0.5px] rounded ml-0.5 shrink-0 uppercase tracking-tight"
+                        style={{
+                          WebkitPrintColorAdjust: 'exact',
+                          printColorAdjust: 'exact',
+                        }}
+                      >
                         {sectorName}
                       </span>
                     )}
                     {m.is24h && (
-                      <span className="text-[7.5px] font-black text-rose-700 bg-rose-50 border border-rose-200 px-1 rounded ml-1 shrink-0">
+                      <span
+                        className="text-[7.5px] font-black text-rose-700 bg-rose-50 border border-rose-200 px-1 py-[0.5px] rounded ml-1 shrink-0"
+                        style={{
+                          WebkitPrintColorAdjust: 'exact',
+                          printColorAdjust: 'exact',
+                        }}
+                      >
                         24H
                       </span>
                     )}

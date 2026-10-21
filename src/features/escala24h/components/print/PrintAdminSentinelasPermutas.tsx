@@ -55,7 +55,6 @@ export function PrintAdminSentinelasPermutas({
 
   const hasMilitar = (m: any) =>
     Boolean(m) && Boolean(renderMilitar(m)) && isSentinelaVisible;
-  const hasAnySul = [0, 1, 2, 3].some((i) => hasMilitar(sentinelas[i + 4]));
 
   const totalComCount = (com1Militars?.length || 0) + (com2Militars?.length || 0);
 
@@ -118,11 +117,11 @@ export function PrintAdminSentinelasPermutas({
 
   return (
     <div className="flex border-2 border-black mb-2 uppercase leading-tight w-full items-stretch">
-      {/* COLUNA ESQUERDA: FUNÇÕES ADMINISTRATIVAS (38%) */}
-      <div className="w-[38%] flex flex-col border-r-2 border-black shrink-0">
+      {/* COLUNA ESQUERDA: FUNÇÕES ADMINISTRATIVAS (28%) */}
+      <div className="w-[28%] flex flex-col border-r-2 border-black shrink-0">
         <div
           className={cn(
-            'py-1 px-1.5 uppercase border-b border-black text-center escala-ala-header font-bold text-[10px] sm:text-[10.5px]',
+            'py-1 px-1.5 uppercase border-b border-black text-center escala-ala-header font-bold text-[9.5px] sm:text-[10px]',
             headerColorClass
           )}
           style={headerBgStyle}
@@ -130,15 +129,28 @@ export function PrintAdminSentinelasPermutas({
           FUNÇÕES ADMINISTRATIVAS:
         </div>
 
-        <div className="flex-1 flex flex-col justify-around py-1.5 px-2 gap-0.5 text-[9.5px] sm:text-[10px]">
+        <div className="flex-1 flex flex-col justify-around py-1 px-1.5 gap-0.5 text-[8.5px] sm:text-[9px]">
           {(() => {
             const allAdminRoles = [
               { label: 'ADJUNTO:', values: adminRoles['ADJUNTO:'] || [] },
               {
-                label: 'ENCARREGADO DE MOTORISTAS:',
-                values: adminRoles['ENCARREGADO DE MOTORISTAS:'] || adminRoles['ENCARREGADO DE MOTORIS:'] || []
+                label: 'ENC. MOTORISTA:',
+                values:
+                  adminRoles['ENC. MOTORISTA:'] ||
+                  adminRoles['ENC.  MOTORISTA:'] ||
+                  adminRoles['ENC. MOTORISTA'] ||
+                  adminRoles['ENCARREGADO DE MOTORISTAS:'] ||
+                  adminRoles['ENCARREGADO DE MOTORIS:'] ||
+                  []
               },
-              { label: 'RESP. P/ FAXINA:', values: adminRoles['RESP. P/ FAXINA:'] || [] },
+              {
+                label: 'RESP. FAXINA:',
+                values:
+                  adminRoles['RESP. FAXINA:'] ||
+                  adminRoles['RESP. FAXINA'] ||
+                  adminRoles['RESP. P/ FAXINA:'] ||
+                  []
+              },
               { label: 'SGT DE DIA:', values: adminRoles['SGT DE DIA:'] || [] },
               { label: 'CMT DA GUARDA:', values: adminRoles['CMT DA GUARDA:'] || [] },
               ...(diaDepositoList.length > 1
@@ -169,12 +181,12 @@ export function PrintAdminSentinelasPermutas({
               return (
                 <div
                   key={idx}
-                  className="flex items-center justify-between gap-1 w-full min-h-[17px] py-[1px] leading-tight group/admin-row"
+                  className="flex items-center justify-between gap-1 w-full min-h-[16px] py-[0.5px] leading-tight group/admin-row"
                 >
-                  <span className="font-black text-[9px] sm:text-[9.5px] text-slate-900 leading-[1.15] whitespace-normal break-words flex-1 min-w-0 pr-1">
+                  <span className="font-black text-[8.5px] sm:text-[9px] text-slate-900 leading-[1.1] whitespace-normal break-words flex-1 min-w-0 pr-1">
                     {item.label}
                   </span>
-                  <span className="font-bold text-[9.5px] sm:text-[10px] text-black shrink-0 whitespace-nowrap text-right ml-auto">
+                  <span className="font-bold text-[8.5px] sm:text-[9px] text-black shrink-0 whitespace-nowrap text-right ml-auto">
                     {item.values.length > 0 ? (
                       item.values.map((m: any, mIdx: number) => (
                         <React.Fragment key={m?.rg || mIdx}>
@@ -183,7 +195,7 @@ export function PrintAdminSentinelasPermutas({
                         </React.Fragment>
                       ))
                     ) : (
-                      <span className="text-slate-300 font-semibold text-[9px] select-none">—</span>
+                      <span className="text-slate-300 font-semibold text-[8.5px] select-none">—</span>
                     )}
                   </span>
                   <button
@@ -201,8 +213,8 @@ export function PrintAdminSentinelasPermutas({
         </div>
       </div>
 
-      {/* COLUNA DIREITA (62%): SENTINELAS + COMUNICANTES + PERMUTAS */}
-      <div className="w-[62%] flex flex-col justify-between">
+      {/* COLUNA DIREITA (72%): SENTINELAS + COMUNICANTES + PERMUTAS */}
+      <div className="w-[72%] flex flex-col justify-between">
         <div className="flex-1 flex w-full items-stretch">
           {/* SENTINELAS EM 2 COLUNAS */}
           <div
@@ -218,14 +230,7 @@ export function PrintAdminSentinelasPermutas({
               )}
               style={headerBgStyle}
             >
-              <div className="flex items-center justify-center gap-1.5">
-                <span>SENTINELAS:</span>
-                {hasAnySul && (
-                  <span className="font-bold text-[9px] sm:text-[9.5px]">
-                    G. NORTE / SUL
-                  </span>
-                )}
-              </div>
+              <span>SENTINELAS:</span>
               <button
                 type="button"
                 onClick={() => toggleAdminRoleVisibility('SENTINELA')}

@@ -55,9 +55,13 @@ export function LogoManagerModal({ isOpen, onClose }: LogoManagerModalProps) {
   const [watermarkOpacity, setWatermarkOpacity] = useState<number>(() => {
     try {
       const val = localStorage.getItem('escala_watermark_opacity');
-      return val ? parseFloat(val) : 0.08;
+      if (!val || val === '0.08') {
+        localStorage.setItem('escala_watermark_opacity', '0.18');
+        return 0.18;
+      }
+      return parseFloat(val);
     } catch {
-      return 0.08;
+      return 0.18;
     }
   });
 
@@ -85,7 +89,7 @@ export function LogoManagerModal({ isOpen, onClose }: LogoManagerModalProps) {
         const en = localStorage.getItem('escala_watermark_enabled');
         setWatermarkEnabled(en !== null ? en === 'true' : true);
         const op = localStorage.getItem('escala_watermark_opacity');
-        setWatermarkOpacity(op ? parseFloat(op) : 0.08);
+        setWatermarkOpacity(op ? parseFloat(op) : 0.18);
       } catch {}
     };
     window.addEventListener('logos_updated', handleUpdate);
@@ -301,11 +305,11 @@ export function LogoManagerModal({ isOpen, onClose }: LogoManagerModalProps) {
   const handleResetWatermark = () => {
     localStorage.removeItem('escala_watermark_custom');
     localStorage.setItem('escala_watermark_enabled', 'true');
-    localStorage.setItem('escala_watermark_opacity', '0.08');
+    localStorage.setItem('escala_watermark_opacity', '0.18');
     setWatermarkCustom(null);
     setWatermarkEnabled(true);
-    setWatermarkOpacity(0.08);
-    syncToFirestore({ watermark: null, watermark_enabled: true, watermark_opacity: 0.08 });
+    setWatermarkOpacity(0.18);
+    syncToFirestore({ watermark: null, watermark_enabled: true, watermark_opacity: 0.18 });
     showToast("Marca d'água restaurada para o Brasão Oficial CBMERJ padrão!");
     window.dispatchEvent(new Event('logos_updated'));
   };
@@ -733,7 +737,7 @@ export function LogoManagerModal({ isOpen, onClose }: LogoManagerModalProps) {
                     <input
                       type="range"
                       min="0.02"
-                      max="0.25"
+                      max="0.35"
                       step="0.01"
                       value={watermarkOpacity}
                       onChange={(e) => handleChangeOpacity(parseFloat(e.target.value))}
@@ -741,10 +745,10 @@ export function LogoManagerModal({ isOpen, onClose }: LogoManagerModalProps) {
                     />
                     <div className="flex items-center justify-between mt-1.5 gap-1 flex-wrap">
                       {[
-                        { label: 'Muito Leve', val: 0.04 },
-                        { label: 'Padrão (8%)', val: 0.08 },
-                        { label: 'Médio', val: 0.12 },
-                        { label: 'Destacado', val: 0.18 }
+                        { label: 'Leve (8%)', val: 0.08 },
+                        { label: 'Padrão (18%)', val: 0.18 },
+                        { label: 'Médio (24%)', val: 0.24 },
+                        { label: 'Destacado (30%)', val: 0.30 }
                       ].map(preset => (
                         <button
                           key={preset.val}

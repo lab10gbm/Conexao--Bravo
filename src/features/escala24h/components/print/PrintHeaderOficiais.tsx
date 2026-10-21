@@ -57,7 +57,7 @@ export function PrintHeaderOficiais({
       ];
 
   return (
-    <div className="flex flex-col w-full mb-2 border-b border-black mt-1 print:mt-4 text-center justify-between">
+    <div className="flex flex-col w-full mb-2 border-b border-black mt-0.5 print:mt-1 text-center justify-between">
       <div className="flex flex-col w-full">
         <div className="flex items-start justify-between w-full mt-0 mb-1 px-2 sm:px-5 print:px-3 pl-3 sm:pl-5">
           {/* Lado esquerdo: Décimo GBM */}
@@ -73,7 +73,7 @@ export function PrintHeaderOficiais({
           </div>
 
           {/* Centro: Cabeçalho Oficial unificado */}
-          <div className="font-bold flex flex-col justify-start items-center text-center px-1 flex-1 leading-tight -mt-0.5 sm:-mt-1 pt-0">
+          <div className="font-bold flex flex-col justify-start items-center text-center px-1 flex-1 leading-tight -mt-1 sm:-mt-1.5 pt-0">
             <div className="text-[13px] sm:text-[14px] flex flex-col justify-start items-center text-center tracking-tight leading-tight">
               <span>CORPO DE BOMBEIROS MILITAR DO ESTADO DO RIO DE JANEIRO</span>
               <span>COMANDO DE BOMBEIROS DA COSTA VERDE</span>
@@ -81,7 +81,7 @@ export function PrintHeaderOficiais({
             </div>
 
             {/* Texto da Escala integrado */}
-            <div className="flex flex-wrap justify-center items-center gap-1.5 text-sm sm:text-base font-bold mt-2 sm:mt-2.5 tracking-tight">
+            <div className="flex flex-wrap justify-center items-center gap-1.5 text-sm sm:text-base font-bold mt-1.5 sm:mt-2 tracking-tight">
               <span>ESCALA DE SERVIÇO PARA O DIA:</span>
               <span>{dateStr}</span>
             </div>

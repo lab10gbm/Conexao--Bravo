@@ -478,7 +478,7 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
 
   const getAdminRoleMappedKey = (label: string): string => {
     const clean = label.replace(/[:.]/g, '').trim().toUpperCase();
-    if (clean.includes('ENCARREGADO')) return 'ENCARREGADO DE MOTORISTA';
+    if (clean.includes('ENCARREGADO') || clean.includes('MOTORISTA') || clean.includes('ENC')) return 'ENCARREGADO DE MOTORISTA';
     if (clean.includes('FAXINA')) return 'RESP FAXINA';
     if (clean.includes('SGT')) return 'SGT DIA';
     if (clean.includes('CMT')) return 'CMT GUARDA';
@@ -511,7 +511,7 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
     }
   }, [initialExpedienteMilitars]);
 
-  // Real-time listener for expediente scale sync
+  // Real-time listener for expediente scale sync with full sector support
   useEffect(() => {
     if (!selectedDate || !obmContext || obmContext === 'GLOBAL') return;
     try {
@@ -522,23 +522,45 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
       const globalDocRef = doc(db, 'config', `expediente_global_${normalizedObm}`);
 
       let globalNames: Record<string, string> = {};
-      const unsubGlobal = onSnapshot(globalDocRef, (gSnap) => {
-        if (gSnap.exists()) {
-          globalNames = gSnap.data().userNames || {};
-        }
-      });
+      let globalSectors: Record<string, string> = {};
+      let latestMonthData: any = null;
 
-      const unsub = onSnapshot(docRef, (docSnap) => {
-        if (!docSnap.exists()) {
+      const resolveSector = (rg: string, mil: any, monthSectors: Record<string, string>) => {
+        const cleanTargetRg = normalizeRg(rg);
+        // 1. Month doc sectors
+        if (monthSectors[rg]) return monthSectors[rg];
+        for (const [k, v] of Object.entries(monthSectors)) {
+          if (normalizeRg(k) === cleanTargetRg && v) return v;
+        }
+        // 2. Global doc sectors
+        if (globalSectors[rg]) return globalSectors[rg];
+        for (const [k, v] of Object.entries(globalSectors)) {
+          if (normalizeRg(k) === cleanTargetRg && v) return v;
+        }
+        // 3. Militar object
+        if (mil?.setor) return mil.setor;
+        if (mil?.secao) return mil.secao;
+        if (mil?.sector) return mil.sector;
+        // 4. Global militars array
+        const found = (militars || []).find((m: any) => normalizeRg(m.rg) === cleanTargetRg);
+        if (found?.setor) return found.setor;
+        if (found?.secao) return found.secao;
+        if (found?.sector) return found.sector;
+        return '';
+      };
+
+      const processData = () => {
+        if (!latestMonthData) {
           if (!initialExpedienteMilitars || initialExpedienteMilitars.length === 0) {
             setExpedienteMilitars([]);
           }
           return;
         }
-        const data = docSnap.data();
+        const data = latestMonthData;
         const expDaysObj = data.expedienteDays || {};
         const selsObj = data.selections || {};
         const monthNames = data.userNames || {};
+        const monthSectors = data.sectors || {};
 
         const dayExpRgs: string[] = [];
         const daySelsRgs: string[] = [];
@@ -584,13 +606,26 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
           const rank = mil?.rank || '';
           const quadro = mil?.quadro || '';
 
+          const existingInitial = (initialExpedienteMilitars || []).find(
+            (im: any) => normalizeRg(im?.rg || im?.militar?.rg) === cleanTargetRg
+          );
+          const sector =
+            resolveSector(rg, mil, monthSectors) ||
+            existingInitial?.sector ||
+            existingInitial?.setor ||
+            '';
+
           return {
             rg: mil?.rg || rg,
             name,
             warName,
             rank,
             quadro,
-            militar: mil || { rg: mil?.rg || rg, name, warName, rank, quadro },
+            sector,
+            setor: sector,
+            militar: mil
+              ? { ...mil, setor: mil.setor || sector, sector }
+              : { rg: mil?.rg || rg, name, warName, rank, quadro, setor: sector, sector },
             is24h,
             isExp
           };
@@ -598,6 +633,26 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
 
         result.sort(sortAllBySeniority);
         setExpedienteMilitars(result);
+      };
+
+      const unsubGlobal = onSnapshot(globalDocRef, (gSnap) => {
+        if (gSnap.exists()) {
+          const gData = gSnap.data();
+          globalNames = gData.userNames || {};
+          globalSectors = gData.sectors || {};
+          if (latestMonthData) {
+            processData();
+          }
+        }
+      });
+
+      const unsub = onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+          latestMonthData = docSnap.data();
+        } else {
+          latestMonthData = null;
+        }
+        processData();
       });
 
       return () => {
@@ -607,7 +662,7 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
     } catch (err) {
       console.error('Erro sincronizando expediente na escala:', err);
     }
-  }, [selectedDate, obmContext, militars, afastamentos]);
+  }, [selectedDate, obmContext, militars, afastamentos, initialExpedienteMilitars]);
 
   useEffect(() => {
     if (propGrdRgs !== undefined && Array.isArray(propGrdRgs) && propGrdRgs.length > 0) {
@@ -1056,7 +1111,13 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
   const adminRoles = {
     'ADJUNTO:': getByFunc('ADJUNTO'),
     'ENCARREGADO DE MOTORIS:': getByFunc('ENCARREGADO DE MOTORISTA'),
+    'ENCARREGADO DE MOTORISTAS:': getByFunc('ENCARREGADO DE MOTORISTA'),
+    'ENC. MOTORISTA:': getByFunc('ENCARREGADO DE MOTORISTA'),
+    'ENC.  MOTORISTA:': getByFunc('ENCARREGADO DE MOTORISTA'),
+    'ENC. MOTORISTA': getByFunc('ENCARREGADO DE MOTORISTA'),
     'RESP. P/ FAXINA:': getByFunc('RESP FAXINA'),
+    'RESP. FAXINA:': getByFunc('RESP FAXINA'),
+    'RESP. FAXINA': getByFunc('RESP FAXINA'),
     'SGT DE DIA:': getByFunc('SGT DIA'),
     'CMT DA GUARDA:': getByFunc('CMT GUARDA')
   };
@@ -1123,14 +1184,23 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
             .join(' ') ||
           resolved?.rg ||
           cleanRg;
+
+        const isExpediente =
+          (expedienteMilitars || []).some((em: any) => normalizeRg(em?.rg || em?.militar?.rg) === subRg) ||
+          normalizeAlaField(resolved?.ala) === 'EXPEDIENTE' ||
+          (resolved?.ala && String(resolved.ala).trim().toUpperCase().includes('EXP')) ||
+          item?.isExp ||
+          item?.isExpediente;
+
         return {
           rg: resolved?.rg || m?.rg || cleanRg,
           militar: resolved,
-          label
+          label,
+          isExpediente
         };
       })
       .sort((a: any, b: any) => sortAllBySeniority(a.militar, b.militar));
-  }, [baseRoster, permutasOut, militars]);
+  }, [baseRoster, permutasOut, militars, expedienteMilitars]);
 
   const permutasAtivas = Array.from(permutasOut.values()).map((p: any) => {
     const sub = militars.find((x: any) => x.rg === p.substituteRg);

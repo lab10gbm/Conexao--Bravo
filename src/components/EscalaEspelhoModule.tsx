@@ -277,82 +277,124 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
     let globalNames: Record<string, string> = {};
     let globalSectors: Record<string, string> = {};
+    let latestMonthData: any = null;
+
+    const resolveSector = (rg: string, mil: any, monthSectors: Record<string, string>) => {
+      const cleanTargetRg = normalizeRg(rg);
+      // 1. Month doc sectors
+      if (monthSectors[rg]) return monthSectors[rg];
+      for (const [k, v] of Object.entries(monthSectors)) {
+        if (normalizeRg(k) === cleanTargetRg && v) return v;
+      }
+      // 2. Global doc sectors
+      if (globalSectors[rg]) return globalSectors[rg];
+      for (const [k, v] of Object.entries(globalSectors)) {
+        if (normalizeRg(k) === cleanTargetRg && v) return v;
+      }
+      // 3. Militar object
+      if ((mil as any)?.setor) return (mil as any).setor;
+      if ((mil as any)?.secao) return (mil as any).secao;
+      if ((mil as any)?.sector) return (mil as any).sector;
+      // 4. Global militars array
+      const found: any = (militars || []).find((m: any) => normalizeRg(m.rg) === cleanTargetRg);
+      if (found?.setor) return found.setor;
+      if (found?.secao) return found.secao;
+      if (found?.sector) return found.sector;
+      return '';
+    };
+
+    const processData = () => {
+      if (!latestMonthData) {
+        setExpedienteRgs([]);
+        setExpedienteMilitars([]);
+        setExpediente24hRgs([]);
+        return;
+      }
+      const data = latestMonthData;
+      const expDaysObj = data.expedienteDays || {};
+      const selsObj = data.selections || {};
+      const monthNames = data.userNames || {};
+      const monthSectors = data.sectors || {};
+
+      const dayExpRgs: string[] = [];
+      const daySelsRgs: string[] = [];
+      const allExpDutyRgs = new Set<string>();
+
+      Object.entries(expDaysObj).forEach(([rg, days]: [string, any]) => {
+        if (rg === 'ESCALANTE_PREF' || !rg) return;
+        if (Array.isArray(days) && days.includes(selectedDate)) {
+          dayExpRgs.push(rg);
+          allExpDutyRgs.add(rg);
+        }
+      });
+
+      Object.entries(selsObj).forEach(([rg, days]: [string, any]) => {
+        if (rg === 'ESCALANTE_PREF' || !rg) return;
+        if (Array.isArray(days) && days.includes(selectedDate)) {
+          daySelsRgs.push(rg);
+          allExpDutyRgs.add(rg);
+        }
+      });
+
+      const activeList = Array.from(allExpDutyRgs).filter(rg => {
+        const cleanTargetRg = normalizeRg(rg);
+        const isAfastado = (afastamentos || []).some((a: any) => {
+          return normalizeRg(a.rg) === cleanTargetRg && selectedDate >= a.inicio && selectedDate <= a.retorno;
+        });
+        return !isAfastado;
+      });
+
+      const result = activeList.map(rg => {
+        const cleanTargetRg = normalizeRg(rg);
+        const mil = (militars || []).find((m: any) => normalizeRg(m.rg) === cleanTargetRg || m.uid === rg);
+        const isExp = dayExpRgs.includes(rg);
+        const is24h = !isExp && daySelsRgs.includes(rg);
+        const name = mil?.name || globalNames[rg] || monthNames[rg] || rg;
+        const warName = mil?.warName || '';
+        const rank = mil?.rank || '';
+        const quadro = mil?.quadro || '';
+        const sector = resolveSector(rg, mil, monthSectors);
+
+        return {
+          rg: mil?.rg || rg,
+          name,
+          warName,
+          rank,
+          quadro,
+          sector,
+          setor: sector,
+          militar: mil
+            ? { ...mil, setor: (mil as any).setor || sector, sector }
+            : { rg: mil?.rg || rg, name, warName, rank, quadro, setor: sector, sector },
+          is24h,
+          isExp
+        };
+      });
+
+      result.sort(sortAllBySeniority);
+      setExpedienteMilitars(result);
+      setExpedienteRgs(Array.from(allExpDutyRgs));
+      setExpediente24hRgs(daySelsRgs);
+    };
+
     const unsubGlobal = onSnapshot(globalDocRef, (gSnap) => {
       if (gSnap.exists()) {
         const gData = gSnap.data();
         globalNames = gData.userNames || {};
         globalSectors = gData.sectors || {};
+        if (latestMonthData) {
+          processData();
+        }
       }
     });
 
     const unsub = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
-        const data = docSnap.data();
-        const expDaysObj = data.expedienteDays || {};
-        const selsObj = data.selections || {};
-        const monthNames = data.userNames || {};
-
-        const dayExpRgs: string[] = [];
-        const daySelsRgs: string[] = [];
-        const allExpDutyRgs = new Set<string>();
-
-        Object.entries(expDaysObj).forEach(([rg, days]: [string, any]) => {
-          if (rg === 'ESCALANTE_PREF' || !rg) return;
-          if (Array.isArray(days) && days.includes(selectedDate)) {
-            dayExpRgs.push(rg);
-            allExpDutyRgs.add(rg);
-          }
-        });
-
-        Object.entries(selsObj).forEach(([rg, days]: [string, any]) => {
-          if (rg === 'ESCALANTE_PREF' || !rg) return;
-          if (Array.isArray(days) && days.includes(selectedDate)) {
-            daySelsRgs.push(rg);
-            allExpDutyRgs.add(rg);
-          }
-        });
-
-        const activeList = Array.from(allExpDutyRgs).filter(rg => {
-          const cleanTargetRg = normalizeRg(rg);
-          const isAfastado = (afastamentos || []).some((a: any) => {
-            return normalizeRg(a.rg) === cleanTargetRg && selectedDate >= a.inicio && selectedDate <= a.retorno;
-          });
-          return !isAfastado;
-        });
-
-        const result = activeList.map(rg => {
-          const cleanTargetRg = normalizeRg(rg);
-          const mil = (militars || []).find((m: any) => normalizeRg(m.rg) === cleanTargetRg || m.uid === rg);
-          const isExp = dayExpRgs.includes(rg);
-          const is24h = !isExp && daySelsRgs.includes(rg);
-          const name = mil?.name || globalNames[rg] || monthNames[rg] || rg;
-          const warName = mil?.warName || '';
-          const rank = mil?.rank || '';
-          const quadro = mil?.quadro || '';
-          const sector = globalSectors[rg] || ((mil as any)?.setor) || (data.sectors && data.sectors[rg]) || 'Expediente Geral';
-
-          return {
-            rg: mil?.rg || rg,
-            name,
-            warName,
-            rank,
-            quadro,
-            sector,
-            militar: mil || { rg: mil?.rg || rg, name, warName, rank, quadro, setor: sector },
-            is24h,
-            isExp
-          };
-        });
-
-        result.sort(sortAllBySeniority);
-        setExpedienteMilitars(result);
-        setExpedienteRgs(Array.from(allExpDutyRgs));
-        setExpediente24hRgs(daySelsRgs);
+        latestMonthData = docSnap.data();
       } else {
-        setExpedienteRgs([]);
-        setExpedienteMilitars([]);
-        setExpediente24hRgs([]);
+        latestMonthData = null;
       }
+      processData();
     });
 
     return () => {

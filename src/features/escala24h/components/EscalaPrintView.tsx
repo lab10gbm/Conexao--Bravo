@@ -32,9 +32,13 @@ export function EscalaPrintView(props: UseEscalaPrintDataProps) {
   const [watermarkOpacity, setWatermarkOpacity] = React.useState<number>(() => {
     try {
       const val = localStorage.getItem('escala_watermark_opacity');
-      return val ? parseFloat(val) : 0.08;
+      if (!val || val === '0.08') {
+        localStorage.setItem('escala_watermark_opacity', '0.18');
+        return 0.18;
+      }
+      return parseFloat(val);
     } catch {
-      return 0.08;
+      return 0.18;
     }
   });
 
@@ -45,7 +49,7 @@ export function EscalaPrintView(props: UseEscalaPrintDataProps) {
         const en = localStorage.getItem('escala_watermark_enabled');
         setWatermarkEnabled(en !== null ? en === 'true' : true);
         const op = localStorage.getItem('escala_watermark_opacity');
-        setWatermarkOpacity(op ? parseFloat(op) : 0.08);
+        setWatermarkOpacity(op ? parseFloat(op) : 0.18);
       } catch {}
     };
     window.addEventListener('logos_updated', handleUpdate);
@@ -99,27 +103,21 @@ export function EscalaPrintView(props: UseEscalaPrintDataProps) {
       <div
         id="escala-print-sheet"
         className={cn(
-          'mx-auto bg-white print:my-0 print:shadow-none print:w-full print:max-w-none relative print:p-0 print:pt-10 print:px-3 text-black font-sans text-[11px] leading-tight flex flex-col transition-all duration-200',
+          'mx-auto bg-white print:my-0 print:shadow-none print:w-full print:max-w-none relative print:p-0 print:pt-8 print:px-3 text-black font-sans text-[11px] leading-tight flex flex-col transition-all duration-200 print:border-none print:ring-0 print:outline-none',
           data.isExpandedView
-            ? 'max-w-[1200px] min-h-screen my-6 p-8 pt-6 shadow-2xl'
-            : 'w-[210mm] max-w-[96vw] min-h-[297mm] my-6 p-[6mm] pt-[10mm] shadow-[0_25px_70px_rgba(0,0,0,0.65)] ring-1 ring-black/15'
+            ? 'max-w-[1200px] min-h-screen my-6 p-8 pt-5 shadow-2xl print:shadow-none print:border-none print:ring-0'
+            : 'w-[210mm] max-w-[96vw] min-h-[297mm] my-6 p-[6mm] pt-[8.5mm] shadow-[0_25px_70px_rgba(0,0,0,0.65)] ring-1 ring-black/15 print:ring-0 print:border-none print:shadow-none print:outline-none'
         )}
       >
         <style>{`
           @page {
             size: A4 portrait;
-            margin-top: 22mm;
-            margin-bottom: 8mm;
-            margin-left: 6mm;
-            margin-right: 6mm;
+            margin: 0 6mm 6mm 6mm;
           }
           @media print {
             @page {
               size: A4 portrait;
-              margin-top: 22mm;
-              margin-bottom: 8mm;
-              margin-left: 6mm;
-              margin-right: 6mm;
+              margin: 0 6mm 6mm 6mm;
             }
             *, *::before, *::after {
               -webkit-print-color-adjust: exact !important;
@@ -127,10 +125,19 @@ export function EscalaPrintView(props: UseEscalaPrintDataProps) {
               color-adjust: exact !important;
             }
             #escala-print-sheet {
-              padding-top: 18mm !important;
+              padding-top: 15.3mm !important;
+              border: none !important;
+              outline: none !important;
+              box-shadow: none !important;
+              ring: none !important;
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
               color-adjust: exact !important;
+            }
+            html, body {
+              border: none !important;
+              outline: none !important;
+              box-shadow: none !important;
             }
             .escala-ala-header {
               background-color: ${data.alaTheme.bgHex} !important;
