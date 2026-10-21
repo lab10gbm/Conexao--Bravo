@@ -44,6 +44,25 @@ export function useRasEscala({
     return rasApplications.filter(app => !removedRgs.includes(app.militarRg));
   }, [rasApplications, manuallyRemovedRgs, selectedDate]);
 
+  // Carregamento resiliente inicial via API de servidor (Admin)
+  useEffect(() => {
+    if (!selectedDate || !obmContext) return;
+    let isCancelled = false;
+    fetch(`/api/ras/by-date?date=${encodeURIComponent(selectedDate)}&obm=${encodeURIComponent(obmContext || '10º GBM')}`)
+      .then(res => res.json())
+      .then(data => {
+        if (!isCancelled && data?.success && Array.isArray(data.applications) && data.applications.length > 0) {
+          setRasApplications(prev => {
+            const map = new Map(prev.map(a => [a.militarRg, a]));
+            data.applications.forEach((a: any) => map.set(a.militarRg, a));
+            return Array.from(map.values());
+          });
+        }
+      })
+      .catch(() => {});
+    return () => { isCancelled = true; };
+  }, [selectedDate, obmContext]);
+
   // Real-time listener for RAS opportunities and applications on selectedDate
   useEffect(() => {
     if (!selectedDate || !obmContext) return;
@@ -90,9 +109,13 @@ export function useRasEscala({
           const merged = Object.values(appsMap).flat();
           const uniqueMerged = Array.from(new Map(merged.map((app: any) => [app.militarRg, app])).values());
           setRasApplications(uniqueMerged);
+        }, (err) => {
+          console.warn('[useRasEscala] onSnapshot notice (ras_applications):', err.message);
         });
         appUnsubscribers.push(unsubApp);
       });
+    }, (err) => {
+      console.warn('[useRasEscala] onSnapshot notice (ras_opportunities):', err.message);
     });
 
     return () => {
@@ -180,64 +203,123 @@ export function useRasEscala({
       const curr = prev[selectedDate] || [];
       return { ...prev, [selectedDate]: curr.filter(rg => rg !== m.rg) };
     });
+
     try {
-      const sharedObms = getRasSharedObms(obmContext);
-      const qOpps = query(collection(db, 'ras_opportunities'), where('obm', 'in', sharedObms), where('date', '==', selectedDate), where('duration', '==', rasDuration));
-      const oppsSnap = await getDocs(qOpps);
-      
-      let rasId = '';
-      if (oppsSnap.empty) {
-        const parentObm = getParentObm(obmContext || '10º GBM');
-        const canonical = resolveCanonicalScope(obmContext || '10º GBM');
-        const oppRef = await addDoc(collection(db, 'ras_opportunities'), {
-          obm: parentObm,
-          scope: canonical,
-          local: normalizeObm(obmContext || '10º GBM'),
-          date: selectedDate,
-          duration: rasDuration,
-          description: "RAS Adicionado pelo Escalante",
-          functions: ["GERAL"],
-          vacancies: 99,
-          status: "closed", 
-          createdBy: "ESCALANTE",
-          createdAt: Date.now(),
-          updatedAt: Date.now()
+      let appWithId: any = null;
+
+      // 1. Tenta salvar prioritariamente via API do backend (Admin SDK, 100% imune a permissões do cliente e adblockers)
+      try {
+        const res = await fetch('/api/ras/escalante-add', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            obmContext,
+            selectedDate,
+            rasDuration,
+            militar: {
+              id: m.id || m.rg,
+              rg: m.rg,
+              name: m.name,
+              warName: m.warName || '',
+              quadro: m.quadro || '',
+              rank: m.rank
+            }
+          })
         });
-        rasId = oppRef.id;
-      } else {
-        rasId = oppsSnap.docs[0].id;
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.app) {
+            appWithId = data.app;
+          }
+        }
+      } catch (apiErr) {
+        console.warn('[useRasEscala] Falha ao adicionar via API backend, tentando fallback:', apiErr);
       }
-      
-      const newApp = {
-        rasId: rasId,
-        militarId: m.id || m.rg,
-        militarRg: m.rg,
-        militarName: m.name,
-        militarWarName: m.warName || '',
-        militarQuadro: m.quadro || '',
-        militarRank: m.rank,
-        status: 'selected',
-        appliedAt: Date.now()
-      };
-      
-      const docRef = await addDoc(collection(db, 'ras_applications'), newApp);
-      
-      const appWithId = { id: docRef.id, ...newApp };
-      setRasApplications(prev => {
-        if (prev.some(p => p.militarRg === appWithId.militarRg)) return prev;
-        return [...prev, appWithId];
-      });
-      
-      handleAddSingleRas(appWithId);
-      
-    } catch(err) {
-      console.error(err);
-      alert("Erro ao adicionar militar ao RAS.");
+
+      // 2. Se a API do backend não respondeu (ex: offline), tenta fallback pelo Client SDK
+      if (!appWithId) {
+        const sharedObms = getRasSharedObms(obmContext);
+        const qOpps = query(collection(db, 'ras_opportunities'), where('obm', 'in', sharedObms), where('date', '==', selectedDate), where('duration', '==', rasDuration));
+        const oppsSnap = await getDocs(qOpps);
+        
+        let rasId = '';
+        if (oppsSnap.empty) {
+          const parentObm = getParentObm(obmContext || '10º GBM');
+          const canonical = resolveCanonicalScope(obmContext || '10º GBM');
+          const oppRef = await addDoc(collection(db, 'ras_opportunities'), {
+            obm: parentObm,
+            scope: canonical,
+            local: normalizeObm(obmContext || '10º GBM'),
+            date: selectedDate,
+            duration: rasDuration,
+            description: "RAS Adicionado pelo Escalante",
+            functions: ["GERAL"],
+            vacancies: 99,
+            status: "closed", 
+            createdBy: "ESCALANTE",
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          });
+          rasId = oppRef.id;
+        } else {
+          rasId = oppsSnap.docs[0].id;
+        }
+        
+        const newApp = {
+          rasId: rasId,
+          militarId: m.id || m.rg,
+          militarRg: m.rg,
+          militarName: m.name,
+          militarWarName: m.warName || '',
+          militarQuadro: m.quadro || '',
+          militarRank: m.rank,
+          status: 'selected',
+          appliedAt: Date.now()
+        };
+        
+        const docRef = await addDoc(collection(db, 'ras_applications'), newApp);
+        appWithId = { id: docRef.id, ...newApp };
+      }
+
+      if (appWithId) {
+        setRasApplications(prev => {
+          if (prev.some(p => p.militarRg === appWithId.militarRg)) return prev;
+          return [...prev, appWithId];
+        });
+        
+        handleAddSingleRas(appWithId);
+        if (setActionNotice) {
+          setActionNotice(`Militar ${m.warName || m.name} adicionado ao RAS.`);
+          setTimeout(() => setActionNotice(null), 3000);
+        }
+      }
+    } catch(err: any) {
+      console.error('[useRasEscala] Erro ao adicionar militar ao RAS:', err);
+      alert("Erro ao adicionar militar ao RAS: " + (err.message || ''));
     }
   };
 
   const handleFetchRas = async () => {
     try {
+      let loaded = false;
+      try {
+        const res = await fetch(`/api/ras/by-date?date=${encodeURIComponent(selectedDate)}&obm=${encodeURIComponent(obmContext || '10º GBM')}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.applications)) {
+            setRasApplications(data.applications);
+            loaded = true;
+            if (data.applications.length === 0) {
+              alert("Nenhum militar selecionado para RAS nesta data.");
+            }
+          }
+        }
+      } catch (apiErr) {
+        console.warn('[useRasEscala] Falha ao buscar RAS via API:', apiErr);
+      }
+
+      if (loaded) return;
+
       const sharedObms = getRasSharedObms(obmContext);
       const qOpps = query(collection(db, 'ras_opportunities'), where('obm', 'in', sharedObms), where('date', '==', selectedDate));
       const oppsSnap = await getDocs(qOpps);
@@ -303,16 +385,26 @@ export function useRasEscala({
 
     setExtraMilitars(prev => prev.filter(m => m.rg !== militarRg));
 
-    setActionNotice(`${rank ? rank + ' ' : ''}${militarName} excluído do RAS e da escala.`);
-    setTimeout(() => {
-      setActionNotice(null);
-    }, 3000);
+    if (setActionNotice) {
+      setActionNotice(`${rank ? rank + ' ' : ''}${militarName} excluído do RAS e da escala.`);
+      setTimeout(() => {
+        setActionNotice(null);
+      }, 3000);
+    }
 
+    // 1. Exclusão segura via API backend (Admin)
+    fetch('/api/ras/escalante-remove', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ militarRg, appId: app.id })
+    }).catch(err => {
+      console.warn('[useRasEscala] Aviso ao excluir via API:', err);
+    });
+
+    // 2. Client SDK fallback
     try {
       if (app.id) {
-        await deleteDoc(doc(db, 'ras_applications', app.id)).catch(err => {
-          console.warn("Aviso ao excluir doc direto em ras_applications:", err);
-        });
+        await deleteDoc(doc(db, 'ras_applications', app.id)).catch(() => {});
       }
       try {
         const qApps = query(collection(db, 'ras_applications'), where('militarRg', '==', militarRg));
@@ -320,16 +412,10 @@ export function useRasEscala({
         snapApps.docs.forEach(async (d) => {
           try {
             await deleteDoc(d.ref);
-          } catch (e) {
-            console.warn("Aviso ao excluir doc em ras_applications:", e);
-          }
+          } catch (e) {}
         });
-      } catch (err) {
-        console.warn("Aviso ao buscar ras_applications para exclusão:", err);
-      }
-    } catch (err) {
-      console.warn("Erro ao excluir militar do RAS no Firestore:", err);
-    }
+      } catch (err) {}
+    } catch (err) {}
   };
 
   const handleAddAllRas = () => {

@@ -726,6 +726,15 @@ async function startServer() {
       console.error('[Server] Listen error:', e);
     }
   });
+
+  const shutdown = () => {
+    server.close(() => {
+      process.exit(0);
+    });
+    setTimeout(() => process.exit(0), 1000).unref();
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 }
 
 startServer().catch((e) => console.error('[Server] Fatal startup error:', e));

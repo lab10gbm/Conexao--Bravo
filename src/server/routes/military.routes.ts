@@ -1,9 +1,9 @@
 import { verifyFirebaseSession, optionalFirebaseSession } from "./auth.ts";
 import express from 'express';
-import { collection, getDocs, getDoc, doc, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, getDocs, getDoc, doc, setDoc, deleteDoc, writeBatch, addDoc, query, where } from 'firebase/firestore';
 import fs from 'fs';
 import path from 'path';
-import { resolveCanonicalScope } from "../../lib/canonicalScope.ts";
+import { resolveCanonicalScope, getParentObm, getRasSharedObms } from "../../lib/canonicalScope.ts";
 import { cleanUndefined, withTimeout } from "../../lib/utils.ts";
 import { syncMedicosInternal } from "../lib/medicos-sync.ts";
 import { getDefaultSectionsForObm, type OfficerSectionItem } from "../../types/officerSections.ts";
@@ -1384,6 +1384,269 @@ app.post('/api/militar/emprestar', async (req, res) => {
       }
 
       return res.json({ success: true, collection: collectionName, docId });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // RAS: Adicionar militar ao RAS pelo escalante com privilégios de Admin
+  app.post('/api/ras/escalante-add', async (req, res) => {
+    try {
+      const { db, clientDb, isDbHealthy, normalizeObm } = getDeps();
+      const { obmContext, selectedDate, rasDuration = 24, militar } = req.body;
+
+      if (!selectedDate || !militar || !militar.rg) {
+        return res.status(400).json({ success: false, error: 'selectedDate and militar with rg are required' });
+      }
+
+      const cleanObm = normalizeObm(obmContext || '10º GBM');
+      const sharedObms = getRasSharedObms(obmContext);
+      const parentObm = getParentObm(obmContext || '10º GBM');
+      const canonical = resolveCanonicalScope(obmContext || '10º GBM');
+
+      let rasId = '';
+
+      if (db && isDbHealthy) {
+        try {
+          const oppsSnap = await withTimeout<any>(
+            db.collection('ras_opportunities')
+              .where('date', '==', selectedDate)
+              .where('duration', '==', Number(rasDuration))
+              .get(),
+            3000
+          );
+
+          const matchingDoc = oppsSnap.docs.find((d: any) => {
+            const data = d.data();
+            return !data.obm || sharedObms.includes(normalizeObm(data.obm));
+          });
+
+          if (matchingDoc) {
+            rasId = matchingDoc.id;
+          } else {
+            const newOpp = {
+              obm: parentObm,
+              scope: canonical,
+              local: cleanObm,
+              date: selectedDate,
+              duration: Number(rasDuration),
+              description: "RAS Adicionado pelo Escalante",
+              functions: ["GERAL"],
+              vacancies: 99,
+              status: "closed",
+              createdBy: "ESCALANTE",
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            };
+            const oppRef = await withTimeout<any>(db.collection('ras_opportunities').add(cleanUndefined(newOpp)), 3000);
+            rasId = oppRef.id;
+          }
+
+          const newApp = {
+            rasId: rasId,
+            militarId: militar.id || militar.rg,
+            militarRg: militar.rg,
+            militarName: militar.name || '',
+            militarWarName: militar.warName || '',
+            militarQuadro: militar.quadro || '',
+            militarRank: militar.rank || '',
+            status: 'selected',
+            appliedAt: Date.now()
+          };
+
+          const appRef = await withTimeout<any>(db.collection('ras_applications').add(cleanUndefined(newApp)), 3000);
+          return res.json({ success: true, rasId, app: { id: appRef.id, ...newApp } });
+        } catch (adminErr: any) {
+          console.warn('[API] /api/ras/escalante-add Admin SDK notice:', adminErr.message);
+        }
+      }
+
+      if (clientDb) {
+        try {
+          const newOpp = {
+            obm: parentObm,
+            scope: canonical,
+            local: cleanObm,
+            date: selectedDate,
+            duration: Number(rasDuration),
+            description: "RAS Adicionado pelo Escalante",
+            functions: ["GERAL"],
+            vacancies: 99,
+            status: "closed",
+            createdBy: "ESCALANTE",
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          };
+          const oppRef = await withTimeout(addDoc(collection(clientDb, 'ras_opportunities'), cleanUndefined(newOpp)), 3000);
+          rasId = oppRef.id;
+
+          const newApp = {
+            rasId: rasId,
+            militarId: militar.id || militar.rg,
+            militarRg: militar.rg,
+            militarName: militar.name || '',
+            militarWarName: militar.warName || '',
+            militarQuadro: militar.quadro || '',
+            militarRank: militar.rank || '',
+            status: 'selected',
+            appliedAt: Date.now()
+          };
+
+          const appRef = await withTimeout(addDoc(collection(clientDb, 'ras_applications'), cleanUndefined(newApp)), 3000);
+          return res.json({ success: true, rasId, app: { id: appRef.id, ...newApp } });
+        } catch (clientErr: any) {
+          console.error('[API] /api/ras/escalante-add clientDb error:', clientErr.message);
+        }
+      }
+
+      return res.status(500).json({ success: false, error: 'Database unavailable' });
+    } catch (err: any) {
+      console.error('[API] /api/ras/escalante-add error:', err);
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // RAS: Remover militar do RAS pelo escalante com privilégios de Admin
+  app.post('/api/ras/escalante-remove', async (req, res) => {
+    try {
+      const { db, clientDb, isDbHealthy } = getDeps();
+      const { militarRg, appId } = req.body;
+
+      if (!militarRg && !appId) {
+        return res.status(400).json({ success: false, error: 'militarRg or appId required' });
+      }
+
+      if (db && isDbHealthy) {
+        try {
+          if (appId) {
+            await withTimeout(db.collection('ras_applications').doc(appId).delete(), 3000);
+          }
+          if (militarRg) {
+            const snap = await withTimeout<any>(
+              db.collection('ras_applications').where('militarRg', '==', militarRg).get(),
+              3000
+            );
+            const batch = db.batch();
+            snap.docs.forEach((doc: any) => batch.delete(doc.ref));
+            await withTimeout(batch.commit(), 3000);
+          }
+          return res.json({ success: true });
+        } catch (e: any) {
+          console.warn('[API] /api/ras/escalante-remove Admin SDK notice:', e.message);
+        }
+      }
+
+      if (clientDb) {
+        if (appId) {
+          await withTimeout(deleteDoc(doc(clientDb, 'ras_applications', appId)), 3000);
+        }
+        return res.json({ success: true });
+      }
+
+      return res.status(500).json({ success: false, error: 'Database unavailable' });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // RAS: Buscar militares escalados em RAS para a data
+  app.get('/api/ras/by-date', async (req, res) => {
+    try {
+      const { db, isDbHealthy, normalizeObm } = getDeps();
+      const date = (req.query.date as string) || '';
+      const obmContext = (req.query.obm as string) || '10º GBM';
+
+      if (!date) return res.status(400).json({ success: false, error: 'date required' });
+
+      const sharedObms = getRasSharedObms(obmContext);
+
+      if (db && isDbHealthy) {
+        try {
+          const oppsSnap = await withTimeout<any>(
+            db.collection('ras_opportunities').where('date', '==', date).get(),
+            3000
+          );
+
+          const matchingOpps = oppsSnap.docs
+            .map((d: any) => ({ id: d.id, ...d.data() }))
+            .filter((o: any) => !o.obm || obmContext === 'GLOBAL' || sharedObms.includes(normalizeObm(o.obm)));
+
+          if (matchingOpps.length === 0) {
+            return res.json({ success: true, applications: [] });
+          }
+
+          const apps: any[] = [];
+          for (const opp of matchingOpps) {
+            const appsSnap = await withTimeout<any>(
+              db.collection('ras_applications').where('rasId', '==', opp.id).get(),
+              3000
+            );
+            appsSnap.docs.forEach((ad: any) => {
+              const a = ad.data();
+              if (a.status === 'selected' || a.status === 'completed') {
+                apps.push({
+                  id: ad.id,
+                  ...a,
+                  oppDate: opp.date,
+                  oppDuration: opp.duration,
+                  oppLocal: opp.local
+                });
+              }
+            });
+          }
+
+          const uniqueApps = Array.from(new Map(apps.map((a: any) => [a.militarRg, a])).values());
+          return res.json({ success: true, applications: uniqueApps });
+        } catch (e: any) {
+          console.warn('[API] /api/ras/by-date Admin SDK error:', e.message);
+        }
+      }
+
+      const { clientDb } = getDeps();
+      if (clientDb) {
+        try {
+          const qOpps = query(
+            collection(clientDb, 'ras_opportunities'),
+            where('date', '==', date)
+          );
+          const oppsSnap = await withTimeout<any>(getDocs(qOpps), 3000);
+          const matchingOpps = oppsSnap.docs
+            .map((d: any) => ({ id: d.id, ...d.data() }))
+            .filter((o: any) => !o.obm || obmContext === 'GLOBAL' || sharedObms.includes(normalizeObm(o.obm)));
+
+          if (matchingOpps.length === 0) {
+            return res.json({ success: true, applications: [] });
+          }
+
+          const apps: any[] = [];
+          for (const opp of matchingOpps) {
+            const qApps = query(
+              collection(clientDb, 'ras_applications'),
+              where('rasId', '==', opp.id)
+            );
+            const appsSnap = await withTimeout<any>(getDocs(qApps), 3000);
+            appsSnap.docs.forEach((ad: any) => {
+              const a = ad.data();
+              if (a.status === 'selected' || a.status === 'completed') {
+                apps.push({
+                  id: ad.id,
+                  ...a,
+                  oppDate: opp.date,
+                  oppDuration: opp.duration,
+                  oppLocal: opp.local
+                });
+              }
+            });
+          }
+
+          const uniqueApps = Array.from(new Map(apps.map((a: any) => [a.militarRg, a])).values());
+          return res.json({ success: true, applications: uniqueApps });
+        } catch (clientErr: any) {
+          console.warn('[API] /api/ras/by-date clientDb error:', clientErr.message);
+        }
+      }
+
+      return res.json({ success: true, applications: [] });
     } catch (err: any) {
       return res.status(500).json({ success: false, error: err.message });
     }
