@@ -92,10 +92,10 @@ export function PrintHeaderOficiais({
 
           {/* Centro: Cabeçalho Oficial unificado */}
           <div className="font-bold flex flex-col justify-start items-center text-center px-1 flex-1 leading-tight -mt-1 sm:-mt-1.5 pt-0">
-            <div className="text-[13px] sm:text-[14px] flex flex-col justify-start items-center text-center tracking-tight leading-tight">
+            <div className="text-[13px] sm:text-[14px] flex flex-col justify-start items-center text-center tracking-tight leading-tight uppercase">
               <span>CORPO DE BOMBEIROS MILITAR DO ESTADO DO RIO DE JANEIRO</span>
-              <span>{cbaName}</span>
-              <span>{unitName}</span>
+              <span>{cbaName.toUpperCase()}</span>
+              <span>{unitName.toUpperCase()}</span>
             </div>
 
             {/* Texto da Escala integrado */}

@@ -12,7 +12,7 @@ export interface PrintAdminSentinelasPermutasProps {
   adminRolesRight: Array<{ label: string; values: any[] }>;
   diaDepositoList: any[];
   getAdminRoleMappedKey: (label: string) => string;
-  renderMilitar: (m: any, options?: { compact?: boolean; hideRank?: boolean }) => React.ReactNode;
+  renderMilitar: (m: any, options?: { compact?: boolean; hideRank?: boolean; hidePermutaBadge?: boolean }) => React.ReactNode;
   sentinelas: any[];
   propSentinelaSlots?: any[];
   com1Militars: any[];
@@ -391,9 +391,9 @@ export function PrintAdminSentinelasPermutas({
           >
             PERMUTAS AUTORIZADAS:
           </div>
-          <div className="py-2 px-3 min-h-[26px]">
+          <div className="py-1.5 px-2.5 min-h-[26px]">
             {permutasAtivas.length > 0 ? (
-              <div className="flex flex-wrap items-start gap-x-8 gap-y-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 print:grid-cols-3 gap-x-3 print:gap-x-2 gap-y-1.5 print:gap-y-1 items-start">
                 {permutasAtivas.map((p: any, idx: number) => {
                   const subMilitar = p.sub;
                   const reqMilitar = p.req;
@@ -403,33 +403,33 @@ export function PrintAdminSentinelasPermutas({
                   return (
                     <div
                       key={idx}
-                      className="inline-flex items-start gap-2 py-0.5"
+                      className="inline-flex items-start gap-1.5 py-0.5 min-w-0"
                     >
                       {/* Rótulos: ENTRA (em cima) e SAI (em baixo com símbolo de permuta) */}
-                      <div className="flex flex-col shrink-0 gap-0.5 justify-center min-w-[50px]">
-                        <span className="font-black text-[9px] uppercase tracking-tight text-slate-900 leading-tight">
+                      <div className="flex flex-col shrink-0 gap-0.5 justify-center min-w-[44px]">
+                        <span className="font-black text-[8.5px] sm:text-[9px] print:text-[8.5px] uppercase tracking-tight text-slate-900 leading-tight">
                           ENTRA:
                         </span>
-                        <span className="font-black text-[9px] uppercase tracking-tight text-slate-900 leading-tight flex items-center gap-1">
+                        <span className="font-black text-[8.5px] sm:text-[9px] print:text-[8.5px] uppercase tracking-tight text-slate-900 leading-tight flex items-center gap-1">
                           SAI :
-                          <span className="inline-flex items-center justify-center bg-amber-500 text-white rounded-[3px] w-3.5 h-3.5 shrink-0 shadow-xs">
-                            <ArrowLeftRight className="w-2.5 h-2.5 text-white stroke-[2.5]" />
+                          <span className="inline-flex items-center justify-center bg-amber-500 text-white rounded-[2px] w-3 h-3 shrink-0 shadow-2xs">
+                            <ArrowLeftRight className="w-2 h-2 text-white stroke-[2.5]" />
                           </span>
                         </span>
                       </div>
 
                       {/* Militares: Posto/Graduação e Nome com RG entre parênteses */}
-                      <div className="flex flex-col min-w-0 gap-0.5 justify-center">
-                        <div className="text-[9.5px] font-bold text-black uppercase leading-tight flex items-center gap-1 whitespace-nowrap">
-                          {renderMilitar(subMilitar, { hideRank: false })}
+                      <div className="flex flex-col min-w-0 gap-0.5 justify-center overflow-hidden">
+                        <div className="text-[8.5px] sm:text-[9px] print:text-[8.5px] font-bold text-black uppercase leading-tight flex items-center gap-1 whitespace-nowrap">
+                          {renderMilitar(subMilitar, { hideRank: false, hidePermutaBadge: true })}
                           {subRg && (
                             <span className="font-bold text-black">
                               ({subRg})
                             </span>
                           )}
                         </div>
-                        <div className="text-[9.5px] font-bold text-black uppercase leading-tight flex items-center gap-1 whitespace-nowrap">
-                          {renderMilitar(reqMilitar, { hideRank: false })}
+                        <div className="text-[8.5px] sm:text-[9px] print:text-[8.5px] font-bold text-black uppercase leading-tight flex items-center gap-1 whitespace-nowrap">
+                          {renderMilitar(reqMilitar, { hideRank: false, hidePermutaBadge: true })}
                           {reqRg && (
                             <span className="font-bold text-black">
                               ({reqRg})

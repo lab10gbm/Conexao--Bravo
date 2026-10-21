@@ -940,14 +940,84 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
         return false;
       })
       .map((m: any) => {
-        const rg = m.rg || '';
-        const isSwapped = permutasOut.has(rg);
-        const actualMilitar = isSwapped
-          ? militars.find((x: any) => x.rg === permutasOut.get(rg)?.substituteRg) || m
-          : m;
-        return actualMilitar;
+        const perm = getPermutaForRequester(m?.rg);
+        if (perm && perm.substituteRg) {
+          const subRg = normalizeRg(perm.substituteRg);
+          const foundSub = (militars || []).find(
+            (x: any) => normalizeRg(x.rg) === subRg || x.rg === perm.substituteRg
+          );
+          if (foundSub) {
+            return {
+              ...foundSub,
+              isPermuta: true,
+              permutaData: perm
+            };
+          }
+          return {
+            rg: perm.substituteRg,
+            name: perm.substituteName || perm.substituteWarName,
+            warName: perm.substituteWarName || perm.substituteName,
+            rank: perm.substituteRank,
+            isPermuta: true,
+            permutaData: perm
+          };
+        }
+        return m;
       });
   };
+
+  const getPermutaForRequester = (rg: string | null | undefined) => {
+    if (!rg || !permutasOut) return null;
+    const clean = normalizeRg(rg);
+    if (permutasOut instanceof Map || typeof permutasOut.get === 'function') {
+      if (permutasOut.has(rg)) return permutasOut.get(rg);
+      if (clean && permutasOut.has(clean)) return permutasOut.get(clean);
+      for (const [key, p] of permutasOut.entries()) {
+        if (clean && (normalizeRg(key) === clean || normalizeRg(p?.requesterRg) === clean)) {
+          return p;
+        }
+      }
+    }
+    return null;
+  };
+
+  const isPermutaSubstitute = (rg: string | null | undefined) => {
+    if (!rg || !permutasOut) return false;
+    const clean = normalizeRg(rg);
+    if (!clean) return false;
+    if (permutasOut instanceof Map || typeof permutasOut.values === 'function') {
+      for (const p of permutasOut.values()) {
+        if (normalizeRg(p?.substituteRg) === clean) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  const isPermutaMilitar = (militar: any) => {
+    if (!militar) return false;
+    if (militar.isPermuta) return true;
+    const cleanRg = normalizeRg(militar.rg || militar.id || '');
+    if (!cleanRg) return false;
+    return isPermutaSubstitute(cleanRg);
+  };
+
+  const renderPermutaBadge = () => (
+    <span
+      className="inline-flex items-center justify-center px-1 py-[0.5px] ml-1 rounded text-[8px] sm:text-[8.5px] font-black leading-none bg-orange-100 text-orange-600 border border-orange-400 shrink-0 align-middle shadow-2xs"
+      style={{
+        backgroundColor: '#ffedd5',
+        color: '#ea580c',
+        borderColor: '#fb923c',
+        WebkitPrintColorAdjust: 'exact',
+        printColorAdjust: 'exact'
+      }}
+      title="Militar em permuta autorizada (Substituto)"
+    >
+      ℗
+    </span>
+  );
 
   const isRasMilitar = (militar: any) => {
     if (!militar?.rg) return false;
@@ -977,10 +1047,11 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
 
   const renderMilitar = (
     militar: any,
-    options?: { compact?: boolean; hideRank?: boolean }
+    options?: { compact?: boolean; hideRank?: boolean; hidePermutaBadge?: boolean }
   ) => {
     if (!militar) return '';
     const isRas = isRasMilitar(militar);
+    const isPermuta = !options?.hidePermutaBadge && isPermutaMilitar(militar);
     const compact = options?.compact ?? false;
     const hideRank = options?.hideRank ?? compact;
 
@@ -1032,6 +1103,7 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
             >
               {rawName}
             </span>
+            {isPermuta && renderPermutaBadge()}
             {isRas && renderRasBadge()}
           </div>
         </div>
@@ -1039,12 +1111,13 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
     }
     const formatted = formatRankAndName(militar);
     if (!formatted) return '';
-    if (!isRas) return formatted;
+    if (!isRas && !isPermuta) return formatted;
     return (
-      <>
+      <span className="inline-flex items-center gap-0.5">
         <span>{formatted}</span>
-        {renderRasBadge()}
-      </>
+        {isPermuta && renderPermutaBadge()}
+        {isRas && renderRasBadge()}
+      </span>
     );
   };
 
@@ -1395,6 +1468,8 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
     renderMilitar,
     isRasMilitar,
     renderRasBadge,
+    isPermutaMilitar,
+    renderPermutaBadge,
     com1Militars,
     com2Militars,
     comunicantes,

@@ -9,7 +9,7 @@ export interface PrintViaturasTableProps {
   militars: any[];
   headerColorClass: string;
   headerBgStyle: React.CSSProperties;
-  renderMilitar: (m: any, options?: { compact?: boolean; hideRank?: boolean }) => React.ReactNode;
+  renderMilitar: (m: any, options?: { compact?: boolean; hideRank?: boolean; hidePermutaBadge?: boolean }) => React.ReactNode;
   getByFunc: (name: string) => any[];
   shortDateStr: string;
   viaturaTableLayout?: 'duplo' | 'classico' | 'antigo';
@@ -199,6 +199,40 @@ export function PrintViaturasTable({
       return funcText.includes(targetSigla);
     };
 
+    const resolvePermutaSubstitute = (m: any) => {
+      if (!m || !permutasOut) return m;
+      const cleanRg = normalizeRg(m.rg || '');
+      let perm: any = null;
+      if (permutasOut instanceof Map || typeof permutasOut.get === 'function') {
+        if (permutasOut.has(m.rg)) perm = permutasOut.get(m.rg);
+        else if (cleanRg && permutasOut.has(cleanRg)) perm = permutasOut.get(cleanRg);
+        else {
+          for (const [k, p] of permutasOut.entries()) {
+            if (cleanRg && (normalizeRg(k) === cleanRg || normalizeRg(p?.requesterRg) === cleanRg)) {
+              perm = p;
+              break;
+            }
+          }
+        }
+      }
+      if (perm && perm.substituteRg) {
+        const cleanSubRg = normalizeRg(perm.substituteRg);
+        const found = (militars || []).find((x: any) => normalizeRg(x.rg) === cleanSubRg || x.rg === perm.substituteRg);
+        if (found) {
+          return { ...found, isPermuta: true, permutaData: perm };
+        }
+        return {
+          rg: perm.substituteRg,
+          name: perm.substituteName || perm.substituteWarName,
+          warName: perm.substituteWarName || perm.substituteName,
+          rank: perm.substituteRank,
+          isPermuta: true,
+          permutaData: perm
+        };
+      }
+      return m;
+    };
+
     // 1. Primary check
     const candidates = getByFunc(funcName);
     let unused = candidates.find((m: any) => !usedMilitars.has(m.rg));
@@ -227,12 +261,9 @@ export function PrintViaturasTable({
       });
       if (anyChefeSigla.length > 0) {
         const chosen = anyChefeSigla[0];
-        const isSwapped = permutasOut.has(chosen.rg);
-        const actualMilitar = isSwapped
-          ? militars.find((x: any) => x.rg === permutasOut.get(chosen.rg)?.substituteRg) ||
-            chosen
-          : chosen;
+        const actualMilitar = resolvePermutaSubstitute(chosen);
         usedMilitars.add(chosen.rg);
+        if (actualMilitar.rg) usedMilitars.add(actualMilitar.rg);
         return actualMilitar;
       }
 
@@ -253,36 +284,24 @@ export function PrintViaturasTable({
         if (sigla === 'ABT') {
           const pref = genericChefe.find((m: any) => m.chefeAbt);
           if (pref) {
-            const isSwapped = permutasOut.has(pref.rg);
-            const actualMilitar = isSwapped
-              ? militars.find(
-                  (x: any) => x.rg === permutasOut.get(pref.rg)?.substituteRg
-                ) || pref
-              : pref;
+            const actualMilitar = resolvePermutaSubstitute(pref);
             usedMilitars.add(pref.rg);
+            if (actualMilitar.rg) usedMilitars.add(actualMilitar.rg);
             return actualMilitar;
           }
         } else if (sigla === 'ABSL') {
           const pref = genericChefe.find((m: any) => m.chefeAbsl);
           if (pref) {
-            const isSwapped = permutasOut.has(pref.rg);
-            const actualMilitar = isSwapped
-              ? militars.find(
-                  (x: any) => x.rg === permutasOut.get(pref.rg)?.substituteRg
-                ) || pref
-              : pref;
+            const actualMilitar = resolvePermutaSubstitute(pref);
             usedMilitars.add(pref.rg);
+            if (actualMilitar.rg) usedMilitars.add(actualMilitar.rg);
             return actualMilitar;
           }
         }
         const chosen = genericChefe[0];
-        const isSwapped = permutasOut.has(chosen.rg);
-        const actualMilitar = isSwapped
-          ? militars.find(
-              (x: any) => x.rg === permutasOut.get(chosen.rg)?.substituteRg
-            ) || chosen
-          : chosen;
+        const actualMilitar = resolvePermutaSubstitute(chosen);
         usedMilitars.add(chosen.rg);
+        if (actualMilitar.rg) usedMilitars.add(actualMilitar.rg);
         return actualMilitar;
       }
     }
@@ -313,13 +332,9 @@ export function PrintViaturasTable({
         });
         if (anyMaritimo.length > 0) {
           const chosen = anyMaritimo[0];
-          const isSwapped = permutasOut.has(chosen.rg);
-          const actualMilitar = isSwapped
-            ? militars.find(
-                (x: any) => x.rg === permutasOut.get(chosen.rg)?.substituteRg
-              ) || chosen
-            : chosen;
+          const actualMilitar = resolvePermutaSubstitute(chosen);
           usedMilitars.add(chosen.rg);
+          if (actualMilitar.rg) usedMilitars.add(actualMilitar.rg);
           return actualMilitar;
         }
       }
@@ -357,13 +372,9 @@ export function PrintViaturasTable({
         });
         if (anyMarinheiro.length > 0) {
           const chosen = anyMarinheiro[0];
-          const isSwapped = permutasOut.has(chosen.rg);
-          const actualMilitar = isSwapped
-            ? militars.find(
-                (x: any) => x.rg === permutasOut.get(chosen.rg)?.substituteRg
-              ) || chosen
-            : chosen;
+          const actualMilitar = resolvePermutaSubstitute(chosen);
           usedMilitars.add(chosen.rg);
+          if (actualMilitar.rg) usedMilitars.add(actualMilitar.rg);
           return actualMilitar;
         }
       }
