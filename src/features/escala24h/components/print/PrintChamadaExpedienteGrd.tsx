@@ -52,14 +52,17 @@ export function PrintChamadaExpedienteGrd({
 
   const afastadosList = activeAfastamentos
     .map((a: any) => {
+      const cleanRg = normalizeRg(a.rg);
       const mil = (militars || []).find(
-        (m: any) => normalizeRg(m.rg) === normalizeRg(a.rg)
+        (m: any) => normalizeRg(m.rg) === cleanRg
       );
-      if (!mil) return null;
-      const typeStr = a.situacao || a.tipoAfastamento || 'Afastamento';
-      return `${parseRank(mil.rank)} ${
-        mil.warName || (mil.name || '').split(' ')[0]
-      } (${typeStr})`;
+      const rawRg = a.rg || mil?.rg || '';
+      const typeStr = (a.situacao || a.tipoAfastamento || 'Afastamento').toUpperCase().trim();
+      return {
+        rg: rawRg,
+        militar: mil || { rg: rawRg, name: a.nome || a.name || `RG ${rawRg}` },
+        typeStr
+      };
     })
     .filter(Boolean);
 
@@ -67,17 +70,18 @@ export function PrintChamadaExpedienteGrd({
     .map((rg: any) => {
       const cleanRg = typeof rg === 'string' ? rg : rg?.rg;
       if (!cleanRg || !cleanRg.trim()) return null;
+      const normalized = normalizeRg(cleanRg);
       const mil = (militars || []).find(
-        (m: any) => normalizeRg(m.rg) === normalizeRg(cleanRg)
+        (m: any) => normalizeRg(m.rg) === normalized
       );
-      if (!mil) return cleanRg ? `RG: ${cleanRg.trim()}` : null;
-      return `${parseRank(mil.rank)} ${
-        mil.warName || (mil.name || '').split(' ')[0]
-      }`;
+      return {
+        rg: mil?.rg || cleanRg.trim(),
+        militar: mil || { rg: cleanRg.trim(), name: `RG ${cleanRg.trim()}` },
+        label: mil ? formatRankAndName(mil) : `RG: ${cleanRg.trim()}`
+      };
     })
-    .filter(Boolean) as string[];
+    .filter(Boolean);
 
-  const hasGrd = grdMilitarsList.length > 0;
   const obmName = (obmContext || '10º GBM').split('-')[0].trim();
 
   const expedienteRgSet = React.useMemo(() => {
@@ -376,51 +380,91 @@ export function PrintChamadaExpedienteGrd({
       <div className="border-2 border-black border-t-0 flex w-full mb-4 items-stretch">
         {/* COLUNA ESQUERDA: AFASTAMENTOS E GRD (82%) */}
         <div className="w-[82%] border-r-2 border-black flex flex-col justify-between">
-          <div
-            className={cn(
-              headerColorClass,
-              'font-bold border-b-2 border-black text-center p-1 text-[10px] uppercase tracking-wider escala-ala-header'
-            )}
-            style={headerBgStyle}
-          >
-            AFASTAMENTOS
-          </div>
-
-          <div className="p-1.5 px-3 border-b-2 border-black text-[10px] min-h-[30px] font-bold flex-1 flex items-center">
-            {afastadosList.length > 0 ? (
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-x-4 gap-y-1 w-full">
-                {afastadosList.map((str: any, idx: number) => (
-                  <span key={idx}>{str}</span>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center font-normal text-slate-500 italic w-full">
-                Nenhum afastamento.
-              </div>
-            )}
-          </div>
-
-          {/* GRD */}
-          <div className="flex w-full min-h-[46px] items-stretch">
-            <div className="w-[22%] border-r-2 border-black flex items-center justify-center font-black text-[10.5px] uppercase bg-slate-50 p-2 text-center shrink-0">
-              GRD - {obmName}
+          {/* AFASTAMENTOS */}
+          <div className="flex flex-col border-b-2 border-black">
+            <div
+              className={cn(
+                headerColorClass,
+                'font-bold border-b-2 border-black text-center p-1 text-[10px] uppercase tracking-wider escala-ala-header'
+              )}
+              style={headerBgStyle}
+            >
+              AFASTAMENTOS
             </div>
-            <div className="w-[78%] p-2 px-3 flex-1 flex items-center">
-              {hasGrd ? (
-                <div
-                  className={cn(
-                    'grid gap-x-6 gap-y-1 text-[10px] font-bold uppercase w-full',
-                    grdMilitarsList.length > 4 ? 'grid-cols-3' : 'grid-cols-2'
-                  )}
-                >
-                  {grdMilitarsList.map((str: any, idx: number) => (
-                    <div key={idx} className="flex gap-1 items-start">
-                      <span className="shrink-0">{idx + 1}-</span>
-                      <span className="leading-[1.1]">{str}</span>
+
+            <div className="p-1.5 px-3 text-[10px] min-h-[30px] font-bold">
+              {afastadosList.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-x-4 gap-y-1 w-full">
+                  {afastadosList.map((item: any, idx: number) => (
+                    <div key={idx} className="flex items-center gap-1.5 truncate">
+                      <span className="font-mono text-slate-700 shrink-0">
+                        {item.rg} -
+                      </span>
+                      <span className="truncate">
+                        {renderMilitar(item.militar)}
+                      </span>
+                      {item.typeStr && (
+                        <span
+                          className="text-[7.5px] font-bold text-slate-700 bg-slate-100 border border-slate-300 px-1 py-[0.5px] rounded ml-0.5 shrink-0 uppercase tracking-tight"
+                          style={{
+                            WebkitPrintColorAdjust: 'exact',
+                            printColorAdjust: 'exact',
+                          }}
+                        >
+                          {item.typeStr}
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
-              ) : null}
+              ) : (
+                <div className="text-center font-normal text-slate-500 italic py-1">
+                  Nenhum afastamento.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* GRD */}
+          <div className="flex flex-col flex-1">
+            <div
+              className={cn(
+                headerColorClass,
+                'font-bold border-b-2 border-black text-center p-1 text-[10px] uppercase tracking-wider escala-ala-header'
+              )}
+              style={headerBgStyle}
+            >
+              GRD - {obmName}
+            </div>
+
+            <div className="p-1.5 px-3 text-[10px] min-h-[30px] font-bold flex-1 flex items-center">
+              {grdMilitarsList.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 print:grid-cols-3 gap-x-4 gap-y-1 w-full">
+                  {grdMilitarsList.map((item: any, idx: number) => (
+                    <div key={idx} className="flex items-center gap-1.5 truncate">
+                      <span className="font-mono text-slate-700 shrink-0">
+                        {item.rg} -
+                      </span>
+                      <span className="truncate">
+                        {item.militar ? renderMilitar(item.militar) : item.label}
+                      </span>
+                      <span
+                        className="text-[7.5px] font-bold text-slate-700 bg-slate-100 border border-slate-300 px-1 py-[0.5px] rounded ml-0.5 shrink-0 uppercase tracking-tight"
+                        style={{
+                          WebkitPrintColorAdjust: 'exact',
+                          printColorAdjust: 'exact',
+                        }}
+                      >
+                        GRD
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center font-normal text-slate-500 italic w-full py-1">
+                  Nenhum militar em GRD.
+                </div>
+              )}
             </div>
           </div>
         </div>
