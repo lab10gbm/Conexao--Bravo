@@ -1,6 +1,5 @@
 import type { ViaturaConfig, VtrModalFunctionRow } from '../types';
-import { normalizeObm, cleanUndefined } from '../../../lib/utils';
-export { cleanUndefined };
+import { normalizeObm } from '../../../lib/utils';
 
 export function formatDateTime(iso?: string | null): string {
   if (!iso) return '';

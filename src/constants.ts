@@ -66,8 +66,6 @@ export const DEFAULT_VIATURAS: any[] = [
   { id: "ABT-12", vtr: "ABT-12", ativa: false, exibir: false, espaco: "1", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: false, g1: false, g2: false, g3: false, g4: false, cg: false, blocked: [] },
 ];
 
-export { getDefaultViaturasForObm, isContaminatedFleet, sanitizeFleetForObm, OBM_DEFAULT_VIATURAS } from './features/viaturas/lib/viaturaUtils';
-
 export const OBM_HIERARCHY: Record<string, string[]> = {
   // 10º GBM - Angra dos Reis e Subunidades
   '10º GBM': ['10º GBM', '1/10', '2/10', '3/10', '4/10'],

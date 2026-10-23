@@ -9,7 +9,8 @@ import { cn, normalizeObm, getUserObmAccess, normalizeRg, getRasSharedObms, getP
 import { parsePromotionDate, ALL_RANKS_IN_ORDER, parseRank, sortAllBySeniority } from '../lib/rankUtils';
 import { useMilitars } from '../contexts/MilitarContext';
 import { RankInsignia } from './RankInsignia';
-import { RAS_FUNCTION_MAP, DEFAULT_VIATURAS, getDefaultViaturasForObm } from '../constants';
+import { RAS_FUNCTION_MAP, DEFAULT_VIATURAS } from '../constants';
+import { getDefaultViaturasForObm } from '../features/viaturas/types';
 import { useConflitosOperacionais } from '../hooks/useConflitosOperacionais';
 import { resolveCanonicalScope } from '../lib/canonicalScope';
 

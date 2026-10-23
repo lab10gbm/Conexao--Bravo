@@ -2,11 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Save, RotateCcw, Check, X, BookmarkCheck, Truck, Palmtree } from 'lucide-react';
 import { doc, onSnapshot, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { cn, normalizeObm, getObmSettingsDocKey, getObmSettingsFallbackKeys } from '../lib/utils';
+import { cn, normalizeObm, getObmSettingsDocKey, getObmSettingsFallbackKeys, cleanUndefined } from '../lib/utils';
 import { CategoryConfig, DEFAULT_CATEGORIES, getAvailableControlFunctions } from './ControleCategoriasModal';
 
 import { ViaturaConfig, VtrModalFunctionRow, DEFAULT_VIATURAS, getDefaultViaturasForObm, isContaminatedFleet, sanitizeFleetForObm } from '../features/viaturas/types';
-import { cleanUndefined, formatDateTime, buildModalFunctionsFromVtr } from '../features/viaturas/lib/viaturaUtils';
+import { formatDateTime, buildModalFunctionsFromVtr } from '../features/viaturas/lib/viaturaUtils';
 import { ViaturaTable } from '../features/viaturas/components/ViaturaTable';
 import { ViaturaEditModal } from '../features/viaturas/components/ViaturaEditModal';
 import { ViaturaNewDefaultModal } from '../features/viaturas/components/ViaturaNewDefaultModal';

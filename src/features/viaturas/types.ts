@@ -61,4 +61,4 @@ export const DEFAULT_VIATURAS: ViaturaConfig[] = [
   { id: "ABT-12", vtr: "ABT-12", ativa: false, exibir: false, espaco: "1", obm: "10º GBM", tipo: 'operacional', maritima: false, condutor: false, g1: false, g2: false, g3: false, g4: false, cg: false, blocked: [] },
 ];
 
-export { getDefaultViaturasForObm, isContaminatedFleet, sanitizeFleetForObm, OBM_DEFAULT_VIATURAS } from './lib/viaturaUtils';
+export { getDefaultViaturasForObm, isContaminatedFleet, sanitizeFleetForObm, OBM_DEFAULT_VIATURAS } from './lib/viaturaUtils.ts';
