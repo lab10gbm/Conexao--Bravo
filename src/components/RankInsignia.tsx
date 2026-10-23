@@ -7,7 +7,10 @@ interface RankInsigniaProps {
   size?: 'xs' | 'sm' | 'md' | 'lg';
 }
 
-const OfficerStar = ({
+export const ESTRELA_OFICIAL_DOURADA = '/assets/ranks/estrela-oficial-dourada.png';
+export const ESTRELA_OFICIAL_PRATEADA = '/assets/ranks/estrela-oficial-prateada.png';
+
+export const OfficerStar = ({
   variant,
   size = 'md',
   className
@@ -18,36 +21,25 @@ const OfficerStar = ({
 }) => {
   const isXs = size === 'xs';
   const isSm = size === 'sm';
-  const width = isXs ? 11 : isSm ? 15 : 24;
-  const height = isXs ? 11 : isSm ? 15 : 24;
+  const isLg = size === 'lg';
+  const dim = isXs ? 12 : isSm ? 16 : isLg ? 28 : 22;
 
-  if (variant === 'starburst') {
-    return (
-      <svg
-        width={width}
-        height={height}
-        viewBox="0 0 24 24"
-        fill="none"
-        className={className || 'text-amber-500 shrink-0'}
-      >
-        <path d="M12 1.5L14.5 8.5L21.5 11L14.5 13.5L12 20.5L9.5 13.5L2.5 11L9.5 8.5L12 1.5Z" fill="currentColor" />
-        <circle cx="12" cy="11" r="4.5" fill="white" />
-        <path d="M12 7.5L13.5 10.5H16.5L14 12.5L15 15.5L12 13.5L9 15.5L10 12.5L7.5 10.5H10.5L12 7.5Z" fill="currentColor" />
-      </svg>
-    );
-  }
+  const isGold = variant === 'starburst';
+  const src = isGold ? ESTRELA_OFICIAL_DOURADA : ESTRELA_OFICIAL_PRATEADA;
+  const alt = isGold ? 'Estrela Dourada CBMERJ' : 'Estrela Prateada CBMERJ';
+
   return (
-    <svg
-      width={width}
-      height={height}
-      viewBox="0 0 24 24"
-      fill="none"
-      className={className || 'text-slate-400 shrink-0'}
-    >
-      <path d="M12 2L22 12L12 22L2 12L12 2Z" fill="currentColor" />
-      <circle cx="12" cy="12" r="5" fill="white" />
-      <path d="M12 8L13.5 10.5H16L14 12.5L15 15L12 13.5L9 15L10 12.5L8 10.5H10.5L12 8Z" fill="currentColor" />
-    </svg>
+    <img
+      src={src}
+      alt={alt}
+      title={alt}
+      width={dim}
+      height={dim}
+      loading="eager"
+      decoding="async"
+      className={`inline-block shrink-0 object-contain select-none pointer-events-none drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)] ${className || ''}`}
+      style={{ width: `${dim}px`, height: `${dim}px`, minWidth: `${dim}px`, minHeight: `${dim}px` }}
+    />
   );
 };
 
@@ -68,10 +60,15 @@ export function RankInsignia({ rankStr, className, size }: RankInsigniaProps) {
 
   const starGap = isXs ? 'gap-[1.5px]' : isSm ? 'gap-[2px]' : 'gap-[3px]';
 
+  // Remove narrow width classes like w-3, w-4, etc. from multi-star officer row containers so stars never overflow
+  const officerContainerClasses = containerClasses
+    .replace(/\bw-(?:3|3\.5|4|5|6|7|8)\b/g, '')
+    .trim();
+
   // Coronel
   if (r === 'CORONEL') {
     return (
-      <div className={`flex items-center shrink-0 ${starGap} ${containerClasses}`}>
+      <div className={`flex items-center shrink-0 w-auto min-w-fit ${starGap} ${officerContainerClasses}`}>
         <OfficerStar variant="starburst" size={effectiveSize} />
         <OfficerStar variant="starburst" size={effectiveSize} />
         <OfficerStar variant="starburst" size={effectiveSize} />
@@ -82,7 +79,7 @@ export function RankInsignia({ rankStr, className, size }: RankInsigniaProps) {
   // Tenente Coronel
   if (r === 'TENENTE CORONEL') {
     return (
-      <div className={`flex items-center shrink-0 ${starGap} ${containerClasses}`}>
+      <div className={`flex items-center shrink-0 w-auto min-w-fit ${starGap} ${officerContainerClasses}`}>
         <OfficerStar variant="starburst" size={effectiveSize} />
         <OfficerStar variant="starburst" size={effectiveSize} />
         <OfficerStar variant="diamond" size={effectiveSize} />
@@ -93,7 +90,7 @@ export function RankInsignia({ rankStr, className, size }: RankInsigniaProps) {
   // Major
   if (r === 'MAJOR') {
     return (
-      <div className={`flex items-center shrink-0 ${starGap} ${containerClasses}`}>
+      <div className={`flex items-center shrink-0 w-auto min-w-fit ${starGap} ${officerContainerClasses}`}>
         <OfficerStar variant="starburst" size={effectiveSize} />
         <OfficerStar variant="diamond" size={effectiveSize} />
         <OfficerStar variant="diamond" size={effectiveSize} />
@@ -104,7 +101,7 @@ export function RankInsignia({ rankStr, className, size }: RankInsigniaProps) {
   // Capitão -> 3 Stars (Diamond shaped with star inside)
   if (r === 'CAPITÃO') {
     return (
-      <div className={`flex items-center shrink-0 ${starGap} ${containerClasses}`}>
+      <div className={`flex items-center shrink-0 w-auto min-w-fit ${starGap} ${officerContainerClasses}`}>
         <OfficerStar variant="diamond" size={effectiveSize} />
         <OfficerStar variant="diamond" size={effectiveSize} />
         <OfficerStar variant="diamond" size={effectiveSize} />
@@ -115,7 +112,7 @@ export function RankInsignia({ rankStr, className, size }: RankInsigniaProps) {
   // 1º Tenente -> 2 Stars
   if (r === '1º TENENTE') {
     return (
-      <div className={`flex items-center shrink-0 ${starGap} ${containerClasses}`}>
+      <div className={`flex items-center shrink-0 w-auto min-w-fit ${starGap} ${officerContainerClasses}`}>
         <OfficerStar variant="diamond" size={effectiveSize} />
         <OfficerStar variant="diamond" size={effectiveSize} />
       </div>
@@ -125,7 +122,7 @@ export function RankInsignia({ rankStr, className, size }: RankInsigniaProps) {
   // 2º Tenente -> 1 Star
   if (r === '2º TENENTE' || r === 'ASP OF') {
     return (
-      <div className={`flex items-center shrink-0 ${containerClasses}`}>
+      <div className={`flex items-center shrink-0 w-auto min-w-fit ${officerContainerClasses}`}>
         <OfficerStar variant="diamond" size={effectiveSize} />
       </div>
     );

@@ -121,7 +121,7 @@ export function PrintAdminSentinelasPermutas({
       <div className="w-[28%] flex flex-col border-r-2 border-black shrink-0">
         <div
           className={cn(
-            'py-1 px-1.5 uppercase border-b border-black text-center escala-ala-header font-bold text-[9.5px] sm:text-[10px]',
+            'py-1 px-1.5 uppercase border-b border-black text-center escala-ala-header font-bold text-[11px] sm:text-[11.5px]',
             headerColorClass
           )}
           style={headerBgStyle}
@@ -129,7 +129,7 @@ export function PrintAdminSentinelasPermutas({
           FUNÇÕES ADMINISTRATIVAS:
         </div>
 
-        <div className="flex-1 flex flex-col justify-around py-1 px-1.5 gap-0.5 text-[8.5px] sm:text-[9px]">
+        <div className="flex-1 flex flex-col justify-around py-1 px-1.5 gap-0.5 text-[10.5px] sm:text-[11px]">
           {(() => {
             const allAdminRoles = [
               { label: 'ADJUNTO:', values: adminRoles['ADJUNTO:'] || [] },
@@ -174,7 +174,7 @@ export function PrintAdminSentinelasPermutas({
 
             if (visibleAdminRoles.length === 0) {
               return (
-                <div className="py-1 text-center text-slate-400 italic text-[9px]">
+                <div className="py-1 text-center text-slate-400 italic text-[10.5px]">
                   &nbsp;
                 </div>
               );
@@ -187,10 +187,10 @@ export function PrintAdminSentinelasPermutas({
                   key={idx}
                   className="flex items-center justify-between gap-1 w-full min-h-[16px] py-[0.5px] leading-tight group/admin-row"
                 >
-                  <span className="font-black text-[8.5px] sm:text-[9px] text-slate-900 leading-[1.1] whitespace-normal break-words flex-1 min-w-0 pr-1">
+                  <span className="font-black text-[10.5px] sm:text-[11px] text-slate-950 leading-[1.15] whitespace-normal break-words flex-1 min-w-0 pr-1">
                     {item.label}
                   </span>
-                  <span className="font-bold text-[8.5px] sm:text-[9px] text-black shrink-0 whitespace-nowrap text-right ml-auto">
+                  <span className="font-bold text-[10.5px] sm:text-[11px] text-black shrink-0 whitespace-nowrap text-right ml-auto">
                     {item.values.length > 0 ? (
                       item.values.map((m: any, mIdx: number) => (
                         <React.Fragment key={m?.rg || mIdx}>
@@ -199,7 +199,7 @@ export function PrintAdminSentinelasPermutas({
                         </React.Fragment>
                       ))
                     ) : (
-                      <span className="text-slate-300 font-semibold text-[8.5px] select-none">—</span>
+                      <span className="text-slate-300 font-semibold text-[10.5px] select-none">—</span>
                     )}
                   </span>
                   <button
@@ -344,7 +344,7 @@ export function PrintAdminSentinelasPermutas({
                 <div key={sec.key} className="flex flex-col flex-1">
                   <div
                     className={cn(
-                      'py-0.5 px-1 uppercase border-b border-black text-center escala-ala-header font-bold text-[8.5px] sm:text-[9px] shrink-0',
+                      'py-0.5 px-1 uppercase border-b border-black text-center escala-ala-header font-bold text-[9.5px] sm:text-[10px] shrink-0',
                       sIdx > 0 ? 'border-t border-black' : '',
                       headerColorClass
                     )}
@@ -352,7 +352,7 @@ export function PrintAdminSentinelasPermutas({
                   >
                     {sec.title}
                   </div>
-                  <div className="flex-1 min-h-[18px] flex flex-col items-center justify-center py-0.5 px-1 font-bold text-center relative group/right-sec text-[9px] sm:text-[9.5px] gap-0.5">
+                  <div className="flex-1 min-h-[18px] flex flex-col items-center justify-center py-0.5 px-1 font-bold text-center relative group/right-sec text-[9.5px] sm:text-[10px] gap-0.5">
                     {sec.militars.length > 0 ? (
                       sec.militars.map((m: any, idx: number) => (
                         <div

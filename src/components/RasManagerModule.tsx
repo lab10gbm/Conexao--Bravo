@@ -9,7 +9,7 @@ import { cn, normalizeObm, getUserObmAccess, normalizeRg, getRasSharedObms, getP
 import { parsePromotionDate, ALL_RANKS_IN_ORDER, parseRank, sortAllBySeniority } from '../lib/rankUtils';
 import { useMilitars } from '../contexts/MilitarContext';
 import { RankInsignia } from './RankInsignia';
-import { RAS_FUNCTION_MAP, DEFAULT_VIATURAS } from '../constants';
+import { RAS_FUNCTION_MAP, DEFAULT_VIATURAS, getDefaultViaturasForObm } from '../constants';
 import { useConflitosOperacionais } from '../hooks/useConflitosOperacionais';
 import { resolveCanonicalScope } from '../lib/canonicalScope';
 
@@ -293,7 +293,7 @@ export function RasManagerModule({ obmContext, user, onNavigateToEscala }: RasMa
           await setDoc(escalaRef, {
             manuallyAddedRgs: [app.militarRg],
             selectedFunctions: mappedRole ? { [app.militarRg]: [mappedRole] } : {},
-            viaturasInfo: DEFAULT_VIATURAS,
+            viaturasInfo: getDefaultViaturasForObm(targetObm),
             createdAt: Date.now(),
             updatedAt: Date.now()
           });

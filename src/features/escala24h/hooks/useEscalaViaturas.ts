@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../../../lib/firebase";
 import { UserProfile } from "../../../types";
-import { normalizeObm } from "../../../lib/utils";
+import { normalizeObm, getObmSettingsFallbackKeys } from "../../../lib/utils";
+import { getDefaultViaturasForObm, isContaminatedFleet, sanitizeFleetForObm } from "../../viaturas/types";
 
 export const DEFAULT_VIATURAS: any[] = [
   { id: "ABT-143", vtr: "ABT-143", ativa: true, exibir: true, espaco: "1", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: true, g3: true, g4: false, cg: true, blocked: [] },
@@ -28,7 +29,7 @@ export function useEscalaViaturas({ obmContext, user, selectedDate }: UseEscalaV
 
   const [viaturasInfo, setViaturasInfo] = useState<any[]>(() => {
     try {
-      const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : '10º GBM';
+      const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
       const cleanObm = normalizeObm(rawObm);
       const keys = [
         `custom_default_viaturas_${cleanObm}`,
@@ -39,30 +40,36 @@ export function useEscalaViaturas({ obmContext, user, selectedDate }: UseEscalaV
         `custom_default_viaturas_${cleanObm.replace(/°/g, 'º')}`,
         `viaturas_config_${cleanObm.replace(/º/g, '°')}`,
         `viaturas_config_${cleanObm.replace(/°/g, 'º')}`,
-        `custom_default_viaturas_10º GBM`,
-        `custom_default_viaturas_10° GBM`,
-        `viaturas_config_10º GBM`,
-        `viaturas_config_10° GBM`,
-        `custom_default_viaturas_global_active`,
-        `viaturas_config_global_active`
       ];
+      if (cleanObm === '10º GBM') {
+        keys.push('custom_default_viaturas_10º GBM', 'custom_default_viaturas_10° GBM', 'viaturas_config_10º GBM', 'viaturas_config_10° GBM');
+      } else if (cleanObm === '26º GBM') {
+        keys.push('custom_default_viaturas_26º GBM', 'custom_default_viaturas_26° GBM', 'viaturas_config_26º GBM', 'viaturas_config_26° GBM');
+      }
+
       for (const k of keys) {
         const raw = localStorage.getItem(k);
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            const op = parsed.filter((v: any) => v.tipo !== 'administrativa');
-            const list = op.length > 0 ? op : parsed;
-            return list.map((v: any) => ({
-              ...v,
-              exibir: v.exibir !== undefined ? v.exibir : true,
-              espaco: v.espaco || (v.maritima || v.vtr?.startsWith('L-') || v.vtr?.startsWith('BIA') ? '1/3' : (v.vtr?.startsWith('AR') || v.vtr?.startsWith('ARC') ? '1/2' : '1'))
-            }));
+            if (!isContaminatedFleet(parsed, cleanObm)) {
+              const op = parsed.filter((v: any) => v.tipo !== 'administrativa');
+              const list = op.length > 0 ? op : parsed;
+              return list.map((v: any) => ({
+                ...v,
+                exibir: v.exibir !== undefined ? v.exibir : true,
+                espaco: v.espaco || (v.maritima || v.vtr?.startsWith('L-') || v.vtr?.startsWith('BIA') ? '1/3' : (v.vtr?.startsWith('AR') || v.vtr?.startsWith('ARC') ? '1/2' : '1'))
+              }));
+            } else {
+              // Discard contaminated legacy cache
+              localStorage.removeItem(k);
+            }
           }
         }
       }
+      return getDefaultViaturasForObm(cleanObm);
     } catch {}
-    return DEFAULT_VIATURAS;
+    return getDefaultViaturasForObm('10º GBM');
   });
 
   const getObmActivePattern = async (targetObm?: string): Promise<any[]> => {
@@ -78,44 +85,37 @@ export function useEscalaViaturas({ obmContext, user, selectedDate }: UseEscalaV
       `custom_default_viaturas_${cleanObm.replace(/°/g, 'º')}`,
       `viaturas_config_${cleanObm.replace(/º/g, '°')}`,
       `viaturas_config_${cleanObm.replace(/°/g, 'º')}`,
-      `custom_default_viaturas_10º GBM`,
-      `custom_default_viaturas_10° GBM`,
-      `viaturas_config_10º GBM`,
-      `viaturas_config_10° GBM`,
-      `custom_default_viaturas_global_active`,
-      `viaturas_config_global_active`
     ];
+    if (cleanObm === '10º GBM') {
+      localKeys.push('custom_default_viaturas_10º GBM', 'custom_default_viaturas_10° GBM', 'viaturas_config_10º GBM', 'viaturas_config_10° GBM');
+    } else if (cleanObm === '26º GBM') {
+      localKeys.push('custom_default_viaturas_26º GBM', 'custom_default_viaturas_26° GBM', 'viaturas_config_26º GBM', 'viaturas_config_26° GBM');
+    }
+
     for (const key of localKeys) {
       try {
         const raw = localStorage.getItem(key);
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            const operational = parsed.filter((v: any) => v.tipo !== 'administrativa');
-            const targetList = operational.length > 0 ? operational : parsed;
-            return targetList.map((v: any) => ({
-              ...v,
-              exibir: v.exibir !== undefined ? v.exibir : true,
-              espaco: v.espaco || (v.maritima || v.vtr?.startsWith('L-') || v.vtr?.startsWith('BIA') ? '1/3' : (v.vtr?.startsWith('AR') || v.vtr?.startsWith('ARC') ? '1/2' : '1'))
-            }));
+            if (!isContaminatedFleet(parsed, cleanObm)) {
+              const operational = parsed.filter((v: any) => v.tipo !== 'administrativa');
+              const targetList = operational.length > 0 ? operational : parsed;
+              return targetList.map((v: any) => ({
+                ...v,
+                exibir: v.exibir !== undefined ? v.exibir : true,
+                espaco: v.espaco || (v.maritima || v.vtr?.startsWith('L-') || v.vtr?.startsWith('BIA') ? '1/3' : (v.vtr?.startsWith('AR') || v.vtr?.startsWith('ARC') ? '1/2' : '1'))
+              }));
+            } else {
+              localStorage.removeItem(key);
+            }
           }
         }
       } catch {}
     }
 
     if (db) {
-      const docKeys = Array.from(new Set([
-        cleanObm.replace(/\//g, '_').replace(/\s/g, '_'),
-        rawObm.replace(/\//g, '_').replace(/\s/g, '_'),
-        cleanObm.replace(/º/g, '°').replace(/\//g, '_').replace(/\s/g, '_'),
-        cleanObm.replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_'),
-        cleanObm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase(),
-        '10º_GBM',
-        '10°_GBM',
-        '10__gbm',
-        '10_gbm',
-        '10_GBM'
-      ]));
+      const docKeys = getObmSettingsFallbackKeys(cleanObm);
       for (const k of docKeys) {
         try {
           const snap = await getDoc(doc(db, "obm_settings", k));
@@ -123,6 +123,11 @@ export function useEscalaViaturas({ obmContext, user, selectedDate }: UseEscalaV
             const data = snap.data();
             const list = data.viaturas_config || data.viaturas_custom_default;
             if (Array.isArray(list) && list.length > 0) {
+              if (isContaminatedFleet(list, cleanObm)) {
+                console.warn(`[useEscalaViaturas] Discarded contaminated remote fleet for ${cleanObm}`);
+                continue;
+              }
+
               const filtered = list.filter((v: any) => 
                 v.tipo !== 'administrativa' && 
                 (!v.obm || normalizeObm(v.obm) === cleanObm)
@@ -146,12 +151,34 @@ export function useEscalaViaturas({ obmContext, user, selectedDate }: UseEscalaV
       }
     }
 
-    return DEFAULT_VIATURAS;
+    return getDefaultViaturasForObm(cleanObm);
   };
+
+  // React to OBM context changes to automatically switch to the target OBM active pattern
+  useEffect(() => {
+    let isMounted = true;
+    const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+    const cleanObm = normalizeObm(rawObm);
+
+    getObmActivePattern(cleanObm).then(pattern => {
+      if (isMounted) {
+        setViaturasInfo(pattern);
+      }
+    });
+
+    return () => { isMounted = false; };
+  }, [obmContext]);
 
   useEffect(() => {
     const handlePatternUpdate = (e: any) => {
+      const currentCleanObm = normalizeObm(obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM'));
+      if (e.detail?.obmContext) {
+        const eventObm = normalizeObm(e.detail.obmContext);
+        if (eventObm !== currentCleanObm) return;
+      }
+
       if (e.detail?.viaturas && Array.isArray(e.detail.viaturas)) {
+        if (isContaminatedFleet(e.detail.viaturas, currentCleanObm)) return;
         const op = e.detail.viaturas.filter((v: any) => v.tipo !== 'administrativa');
         const targetList = op.length > 0 ? op : e.detail.viaturas;
         const updated = targetList.map((v: any) => ({
@@ -164,7 +191,7 @@ export function useEscalaViaturas({ obmContext, user, selectedDate }: UseEscalaV
     };
     window.addEventListener('obm_viaturas_pattern_updated', handlePatternUpdate);
     return () => window.removeEventListener('obm_viaturas_pattern_updated', handlePatternUpdate);
-  }, []);
+  }, [obmContext]);
 
   const handleApplyObmPattern = async () => {
     try {

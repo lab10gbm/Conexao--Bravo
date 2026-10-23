@@ -5,7 +5,7 @@ import { db } from '../lib/firebase';
 import { cn, normalizeObm, getObmSettingsDocKey, getObmSettingsFallbackKeys } from '../lib/utils';
 import { CategoryConfig, DEFAULT_CATEGORIES, getAvailableControlFunctions } from './ControleCategoriasModal';
 
-import { ViaturaConfig, VtrModalFunctionRow, DEFAULT_VIATURAS } from '../features/viaturas/types';
+import { ViaturaConfig, VtrModalFunctionRow, DEFAULT_VIATURAS, getDefaultViaturasForObm, isContaminatedFleet, sanitizeFleetForObm } from '../features/viaturas/types';
 import { cleanUndefined, formatDateTime, buildModalFunctionsFromVtr } from '../features/viaturas/lib/viaturaUtils';
 import { ViaturaTable } from '../features/viaturas/components/ViaturaTable';
 import { ViaturaEditModal } from '../features/viaturas/components/ViaturaEditModal';
@@ -60,35 +60,46 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
 
   useEffect(() => {
     if (!obmContext) return;
+    const cleanObm = normalizeObm(obmContext);
     
     // Check local storage first for immediate access
-    const localDefStr = localStorage.getItem(`custom_default_viaturas_${obmContext}`);
-    const localDefDate = localStorage.getItem(`custom_default_viaturas_date_${obmContext}`);
+    const localDefStr = localStorage.getItem(`custom_default_viaturas_${obmContext}`) || localStorage.getItem(`custom_default_viaturas_${cleanObm}`);
+    const localDefDate = localStorage.getItem(`custom_default_viaturas_date_${obmContext}`) || localStorage.getItem(`custom_default_viaturas_date_${cleanObm}`);
     let localDef: ViaturaConfig[] | null = null;
     if (localDefStr) {
       try {
-        localDef = JSON.parse(localDefStr);
-        setCustomDefault(localDef);
-        setCustomDefaultDate(localDefDate || null);
+        const parsed = JSON.parse(localDefStr);
+        if (Array.isArray(parsed) && !isContaminatedFleet(parsed, cleanObm)) {
+          localDef = parsed;
+          setCustomDefault(localDef);
+          setCustomDefaultDate(localDefDate || null);
+        } else {
+          // Contaminated legacy cache - wipe it clean!
+          localStorage.removeItem(`custom_default_viaturas_${obmContext}`);
+          localStorage.removeItem(`custom_default_viaturas_${cleanObm}`);
+          localStorage.removeItem(`viaturas_config_${obmContext}`);
+          localStorage.removeItem(`viaturas_config_${cleanObm}`);
+        }
       } catch (e) {
         console.error("Erro ao carregar padrão local:", e);
       }
     }
 
+    const defaultFleet = getDefaultViaturasForObm(cleanObm);
+
     if (!db) {
-      setViaturas(localDef || DEFAULT_VIATURAS);
+      setViaturas(localDef || defaultFleet);
       setLoading(false);
       return;
     }
 
-    const cleanObm = normalizeObm(obmContext);
     const docKey = getObmSettingsDocKey(obmContext);
     const docRef = doc(db, "obm_settings", docKey);
     
     const unsubscribe = onSnapshot(docRef, async (docSnap) => {
       let data = docSnap.exists() ? docSnap.data() : null;
 
-      // Fallback para outras chaves conhecidas se a chave direta não existir
+      // Fallback para outras chaves conhecidas EXCLUSIVAS desta OBM se a chave direta não existir
       if (!data || !data.categorias_funcoes) {
         const fallbackKeys = getObmSettingsFallbackKeys(obmContext);
         for (const fk of fallbackKeys) {
@@ -128,19 +139,24 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
         }
 
         if (data.viaturas_custom_default && Array.isArray(data.viaturas_custom_default)) {
-          const loadedDef: ViaturaConfig[] = data.viaturas_custom_default;
-          setCustomDefault(loadedDef);
-          setCustomDefaultDate(data.viaturas_custom_default_date || null);
-          localStorage.setItem(`custom_default_viaturas_${obmContext}`, JSON.stringify(loadedDef));
-          localStorage.setItem(`custom_default_viaturas_${cleanObm}`, JSON.stringify(loadedDef));
-          if (data.viaturas_custom_default_date) {
-            localStorage.setItem(`custom_default_viaturas_date_${obmContext}`, data.viaturas_custom_default_date);
-            localStorage.setItem(`custom_default_viaturas_date_${cleanObm}`, data.viaturas_custom_default_date);
+          if (!isContaminatedFleet(data.viaturas_custom_default, cleanObm)) {
+            const loadedDef: ViaturaConfig[] = data.viaturas_custom_default;
+            setCustomDefault(loadedDef);
+            setCustomDefaultDate(data.viaturas_custom_default_date || null);
+            localStorage.setItem(`custom_default_viaturas_${obmContext}`, JSON.stringify(loadedDef));
+            localStorage.setItem(`custom_default_viaturas_${cleanObm}`, JSON.stringify(loadedDef));
+            if (data.viaturas_custom_default_date) {
+              localStorage.setItem(`custom_default_viaturas_date_${obmContext}`, data.viaturas_custom_default_date);
+              localStorage.setItem(`custom_default_viaturas_date_${cleanObm}`, data.viaturas_custom_default_date);
+            }
+          } else {
+            setCustomDefault(defaultFleet);
+            setCustomDefaultDate(null);
           }
         }
 
         const candidateList = data.viaturas_config || data.viaturas_custom_default;
-        if (candidateList && Array.isArray(candidateList)) {
+        if (candidateList && Array.isArray(candidateList) && !isContaminatedFleet(candidateList, cleanObm)) {
           const loaded: ViaturaConfig[] = candidateList;
           const normalized = loaded.map(v => ({
             ...v,
@@ -149,16 +165,16 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
           }));
           setViaturas(normalized);
         } else {
-          setViaturas(localDef || DEFAULT_VIATURAS);
+          setViaturas(localDef || defaultFleet);
         }
       } else {
         setCategories(DEFAULT_CATEGORIES);
-        setViaturas(localDef || DEFAULT_VIATURAS);
+        setViaturas(localDef || defaultFleet);
       }
       setLoading(false);
     }, (err) => {
       console.error("Erro ao buscar viaturas config:", err);
-      setViaturas(localDef || DEFAULT_VIATURAS);
+      setViaturas(localDef || defaultFleet);
       setLoading(false);
     });
 
@@ -178,18 +194,7 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
       });
       const cleanObm = normalizeObm(obmContext);
       if (db) {
-        const docKeys = Array.from(new Set([
-          obmContext.replace(/\//g, '_').replace(/\s/g, '_'),
-          cleanObm.replace(/\//g, '_').replace(/\s/g, '_'),
-          cleanObm.replace(/º/g, '°').replace(/\//g, '_').replace(/\s/g, '_'),
-          cleanObm.replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_'),
-          cleanObm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase(),
-          '10º_GBM',
-          '10°_GBM',
-          '10__gbm',
-          '10_gbm',
-          '10_GBM'
-        ]));
+        const docKeys = getObmSettingsFallbackKeys(obmContext);
         // 1. Backend API persistence
         fetch('/api/obm-settings/update', {
           method: 'POST',
@@ -212,17 +217,16 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
         `custom_default_viaturas_${cleanObm}`,
         `custom_default_viaturas_${cleanObm.replace(/º/g, '°')}`,
         `custom_default_viaturas_${cleanObm.replace(/°/g, 'º')}`,
-        `custom_default_viaturas_10º GBM`,
-        `custom_default_viaturas_10° GBM`,
-        `custom_default_viaturas_global_active`,
         `viaturas_config_${obmContext}`,
         `viaturas_config_${cleanObm}`,
         `viaturas_config_${cleanObm.replace(/º/g, '°')}`,
         `viaturas_config_${cleanObm.replace(/°/g, 'º')}`,
-        `viaturas_config_10º GBM`,
-        `viaturas_config_10° GBM`,
-        `viaturas_config_global_active`
       ];
+      if (cleanObm === '10º GBM') {
+        allLocalKeys.push('custom_default_viaturas_10º GBM', 'custom_default_viaturas_10° GBM', 'viaturas_config_10º GBM', 'viaturas_config_10° GBM');
+      } else if (cleanObm === '26º GBM') {
+        allLocalKeys.push('custom_default_viaturas_26º GBM', 'custom_default_viaturas_26° GBM', 'viaturas_config_26º GBM', 'viaturas_config_26° GBM');
+      }
       for (const k of allLocalKeys) {
         localStorage.setItem(k, JSON.stringify(viaturas));
       }
@@ -233,7 +237,7 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
       setCustomDefaultDate(nowIso);
 
       window.dispatchEvent(new CustomEvent('obm_viaturas_pattern_updated', {
-        detail: { obmContext, viaturas, date: nowIso }
+        detail: { obmContext: cleanObm, viaturas, date: nowIso }
       }));
 
       setSuccessMessage("Configuração de viaturas salva com sucesso! Novo padrão sincronizado para as escalas.");
@@ -258,18 +262,7 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
       });
       const cleanObm = normalizeObm(obmContext);
       if (db) {
-        const docKeys = Array.from(new Set([
-          obmContext.replace(/\//g, '_').replace(/\s/g, '_'),
-          cleanObm.replace(/\//g, '_').replace(/\s/g, '_'),
-          cleanObm.replace(/º/g, '°').replace(/\//g, '_').replace(/\s/g, '_'),
-          cleanObm.replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_'),
-          cleanObm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase(),
-          '10º_GBM',
-          '10°_GBM',
-          '10__gbm',
-          '10_gbm',
-          '10_GBM'
-        ]));
+        const docKeys = getObmSettingsFallbackKeys(obmContext);
         // 1. Backend API persistence
         fetch('/api/obm-settings/update', {
           method: 'POST',
@@ -292,17 +285,16 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
         `custom_default_viaturas_${cleanObm}`,
         `custom_default_viaturas_${cleanObm.replace(/º/g, '°')}`,
         `custom_default_viaturas_${cleanObm.replace(/°/g, 'º')}`,
-        `custom_default_viaturas_10º GBM`,
-        `custom_default_viaturas_10° GBM`,
-        `custom_default_viaturas_global_active`,
         `viaturas_config_${obmContext}`,
         `viaturas_config_${cleanObm}`,
         `viaturas_config_${cleanObm.replace(/º/g, '°')}`,
         `viaturas_config_${cleanObm.replace(/°/g, 'º')}`,
-        `viaturas_config_10º GBM`,
-        `viaturas_config_10° GBM`,
-        `viaturas_config_global_active`
       ];
+      if (cleanObm === '10º GBM') {
+        allLocalKeys.push('custom_default_viaturas_10º GBM', 'custom_default_viaturas_10° GBM', 'viaturas_config_10º GBM', 'viaturas_config_10° GBM');
+      } else if (cleanObm === '26º GBM') {
+        allLocalKeys.push('custom_default_viaturas_26º GBM', 'custom_default_viaturas_26° GBM', 'viaturas_config_26º GBM', 'viaturas_config_26° GBM');
+      }
       for (const k of allLocalKeys) {
         localStorage.setItem(k, JSON.stringify(viaturas));
       }
@@ -315,7 +307,7 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
       setSuccessMessage("Novo padrão criado com sucesso! Agora esta é a sua referência padrão ao retornar ao padrão.");
 
       window.dispatchEvent(new CustomEvent('obm_viaturas_pattern_updated', {
-        detail: { obmContext, viaturas, date: nowIso }
+        detail: { obmContext: cleanObm, viaturas, date: nowIso }
       }));
     } catch (err) {
       console.error("Erro ao criar novo padrão:", err);
@@ -326,19 +318,23 @@ export function ControleViaturasModule({ obmContext }: ControleViaturasModulePro
   };
 
   const handleRestoreCustomDefault = () => {
-    if (customDefault && customDefault.length > 0) {
+    const cleanObm = normalizeObm(obmContext);
+    const defaultFleet = getDefaultViaturasForObm(cleanObm);
+    if (customDefault && customDefault.length > 0 && !isContaminatedFleet(customDefault, cleanObm)) {
       setViaturas(customDefault);
       setSuccessMessage("Viaturas restauradas com sucesso para o seu Novo Padrão de Referência!");
     } else {
-      setViaturas(DEFAULT_VIATURAS);
-      setSuccessMessage("Viaturas restauradas para o padrão inicial de fábrica.");
+      setViaturas(defaultFleet);
+      setSuccessMessage(`Viaturas restauradas para o padrão inicial do ${cleanObm}.`);
     }
     setIsRestoreModalOpen(false);
   };
 
   const handleRestoreFactoryDefault = () => {
-    setViaturas(DEFAULT_VIATURAS);
-    setSuccessMessage("Viaturas restauradas para o padrão original de fábrica do sistema.");
+    const cleanObm = normalizeObm(obmContext);
+    const defaultFleet = getDefaultViaturasForObm(cleanObm);
+    setViaturas(defaultFleet);
+    setSuccessMessage(`Viaturas restauradas para a dotação de fábrica específica do ${cleanObm}.`);
     setIsRestoreModalOpen(false);
   };
 

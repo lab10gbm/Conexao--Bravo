@@ -246,7 +246,7 @@ export function useExpedienteStatus({
       (r) =>
         String(r.rg || '').replace(/\D/g, '').trim() === targetCleanRg &&
         r.fromDay === dayStr &&
-        (r.status === 'approved' || r.status === 'pending')
+        (r.status === 'approved' || (r.status === 'pending' && safeArr(dataSource?.selections?.[rg]).includes(dayStr)))
     );
     if (leavingSwap) {
       return {
@@ -332,13 +332,29 @@ export function useExpedienteStatus({
           permutaInfo
         };
       } else {
-        const textStr = 'PERMUTA PENDENTE';
+        if (sels.includes(dayStr)) {
+          const textStr = 'PERMUTA PENDENTE';
+          return {
+            text: textStr,
+            type: 'servico',
+            label: textStr,
+            isPermuta: true,
+            permutaInfo
+          };
+        }
+        if (expDays.includes(dayStr)) {
+          return {
+            text: 'EXPEDIENTE',
+            type: 'expediente',
+            label: 'EXPEDIENTE',
+            isPermuta: false
+          };
+        }
         return {
-          text: textStr,
-          type: 'servico',
-          label: textStr,
-          isPermuta: true,
-          permutaInfo
+          text: 'FOLGA',
+          type: 'folga',
+          label: 'FOLGA',
+          isPermuta: false
         };
       }
     }

@@ -59,6 +59,7 @@ import { EscalaRosterTable } from "../features/escala24h/components/EscalaRoster
 import { EscalaAdminRolesSection } from "../features/escala24h/components/EscalaAdminRolesSection";
 import { EscalaOperacionalSection } from "../features/escala24h/components/EscalaOperacionalSection";
 import { EscalaViaturasSection } from "../features/escala24h/components/EscalaViaturasSection";
+import { EscalaConfigModal } from "../features/escala24h/components/EscalaConfigModal";
 const EscalaPredefinicoesModal = lazyWithRetry(() => import("../features/escala24h/components/EscalaPredefinicoesModal").then(m => ({ default: m.EscalaPredefinicoesModal })));
 import { EscalaTransferModals } from "../features/escala24h/components/EscalaTransferModals";
 import { EscalaFeedbackToasts } from "../features/escala24h/components/EscalaFeedbackToasts";
@@ -583,6 +584,115 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   const [predefinicoes, setPredefinicoes] = useState<Record<string, string[]>>({});
   const [categories, setCategories] = useState<CategoryConfig[]>(DEFAULT_CATEGORIES);
   const [isPreferenciasModalOpen, setIsPreferenciasModalOpen] = useState(false);
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+
+  // Visibilidade dos Blocos/Seções da Escala 24h
+  const [sectionsVisibility, setSectionsVisibility] = useState<Record<string, boolean>>(() => {
+    try {
+      const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+      const cleanObm = normalizeObm(rawObm);
+      const saved = localStorage.getItem(`escala_sections_visibility_${cleanObm}`);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      oficiais: true,
+      permutas: true,
+      ras: true,
+      baseRoster: true,
+      postos: true,
+      sentinelas: true,
+      afastamentos: true,
+      expediente: true,
+      grd: true,
+      adminRoles: true,
+      operacional: true,
+      viaturas: true,
+    };
+  });
+
+  const handleToggleSectionVisibility = (sectionKey: string) => {
+    setSectionsVisibility(prev => {
+      const current = prev[sectionKey] !== false;
+      const next = { ...prev, [sectionKey]: !current };
+      try {
+        const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+        const cleanObm = normalizeObm(rawObm);
+        localStorage.setItem(`escala_sections_visibility_${cleanObm}`, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleSetAllSectionsVisibility = (visible: boolean) => {
+    setSectionsVisibility(prev => {
+      const next: Record<string, boolean> = {};
+      ['oficiais', 'permutas', 'ras', 'baseRoster', 'postos', 'sentinelas', 'afastamentos', 'expediente', 'grd', 'adminRoles', 'operacional', 'viaturas'].forEach(k => {
+        next[k] = visible;
+      });
+      try {
+        const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+        const cleanObm = normalizeObm(rawObm);
+        localStorage.setItem(`escala_sections_visibility_${cleanObm}`, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleSaveOfficerSection = async (newSection: OfficerSectionItem) => {
+    const cleanObm = obmContext === 'GLOBAL' ? '10º GBM' : (obmContext || user?.obm || '10º GBM');
+    const docId = cleanObm.replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_');
+    const updatedSections = [...officerSections, newSection];
+    setOfficerSections(updatedSections);
+
+    try {
+      await fetch('/api/officer-sections/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          obm: cleanObm,
+          sections: updatedSections
+        })
+      });
+    } catch {}
+
+    try {
+      await setDoc(doc(db, 'officer_sections_config', docId), cleanUndefined({
+        obm: cleanObm,
+        sections: updatedSections,
+        updatedAt: Date.now()
+      }), { merge: true });
+    } catch (e: any) {
+      console.warn('Erro ao salvar seção de oficial no Firestore:', e.message);
+    }
+  };
+
+  const handleDeleteOfficerSection = async (sectionId: string) => {
+    const cleanObm = obmContext === 'GLOBAL' ? '10º GBM' : (obmContext || user?.obm || '10º GBM');
+    const docId = cleanObm.replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_');
+    const updatedSections = officerSections.filter(s => s.id !== sectionId);
+    setOfficerSections(updatedSections);
+
+    try {
+      await fetch('/api/officer-sections/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          obm: cleanObm,
+          sections: updatedSections
+        })
+      });
+    } catch {}
+
+    try {
+      await setDoc(doc(db, 'officer_sections_config', docId), cleanUndefined({
+        obm: cleanObm,
+        sections: updatedSections,
+        updatedAt: Date.now()
+      }), { merge: true });
+    } catch (e: any) {
+      console.warn('Erro ao remover seção de oficial no Firestore:', e.message);
+    }
+  };
   const [sortearFeedback, setSortearFeedback] = useState<{
     type: 'success' | 'warning' | 'info';
     message: string;
@@ -738,7 +848,6 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
                       escala_regras: data?.escala_regras || fbData.escala_regras,
                       escala_preferencias: data?.escala_preferencias || fbData.escala_preferencias,
                       categorias_funcoes: data?.categorias_funcoes || fbData.categorias_funcoes,
-                      viaturas_config: data?.viaturas_config || fbData.viaturas_config
                     })
                   })
                 }).catch(() => {});
@@ -1010,6 +1119,10 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   const permutasDoDia = useMemo(() => {
     return permutas.filter((p) => p.date === selectedDate);
   }, [permutas, selectedDate]);
+
+  const activePermutasDoDia = useMemo(() => {
+    return permutasDoDia.filter(p => !p.isLookingForSubstitute || (p.requesterRg && p.substituteRg));
+  }, [permutasDoDia]);
 
   const permutasOut = useMemo(() => {
     const map = new Map<string, PermutaRequest>();
@@ -1623,12 +1736,13 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         onSelectDate={setSelectedDate}
         identifiedAla={identifiedAla}
         baseRosterCount={baseRoster.length}
-        permutasCount={permutas.length}
+        permutasCount={activePermutasDoDia.length}
         savingState={savingState}
         onOpenPermutaModal={() => setIsPermutaModalOpen(true)}
         onOpenAddMilitar={() => setShowAddMilitarModal(true)}
         onOpenSorteio={setSorteioScope}
         onOpenPredefinicoes={() => setIsPreferenciasModalOpen(true)}
+        onOpenConfigModal={() => setIsConfigModalOpen(true)}
         onLimparFuncoes={handleLimparFuncoes}
         onGerarEscala={handleGerarEscala}
         isDashboardExpanded={isDashboardExpanded}
@@ -1662,187 +1776,211 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
       <div className="p-3 sm:p-4 space-y-3 escala-sections-container">
         {/* SEÇÃO CONEXÃO DE ESCALAS DE OFICIAIS */}
-        <EscalaOficiaisSection
-          obmContext={obmContext}
-          selectedDate={selectedDate}
-          loadingOfficerScale={loadingOfficerScale}
-          loadingNauticoScale={loadingNauticoScale}
-          loadingMedicoScale={loadingMedicoScale}
-          isOfficerSectionExpanded={isOfficerSectionExpanded}
-          setIsOfficerSectionExpanded={setIsOfficerSectionExpanded}
-          officerVisibility={officerVisibility}
-          onToggleOfficerVisibility={handleToggleOfficerVisibility}
-          oficialDiaValue={oficialDiaValue}
-          sobreavisoValue={sobreavisoValue}
-          matchedOficialDia={matchedOficialDia}
-          availableOfficers={availableOfficers}
-          onSaveOficialDia={handleSaveOficialDia}
-          savingOficialDia={savingOficialDia}
-          nauticoOficialValue={nauticoOficialValue}
-          nauticoSobreavisoValue={nauticoSobreavisoValue}
-          matchedNauticoOficial={matchedNauticoOficial}
-          availableNauticoOfficers={availableNauticoOfficers}
-          onSaveNauticoOficial={handleSaveNauticoOficial}
-          savingNautico={savingNautico}
-          medicoOficialValue={medicoOficialValue}
-          medicoSobreavisoValue={medicoSobreavisoValue}
-          matchedMedicoOficial={matchedMedicoOficial}
-          availableMedicalOfficers={availableMedicalOfficers}
-          onSaveMedicoOficial={handleSaveMedicoOficial}
-          savingMedico={savingMedico}
-          sections={officerSections}
-        />
+        {sectionsVisibility.oficiais !== false && (
+          <EscalaOficiaisSection
+            obmContext={obmContext}
+            selectedDate={selectedDate}
+            loadingOfficerScale={loadingOfficerScale}
+            loadingNauticoScale={loadingNauticoScale}
+            loadingMedicoScale={loadingMedicoScale}
+            isOfficerSectionExpanded={isOfficerSectionExpanded}
+            setIsOfficerSectionExpanded={setIsOfficerSectionExpanded}
+            officerVisibility={officerVisibility}
+            onToggleOfficerVisibility={handleToggleOfficerVisibility}
+            oficialDiaValue={oficialDiaValue}
+            sobreavisoValue={sobreavisoValue}
+            matchedOficialDia={matchedOficialDia}
+            availableOfficers={availableOfficers}
+            onSaveOficialDia={handleSaveOficialDia}
+            savingOficialDia={savingOficialDia}
+            nauticoOficialValue={nauticoOficialValue}
+            nauticoSobreavisoValue={nauticoSobreavisoValue}
+            matchedNauticoOficial={matchedNauticoOficial}
+            availableNauticoOfficers={availableNauticoOfficers}
+            onSaveNauticoOficial={handleSaveNauticoOficial}
+            savingNautico={savingNautico}
+            medicoOficialValue={medicoOficialValue}
+            medicoSobreavisoValue={medicoSobreavisoValue}
+            matchedMedicoOficial={matchedMedicoOficial}
+            availableMedicalOfficers={availableMedicalOfficers}
+            onSaveMedicoOficial={handleSaveMedicoOficial}
+            savingMedico={savingMedico}
+            sections={officerSections}
+          />
+        )}
 
         {/* SECTION 1: Permutas Deferidas */}
-        <EscalaPermutasSection
-          permutas={permutasDoDia}
-          militars={militars}
-          loadingPermutas={loadingPermutas}
-          onOpenNewPermutaModal={() => setIsPermutaModalOpen(true)}
-          onStatusChange={handleStatusChange}
-          onUpdateFunctions={handlePermutaUpdateFunctions}
-          getAllowedOptions={getRawAllowedOptions}
-        />
+        {sectionsVisibility.permutas !== false && (
+          <EscalaPermutasSection
+            permutas={permutasDoDia}
+            militars={militars}
+            loadingPermutas={loadingPermutas}
+            onOpenNewPermutaModal={() => setIsPermutaModalOpen(true)}
+            onStatusChange={handleStatusChange}
+            onUpdateFunctions={handlePermutaUpdateFunctions}
+            getAllowedOptions={getRawAllowedOptions}
+          />
+        )}
 
         {/* SECTION 1.5: RAS_MODULE */}
-        <EscalaRasSection
-          rasDuration={rasDuration}
-          setRasDuration={setRasDuration}
-          addRasMilitarSearch={addRasMilitarSearch}
-          setAddRasMilitarSearch={setAddRasMilitarSearch}
-          showAddRasMenu={showAddRasMenu}
-          setShowAddRasMenu={setShowAddRasMenu}
-          addRasMenuOptions={addRasMenuOptions}
-          onAddMilitarToRas={handleAddMilitarToRas}
-          onFetchRas={handleFetchRas}
-          onAddAllRas={handleAddAllRas}
-          visibleRasApplications={visibleRasApplications}
-          baseRoster={baseRoster}
-          onAddSingleRas={handleAddSingleRas}
-          onRemoveRasMilitar={handleRemoveRasMilitar}
-        />
+        {sectionsVisibility.ras !== false && (
+          <EscalaRasSection
+            rasDuration={rasDuration}
+            setRasDuration={setRasDuration}
+            addRasMilitarSearch={addRasMilitarSearch}
+            setAddRasMilitarSearch={setAddRasMilitarSearch}
+            showAddRasMenu={showAddRasMenu}
+            setShowAddRasMenu={setShowAddRasMenu}
+            addRasMenuOptions={addRasMenuOptions}
+            onAddMilitarToRas={handleAddMilitarToRas}
+            onFetchRas={handleFetchRas}
+            onAddAllRas={handleAddAllRas}
+            visibleRasApplications={visibleRasApplications}
+            baseRoster={baseRoster}
+            onAddSingleRas={handleAddSingleRas}
+            onRemoveRasMilitar={handleRemoveRasMilitar}
+          />
+        )}
 
         {/* SECTION 2: Escala Espelho Base */}
-        <EscalaRosterTable
-          obmContext={obmContext}
-          identifiedAlaStr={identifiedAlaStr}
-          onOpenSorteio={setSorteioScope}
-          onOpenPredefinicoes={() => setIsPreferenciasModalOpen(true)}
-          onLimparFuncoes={handleLimparFuncoes}
-          onOpenTransferSearchModal={() => setShowTransferSearchModal(true)}
-          addMilitarSearch={addMilitarSearch}
-          setAddMilitarSearch={setAddMilitarSearch}
-          showAddMenu={showAddMenu}
-          setShowAddMenu={setShowAddMenu}
-          addMenuOptions={addMenuOptions}
-          onCandidateSelect={handleCandidateSelect}
-          baseRoster={baseRoster}
-          militarsLoading={militarsLoading}
-          permutasOut={permutasOut}
-          militars={militars}
-          selectedFunctions={selectedFunctions}
-          setSelectedFunctions={setSelectedFunctions}
-          predefinicoes={predefinicoes}
-          expedienteRgs={expedienteRgs}
-          visibleRasApplications={visibleRasApplications}
-          rasApplications={rasApplications}
-          manuallyAddedRgs={manuallyAddedRgs}
-          selectedDate={selectedDate}
-          onRemoveMilitaryFromScale={(m, rg) => setMilitarToConfirmRemove({ militar: m, rg })}
-          onTransferToAfastamento={(m) => setMilitarToAfastar(m)}
-          getAllowedOptions={getRawAllowedOptions}
-          activeScaleFuncOptions={activeScaleFuncOptions}
-          functionUsageStats={functionUsageStats}
-          getRawAllowedOptions={getRawAllowedOptions}
-        />
+        {sectionsVisibility.baseRoster !== false && (
+          <EscalaRosterTable
+            obmContext={obmContext}
+            identifiedAlaStr={identifiedAlaStr}
+            onOpenSorteio={setSorteioScope}
+            onOpenPredefinicoes={() => setIsPreferenciasModalOpen(true)}
+            onLimparFuncoes={handleLimparFuncoes}
+            onOpenTransferSearchModal={() => setShowTransferSearchModal(true)}
+            addMilitarSearch={addMilitarSearch}
+            setAddMilitarSearch={setAddMilitarSearch}
+            showAddMenu={showAddMenu}
+            setShowAddMenu={setShowAddMenu}
+            addMenuOptions={addMenuOptions}
+            onCandidateSelect={handleCandidateSelect}
+            baseRoster={baseRoster}
+            militarsLoading={militarsLoading}
+            permutasOut={permutasOut}
+            militars={militars}
+            selectedFunctions={selectedFunctions}
+            setSelectedFunctions={setSelectedFunctions}
+            predefinicoes={predefinicoes}
+            expedienteRgs={expedienteRgs}
+            visibleRasApplications={visibleRasApplications}
+            rasApplications={rasApplications}
+            manuallyAddedRgs={manuallyAddedRgs}
+            selectedDate={selectedDate}
+            onRemoveMilitaryFromScale={(m, rg) => setMilitarToConfirmRemove({ militar: m, rg })}
+            onTransferToAfastamento={(m) => setMilitarToAfastar(m)}
+            getAllowedOptions={getRawAllowedOptions}
+            activeScaleFuncOptions={activeScaleFuncOptions}
+            functionUsageStats={functionUsageStats}
+            getRawAllowedOptions={getRawAllowedOptions}
+          />
+        )}
 
         {/* SEÇÃO 2.3: POSTOS DE SERVIÇO (POSTO DE PRAIA) */}
-        <EscalaPostosSection
-          key={`postos_${selectedDate}_${identifiedAlaStr}`}
-          obmContext={obmContext}
-          selectedDate={selectedDate}
-          identifiedAlaStr={identifiedAlaStr}
-          baseRoster={baseRoster}
-          militars={militars}
-          permutasOut={permutasOut}
-          isSectionEnabled={postosEscalaEnabled}
-          onToggleSectionEnabled={setPostosEscalaEnabled}
-          postosData={postosData}
-          onChangePostosData={setPostosData}
-          availablePostosConfig={availablePostosConfig}
-          selectedFunctions={selectedFunctions}
-          onAssignSlot={handlePostoSlotAssign}
-        />
+        {sectionsVisibility.postos !== false && postosEscalaEnabled && (
+          <EscalaPostosSection
+            key={`postos_${selectedDate}_${identifiedAlaStr}`}
+            obmContext={obmContext}
+            selectedDate={selectedDate}
+            identifiedAlaStr={identifiedAlaStr}
+            baseRoster={baseRoster}
+            militars={militars}
+            permutasOut={permutasOut}
+            isSectionEnabled={postosEscalaEnabled}
+            onToggleSectionEnabled={setPostosEscalaEnabled}
+            postosData={postosData}
+            onChangePostosData={setPostosData}
+            availablePostosConfig={availablePostosConfig}
+            selectedFunctions={selectedFunctions}
+            onAssignSlot={handlePostoSlotAssign}
+          />
+        )}
 
         {/* SEÇÃO 2.4: SENTINELAS DA GUARDA */}
-        <SentinelasSection
-          key={`${selectedDate}_${identifiedAlaStr}`}
-          obmContext={obmContext}
-          selectedDate={selectedDate}
-          baseRoster={baseRoster}
-          militars={militars}
-          sentinelaRgs={sentinelaRgs}
-          sentinelaSlots={sentinelaSlots}
-          onSentinelaChange={handleSentinelaChange}
-          identifiedAlaStr={identifiedAlaStr}
-          permutasOut={permutasOut}
-        />
+        {sectionsVisibility.sentinelas !== false && (
+          <SentinelasSection
+            key={`${selectedDate}_${identifiedAlaStr}`}
+            obmContext={obmContext}
+            selectedDate={selectedDate}
+            baseRoster={baseRoster}
+            militars={militars}
+            sentinelaRgs={sentinelaRgs}
+            sentinelaSlots={sentinelaSlots}
+            onSentinelaChange={handleSentinelaChange}
+            identifiedAlaStr={identifiedAlaStr}
+            permutasOut={permutasOut}
+          />
+        )}
 
         {/* SECTION 2.5: AFASTAMENTOS DA ALA */}
-        <AfastamentosAlaModule obmContext={obmContext} type="atuais" filterAla={identifiedAlaStr} targetDate={selectedDate} />
+        {sectionsVisibility.afastamentos !== false && (
+          <AfastamentosAlaModule obmContext={obmContext} type="atuais" filterAla={identifiedAlaStr} targetDate={selectedDate} />
+        )}
 
         {/* SECTION 2.6: MILITARES DE EXPEDIENTE NO DIA */}
-        <ExpedienteDiaModule
-          obmContext={obmContext}
-          selectedDate={selectedDate}
-          expedienteMilitars={expedienteMilitars}
-          militars={militars}
-        />
+        {sectionsVisibility.expediente !== false && (
+          <ExpedienteDiaModule
+            obmContext={obmContext}
+            selectedDate={selectedDate}
+            expedienteMilitars={expedienteMilitars}
+            militars={militars}
+          />
+        )}
 
         {/* SECTION 2.7: GUARNIÇÃO DE REFORÇO (GRD) NO DIA */}
-        <GrdDiaModule
-          obmContext={obmContext}
-          selectedDate={selectedDate}
-          militars={militars}
-          afastamentos={afastamentos}
-          baseRoster={baseRoster}
-          onGrdChange={(rgs) => {
-            setGrdDayRgs(rgs);
-          }}
-          onOpenPrintView={() => setShowPrintView(true)}
-          user={user}
-        />
+        {sectionsVisibility.grd !== false && (
+          <GrdDiaModule
+            obmContext={obmContext}
+            selectedDate={selectedDate}
+            militars={militars}
+            afastamentos={afastamentos}
+            baseRoster={baseRoster}
+            onGrdChange={(rgs) => {
+              setGrdDayRgs(rgs);
+            }}
+            onOpenPrintView={() => setShowPrintView(true)}
+            user={user}
+          />
+        )}
 
         {/* SEÇÃO 3A: FUNÇÕES ADMINISTRATIVAS */}
-        <EscalaAdminRolesSection
-          dynamicRequirements={dynamicRequirements}
-          selectedFunctions={selectedFunctions}
-          estudoTecnico={estudoTecnico}
-          onToggleAdminRoleVisibility={handleToggleAdminRoleVisibility}
-          onSetAllAdminRolesVisibility={handleSetAllAdminRolesVisibility}
-          onOpenSorteioAdmin={() => setSorteioScope("administrativas")}
-          militars={militars}
-        />
+        {sectionsVisibility.adminRoles !== false && (
+          <EscalaAdminRolesSection
+            dynamicRequirements={dynamicRequirements}
+            selectedFunctions={selectedFunctions}
+            estudoTecnico={estudoTecnico}
+            onToggleAdminRoleVisibility={handleToggleAdminRoleVisibility}
+            onSetAllAdminRolesVisibility={handleSetAllAdminRolesVisibility}
+            onOpenSorteioAdmin={() => setSorteioScope("administrativas")}
+            militars={militars}
+          />
+        )}
 
         {/* SECTION 3B: PRONTIDÃO OPERACIONAL */}
-        <EscalaOperacionalSection
-          dynamicRequirements={dynamicRequirements}
-          selectedFunctions={selectedFunctions}
-          estudoTecnico={estudoTecnico}
-          onToggleOperationalRole={handleToggleOperationalRole}
-          onSetAllOperationalRoles={handleSetAllOperationalRoles}
-          onOpenSorteioViaturas={() => setSorteioScope("viaturas")}
-        />
+        {sectionsVisibility.operacional !== false && (
+          <EscalaOperacionalSection
+            dynamicRequirements={dynamicRequirements}
+            selectedFunctions={selectedFunctions}
+            estudoTecnico={estudoTecnico}
+            onToggleOperationalRole={handleToggleOperationalRole}
+            onSetAllOperationalRoles={handleSetAllOperationalRoles}
+            onOpenSorteioViaturas={() => setSorteioScope("viaturas")}
+          />
+        )}
 
         {/* SECTION 4: CONTROLE DE VIATURAS */}
-        <EscalaViaturasSection
-          viaturasInfo={viaturasInfo}
-          onChangeViaturasInfo={setViaturasInfo}
-          onApplyObmPattern={handleApplyObmPattern}
-          onAddViaturaExtra={handleAddViaturaExtra}
-          patternAppliedMessage={patternAppliedMessage}
-          isViaturasCustomizedForDateRef={isViaturasCustomizedForDate}
-        />
+        {sectionsVisibility.viaturas !== false && (
+          <EscalaViaturasSection
+            viaturasInfo={viaturasInfo}
+            onChangeViaturasInfo={setViaturasInfo}
+            onApplyObmPattern={handleApplyObmPattern}
+            onAddViaturaExtra={handleAddViaturaExtra}
+            patternAppliedMessage={patternAppliedMessage}
+            isViaturasCustomizedForDateRef={isViaturasCustomizedForDate}
+          />
+        )}
       </div>
 
       {sorteioScope && (
@@ -2009,6 +2147,34 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           setActionNotice(`Militar ${parseRank(novoMilitar.rank)} ${novoMilitar.warName || novoMilitar.name} cadastrado com sucesso no servidor!`);
           setTimeout(() => setActionNotice(null), 4000);
         }}
+      />
+
+      {/* Modal de Configuração Geral da Escala 24h (Engrenagem) */}
+      <EscalaConfigModal
+        isOpen={isConfigModalOpen}
+        onClose={() => setIsConfigModalOpen(false)}
+        obmContext={obmContext}
+        selectedDate={selectedDate}
+        officerSections={officerSections}
+        officerVisibility={officerVisibility}
+        onToggleOfficerVisibility={handleToggleOfficerVisibility}
+        onSaveOfficerSection={handleSaveOfficerSection}
+        onDeleteOfficerSection={handleDeleteOfficerSection}
+        viaturasInfo={viaturasInfo}
+        setViaturasInfo={setViaturasInfo}
+        onApplyObmPattern={handleApplyObmPattern}
+        onAddViaturaExtra={handleAddViaturaExtra}
+        adminRolesVisibility={adminRolesVisibility}
+        onToggleAdminRoleVisibility={handleToggleAdminRoleVisibility}
+        onSetAllAdminRolesVisibility={handleSetAllAdminRolesVisibility}
+        roleQtds={roleQtds}
+        setRoleQtds={setRoleQtds}
+        postosEscalaEnabled={postosEscalaEnabled}
+        setPostosEscalaEnabled={setPostosEscalaEnabled}
+        sentinelaSlots={sentinelaSlots}
+        sectionsVisibility={sectionsVisibility}
+        onToggleSectionVisibility={handleToggleSectionVisibility}
+        onSetAllSectionsVisibility={handleSetAllSectionsVisibility}
       />
     </div>
   );

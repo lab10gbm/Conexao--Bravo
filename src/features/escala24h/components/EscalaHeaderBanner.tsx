@@ -2,7 +2,7 @@ import React from 'react';
 import { 
   Calendar as CalendarIcon, CalendarRange, Users, ArrowRightLeft, 
   Shield, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, 
-  Clock, Printer, UserPlus 
+  Clock, Printer, UserPlus, Settings 
 } from 'lucide-react';
 import { format, parseISO, addDays, subDays, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -28,6 +28,7 @@ export interface EscalaHeaderBannerProps {
   onOpenAddMilitar?: () => void;
   onOpenSorteio: (scope: SorteioScope) => void;
   onOpenPredefinicoes: () => void;
+  onOpenConfigModal?: () => void;
   onLimparFuncoes: (scope: SorteioScope | 'tudo') => void;
   onGerarEscala: () => void;
   isDashboardExpanded: boolean;
@@ -49,6 +50,7 @@ export function EscalaHeaderBanner({
   onOpenAddMilitar,
   onOpenSorteio,
   onOpenPredefinicoes,
+  onOpenConfigModal,
   onLimparFuncoes,
   onGerarEscala,
   isDashboardExpanded,
@@ -180,7 +182,10 @@ export function EscalaHeaderBanner({
           </div>
 
           {/* Segmento 3: Quantidade de Permutas Solicitadas */}
-          <div className="flex items-center gap-2 pl-2.5 sm:pl-3 shrink-0">
+          <div 
+            className="flex items-center gap-2 pl-2.5 sm:pl-3 shrink-0"
+            title={`Permutas para ${selectedDate ? selectedDate.split('-').reverse().join('/') : 'a data selecionada'}`}
+          >
             <div className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-400/30 flex items-center justify-center text-emerald-300 shrink-0">
               <ArrowRightLeft className="w-3.5 h-3.5" />
             </div>
@@ -257,6 +262,20 @@ export function EscalaHeaderBanner({
             onConfig={onOpenPredefinicoes}
             onLimpar={onLimparFuncoes}
           />
+
+          {/* Botão de Engrenagem: Configurar Seções da Escala 24h */}
+          {onOpenConfigModal && (
+            <button
+              type="button"
+              onClick={onOpenConfigModal}
+              className="h-8 px-2.5 sm:px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-black uppercase tracking-wider text-[10.5px] border border-slate-700 shadow-2xs hover:shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer shrink-0 group ring-1 ring-slate-700/50"
+              title="Configurar todas as seções da escala 24h (oficiais de dia, viaturas operacionais e administrativas)"
+            >
+              <Settings className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-45 transition-transform duration-300" />
+              <span className="hidden sm:inline">Configurações</span>
+              <span className="sm:hidden">Config</span>
+            </button>
+          )}
 
           {/* Botão Principal: Gerar Escala */}
           <button

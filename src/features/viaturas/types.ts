@@ -60,3 +60,5 @@ export const DEFAULT_VIATURAS: ViaturaConfig[] = [
   { id: "BIA-013", vtr: "BIA-013", ativa: false, exibir: true, espaco: "1/3", obm: "10º GBM", tipo: 'operacional', maritima: true, condutor: false, g1: false, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
   { id: "ABT-12", vtr: "ABT-12", ativa: false, exibir: false, espaco: "1", obm: "10º GBM", tipo: 'operacional', maritima: false, condutor: false, g1: false, g2: false, g3: false, g4: false, cg: false, blocked: [] },
 ];
+
+export { getDefaultViaturasForObm, isContaminatedFleet, sanitizeFleetForObm, OBM_DEFAULT_VIATURAS } from './lib/viaturaUtils';

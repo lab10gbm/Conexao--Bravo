@@ -702,9 +702,9 @@ export function PrintViaturasTable({
     }
 
     return (
-      <div className="w-full flex flex-col">
+      <div className="w-full flex flex-col flex-1 h-full">
         {leftSec && rightSec && (
-          <div className="w-full flex flex-col">
+          <div className="w-full flex flex-col shrink-0">
             {/* Linha Cinza Dividida em 2 Títulos */}
             <div className="flex w-full border-b border-slate-300 shrink-0">
               <div
@@ -776,8 +776,13 @@ export function PrintViaturasTable({
             }
           }
 
+          // Se tiver até 2 militares (ou se for 1 dupla), ele ocupa o espaço correspondente aos "4"
+          // Isso significa min-h-[50px] sm:min-h-[54px], flex-1 para preencher toda a altura restante da viatura,
+          // centralização vertical e horizontal perfeita, e aumento expressivo da fonte.
+          const isSparseAux = isAuxiliares && filledMilitars.length <= 2;
+
           return (
-            <div key={sec.key} className="w-full flex flex-col">
+            <div key={sec.key} className="w-full flex flex-col flex-1">
               {/* Barra Cinza da Função */}
               <div
                 className="w-full escala-vtr-func-header bg-[#dbe4ee] border-t border-b border-slate-300 text-center text-black font-black uppercase text-[8.5px] leading-tight py-[2px] tracking-tight shrink-0"
@@ -791,11 +796,11 @@ export function PrintViaturasTable({
               </div>
 
               {/* Militares */}
-              <div className="w-full bg-white flex flex-col">
+              <div className="w-full bg-white flex flex-col flex-1 justify-center">
                 {isAuxiliares ? (
                   pairs.length === 0 ? (
-                    <div className="w-full flex items-center justify-center py-1 px-1 min-h-[22px]">
-                      <span className="text-slate-300 font-semibold text-[9px] select-none">—</span>
+                    <div className="w-full flex-1 flex items-center justify-center py-2 px-1 min-h-[50px] sm:min-h-[54px]">
+                      <span className="text-slate-300 font-semibold text-[10px] select-none">—</span>
                     </div>
                   ) : (
                     pairs.map((pair, pIdx) => {
@@ -804,30 +809,51 @@ export function PrintViaturasTable({
                         <div
                           key={pIdx}
                           className={cn(
-                            'w-full flex items-stretch min-h-[22px]',
+                            'w-full flex items-stretch',
+                            isSparseAux ? 'flex-1 min-h-[50px] sm:min-h-[54px]' : 'min-h-[22px]',
                             pIdx > 0 ? 'border-t border-slate-100' : ''
                           )}
                         >
-                          {isSingleLast ? (
-                            <div className="w-full flex items-center justify-center py-1 px-1">
-                              <div className="w-full text-center text-[9.5px] font-bold text-black uppercase leading-tight py-[1px]">
+                          {isSingleLast && filledMilitars.length === 1 ? (
+                            <div className="w-full flex-1 flex items-center justify-center py-2 px-2 h-full">
+                              <div className="w-full text-center text-[11px] sm:text-[12px] font-black text-black uppercase leading-tight py-[1px] tracking-tight">
+                                {renderMilitar(pair[0], { compact: false })}
+                              </div>
+                            </div>
+                          ) : isSingleLast ? (
+                            <div className="w-full flex items-center justify-center py-1.5 px-1 flex-1">
+                              <div className="w-full text-center text-[10.5px] sm:text-[11px] font-bold text-black uppercase leading-tight py-[1px]">
                                 {renderMilitar(pair[0], { compact: false })}
                               </div>
                             </div>
                           ) : (
                             <>
-                              <div className="w-1/2 border-r border-slate-200 flex flex-col items-center justify-center py-1 px-1">
-                                <div className="w-full text-center text-[9.5px] font-bold text-black uppercase leading-tight py-[1px]">
-                                  {renderMilitar(pair[0], { compact: true })}
+                              <div className="w-1/2 border-r border-slate-200 flex flex-col items-center justify-center py-2 px-1 flex-1 h-full">
+                                <div
+                                  className={cn(
+                                    'w-full text-center uppercase leading-tight py-[1px]',
+                                    isSparseAux
+                                      ? 'text-[11px] sm:text-[11.5px] font-black text-black tracking-tight'
+                                      : 'text-[9.5px] font-bold text-black'
+                                  )}
+                                >
+                                  {renderMilitar(pair[0], { compact: !isSparseAux })}
                                 </div>
                               </div>
-                              <div className="w-1/2 flex flex-col items-center justify-center py-1 px-1">
+                              <div className="w-1/2 flex flex-col items-center justify-center py-2 px-1 flex-1 h-full">
                                 {pair[1] ? (
-                                  <div className="w-full text-center text-[9.5px] font-bold text-black uppercase leading-tight py-[1px]">
-                                    {renderMilitar(pair[1], { compact: true })}
+                                  <div
+                                    className={cn(
+                                      'w-full text-center uppercase leading-tight py-[1px]',
+                                      isSparseAux
+                                        ? 'text-[11px] sm:text-[11.5px] font-black text-black tracking-tight'
+                                        : 'text-[9.5px] font-bold text-black'
+                                    )}
+                                  >
+                                    {renderMilitar(pair[1], { compact: !isSparseAux })}
                                   </div>
                                 ) : (
-                                  <span className="text-slate-300 font-semibold text-[9px] select-none">—</span>
+                                  <span className="text-slate-300 font-semibold text-[10px] select-none">—</span>
                                 )}
                               </div>
                             </>
@@ -837,7 +863,7 @@ export function PrintViaturasTable({
                     })
                   )
                 ) : (
-                  <div className="w-full flex flex-col items-center justify-center py-1 px-1 min-h-[22px]">
+                  <div className="w-full flex-1 flex flex-col items-center justify-center py-1 px-1 min-h-[22px]">
                     {filledMilitars.length > 0 ? (
                       filledMilitars.map((m, mIdx) => (
                         <div
@@ -848,7 +874,7 @@ export function PrintViaturasTable({
                         </div>
                       ))
                     ) : (
-                      <span className="text-slate-300 font-semibold text-[9px] select-none">—</span>
+                      <span className="text-slate-300 font-semibold text-[9.5px] select-none">—</span>
                     )}
                   </div>
                 )}
@@ -901,8 +927,12 @@ export function PrintViaturasTable({
               {columns.map((col, colIdx) => {
                 if (col.type === 'pair') {
                   return (
-                    <td key={colIdx} className="border border-black p-0 align-top">
-                      <div className="flex flex-col h-full">
+                    <td
+                      key={colIdx}
+                      className="border border-black p-0 align-top h-full"
+                      style={{ height: '100%' }}
+                    >
+                      <div className="flex flex-col h-full flex-1">
                         <div className="p-0 flex-1 flex flex-col justify-start">
                           {renderSlotsForVtr(col.top)}
                         </div>
@@ -926,8 +956,12 @@ export function PrintViaturasTable({
 
                 if (col.type === 'trio') {
                   return (
-                    <td key={colIdx} className="border border-black p-0 align-top">
-                      <div className="flex flex-col h-full">
+                    <td
+                      key={colIdx}
+                      className="border border-black p-0 align-top h-full"
+                      style={{ height: '100%' }}
+                    >
+                      <div className="flex flex-col h-full flex-1">
                         {col.items.map((itemVtr: any, itemIdx: number) => (
                           <React.Fragment key={itemVtr.id || itemIdx}>
                             {itemIdx > 0 && (
@@ -953,8 +987,12 @@ export function PrintViaturasTable({
                 }
 
                 return (
-                  <td key={colIdx} className="border border-black p-0 align-top">
-                    <div className="flex flex-col h-full p-0 justify-start">
+                  <td
+                    key={colIdx}
+                    className="border border-black p-0 align-top h-full"
+                    style={{ height: '100%' }}
+                  >
+                    <div className="flex flex-col h-full flex-1 p-0 justify-start">
                       {renderSlotsForVtr(col.vtr)}
                     </div>
                   </td>

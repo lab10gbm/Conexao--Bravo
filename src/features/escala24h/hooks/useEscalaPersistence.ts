@@ -7,6 +7,7 @@ import { normalizeFnName } from "../lib/escalaCalculos";
 import { OfficerVisibility } from "../../../types";
 import { SentinelaSlot } from "../../../lib/sentinelaUtils";
 import { EscalaPostoData } from "../../postos/types";
+import { isContaminatedFleet, getDefaultViaturasForObm } from "../../viaturas/types";
 
 interface UseEscalaPersistenceProps {
   selectedDate: string;
@@ -65,6 +66,7 @@ export function useEscalaPersistence({
 }: UseEscalaPersistenceProps) {
   const isFirstLoad = useRef(true);
   const previousDate = useRef(selectedDate);
+  const previousObm = useRef(normalizeObm(obmContext || userObm || '10º GBM'));
   const [savingState, setSavingState] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   // Load state from Firebase when date or obm changes
@@ -73,14 +75,21 @@ export function useEscalaPersistence({
     const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (userObm || '10º GBM');
     const cleanObm = normalizeObm(rawObm);
 
-    if (previousDate.current !== selectedDate) {
+    const isDateChange = previousDate.current !== selectedDate;
+    const isObmChange = previousObm.current !== cleanObm;
+
+    if (isDateChange || isObmChange) {
+      isFirstLoad.current = true;
       setSelectedFunctions({});
       setManuallyAddedRgs({});
       setSentinelaRgs([null, null, null, null]);
       setSentinelaSlots(null);
       if (setPostosData) setPostosData([]);
+      if (isObmChange) {
+        setViaturasInfo(getDefaultViaturasForObm(cleanObm));
+      }
       previousDate.current = selectedDate;
-      isFirstLoad.current = true;
+      previousObm.current = cleanObm;
     }
 
     const normalizedObm = cleanObm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
@@ -131,9 +140,15 @@ export function useEscalaPersistence({
             setManuallyRemovedRgs(prev => ({ ...prev, [selectedDate]: data.manuallyRemovedRgs }));
           }
           if (data.viaturasInfo && Array.isArray(data.viaturasInfo)) {
-            savedViaturas = data.viaturasInfo;
-            isExplicitCustomization = Boolean(data.viaturasCustomizedForDate);
-            isViaturasCustomizedForDate.current = isExplicitCustomization;
+            if (!isContaminatedFleet(data.viaturasInfo, cleanObm)) {
+              savedViaturas = data.viaturasInfo;
+              isExplicitCustomization = Boolean(data.viaturasCustomizedForDate);
+              isViaturasCustomizedForDate.current = isExplicitCustomization;
+            } else {
+              savedViaturas = null;
+              isExplicitCustomization = false;
+              isViaturasCustomizedForDate.current = false;
+            }
           }
           if (data.officerVisibility) {
             setOfficerVisibility({
@@ -245,6 +260,12 @@ export function useEscalaPersistence({
     if (!selectedDate) return;
     const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (userObm || '10º GBM');
     const cleanObm = normalizeObm(rawObm);
+
+    // Prevent cross-contamination: NEVER auto-save a contaminated fleet into this OBM
+    if (isContaminatedFleet(viaturasInfo, cleanObm)) {
+      console.warn(`[useEscalaPersistence] Aborting auto-save: viaturasInfo is contaminated for ${cleanObm}`);
+      return;
+    }
 
     setSavingState('saving');
     const timeout = setTimeout(async () => {

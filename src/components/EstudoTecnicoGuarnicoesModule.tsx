@@ -7,19 +7,8 @@ import {
   Truck, Anchor, Calendar
 } from "lucide-react";
 import { cn, getAlaColor, getAlaName, normalizeObm, normalizeAlaField, getObmSettingsDocKey, getObmSettingsFallbackKeys } from '../lib/utils';
+import { getDefaultViaturasForObm, isContaminatedFleet, sanitizeFleetForObm } from '../features/viaturas/types';
 import { motion } from "motion/react";
-
-const DEFAULT_VIATURAS: any[] = [
-  { id: "ABT-143", vtr: "ABT-143", ativa: true, exibir: true, espaco: "1", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: true, g3: true, g4: false, cg: true, blocked: [] },
-  { id: "ABSL-152", vtr: "ABSL-152", ativa: true, exibir: true, espaco: "1", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: true, g3: false, g4: false, cg: true, blocked: [] },
-  { id: "ASE-572", vtr: "ASE-572", ativa: true, exibir: true, espaco: "1", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
-  { id: "AR-600", vtr: "AR-600", ativa: true, exibir: true, espaco: "1/2", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: null, g2: null, g3: null, g4: null, cg: null, blocked: ["g1", "g2", "g3", "g4", "cg"] },
-  { id: "ARC-162", vtr: "ARC-162", ativa: true, exibir: true, espaco: "1/2", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: null, g3: null, g4: null, cg: null, blocked: ["g2", "g3", "g4", "cg"] },
-  { id: "L-09", vtr: "L-09", ativa: true, exibir: true, espaco: "1/3", maritima: true, obm: "10º GBM", tipo: 'operacional', condutor: true, g1: true, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
-  { id: "BIA-006", vtr: "BIA-006", ativa: false, exibir: true, espaco: "1/3", maritima: true, obm: "10º GBM", tipo: 'operacional', condutor: false, g1: false, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
-  { id: "BIA-013", vtr: "BIA-013", ativa: false, exibir: true, espaco: "1/3", maritima: true, obm: "10º GBM", tipo: 'operacional', condutor: false, g1: false, g2: false, g3: null, g4: null, cg: null, blocked: ["g3", "g4", "cg"] },
-  { id: "ABT-12", vtr: "ABT-12", ativa: false, exibir: false, espaco: "1", maritima: false, obm: "10º GBM", tipo: 'operacional', condutor: false, g1: false, g2: false, g3: false, g4: false, cg: false, blocked: [] },
-];
 
 export function EstudoTecnicoGuarnicoesModule({
   obmContext,
@@ -41,7 +30,7 @@ export function EstudoTecnicoGuarnicoesModule({
   };
   const { militars, loading: militarsLoading } = useMilitars();
 
-  const [viaturasInfo, setViaturasInfo] = useState<any[]>(DEFAULT_VIATURAS);
+  const [viaturasInfo, setViaturasInfo] = useState<any[]>(() => getDefaultViaturasForObm(obmContext));
   const [correlation, setCorrelation] = useState<Record<string, Record<string, number>>>({});
   const [roleQtds, setRoleQtds] = useState<Record<string, number>>({});
   const [afastamentos, setAfastamentos] = useState<any[]>([]);
@@ -56,6 +45,9 @@ export function EstudoTecnicoGuarnicoesModule({
         setLoading(false);
         return;
     }
+    const cleanObm = normalizeObm(obmContext);
+    setViaturasInfo(getDefaultViaturasForObm(cleanObm));
+
     const loadSettings = async () => {
       try {
         const canonicalKey = getObmSettingsDocKey(obmContext);
@@ -81,12 +73,11 @@ export function EstudoTecnicoGuarnicoesModule({
             setCorrelation(data.escala_regras.correlation || {});
             setRoleQtds(data.escala_regras.qtds || {});
           }
-          if (data.viaturas_custom_default && Array.isArray(data.viaturas_custom_default)) {
-             setViaturasInfo(data.viaturas_custom_default);
-          } else if (data.viaturas_config && Array.isArray(data.viaturas_config)) {
-             setViaturasInfo(data.viaturas_config);
-          } else if (data.viaturasInfo && Array.isArray(data.viaturasInfo)) {
-             setViaturasInfo(data.viaturasInfo);
+          const rawVtrs = data.viaturas_custom_default || data.viaturas_config || data.viaturasInfo;
+          if (rawVtrs && Array.isArray(rawVtrs)) {
+            setViaturasInfo(sanitizeFleetForObm(rawVtrs, cleanObm));
+          } else {
+            setViaturasInfo(getDefaultViaturasForObm(cleanObm));
           }
         }
       } catch (e) {

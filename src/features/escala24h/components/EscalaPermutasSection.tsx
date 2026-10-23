@@ -85,10 +85,15 @@ export function EscalaPermutasSection({
   return (
     <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-visible relative z-50">
       <div className="bg-emerald-50 rounded-t-2xl border-b border-emerald-100 py-2 px-3.5 flex items-center justify-between">
-        <h3 className="text-[11px] font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
-          <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-600" />
-          SOLICITAÇÕES DE PERMUTAS
-        </h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-[11px] font-black text-emerald-900 uppercase tracking-widest flex items-center gap-2">
+            <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-600" />
+            SOLICITAÇÕES DE PERMUTAS
+          </h3>
+          <span className="text-[9px] font-black text-emerald-800 bg-emerald-100/90 border border-emerald-300/60 px-1.5 py-0.5 rounded font-mono">
+            {activePermutas.length} {activePermutas.length === 1 ? 'ativa' : 'ativas'}
+          </span>
+        </div>
         <div className="flex items-center gap-2">
           <button
             type="button"

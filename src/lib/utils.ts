@@ -39,10 +39,12 @@ export function getObmSettingsFallbackKeys(obm?: string): string[] {
     norm.replace(/º/g, '°').replace(/\//g, '_').replace(/\s/g, '_'),
     norm.replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_'),
     raw.replace(/\//g, '_').replace(/\s/g, '_'),
-    '10_gbm',
-    '10º_GBM',
-    '10°_GBM'
   ];
+  if (norm === '10º GBM') {
+    list.push('10_gbm', '10º_GBM', '10°_GBM', '10__gbm', '10_GBM');
+  } else if (norm === '26º GBM') {
+    list.push('26_gbm', '26º_GBM', '26°_GBM', '26__gbm', '26_GBM');
+  }
   return Array.from(new Set(list.filter(Boolean)));
 }
 

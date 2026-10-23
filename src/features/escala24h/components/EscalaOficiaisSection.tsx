@@ -537,22 +537,22 @@ export function EscalaOficiaisSection({
                           </div>
                         ) : oficialDiaValue ? (
                           <div className="flex flex-col gap-1.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <div className="w-7 h-7 rounded-lg bg-slate-900 border border-amber-400/30 flex items-center justify-center text-white shrink-0 shadow-2xs">
+                            <div className="flex items-center justify-between gap-2.5">
+                              <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                                <div className="min-h-[32px] min-w-[34px] px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-300 flex items-center justify-center shrink-0 shadow-2xs">
                                   {matchedOficialDia?.rank ? (
-                                    <RankInsignia rankStr={matchedOficialDia.rank} />
+                                    <RankInsignia rankStr={matchedOficialDia.rank} size="sm" />
                                   ) : (
-                                    <Award className="w-3.5 h-3.5 text-amber-400" />
+                                    <Award className="w-4 h-4 text-amber-600" />
                                   )}
                                 </div>
-                                <div className="min-w-0">
+                                <div className="min-w-0 flex-1 pl-0.5">
                                   <h5 className="text-[11px] font-black text-slate-900 uppercase truncate leading-tight">
                                     {matchedOficialDia ? `${parseRank(matchedOficialDia.rank)} ${matchedOficialDia.warName || matchedOficialDia.name}` : oficialDiaValue}
                                   </h5>
-                                  <div className="flex items-center gap-1.5 text-[8.5px] font-mono text-slate-500 leading-none mt-0.5">
-                                    {matchedOficialDia?.rg && <span>RG: <strong>{matchedOficialDia.rg}</strong></span>}
-                                    {matchedOficialDia?.cel && <span>Tel: <strong>{matchedOficialDia.cel}</strong></span>}
+                                  <div className="flex items-center gap-2 text-[8.5px] font-mono text-slate-500 leading-none mt-1">
+                                    {matchedOficialDia?.rg && <span>RG: <strong className="text-slate-700">{matchedOficialDia.rg}</strong></span>}
+                                    {matchedOficialDia?.cel && <span>Tel: <strong className="text-slate-700">{matchedOficialDia.cel}</strong></span>}
                                   </div>
                                 </div>
                               </div>
@@ -713,22 +713,22 @@ export function EscalaOficiaisSection({
                           </div>
                         ) : nauticoOficialValue ? (
                           <div className="flex flex-col gap-1.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <div className="w-7 h-7 rounded-lg bg-slate-900 border border-cyan-400/30 flex items-center justify-center text-white shrink-0 shadow-2xs">
+                            <div className="flex items-center justify-between gap-2.5">
+                              <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                                <div className="min-h-[32px] min-w-[34px] px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-300 flex items-center justify-center shrink-0 shadow-2xs">
                                   {matchedNauticoOficial?.rank ? (
-                                    <RankInsignia rankStr={matchedNauticoOficial.rank} />
+                                    <RankInsignia rankStr={matchedNauticoOficial.rank} size="sm" />
                                   ) : (
-                                    <Anchor className="w-3.5 h-3.5 text-cyan-400" />
+                                    <Anchor className="w-4 h-4 text-cyan-600" />
                                   )}
                                 </div>
-                                <div className="min-w-0">
+                                <div className="min-w-0 flex-1 pl-0.5">
                                   <h5 className="text-[11px] font-black text-slate-900 uppercase truncate leading-tight">
                                     {matchedNauticoOficial ? `${parseRank(matchedNauticoOficial.rank)} ${matchedNauticoOficial.warName || matchedNauticoOficial.name}` : nauticoOficialValue}
                                   </h5>
-                                  <div className="flex items-center gap-1.5 text-[8.5px] font-mono text-slate-500 leading-none mt-0.5">
-                                    {matchedNauticoOficial?.rg && <span>RG: <strong>{matchedNauticoOficial.rg}</strong></span>}
-                                    {matchedNauticoOficial?.cel && <span>Tel: <strong>{matchedNauticoOficial.cel}</strong></span>}
+                                  <div className="flex items-center gap-2 text-[8.5px] font-mono text-slate-500 leading-none mt-1">
+                                    {matchedNauticoOficial?.rg && <span>RG: <strong className="text-slate-700">{matchedNauticoOficial.rg}</strong></span>}
+                                    {matchedNauticoOficial?.cel && <span>Tel: <strong className="text-slate-700">{matchedNauticoOficial.cel}</strong></span>}
                                   </div>
                                 </div>
                               </div>
@@ -889,22 +889,22 @@ export function EscalaOficiaisSection({
                           </div>
                         ) : medicoOficialValue ? (
                           <div className="flex flex-col gap-1.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <div className="w-7 h-7 rounded-lg bg-slate-900 border border-rose-400/30 flex items-center justify-center text-white shrink-0 shadow-2xs">
+                            <div className="flex items-center justify-between gap-2.5">
+                              <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                                <div className="min-h-[32px] min-w-[34px] px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-300 flex items-center justify-center shrink-0 shadow-2xs">
                                   {matchedMedicoOficial?.rank ? (
-                                    <RankInsignia rankStr={matchedMedicoOficial.rank} />
+                                    <RankInsignia rankStr={matchedMedicoOficial.rank} size="sm" />
                                   ) : (
-                                    <Stethoscope className="w-3.5 h-3.5 text-rose-400" />
+                                    <Stethoscope className="w-4 h-4 text-rose-600" />
                                   )}
                                 </div>
-                                <div className="min-w-0">
+                                <div className="min-w-0 flex-1 pl-0.5">
                                   <h5 className="text-[11px] font-black text-slate-900 uppercase truncate leading-tight">
                                     {matchedMedicoOficial ? `${parseRank(matchedMedicoOficial.rank)} ${matchedMedicoOficial.warName || matchedMedicoOficial.name}` : medicoOficialValue}
                                   </h5>
-                                  <div className="flex items-center gap-1.5 text-[8.5px] font-mono text-slate-500 leading-none mt-0.5">
-                                    {matchedMedicoOficial?.rg && <span>RG: <strong>{matchedMedicoOficial.rg}</strong></span>}
-                                    {matchedMedicoOficial?.cel && <span>Tel: <strong>{matchedMedicoOficial.cel}</strong></span>}
+                                  <div className="flex items-center gap-2 text-[8.5px] font-mono text-slate-500 leading-none mt-1">
+                                    {matchedMedicoOficial?.rg && <span>RG: <strong className="text-slate-700">{matchedMedicoOficial.rg}</strong></span>}
+                                    {matchedMedicoOficial?.cel && <span>Tel: <strong className="text-slate-700">{matchedMedicoOficial.cel}</strong></span>}
                                   </div>
                                 </div>
                               </div>
@@ -1066,16 +1066,16 @@ export function EscalaOficiaisSection({
                         </div>
                       ) : assignedVal ? (
                         <div className="flex flex-col gap-1.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center text-white shrink-0 shadow-2xs", colorStyles.bg)}>
-                                <IconComponent className="w-3.5 h-3.5" />
+                          <div className="flex items-center justify-between gap-2.5">
+                            <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                              <div className="min-h-[32px] min-w-[34px] px-2 py-0.5 rounded-lg bg-slate-100 border border-slate-300 flex items-center justify-center shrink-0 shadow-2xs">
+                                <IconComponent className={cn("w-4 h-4", colorStyles.text)} />
                               </div>
-                              <div className="min-w-0">
+                              <div className="min-w-0 flex-1 pl-0.5">
                                 <h5 className="text-[11px] font-black text-slate-900 uppercase truncate leading-tight">
                                   {assignedVal}
                                 </h5>
-                                <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-widest block">
+                                <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">
                                   Oficial Escalado
                                 </span>
                               </div>
