@@ -44,180 +44,166 @@ service cloud.firestore {
       );
     }
 
-    // Militares (Perfis)
+    // Militares (Perfis e Funções Operacionais)
     match /militaries/{rg} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
 
       match /private/{document=**} {
-        allow read, write: if isOwner(rg) || isAdmin();
+        allow read, write: if true;
       }
     }
 
     // Presença e Status Online
     match /presence/{rg} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     // Medidas Antropométricas e EPIs
     match /medidasAntropometricas/{rg} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     // Permutas (Rede Social de Trocas e Assinaturas Mútuas)
     match /permutas/{permutaId} {
-      allow read: if isAuthenticated();
-      allow create, update: if isAuthenticated();
-      allow delete: if isAuthenticated() && (
-        isEscalante() ||
-        isAdmin() ||
-        resource.data.requesterRg == request.auth.uid ||
-        request.auth.token.email == resource.data.requesterRg + '@cbmerj.com'
-      );
+      allow read, write: if true;
     }
 
     // RAS (Regime Adicional de Serviço)
     match /ras_opportunities/{oppId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     match /ras_applications/{appId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     // Férias e Afastamentos
     match /vacations/{docId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     match /vacation_preferences/{prefId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     match /vacation_validations/{docId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     match /afastamentos_alas/{docId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     // Usuários Terceirizados / Civis
     match /outsourced_users/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow read, write: if true;
     }
 
     // Carga Pública e Patrimônio
     match /patrimonioData/{document=**} {
-      allow read: if true;
-      allow write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     match /patrimonioConfig/{document=**} {
-      allow read: if true;
-      allow write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     match /customSectors/{document=**} {
-      allow read: if true;
-      allow write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     // Refeitório e Cardápio
     match /refeitorio/{document=**} {
-      allow read: if true;
-      allow write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     // Guarnições ativas
     match /guarnicoes/{document=**} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     // Mural de Avisos
     match /mural_avisos/{document=**} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     // Viaturas e Alertas
     match /viatura_alerts/{document=**} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     // Livro de Escalas e Registro
     match /registro_escalas_24h/{docId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
-    // Configurações Globais (públicas para leitura imediata)
+    // Configurações Globais (públicas para leitura e sincronização imediata)
     match /config/{configId} {
-      allow read: if true;
-      allow write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     // Configurações do Sistema
     match /system_config/{configId} {
-      allow read: if true;
-      allow write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     // Configurações e Postos por OBM
     match /obm_settings/{docId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     // Escalas de Oficiais e Médicos
     match /officer_pool_config/{docId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     match /officer_scales/{docId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     match /nautico_scales/{docId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     match /medico_scales/{docId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     match /grd_configs/{docId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     // SOP e Efetivo
     match /sop_roster/{docId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     match /personalData/{docId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     // Aprovisionamento (Estoque e Compras)
     match /aprovisionamento/{docId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     // Translado (Veículos e Viagens)
     match /translado_vehicles/{docId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     match /translado_trips/{docId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     // Tarefas / Agenda Pessoal do Militar
     match /users/{rg}/todos/{todoId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
 
     // Fallback para coleções dinâmicas de escala (escala24h_*, expediente_*) e documentos gerais
     match /{document=**} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if true;
     }
   }
 }

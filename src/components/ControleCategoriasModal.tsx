@@ -73,29 +73,22 @@ export const DEFAULT_CATEGORIES: CategoryConfig[] = [
     functions: []
   },
   {
-    id: "graduados",
-    name: "Graduados",
-    activeProperty: "ativoGraduado",
+    id: "administrativas",
+    name: "Administrativas",
+    activeProperty: "ativoAdministrativo",
     functions: [
       { id: "adjunto", name: "Adjunto" },
       { id: "sgtDia", name: "Sgt Dia" },
       { id: "cmtGuarda", name: "Cmt Guarda" },
-      { id: "disponivel1", name: "Disponível 1" },
-      { id: "disponivel2", name: "Disponível 2" }
-    ]
-  },
-  {
-    id: "cbs_sds",
-    name: "Cbs E Sds",
-    activeProperty: "ativoCbsSds",
-    functions: [
+      { id: "cbDia", name: "Cb Dia" },
+      { id: "cbGuarda", name: "Cb Guarda" },
       { id: "faxina", name: "Enc. Faxina" },
       { id: "sentinela", name: "Sentinela" },
       { id: "deposito", name: "Dia ao Depósito" },
       { id: "toqueDeFogo", name: "Toque de Fogo" },
       { id: "auxRancho", name: "Aux Rancho" },
-      { id: "cbGuarda", name: "Cb Guarda" },
-      { id: "cbDia", name: "Cb Dia" },
+      { id: "disponivel1", name: "Disponível 1" },
+      { id: "disponivel2", name: "Disponível 2" },
       { id: "disponivelCbsSds", name: "Disponível" }
     ]
   },
@@ -118,6 +111,98 @@ export const DEFAULT_CATEGORIES: CategoryConfig[] = [
     functions: []
   }
 ];
+
+export function isAdministrativeCategory(catId: string): boolean {
+  return catId === "administrativas" || catId === "graduados" || catId === "cbs_sds" || catId.toLowerCase().includes("admin");
+}
+
+export function isGeneralCategory(catId: string): boolean {
+  return catId === "mostruario";
+}
+
+export function isOperationalCategory(catId: string): boolean {
+  return !isAdministrativeCategory(catId) && !isGeneralCategory(catId);
+}
+
+export function migrateCategoryList(rawCategories: any[]): CategoryConfig[] {
+  if (!rawCategories || !Array.isArray(rawCategories) || rawCategories.length === 0) {
+    return DEFAULT_CATEGORIES;
+  }
+
+  const hasOldGraduados = rawCategories.some((c: any) => c.id === "graduados");
+  const hasOldCbsSds = rawCategories.some((c: any) => c.id === "cbs_sds");
+  const hasAdministrativas = rawCategories.some((c: any) => c.id === "administrativas");
+
+  let list = [...rawCategories];
+
+  if ((hasOldGraduados || hasOldCbsSds) && !hasAdministrativas) {
+    const oldGrad = rawCategories.find((c: any) => c.id === "graduados");
+    const oldCbs = rawCategories.find((c: any) => c.id === "cbs_sds");
+
+    const mergedFns: FunctionConfig[] = [];
+    const seenIds = new Set<string>();
+
+    const addFn = (f: any) => {
+      if (f && f.id && !seenIds.has(f.id)) {
+        seenIds.add(f.id);
+        mergedFns.push(f);
+      }
+    };
+
+    (oldGrad?.functions || []).forEach(addFn);
+    (oldCbs?.functions || []).forEach(addFn);
+
+    if (mergedFns.length === 0) {
+      const defAdmin = DEFAULT_CATEGORIES.find(c => c.id === "administrativas");
+      if (defAdmin) {
+        mergedFns.push(...defAdmin.functions);
+      }
+    }
+
+    const adminCat: CategoryConfig = {
+      id: "administrativas",
+      name: "Administrativas",
+      activeProperty: "ativoAdministrativo",
+      functions: mergedFns
+    };
+
+    list = list.filter((c: any) => c.id !== "graduados" && c.id !== "cbs_sds");
+    const mostruarioIdx = list.findIndex((c: any) => c.id === "mostruario");
+    if (mostruarioIdx >= 0) {
+      list.splice(mostruarioIdx, 0, adminCat);
+    } else {
+      list.push(adminCat);
+    }
+  }
+
+  return list.map((cat: any) => {
+    let activeProp = cat.activeProperty;
+    const newFunctions = [...(cat.functions || [])];
+
+    if (activeProp === undefined) {
+      activeProp = `dynamicFunctions.ativo_${cat.id}`;
+      const ativoIndex = newFunctions.findIndex((f: any) => f.name?.toLowerCase() === "ativo");
+      if (ativoIndex >= 0) {
+        activeProp = newFunctions[ativoIndex].id;
+        newFunctions.splice(ativoIndex, 1);
+      } else {
+        const defCat = DEFAULT_CATEGORIES.find(d => d.id === cat.id);
+        if (defCat) activeProp = defCat.activeProperty;
+      }
+    }
+
+    if (cat.id === "administrativas" && (!activeProp || activeProp === "ativoGraduado" || activeProp === "ativoCbsSds")) {
+      activeProp = "ativoAdministrativo";
+    }
+
+    return {
+      id: cat.id,
+      name: cat.name,
+      activeProperty: activeProp,
+      functions: newFunctions
+    };
+  });
+}
 
 export interface SelectableControlFunction {
   id: string;
@@ -156,6 +241,7 @@ export function mapFunctionIdToScaleName(fnId: string, fnName: string, categoryI
     "marinheiros": "MARINHEIRO",
     "ativoEnfermeiro": "ENFERMEIRO",
     "ativoComunicante": "COMUNICANTE",
+    "ativoAdministrativo": "ADMINISTRATIVO",
     "ativoGraduado": "GRADUADO",
     "adjunto": "ADJUNTO",
     "sgtDia": "SGT DIA",
@@ -241,30 +327,7 @@ export function ControleCategoriasModal({ isOpen, onClose, obmContext, initialCa
   useEffect(() => {
     if (isOpen) {
       if (initialCategories && initialCategories.length > 0) {
-        // Migrate data format if needed
-        const migrated = initialCategories.map((cat: any) => {
-          if (cat.activeProperty !== undefined) return cat;
-          
-          let activeProp = `dynamicFunctions.ativo_${cat.id}`;
-          const newFunctions = [...(cat.functions || [])];
-          
-          const ativoIndex = newFunctions.findIndex((f: any) => f.name.toLowerCase() === "ativo");
-          if (ativoIndex >= 0) {
-            activeProp = newFunctions[ativoIndex].id;
-            newFunctions.splice(ativoIndex, 1);
-          } else {
-            const defCat = DEFAULT_CATEGORIES.find(d => d.id === cat.id);
-            if (defCat) activeProp = defCat.activeProperty;
-          }
-          
-          return {
-            id: cat.id,
-            name: cat.name,
-            activeProperty: activeProp,
-            functions: newFunctions
-          };
-        });
-        setCategories(migrated);
+        setCategories(migrateCategoryList(initialCategories));
       } else {
         setCategories(DEFAULT_CATEGORIES);
       }

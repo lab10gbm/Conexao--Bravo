@@ -39,33 +39,33 @@ export const FuncoesTable: React.FC<FuncoesTableProps> = ({
   );
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left min-w-[800px]">
-          <thead className="bg-slate-100 border-b border-slate-200">
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
+      <div className="overflow-auto flex-1 min-h-0 relative">
+        <table className="w-full text-left min-w-[800px] border-separate border-spacing-0">
+          <thead className="sticky top-0 z-20 bg-slate-100 shadow-xs">
             <tr>
               {activeCategoryData?.activeProperty && (
-                <th className="w-16 px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center">
+                <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 w-16 px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center shadow-2xs">
                   <ColumnHeaderToggle field={activeCategoryData.activeProperty} label="Ativo" />
                 </th>
               )}
-              <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500">
+              <th className="sticky top-0 z-20 bg-slate-100 border-b border-slate-200 px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 shadow-2xs">
                 Militar
               </th>
               {activeCategoryData?.functions.map(fn => (
-                <th key={fn.id} className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200 bg-slate-50">
+                <th key={fn.id} className="sticky top-0 z-20 bg-slate-50 border-b border-l border-slate-200 px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center shadow-2xs">
                   <ColumnHeaderToggle field={fn.id} label={fn.name} />
                 </th>
               ))}
-              <th className="px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center border-l border-slate-200">
+              <th className="sticky top-0 z-20 bg-slate-100 border-b border-l border-slate-200 px-3 py-3 text-[10px] font-black uppercase tracking-widest text-slate-500 text-center shadow-2xs">
                 Ala
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody>
             {displayMilitars.length === 0 ? (
               <tr>
-                <td colSpan={(activeCategoryData?.functions.length || 0) + 3} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={(activeCategoryData?.functions.length || 0) + 3} className="px-4 py-8 text-center text-slate-400 border-b border-slate-100">
                   <BadgeInfo className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   <p className="text-sm font-medium">Nenhum militar encontrado nesta visão.</p>
                   <p className="text-xs mt-1">Pesquise por nome ou altere os filtros.</p>
@@ -79,7 +79,7 @@ export const FuncoesTable: React.FC<FuncoesTableProps> = ({
               return (
                 <tr key={m.rg} className={cn("hover:bg-indigo-50/30 transition-colors", isActive ? "bg-emerald-50/10" : "")}>
                   {activeCategoryData?.activeProperty && (
-                    <td className="px-3 py-2 text-center border-r border-slate-100 bg-white">
+                    <td className="px-3 py-2 text-center border-r border-b border-slate-100 bg-white">
                       <button
                         onClick={() => onToggleValue(m, activeCategoryData.activeProperty)}
                         disabled={isProcessing}
@@ -96,7 +96,7 @@ export const FuncoesTable: React.FC<FuncoesTableProps> = ({
                     </td>
                   )}
                   
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2 border-b border-slate-100">
                     <div className="flex items-center gap-3">
                       <div className="w-10 flex shrink-0 justify-center">
                         <RankInsignia rankStr={parseRank(m.rank)} className="scale-75 origin-center" />
@@ -123,7 +123,7 @@ export const FuncoesTable: React.FC<FuncoesTableProps> = ({
                   {activeCategoryData?.functions.map(fn => {
                     const isChecked = getValue(m, fn.id);
                     return (
-                      <td key={fn.id} className="px-3 py-2 text-center border-l border-slate-100 bg-slate-50/50">
+                      <td key={fn.id} className="px-3 py-2 text-center border-l border-b border-slate-100 bg-slate-50/50">
                         <button
                           onClick={() => onToggleValue(m, fn.id)}
                           disabled={isProcessing}
@@ -141,7 +141,7 @@ export const FuncoesTable: React.FC<FuncoesTableProps> = ({
                     );
                   })}
 
-                  <td className="px-3 py-2 text-center border-l border-slate-200">
+                  <td className="px-3 py-2 text-center border-l border-b border-slate-200">
                     {m.lentTo ? (
                       <span className="inline-flex items-center px-2 py-1 rounded bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase tracking-widest">
                         {m.lentTo}

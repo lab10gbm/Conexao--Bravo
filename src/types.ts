@@ -90,6 +90,7 @@ export interface UserProfile {
   marinheiros?: boolean;
   ativoEnfermeiro?: boolean;
   ativoComunicante?: boolean;
+  ativoAdministrativo?: boolean;
   ativoGraduado?: boolean;
   ativoCbsSds?: boolean;
   adjunto?: boolean;

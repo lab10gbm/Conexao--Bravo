@@ -38,6 +38,10 @@ export function checkConditions(militar: UserProfile, conditions?: FunctionCondi
 
 export function getValue(militar: UserProfile, path: string): boolean {
   if (!path) return false;
+  if (path === "ativoAdministrativo") {
+    if (militar.ativoAdministrativo !== undefined) return Boolean(militar.ativoAdministrativo);
+    return Boolean(militar.ativoGraduado || militar.ativoCbsSds);
+  }
   if (path.startsWith("viaturas.")) {
     const key = path.split(".")[1];
     return !!militar.viaturas?.[key as keyof typeof militar.viaturas];

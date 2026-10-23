@@ -7,12 +7,23 @@ import {
   Search,
   Truck,
   Settings,
-  FolderCog
+  FolderCog,
+  Briefcase,
+  ShieldAlert,
+  LayoutGrid
 } from "lucide-react";
 import { cn, normalizeObm, getObmSettingsDocKey, getObmSettingsFallbackKeys, cleanUndefined } from "../lib/utils";
 import { UserProfile } from "../types";
 import { CorrelacaoFuncoesModal } from "./CorrelacaoFuncoesModal";
-import { ControleCategoriasModal, CategoryConfig, DEFAULT_CATEGORIES } from "./ControleCategoriasModal";
+import {
+  ControleCategoriasModal,
+  CategoryConfig,
+  DEFAULT_CATEGORIES,
+  migrateCategoryList,
+  isAdministrativeCategory,
+  isOperationalCategory,
+  isGeneralCategory
+} from "./ControleCategoriasModal";
 
 import { checkConditions, getValue, sortByRankAndRg } from "../features/funcoes/lib/funcoesUtils";
 import { FuncoesFilterBar } from "../features/funcoes/components/FuncoesFilterBar";
@@ -30,7 +41,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
   const [processing, setProcessing] = useState<string | null>(null);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
-  const [categories, setCategories] = useState<CategoryConfig[]>([]);
+  const [categories, setCategories] = useState<CategoryConfig[]>(DEFAULT_CATEGORIES);
   const [activeTab, setActiveTab] = useState<string>("condutores");
 
   const [filterPostoGrad, setFilterPostoGrad] = useState<string[]>([]);
@@ -44,32 +55,12 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
     if (!obmContext) return;
     const canonicalKey = getObmSettingsDocKey(obmContext);
 
-    const migrateCategories = (rawCategories: any) => {
-      if (rawCategories && Array.isArray(rawCategories)) {
-        return rawCategories.map((cat: any) => {
-          if (cat.activeProperty !== undefined) return cat;
-          let activeProp = `dynamicFunctions.ativo_${cat.id}`;
-          const newFunctions = [...(cat.functions || [])];
-          const ativoIndex = newFunctions.findIndex((f: any) => f.name.toLowerCase() === "ativo");
-          if (ativoIndex >= 0) {
-            activeProp = newFunctions[ativoIndex].id;
-            newFunctions.splice(ativoIndex, 1);
-          } else {
-            const defCat = DEFAULT_CATEGORIES.find(d => d.id === cat.id);
-            if (defCat) activeProp = defCat.activeProperty;
-          }
-          return { ...cat, activeProperty: activeProp, functions: newFunctions };
-        });
-      }
-      return DEFAULT_CATEGORIES;
-    };
-
     // Fast initial fetch from backend API
     fetch(`/api/obm-settings?key=${canonicalKey}`)
       .then(res => res.json())
       .then(result => {
         if (result.success && result.data?.categorias_funcoes) {
-          setCategories(migrateCategories(result.data.categorias_funcoes));
+          setCategories(migrateCategoryList(result.data.categorias_funcoes));
         }
       })
       .catch(() => {});
@@ -97,7 +88,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
         }
       }
 
-      setCategories(migrateCategories(rawCategories));
+      setCategories(migrateCategoryList(rawCategories));
     }, (err) => {
       console.warn("Aviso ao sincronizar categorias_funcoes:", err);
     });
@@ -255,6 +246,13 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
     } else if (path.startsWith("dynamicFunctions.")) {
       const key = path.split(".")[1];
       newData = { dynamicFunctions: { ...(militar.dynamicFunctions || {}), [key]: !currentState } };
+    } else if (path === "ativoAdministrativo") {
+      const nextVal = !currentState;
+      newData = {
+        ativoAdministrativo: nextVal,
+        ativoGraduado: nextVal,
+        ativoCbsSds: nextVal
+      };
     } else {
       newData = { [path]: !currentState };
     }
@@ -268,16 +266,31 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
         token = auth.currentUser ? await auth.currentUser.getIdToken() : '';
       } catch (tokenErr) {}
 
+      // 1. Atualização via backend
       await fetch('/api/militar/update', {
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-rg': safeRg,
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         method: 'POST',
         body: JSON.stringify({ rg: safeRg, data: cleanUndefined(newData) })
       });
+
+      // 2. Atualização direta no Firestore do cliente para reatividade instantânea
+      if (db) {
+        try {
+          await setDoc(doc(db, 'militaries', safeRg), cleanUndefined(newData), { merge: true });
+        } catch (dbErr) {
+          console.warn('[ControleDeFuncoes] setDoc note:', dbErr);
+        }
+      }
+
       setTimeout(() => {
         setProcessing(null);
       }, 300);
     } catch (e) {
-      console.error(e);
+      console.error('[ControleDeFuncoes] Erro ao alternar valor:', e);
       setProcessing(null);
     }
   };
@@ -320,6 +333,12 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
       } else if (path.startsWith("dynamicFunctions.")) {
         const key = path.split(".")[1];
         newData = { dynamicFunctions: { ...(m.dynamicFunctions || {}), [key]: newState } };
+      } else if (path === "ativoAdministrativo") {
+        newData = {
+          ativoAdministrativo: newState,
+          ativoGraduado: newState,
+          ativoCbsSds: newState
+        };
       } else {
         newData = { [path]: newState };
       }
@@ -342,17 +361,53 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
         } else if (path.startsWith("dynamicFunctions.")) {
           const key = path.split('.')[1];
           updatePayload = { dynamicFunctions: { ...(m.dynamicFunctions || {}), [key]: newState } };
+        } else if (path === "ativoAdministrativo") {
+          updatePayload = {
+            ativoAdministrativo: newState,
+            ativoGraduado: newState,
+            ativoCbsSds: newState
+          };
         } else {
           updatePayload = { [path]: newState };
         }
         return fetch('/api/militar/update', {
-          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-rg': safeRg,
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
           method: 'POST',
           body: JSON.stringify({ rg: safeRg, data: cleanUndefined(updatePayload) })
         }).catch(() => {});
       }),
     );
   };
+
+  const operationalCategories = useMemo(
+    () => categories.filter(c => isOperationalCategory(c.id)),
+    [categories]
+  );
+  const adminCategories = useMemo(
+    () => categories.filter(c => isAdministrativeCategory(c.id)),
+    [categories]
+  );
+  const generalCategories = useMemo(
+    () => categories.filter(c => isGeneralCategory(c.id)),
+    [categories]
+  );
+
+  useEffect(() => {
+    if (categories.length > 0 && !categories.some(c => c.id === activeTab)) {
+      if (activeTab === "graduados" || activeTab === "cbs_sds") {
+        const adminCat = categories.find(c => isAdministrativeCategory(c.id));
+        if (adminCat) {
+          setActiveTab(adminCat.id);
+          return;
+        }
+      }
+      setActiveTab(categories[0].id);
+    }
+  }, [categories, activeTab]);
 
   const activeCategoryData = categories.find(c => c.id === activeTab) || categories[0];
 
@@ -411,26 +466,88 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
             </div>
           </div>
 
-          <div className="flex overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs min-w-max">
-              {categories.map(cat => (
-                <button
-                  key={cat.id}
-                  onClick={() => {
-                    setActiveTab(cat.id);
-                    setSearch("");
-                  }}
-                  className={cn(
-                    "px-3.5 py-1.5 text-xs font-black rounded-lg transition-all whitespace-nowrap cursor-pointer uppercase tracking-wider",
-                    activeTab === cat.id
-                      ? "bg-white text-indigo-700 shadow-xs border border-slate-200 dark:border-slate-700"
-                      : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/60",
-                  )}
-                >
-                  {cat.name}
-                </button>
-              ))}
-            </div>
+          <div className="flex items-center gap-3 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
+            {/* Bloco Operacionais */}
+            {operationalCategories.length > 0 && (
+              <div className="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-xl border border-slate-200 shadow-2xs shrink-0">
+                <div className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-black tracking-wider uppercase text-blue-800 bg-blue-100/90 rounded-lg border border-blue-200/80 select-none">
+                  <ShieldAlert className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Operacionais</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  {operationalCategories.map(cat => (
+                    <button
+                      key={cat.id}
+                      onClick={() => {
+                        setActiveTab(cat.id);
+                        setSearch("");
+                      }}
+                      className={cn(
+                        "px-3 py-1.5 text-xs font-black rounded-lg transition-all whitespace-nowrap cursor-pointer uppercase tracking-wider",
+                        activeTab === cat.id
+                          ? "bg-white text-blue-700 shadow-xs border border-blue-200 font-black"
+                          : "text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 font-bold",
+                      )}
+                    >
+                      {cat.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Bloco Administrativas */}
+            {adminCategories.length > 0 && (
+              <div className="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-xl border border-slate-200 shadow-2xs shrink-0">
+                <div className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-black tracking-wider uppercase text-amber-900 bg-amber-100/90 rounded-lg border border-amber-200/80 select-none">
+                  <Briefcase className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Administrativas</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  {adminCategories.map(cat => (
+                    <button
+                      key={cat.id}
+                      onClick={() => {
+                        setActiveTab(cat.id);
+                        setSearch("");
+                      }}
+                      className={cn(
+                        "px-3 py-1.5 text-xs font-black rounded-lg transition-all whitespace-nowrap cursor-pointer uppercase tracking-wider",
+                        activeTab === cat.id
+                          ? "bg-white text-amber-800 shadow-xs border border-amber-300 font-black"
+                          : "text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 font-bold",
+                      )}
+                    >
+                      {cat.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Bloco Geral */}
+            {generalCategories.length > 0 && (
+              <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200 shadow-2xs shrink-0">
+                {generalCategories.map(cat => (
+                  <button
+                    key={cat.id}
+                    onClick={() => {
+                      setActiveTab(cat.id);
+                      setSearch("");
+                    }}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 text-xs font-black rounded-lg transition-all whitespace-nowrap cursor-pointer uppercase tracking-wider",
+                      activeTab === cat.id
+                        ? "bg-white text-indigo-700 shadow-xs border border-slate-200 font-black"
+                        : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/60 font-bold",
+                    )}
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>{cat.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -455,7 +572,7 @@ export function ControleDeFuncoes({ obmContext }: ControleDeFuncoesProps) {
         />
       </div>
 
-      <div className="flex-1 overflow-auto p-4 sm:p-6">
+      <div className="flex-1 min-h-0 p-4 sm:p-6 flex flex-col overflow-hidden">
         <FuncoesTable
           displayMilitars={filteredMilitars}
           activeCategoryData={activeCategoryData}
