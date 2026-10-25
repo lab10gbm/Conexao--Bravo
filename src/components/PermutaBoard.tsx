@@ -1,4 +1,4 @@
-import { getUserObmAccess, normalizeObm, normalizeRg, calculateDeadline, cleanUndefined, cn, getAlaForDate, getAlaColor, getAlaName } from '../lib/utils';
+import { getUserObmAccess, normalizeObm, normalizeRg, calculateDeadline, cleanUndefined, cn, getAlaForDate, getAlaColor, getAlaName, isMonthOpenForDate } from '../lib/utils';
 import { resolveCanonicalScope } from '../lib/canonicalScope';
 import { getDocs } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
@@ -28,7 +28,7 @@ interface PermutaBoardProps {
 
 export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, onBack, adminMode = false }: PermutaBoardProps) {
   const { militars } = useMilitars();
-  const { activeMonths: ctxActiveMonths } = useAppConfig();
+  const { activeMonths: ctxActiveMonths, activePeriods: ctxActivePeriods } = useAppConfig();
   const [permutas, setPermutas] = useState<PermutaRequest[]>(() => {
     const cached = localStorage.getItem('cache_permutas');
     return cached ? JSON.parse(cached) : [];
@@ -340,8 +340,7 @@ export function PermutaBoard({ user, obmContext, selectedMonth, onMonthSelect, o
     try {
       const formattedName = user.rank ? `${user.rank} ${user.warName || user.name}` : user.name;
       
-      const dateObj = new Date(permuta.date + 'T00:00:00');
-      const isMonthOpen = ctxActiveMonths ? ctxActiveMonths.includes(dateObj.getMonth()) : true;
+      const isMonthOpen = isMonthOpenForDate(permuta.date, ctxActiveMonths, ctxActivePeriods);
 
       const updates: any = {
         isLookingForSubstitute: false,

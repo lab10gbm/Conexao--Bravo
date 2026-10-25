@@ -109,6 +109,13 @@ export const CANONICAL_REGIONAL_COMMANDS: Record<string, RegionalCommand> = {
     name: 'Comando de Bombeiro de Área X / XI – Atividades de Salvamentos Marítimos',
     shortName: 'CBA X / XI',
     region: 'Salvamentos Marítimos (GMARs e GBS)'
+  },
+  cbmerj_geral: {
+    id: 'cbmerj_geral',
+    orgId: 'cbmerj',
+    name: 'Comando-Geral e Órgãos Especiais / Saúde',
+    shortName: 'CBMERJ Geral',
+    region: 'Estado do Rio de Janeiro'
   }
 };
 
@@ -545,6 +552,118 @@ export const CANONICAL_UNITS: Record<string, MilitaryUnit> = {
     city: 'Niterói (Itaipu)',
     type: 'GMAR',
     subunits: ['4_gmar_sede']
+  },
+
+  // --- Complexo de Saúde, Policlínicas e Órgãos Especiais ---
+  'gse': {
+    id: 'gse',
+    orgId: 'cbmerj',
+    cbaId: 'cba_viii',
+    name: 'Grupamento de Socorro de Emergência - GSE',
+    shortName: 'GSE',
+    city: 'Rio de Janeiro',
+    type: 'ESPECIAL',
+    subunits: ['gse_sede']
+  },
+  'hcap': {
+    id: 'hcap',
+    orgId: 'cbmerj',
+    cbaId: 'cba_i',
+    name: 'Hospital Central Aristarcho Pessoa - HCAP',
+    shortName: 'HCAP',
+    city: 'Rio de Janeiro (Rio Comprido)',
+    type: 'ESPECIAL',
+    subunits: ['hcap_sede']
+  },
+  'dgs': {
+    id: 'dgs',
+    orgId: 'cbmerj',
+    cbaId: 'cba_i',
+    name: 'Diretoria-Geral de Saúde - DGS',
+    shortName: 'DGS',
+    city: 'Rio de Janeiro',
+    type: 'ESPECIAL',
+    subunits: ['dgs_sede']
+  },
+  'cpm': {
+    id: 'cpm',
+    orgId: 'cbmerj',
+    cbaId: 'cba_i',
+    name: 'Centro de Perícias Médicas - CPM',
+    shortName: 'CPM',
+    city: 'Rio de Janeiro',
+    type: 'ESPECIAL',
+    subunits: ['cpm_sede']
+  },
+  'coaph': {
+    id: 'coaph',
+    orgId: 'cbmerj',
+    cbaId: 'cba_i',
+    name: 'Centro de Operações de Atendimento Pré-Hospitalar - COAPH',
+    shortName: 'COAPH',
+    city: 'Rio de Janeiro',
+    type: 'ESPECIAL',
+    subunits: ['coaph_sede']
+  },
+  'policlinica_1': {
+    id: 'policlinica_1',
+    orgId: 'cbmerj',
+    cbaId: 'cba_i',
+    name: '1ª Policlínica - Campinho',
+    shortName: '1ª Policlínica',
+    city: 'Rio de Janeiro (Campinho)',
+    type: 'ESPECIAL',
+    subunits: ['policlinica_1_sede']
+  },
+  'policlinica_2': {
+    id: 'policlinica_2',
+    orgId: 'cbmerj',
+    cbaId: 'cba_vi',
+    name: '2ª Policlínica - Nova Iguaçu',
+    shortName: '2ª Policlínica',
+    city: 'Nova Iguaçu',
+    type: 'ESPECIAL',
+    subunits: ['policlinica_2_sede']
+  },
+  'policlinica_3': {
+    id: 'policlinica_3',
+    orgId: 'cbmerj',
+    cbaId: 'cba_ix',
+    name: '3ª Policlínica - Niterói',
+    shortName: '3ª Policlínica',
+    city: 'Niterói',
+    type: 'ESPECIAL',
+    subunits: ['policlinica_3_sede']
+  },
+  'policlinica_4': {
+    id: 'policlinica_4',
+    orgId: 'cbmerj',
+    cbaId: 'cba_iv',
+    name: '4ª Policlínica - Campos dos Goytacazes',
+    shortName: '4ª Policlínica',
+    city: 'Campos dos Goytacazes',
+    type: 'ESPECIAL',
+    subunits: ['policlinica_4_sede']
+  },
+  'dgp_oe': {
+    id: 'dgp_oe',
+    orgId: 'cbmerj',
+    cbaId: 'cbmerj_geral',
+    name: 'Órgãos Externos / DGP',
+    shortName: 'DGP/OE',
+    city: 'Rio de Janeiro',
+    type: 'ESPECIAL',
+    subunits: ['dgp_oe_sede']
+  },
+  'cbmerj_geral': {
+    id: 'cbmerj_geral',
+    orgId: 'cbmerj',
+    cbaId: 'cbmerj_geral',
+    name: 'Comando-Geral / Órgãos Especiais',
+    shortName: 'CBMERJ Geral',
+    city: 'Rio de Janeiro',
+    type: 'ESPECIAL',
+    subunits: ['cbmerj_geral_sede']
   }
 };
 
@@ -680,7 +799,20 @@ export const CANONICAL_SUBUNITS: Record<string, Subunit> = {
   '1_gmar_sede': { id: '1_gmar_sede', unitId: '1_gmar', cbaId: 'cba_x', orgId: 'cbmerj', name: '1º GMAR - Botafogo (Sede)', shortName: '1º GMAR Sede', location: 'Botafogo', isSede: true },
   '2_gmar_sede': { id: '2_gmar_sede', unitId: '2_gmar', cbaId: 'cba_x', orgId: 'cbmerj', name: '2º GMAR - Barra da Tijuca (Sede)', shortName: '2º GMAR Sede', location: 'Barra da Tijuca', isSede: true },
   '3_gmar_sede': { id: '3_gmar_sede', unitId: '3_gmar', cbaId: 'cba_x', orgId: 'cbmerj', name: '3º GMAR - Copacabana (Sede)', shortName: '3º GMAR Sede', location: 'Copacabana', isSede: true },
-  '4_gmar_sede': { id: '4_gmar_sede', unitId: '4_gmar', cbaId: 'cba_x', orgId: 'cbmerj', name: '4º GMAR - Itaipu (Sede)', shortName: '4º GMAR Sede', location: 'Niterói (Itaipu)', isSede: true }
+  '4_gmar_sede': { id: '4_gmar_sede', unitId: '4_gmar', cbaId: 'cba_x', orgId: 'cbmerj', name: '4º GMAR - Itaipu (Sede)', shortName: '4º GMAR Sede', location: 'Niterói (Itaipu)', isSede: true },
+
+  // --- Complexo de Saúde, Policlínicas e Órgãos Especiais ---
+  'gse_sede': { id: 'gse_sede', unitId: 'gse', cbaId: 'cba_viii', orgId: 'cbmerj', name: 'GSE - Sede', shortName: 'GSE Sede', location: 'Rio de Janeiro', isSede: true },
+  'hcap_sede': { id: 'hcap_sede', unitId: 'hcap', cbaId: 'cba_i', orgId: 'cbmerj', name: 'HCAP - Sede', shortName: 'HCAP Sede', location: 'Rio de Janeiro (Rio Comprido)', isSede: true },
+  'dgs_sede': { id: 'dgs_sede', unitId: 'dgs', cbaId: 'cba_i', orgId: 'cbmerj', name: 'DGS - Sede', shortName: 'DGS Sede', location: 'Rio de Janeiro', isSede: true },
+  'cpm_sede': { id: 'cpm_sede', unitId: 'cpm', cbaId: 'cba_i', orgId: 'cbmerj', name: 'CPM - Sede', shortName: 'CPM Sede', location: 'Rio de Janeiro', isSede: true },
+  'coaph_sede': { id: 'coaph_sede', unitId: 'coaph', cbaId: 'cba_i', orgId: 'cbmerj', name: 'COAPH - Sede', shortName: 'COAPH Sede', location: 'Rio de Janeiro', isSede: true },
+  'policlinica_1_sede': { id: 'policlinica_1_sede', unitId: 'policlinica_1', cbaId: 'cba_i', orgId: 'cbmerj', name: '1ª Policlínica - Campinho (Sede)', shortName: '1ª Policlínica Sede', location: 'Campinho', isSede: true },
+  'policlinica_2_sede': { id: 'policlinica_2_sede', unitId: 'policlinica_2', cbaId: 'cba_vi', orgId: 'cbmerj', name: '2ª Policlínica - Nova Iguaçu (Sede)', shortName: '2ª Policlínica Sede', location: 'Nova Iguaçu', isSede: true },
+  'policlinica_3_sede': { id: 'policlinica_3_sede', unitId: 'policlinica_3', cbaId: 'cba_ix', orgId: 'cbmerj', name: '3ª Policlínica - Niterói (Sede)', shortName: '3ª Policlínica Sede', location: 'Niterói', isSede: true },
+  'policlinica_4_sede': { id: 'policlinica_4_sede', unitId: 'policlinica_4', cbaId: 'cba_iv', orgId: 'cbmerj', name: '4ª Policlínica - Campos (Sede)', shortName: '4ª Policlínica Sede', location: 'Campos dos Goytacazes', isSede: true },
+  'dgp_oe_sede': { id: 'dgp_oe_sede', unitId: 'dgp_oe', cbaId: 'cbmerj_geral', orgId: 'cbmerj', name: 'DGP/Órgãos Externos - Sede', shortName: 'DGP/OE Sede', location: 'Rio de Janeiro', isSede: true },
+  'cbmerj_geral_sede': { id: 'cbmerj_geral_sede', unitId: 'cbmerj_geral', cbaId: 'cbmerj_geral', orgId: 'cbmerj', name: 'CBMERJ Geral - Sede', shortName: 'CBMERJ Sede', location: 'Rio de Janeiro', isSede: true }
 };
 
 /**
@@ -732,6 +864,53 @@ export function resolveCanonicalScope(rawObm?: string | null): ScopeContext {
       unitId: matchedUnit.id,
       subunitId: CANONICAL_SUBUNITS[sedeId] ? sedeId : matchedUnit.subunits[0]
     };
+  }
+
+  // 2.1 Verificação inteligente por número de GBM (ex: "5º GBM - Campos", "22º GBM", "18º GBM")
+  const gbmNumMatch = upper.match(/(\d+)[º°ª]?\s*GBM/);
+  if (gbmNumMatch) {
+    const unitKey = `${gbmNumMatch[1]}_gbm`;
+    const unitObj = CANONICAL_UNITS[unitKey];
+    if (unitObj) {
+      const sedeId = `${unitObj.id}_sede`;
+      return {
+        orgId: unitObj.orgId,
+        cbaId: unitObj.cbaId,
+        unitId: unitObj.id,
+        subunitId: CANONICAL_SUBUNITS[sedeId] ? sedeId : unitObj.subunits[0]
+      };
+    }
+  }
+
+  // 2.2 Verificação inteligente por número de GMAR (ex: "1º GMAR", "2º GMAR", "3º GMAR", "4º GMAR")
+  const gmarNumMatch = upper.match(/(\d+)[º°ª]?\s*GMAR/);
+  if (gmarNumMatch) {
+    const unitKey = `${gmarNumMatch[1]}_gmar`;
+    const unitObj = CANONICAL_UNITS[unitKey];
+    if (unitObj) {
+      const sedeId = `${unitObj.id}_sede`;
+      return {
+        orgId: unitObj.orgId,
+        cbaId: unitObj.cbaId,
+        unitId: unitObj.id,
+        subunitId: CANONICAL_SUBUNITS[sedeId] ? sedeId : unitObj.subunits[0]
+      };
+    }
+  }
+
+  // 2.3 Verificação inteligente por DBM (ex: "1/10", "2/10", "3/10", "4/10", "1/26")
+  const dbmSlashMatch = upper.match(/(\d+)\s*\/\s*(\d+)/);
+  if (dbmSlashMatch) {
+    const subKey = `dbm_${dbmSlashMatch[1]}_${dbmSlashMatch[2]}`;
+    const subObj = CANONICAL_SUBUNITS[subKey];
+    if (subObj) {
+      return {
+        orgId: subObj.orgId,
+        cbaId: subObj.cbaId,
+        unitId: subObj.unitId,
+        subunitId: subObj.id
+      };
+    }
   }
 
   // 3. Mapeamento das Variações de Subunidades
@@ -795,7 +974,47 @@ export function resolveCanonicalScope(rawObm?: string | null): ScopeContext {
     return { orgId: sub.orgId, cbaId: sub.cbaId, unitId: sub.unitId, subunitId: sub.id };
   }
 
-  // 4. Mapeamento das Unidades / Sedes
+  // 4. Mapeamento das Unidades / Sedes e Setores de Saúde
+  if (upper.includes('GSE') || upper.includes('SOCORRO DE EMERGÊNCIA')) {
+    const sub = CANONICAL_SUBUNITS['gse_sede'];
+    return { orgId: sub.orgId, cbaId: sub.cbaId, unitId: sub.unitId, subunitId: sub.id };
+  }
+  if (upper.includes('HCAP') || upper.includes('ARISTARCHO PESSOA') || upper.includes('HOSPITAL CENTRAL')) {
+    const sub = CANONICAL_SUBUNITS['hcap_sede'];
+    return { orgId: sub.orgId, cbaId: sub.cbaId, unitId: sub.unitId, subunitId: sub.id };
+  }
+  if (upper.includes('DGS') || upper.includes('DIRETORIA-GERAL DE SAÚDE') || upper.includes('DIRETORIA GERAL DE SAUDE')) {
+    const sub = CANONICAL_SUBUNITS['dgs_sede'];
+    return { orgId: sub.orgId, cbaId: sub.cbaId, unitId: sub.unitId, subunitId: sub.id };
+  }
+  if (upper.includes('CPM') || upper.includes('PERÍCIAS MÉDICAS') || upper.includes('PERICIAS MEDICAS')) {
+    const sub = CANONICAL_SUBUNITS['cpm_sede'];
+    return { orgId: sub.orgId, cbaId: sub.cbaId, unitId: sub.unitId, subunitId: sub.id };
+  }
+  if (upper.includes('COAPH')) {
+    const sub = CANONICAL_SUBUNITS['coaph_sede'];
+    return { orgId: sub.orgId, cbaId: sub.cbaId, unitId: sub.unitId, subunitId: sub.id };
+  }
+  if (upper.includes('1ª POLICLÍNICA') || upper.includes('1 POLICLINICA') || upper.includes('CTQUIM')) {
+    const sub = CANONICAL_SUBUNITS['policlinica_1_sede'];
+    return { orgId: sub.orgId, cbaId: sub.cbaId, unitId: sub.unitId, subunitId: sub.id };
+  }
+  if (upper.includes('2ª POLICLÍNICA') || upper.includes('2 POLICLINICA')) {
+    const sub = CANONICAL_SUBUNITS['policlinica_2_sede'];
+    return { orgId: sub.orgId, cbaId: sub.cbaId, unitId: sub.unitId, subunitId: sub.id };
+  }
+  if (upper.includes('3ª POLICLÍNICA') || upper.includes('3 POLICLINICA')) {
+    const sub = CANONICAL_SUBUNITS['policlinica_3_sede'];
+    return { orgId: sub.orgId, cbaId: sub.cbaId, unitId: sub.unitId, subunitId: sub.id };
+  }
+  if (upper.includes('4ª POLICLÍNICA') || upper.includes('4 POLICLINICA')) {
+    const sub = CANONICAL_SUBUNITS['policlinica_4_sede'];
+    return { orgId: sub.orgId, cbaId: sub.cbaId, unitId: sub.unitId, subunitId: sub.id };
+  }
+  if (upper.includes('DGP/OE') || upper.includes('DGP') || upper.includes('ALERJ') || upper.includes('PGE') || upper.includes('TRIBUNAL') || upper.includes('PREFEITURA')) {
+    const sub = CANONICAL_SUBUNITS['dgp_oe_sede'];
+    return { orgId: sub.orgId, cbaId: sub.cbaId, unitId: sub.unitId, subunitId: sub.id };
+  }
 
   // 26º GBM - Paraty (Sede)
   const is26Gbm =
@@ -814,13 +1033,34 @@ export function resolveCanonicalScope(rawObm?: string | null): ScopeContext {
     return { orgId: sub.orgId, cbaId: sub.cbaId, unitId: sub.unitId, subunitId: sub.id };
   }
 
-  // 10º GBM - Angra dos Reis (ou Fallback Seguro)
-  const sub10 = CANONICAL_SUBUNITS['10_gbm_sede'];
+  // 10º GBM - Angra dos Reis
+  const is10Gbm =
+    upper.includes('10º') ||
+    upper.includes('10°') ||
+    upper.includes('10 GBM') ||
+    upper.includes('10GBM') ||
+    upper.includes('ANGRA') ||
+    upper.includes('COSTA VERDE') ||
+    upper === '10' ||
+    lower === '10_gbm' ||
+    lower.includes('10_gbm_sede');
+
+  if (is10Gbm) {
+    const sub = CANONICAL_SUBUNITS['10_gbm_sede'];
+    return { orgId: sub.orgId, cbaId: sub.cbaId, unitId: sub.unitId, subunitId: sub.id };
+  }
+
+  // Fallback seguro: se não especificado, assume padrão do sistema; se for string desconhecida, direciona ao CBMERJ Geral
+  if (!rawObm || rawObm.trim() === '') {
+    return { ...DEFAULT_CANONICAL_SCOPE };
+  }
+
+  const subGeral = CANONICAL_SUBUNITS['cbmerj_geral_sede'];
   return {
-    orgId: sub10.orgId,
-    cbaId: sub10.cbaId,
-    unitId: sub10.unitId,
-    subunitId: sub10.id
+    orgId: subGeral.orgId,
+    cbaId: subGeral.cbaId,
+    unitId: subGeral.unitId,
+    subunitId: subGeral.id
   };
 }
 

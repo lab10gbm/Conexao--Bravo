@@ -576,7 +576,7 @@ export default function App() {
       setEscalanteModeActive={setEscalanteModeActive}
       simulatedVersion={simulatedVersion}
       setSimulatedVersion={setSimulatedVersion}
-      GLOBAL_REF_YEAR={GLOBAL_REF_YEAR}
+      GLOBAL_REF_YEAR={alaConfig?.referenceYear || GLOBAL_REF_YEAR}
       obmContext={obmContext}
       setObmContext={setObmContext}
       availableObms={availableObms}
@@ -637,6 +637,7 @@ export default function App() {
                       isAdminRaw={effectiveProfile!.isAdmin}
                       isEscalanteRaw={effectiveProfile!.isEscalante}
                       onLaunchModule={(id) => navigate(`/${id}`)}
+                      obmContext={obmContext}
                     />
                   </motion.div>
                 }

@@ -1,13 +1,25 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { setGlobalAlaConfig } from '../lib/utils';
+import { setGlobalAlaConfig, getStartAlaForYear } from '../lib/utils';
+
+export interface AlaConfigData {
+  referenceYear: number;
+  startAla: number;
+  autoTransition?: boolean;
+  anchorYear?: number;
+  anchorStartAla?: number;
+  rawReferenceYear?: number;
+  rawStartAla?: number;
+}
 
 interface ConfigContextType {
   activeMonths: number[];
+  activePeriods: string[];
+  autoRolloverMonths: boolean;
   escalanteRGs: string[];
   appVisibility: Record<string, string[]> | null;
-  alaConfig: { referenceYear: number; startAla: number } | null;
+  alaConfig: AlaConfigData | null;
   vacationSettings: any;
   loading: boolean;
   refreshConfigs: () => Promise<void>;
@@ -19,11 +31,14 @@ const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 export function ConfigProvider({ children }: { children: ReactNode }) {
   const [activeMonths, setActiveMonths] = useState<number[]>([]);
+  const [activePeriods, setActivePeriods] = useState<string[]>([]);
+  const [autoRolloverMonths, setAutoRolloverMonths] = useState<boolean>(true);
   const [escalanteRGs, setEscalanteRGs] = useState<string[]>([]);
   const [appVisibility, setAppVisibility] = useState<Record<string, string[]> | null>(null);
-  const [alaConfig, setAlaConfig] = useState<{ referenceYear: number; startAla: number } | null>({
+  const [alaConfig, setAlaConfig] = useState<AlaConfigData | null>({
     referenceYear: 2026,
     startAla: 2,
+    autoTransition: true,
   });
   const [vacationSettings, setVacationSettings] = useState<any>(null);
   
@@ -45,11 +60,27 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     const unsubMonths = onSnapshot(doc(db, 'config', 'active_months'), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        if (Array.isArray(data.months)) {
-          setActiveMonths(data.months.map(Number));
-        } else if (Array.isArray(data)) {
-          setActiveMonths(data.map(Number));
+        let months: number[] = [];
+        let periods: string[] = [];
+
+        if (Array.isArray(data.activePeriods)) {
+          periods = data.activePeriods;
         }
+        if (Array.isArray(data.months)) {
+          months = data.months.map(Number);
+        } else if (Array.isArray(data)) {
+          months = data.map(Number);
+        }
+
+        // Se ainda não existirem activePeriods gravados no Firestore, gera inteligentemente a partir dos meses
+        if (periods.length === 0 && months.length > 0) {
+          const curYear = new Date().getFullYear();
+          periods = months.map(m => `${curYear}-${String(m + 1).padStart(2, '0')}`);
+        }
+
+        setActiveMonths(months);
+        setActivePeriods(periods);
+        setAutoRolloverMonths(Boolean(data.autoRollover ?? true));
       }
       setLoading(false);
     }, (err) => {
@@ -68,8 +99,27 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     const unsubAla = onSnapshot(doc(db, 'config', 'ala_config'), (snap) => {
       if (snap.exists()) {
         const data = snap.data() as any;
-        setAlaConfig(data);
-        setGlobalAlaConfig(data.referenceYear || 2026, data.startAla || 2);
+        const autoTransition = data.autoTransition !== false;
+        const calendarYear = new Date().getFullYear();
+        let refYear = data.referenceYear || 2026;
+        let startAla = data.startAla || 2;
+
+        // Se a transição automática estiver ativa e o calendário civil virou (ex: 2027 > 2026)
+        if (autoTransition && calendarYear > refYear) {
+          refYear = calendarYear;
+          startAla = getStartAlaForYear(calendarYear, data.anchorYear || 2026, data.anchorStartAla || 2);
+        }
+
+        setAlaConfig({
+          referenceYear: refYear,
+          startAla: startAla,
+          autoTransition,
+          anchorYear: data.anchorYear || 2026,
+          anchorStartAla: data.anchorStartAla || 2,
+          rawReferenceYear: data.referenceYear || 2026,
+          rawStartAla: data.startAla || 2,
+        });
+        setGlobalAlaConfig(refYear, startAla);
       }
     }, (err) => console.warn('[ConfigContext] ala_config listener error:', err.message));
 
@@ -103,13 +153,15 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
 
   const value = React.useMemo(() => ({
     activeMonths,
+    activePeriods,
+    autoRolloverMonths,
     escalanteRGs,
     appVisibility,
     alaConfig,
     vacationSettings,
     loading,
     refreshConfigs
-  }), [activeMonths, escalanteRGs, appVisibility, alaConfig, vacationSettings, loading]);
+  }), [activeMonths, activePeriods, autoRolloverMonths, escalanteRGs, appVisibility, alaConfig, vacationSettings, loading]);
 
   return (
     <ConfigContext.Provider value={value}>

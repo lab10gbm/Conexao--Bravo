@@ -196,7 +196,8 @@ export function ProfileUpdate({ user, onUpdate, onBack }: ProfileUpdateProps) {
         body: JSON.stringify({
           rg: user.rg,
           currentPassword: passwordData.currentPassword,
-          newPassword: passwordData.newPassword
+          newPassword: passwordData.newPassword,
+          email: formData.email || user.email || ''
         })
       });
       const data = await response.json();

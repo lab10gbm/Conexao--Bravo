@@ -1,5 +1,7 @@
 import express from 'express';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import {
   doc,
   getDoc,
@@ -158,6 +160,22 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
     return false;
   }
 
+  function isDefaultInitialPassword(userData: any, attempt: string): boolean {
+    if (!userData || !attempt) return false;
+    const cleanAttempt = (attempt || '').toString().trim();
+    const rawRg = (userData.rg || userData.id || '').toString().trim();
+    const cleanRg = rawRg.replace(/\D/g, '');
+
+    // 1. Initial password format: "00" + RG (e.g. RG "54444" -> "0054444")
+    if (cleanRg && cleanAttempt === `00${cleanRg}`) return true;
+    if (rawRg && cleanAttempt === `00${rawRg}`) return true;
+
+    // 2. Compatibility fallback: also accept birth date if available in registration
+    if (isBirthDateMatch(userData, cleanAttempt)) return true;
+
+    return false;
+  }
+
   function verifyUserPasswordDetailed(
     userData: any,
     attempt: string,
@@ -166,7 +184,7 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
     const cleanAttempt = (attempt || '').toString().trim();
     if (!userData) return { valid: false, reason: 'NOT_FOUND' };
 
-    // Outsourced users don't have birthdate logic normally, they use customPassword
+    // Outsourced users don't have RG logic normally, they use customPassword
     if (userData.isOutsourced) {
       const dbPass = String(userData.customPassword || '').trim();
       const attemptPadded =
@@ -179,7 +197,7 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
     }
 
     if (isDateOnly) {
-      return { valid: isBirthDateMatch(userData, cleanAttempt) };
+      return { valid: isDefaultInitialPassword(userData, cleanAttempt) };
     }
 
     const hasCustom = Boolean(
@@ -192,8 +210,8 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
         return { valid: true, isFirstAccess: false };
       }
 
-      if (isBirthDateMatch(userData, cleanAttempt)) {
-        return { valid: false, reason: 'BIRTHDATE_BLOCKED' };
+      if (isDefaultInitialPassword(userData, cleanAttempt)) {
+        return { valid: false, reason: 'DEFAULT_PASSWORD_BLOCKED' };
       }
 
       if (userData.rg === '54444' && cleanAttempt === 'admin123') {
@@ -205,7 +223,7 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
 
     // User does NOT have custom password yet (First Access)
     if (
-      isBirthDateMatch(userData, cleanAttempt) ||
+      isDefaultInitialPassword(userData, cleanAttempt) ||
       (userData.rg === '54444' && cleanAttempt === 'admin123')
     ) {
       return { valid: true, isFirstAccess: true };
@@ -241,13 +259,16 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
     const verification = verifyUserPasswordDetailed(userData, password);
     if (!verification.valid) {
       console.warn(`[Login] Failed for RG ${safeRg}. Reason: ${verification.reason}`);
-      if (verification.reason === 'BIRTHDATE_BLOCKED') {
+      if (
+        verification.reason === 'DEFAULT_PASSWORD_BLOCKED' ||
+        verification.reason === 'BIRTHDATE_BLOCKED'
+      ) {
         return res.status(400).json({
           success: false,
-          code: 'BIRTHDATE_BLOCKED',
+          code: 'DEFAULT_PASSWORD_BLOCKED',
           canRecover: true,
           error:
-            'Você já cadastrou uma senha pessoal. Por segurança, o acesso por data de nascimento foi desativado para sua conta. Utilize sua senha cadastrada ou clique em "Esqueci minha senha" para redefinir.',
+            'Você já cadastrou uma senha pessoal. Por segurança, o acesso pela senha padrão inicial (00 + RG) foi desativado para sua conta. Utilize sua senha cadastrada ou clique em "Esqueci minha senha" para redefinir.',
         });
       }
       if (verification.reason === 'INVALID_PASSWORD') {
@@ -265,7 +286,7 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
           code: 'INVALID_CREDENTIALS',
           canRecover: false,
           error:
-            'Data de nascimento incorreta. No seu primeiro acesso, digite sua data de nascimento com 8 dígitos (DDMMAAAA).',
+            `Senha inicial incorreta. No seu primeiro acesso, digite "00" seguido do seu RG (exemplo: se seu RG for ${safeRg}, a senha é 00${safeRg}).`,
         });
       }
       return res.status(400).json({
@@ -283,9 +304,12 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
       userData.hasCustomPassword === true ||
         (userData.customPassword && userData.customPassword.trim().length > 0),
     );
+    const hasEmail = Boolean(
+      userData.email && userData.email.trim().length > 0 && userData.email.includes('@'),
+    );
     const mustChangePassword =
       !isEmergencyAdmin &&
-      (verification.isFirstAccess === true || !hasCustomPassword);
+      (verification.isFirstAccess === true || !hasCustomPassword || !hasEmail);
 
     const claims = {
       admin: is54444 ? true : userData.isAdmin || false,
@@ -380,7 +404,7 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
       militaryCache,
       normalizeRg,
     } = getDeps();
-    const { rg, currentPassword, newPassword } = req.body;
+    const { rg, currentPassword, newPassword, email } = req.body;
     if (!rg || !currentPassword || !newPassword) {
       return res
         .status(400)
@@ -414,27 +438,45 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
     if (hasCustom && userData.customPassword) {
       currentValid = userData.customPassword === cleanCurrent;
     } else {
-      currentValid = isBirthDateMatch(userData, cleanCurrent);
+      currentValid = isDefaultInitialPassword(userData, cleanCurrent);
     }
 
     if (!currentValid && safeRg === '54444') {
       currentValid =
         cleanCurrent === 'admin123' ||
-        (!hasCustom && isBirthDateMatch(userData, cleanCurrent));
+        (!hasCustom && isDefaultInitialPassword(userData, cleanCurrent));
     }
 
     if (!currentValid) {
       return res
         .status(400)
-        .json({ success: false, error: 'Senha atual incorreta' });
+        .json({ success: false, error: 'Senha atual ou inicial incorreta' });
+    }
+
+    // Email validation: Required on first access or when updating email
+    const cleanEmail = (email || '').toString().trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const isFirstAccessOrMissingEmail = !hasCustom || !userData.email;
+
+    if (isFirstAccessOrMissingEmail || cleanEmail.length > 0) {
+      if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+        return res.status(400).json({
+          success: false,
+          error: 'É obrigatório informar um endereço de e-mail válido.',
+        });
+      }
     }
 
     try {
-      const militaryUpdate = {
+      const militaryUpdate: any = {
         hasCustomPassword: true,
         mustChangePassword: false,
         passwordChangedAt: Date.now(),
       };
+
+      if (cleanEmail) {
+        militaryUpdate.email = cleanEmail;
+      }
 
       if (db && isDbHealthy && hasServiceAccount) {
         try {
@@ -474,12 +516,52 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
       }
 
       const existing = militaryCache?.get(safeRg) || {};
+      const updatedCacheEntry = {
+        ...existing,
+        ...militaryUpdate,
+        customPassword: cleanNew,
+      };
       if (militaryCache) {
-        militaryCache.set(safeRg, {
-          ...existing,
-          ...militaryUpdate,
-          customPassword: cleanNew,
-        });
+        militaryCache.set(safeRg, updatedCacheEntry);
+        if (userData.rg) {
+          militaryCache.set(String(userData.rg), updatedCacheEntry);
+        }
+      }
+
+      // Sync to local cache JSON file if it exists
+      try {
+        const localCacheFile = path.join(
+          process.cwd(),
+          'src/server/data/militaries_cache.json',
+        );
+        if (fs.existsSync(localCacheFile)) {
+          const raw = fs.readFileSync(localCacheFile, 'utf8');
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) {
+            const idx = list.findIndex(
+              (m: any) => normalizeRg(m.rg || m.id) === safeRg,
+            );
+            if (idx >= 0) {
+              list[idx] = {
+                ...list[idx],
+                ...militaryUpdate,
+                customPassword: cleanNew,
+              };
+            } else {
+              list.push(updatedCacheEntry);
+            }
+            fs.writeFileSync(
+              localCacheFile,
+              JSON.stringify(list, null, 2),
+              'utf8',
+            );
+          }
+        }
+      } catch (fsErr: any) {
+        console.warn(
+          '[Cache] Could not sync change-password to local cache file:',
+          fsErr.message,
+        );
       }
 
       if (hasServiceAccount && isDbHealthy) {
@@ -497,7 +579,7 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
       return res.json({
         success: true,
         message:
-          'Senha pessoal cadastrada com sucesso! O acesso por data de nascimento foi desativado.',
+          'Senha pessoal e e-mail cadastrados com sucesso! O acesso pela senha inicial foi desativado.',
       });
     } catch (err: any) {
       console.error('[API] Failed to change password', err);
@@ -528,7 +610,8 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
           .json({ success: false, error: 'Militar não encontrado no sistema.' });
       }
 
-      if (dataNascimento) {
+      const hasDbBirthDate = Boolean(userData.birthDate || userData.nascimento);
+      if (hasDbBirthDate && dataNascimento) {
         if (!isBirthDateMatch(userData, dataNascimento)) {
           return res.status(400).json({
             success: false,
@@ -821,13 +904,45 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
       }
 
       const existing = militaryCache?.get(safeRg) || {};
+      const updatedCacheEntry = {
+        ...existing,
+        ...militaryUpdate,
+        customPassword: cleanNew,
+      };
       if (militaryCache) {
-        militaryCache.set(safeRg, {
-          ...existing,
-          ...militaryUpdate,
-          customPassword: cleanNew,
-        });
+        militaryCache.set(safeRg, updatedCacheEntry);
+        if (userData.rg) {
+          militaryCache.set(String(userData.rg), updatedCacheEntry);
+        }
       }
+
+      try {
+        const localCacheFile = path.join(
+          process.cwd(),
+          'src/server/data/militaries_cache.json',
+        );
+        if (fs.existsSync(localCacheFile)) {
+          const raw = fs.readFileSync(localCacheFile, 'utf8');
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) {
+            const idx = list.findIndex(
+              (m: any) => normalizeRg(m.rg || m.id) === safeRg,
+            );
+            if (idx >= 0) {
+              list[idx] = {
+                ...list[idx],
+                ...militaryUpdate,
+                customPassword: cleanNew,
+              };
+              fs.writeFileSync(
+                localCacheFile,
+                JSON.stringify(list, null, 2),
+                'utf8',
+              );
+            }
+          }
+        }
+      } catch (fsErr: any) {}
 
       if (hasServiceAccount && isDbHealthy) {
         try {

@@ -159,17 +159,120 @@ export function calculateDeadline(targetDate: Date): Date {
   return deadlineDate;
 }
 
+export const ANCHOR_REF_YEAR = 2026;
+export const ANCHOR_START_ALA = 2;
+
 /**
- * Calculates which ala is on duty on a specific date.
+ * Safely parse a date string or Date object into a local Date without timezone offset distortion.
  */
-export function getAlaForDate(date: Date): number {
-  if (!date || isNaN(date.getTime())) return 1;
-  const baseDate = new Date(GLOBAL_REF_YEAR, 0, 1);
-  const diffInTime = date.getTime() - baseDate.getTime();
-  const diffInDays = Math.floor(diffInTime / (1000 * 3600 * 24));
-  
-  const ala = (((diffInDays + (GLOBAL_START_ALA - 1)) % 4) + 4) % 4 + 1;
+export function parseLocalDate(input?: Date | string | null): Date {
+  if (!input) return new Date();
+  if (input instanceof Date) return isNaN(input.getTime()) ? new Date() : input;
+  if (typeof input === 'string') {
+    const clean = input.trim().split('T')[0];
+    const parts = clean.split('-');
+    if (parts.length === 3) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const d = parseInt(parts[2], 10);
+      return new Date(y, m, d);
+    }
+    const d = new Date(input);
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
+  return new Date();
+}
+
+/**
+ * Calculates which ala starts on 01/01 of any given year based on the perpetual 4-day 24x72 rotation.
+ * CBMERJ 24x72 is an uninterrupted cycle across years.
+ */
+export function getStartAlaForYear(
+  year: number,
+  anchorYear = ANCHOR_REF_YEAR,
+  anchorStartAla = ANCHOR_START_ALA
+): number {
+  const dAnchor = new Date(anchorYear, 0, 1);
+  const dTarget = new Date(year, 0, 1);
+  const utcAnchor = Date.UTC(dAnchor.getFullYear(), dAnchor.getMonth(), dAnchor.getDate());
+  const utcTarget = Date.UTC(dTarget.getFullYear(), dTarget.getMonth(), dTarget.getDate());
+  const daysDiff = Math.round((utcTarget - utcAnchor) / (1000 * 60 * 60 * 24));
+  return (((daysDiff + (anchorStartAla - 1)) % 4) + 4) % 4 + 1;
+}
+
+/**
+ * Calculates which ala is on duty on a specific date with timezone-safe UTC normalization.
+ */
+export function getAlaForDate(
+  date: Date | string,
+  customRefYear?: number,
+  customStartAla?: number
+): number {
+  const d = parseLocalDate(date);
+  if (!d || isNaN(d.getTime())) return 1;
+
+  const refYear = customRefYear || GLOBAL_REF_YEAR;
+  const startAla = customStartAla || GLOBAL_START_ALA;
+
+  const baseDate = new Date(refYear, 0, 1);
+  const utcTarget = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  const utcBase = Date.UTC(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
+  const diffInDays = Math.round((utcTarget - utcBase) / (1000 * 60 * 60 * 24));
+
+  const ala = (((diffInDays + (startAla - 1)) % 4) + 4) % 4 + 1;
   return isNaN(ala) ? 1 : ala;
+}
+
+/**
+ * Checks if a permuta date is in an open/authorized period.
+ * Supports both explicit YYYY-MM periods (activePeriods) and legacy month indices (activeMonths 0-11).
+ */
+export function isMonthOpenForDate(
+  dateInput: Date | string,
+  activeMonths?: number[],
+  activePeriods?: string[]
+): boolean {
+  if (!dateInput) return true;
+  const d = parseLocalDate(dateInput);
+  if (isNaN(d.getTime())) return true;
+
+  const y = d.getFullYear();
+  const m = d.getMonth();
+  const yearMonth = `${y}-${String(m + 1).padStart(2, '0')}`;
+
+  // 1. If explicit activePeriods (YYYY-MM) are provided, check exact match
+  if (Array.isArray(activePeriods) && activePeriods.length > 0) {
+    return activePeriods.includes(yearMonth);
+  }
+
+  // 2. Legacy fallback to activeMonths (0-11)
+  if (Array.isArray(activeMonths) && activeMonths.length > 0) {
+    return activeMonths.includes(m);
+  }
+
+  return true;
+}
+
+/**
+ * Provides a 5-year timeline projection of ala transitions.
+ */
+export function getProjectedYearAlas(startYear = 2026, count = 5) {
+  const list = [];
+  for (let i = 0; i < count; i++) {
+    const y = startYear + i;
+    const startAla = getStartAlaForYear(y);
+    const isLeap = (y % 4 === 0 && y % 100 !== 0) || (y % 400 === 0);
+    const endAlaDate = new Date(y, 11, 31);
+    const endAla = getAlaForDate(endAlaDate, y, startAla);
+    list.push({
+      year: y,
+      startAla,
+      endAla,
+      isLeap,
+      totalDays: isLeap ? 366 : 365
+    });
+  }
+  return list;
 }
 
 export function getOppositeAla(ala: number): number {
@@ -410,5 +513,63 @@ export function withTimeout<T>(promise: Promise<T>, ms: number = 3000): Promise<
     timer = setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms);
   });
   return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+}
+
+export interface DutyShiftInfo {
+  dutyAla: number;
+  dutyAlaName: string;
+  dutyDate: Date;
+  dutyDateIso: string;
+  dutyDateFormatted: string;
+  shiftStartsAt: string;
+  shiftEndsAt: string;
+  passedTodayNineAm: boolean;
+  nextAla: number;
+  nextAlaName: string;
+  hoursUntilTransition: number;
+}
+
+/**
+ * Calculates the operational duty shift taking into account the military 09:00 transition rule:
+ * - From 00:00 to 08:59: the duty shift belongs to the previous day (started yesterday at 09:00).
+ * - From 09:00 to 23:59: the duty shift belongs to the current day (started today at 09:00).
+ */
+export function getCurrentDutyShift(now: Date = new Date()): DutyShiftInfo {
+  const currentHour = now.getHours();
+  let shiftDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let passedTodayNineAm = true;
+
+  if (currentHour < 9) {
+    shiftDate = subDays(shiftDate, 1);
+    passedTodayNineAm = false;
+  }
+
+  const dutyAla = getAlaForDate(shiftDate);
+  const nextDate = addDays(shiftDate, 1);
+  const nextAla = getAlaForDate(nextDate);
+
+  const nextNineAm = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0);
+  if (currentHour >= 9) {
+    nextNineAm.setDate(nextNineAm.getDate() + 1);
+  }
+  const hoursUntilTransition = Math.max(0, Math.round((nextNineAm.getTime() - now.getTime()) / (1000 * 60 * 60)));
+
+  const y = shiftDate.getFullYear();
+  const m = String(shiftDate.getMonth() + 1).padStart(2, '0');
+  const d = String(shiftDate.getDate()).padStart(2, '0');
+
+  return {
+    dutyAla,
+    dutyAlaName: `ALA ${dutyAla}`,
+    dutyDate: shiftDate,
+    dutyDateIso: `${y}-${m}-${d}`,
+    dutyDateFormatted: `${d}/${m}/${y}`,
+    shiftStartsAt: '09:00',
+    shiftEndsAt: '09:00',
+    passedTodayNineAm,
+    nextAla,
+    nextAlaName: `ALA ${nextAla}`,
+    hoursUntilTransition
+  };
 }
 

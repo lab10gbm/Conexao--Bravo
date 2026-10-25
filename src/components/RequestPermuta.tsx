@@ -5,7 +5,7 @@ import { collection, addDoc, serverTimestamp, doc, getDoc, query, where, getDocs
 import { UserProfile, PermutaStatus, PermutaRequest } from '../types';
 import { format, isBefore, addHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { getAlaForDate, getAlaName, calculateDeadline, cn, normalizeRg, normalizeObm, cleanUndefined } from '../lib/utils';
+import { getAlaForDate, getAlaName, calculateDeadline, cn, normalizeRg, normalizeObm, cleanUndefined, isMonthOpenForDate } from '../lib/utils';
 import { Send, CalendarIcon, X, ArrowLeftRight, Equal, ArrowUp, AlertTriangle, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppConfig } from '../contexts/ConfigContext';
@@ -36,12 +36,8 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
   const [error, setError] = useState('');
   const [existingUserPermuta, setExistingUserPermuta] = useState<{ status: string; id: string } | null>(null);
   const [isCheckingExistingPermuta, setIsCheckingExistingPermuta] = useState(false);
-  const { activeMonths: ctxActiveMonths } = useAppConfig();
+  const { activeMonths: ctxActiveMonths, activePeriods: ctxActivePeriods } = useAppConfig();
   const { militars } = useMilitars();
-
-  const openMonths = React.useMemo(() => {
-    return Array.isArray(ctxActiveMonths) ? ctxActiveMonths : [];
-  }, [ctxActiveMonths]);
 
   // Sincroniza a data inicial se fornecida
   React.useEffect(() => {
@@ -183,11 +179,8 @@ export function RequestPermuta({ user, obmContext, initialDate, onClose, isOpen,
   
   const isMonthOpen = React.useMemo(() => {
     if (!date) return true;
-    const monthPart = date.split('-')[1];
-    if (!monthPart) return true;
-    const monthIdx = parseInt(monthPart, 10) - 1;
-    return openMonths.includes(monthIdx);
-  }, [date, openMonths]);
+    return isMonthOpenForDate(date, ctxActiveMonths, ctxActivePeriods);
+  }, [date, ctxActiveMonths, ctxActivePeriods]);
 
   const isFutureAgendamento = !isMonthOpen && selectedDateObj && !isBefore(selectedDateObj, new Date());
 

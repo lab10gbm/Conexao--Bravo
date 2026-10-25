@@ -51,6 +51,7 @@ import { SystemRolesConfig } from './SystemRolesConfig';
 import { useAppConfig } from '../contexts/ConfigContext';
 import { MuralAvisos } from './MuralAvisos';
 import { useNotificacoesMilitar } from '../hooks/useNotificacoesMilitar';
+import { OperationalDutyWidget } from './OperationalDutyWidget';
 
 interface ModuleIconProps {
   id: string;
@@ -191,9 +192,10 @@ interface HomePortalProps {
   isAdminRaw?: boolean;
   isEscalanteRaw?: boolean;
   onLaunchModule: (moduleId: string) => void;
+  obmContext?: string;
 }
 
-export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }: HomePortalProps) {
+export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule, obmContext }: HomePortalProps) {
   const { appVisibility: visibilityConfig } = useAppConfig();
   const { pendingMySignature } = useNotificacoesMilitar(user);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -666,6 +668,9 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule }:
           </button>
         </motion.div>
       )}
+
+      {/* Indicativo de Turno Operacional, Ala do Dia e Militares Online */}
+      <OperationalDutyWidget user={user} obmContext={obmContext} />
 
       <div className="mb-5 sm:mb-6 group">
         <button 

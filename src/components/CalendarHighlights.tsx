@@ -1,5 +1,5 @@
 import { getDoc, getDocs } from 'firebase/firestore';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../lib/firebase';
 import { doc, onSnapshot, collection, query, orderBy, where } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firebase';
@@ -20,7 +20,7 @@ interface CalendarHighlightsProps {
 }
 
 export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelect }: CalendarHighlightsProps) {
-  const { activeMonths: contextActiveMonths } = useAppConfig();
+  const { activeMonths: contextActiveMonths, activePeriods: contextActivePeriods, alaConfig } = useAppConfig();
 
   // Initialize with current and next month to avoid "April/May" staleness
   const [activeMonthIndices, setActiveMonthIndices] = useState<number[]>(() => {
@@ -160,7 +160,27 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
     };
   }, [user?.rg, obmContext]);
 
-  const monthsToShow = activeMonthIndices.map(m => new Date(2026, m, 1));
+  const monthsToShow = useMemo(() => {
+    // 1. If explicit activePeriods (YYYY-MM) are available
+    if (contextActivePeriods && contextActivePeriods.length > 0) {
+      return contextActivePeriods.map(p => {
+        const parts = p.split('-');
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        return new Date(y, m, 1);
+      }).sort((a, b) => a.getTime() - b.getTime());
+    }
+
+    // 2. Intelligent fallback with activeMonthIndices and year boundary awareness
+    const refYear = alaConfig?.referenceYear || new Date().getFullYear();
+    const currentMonth = new Date().getMonth();
+    return activeMonthIndices.map(m => {
+      // If it's late in the year (Oct-Dec) and month index is early (Jan-Apr), it belongs to next year
+      const y = (currentMonth >= 8 && m < 6) ? refYear + 1 : refYear;
+      return new Date(y, m, 1);
+    }).sort((a, b) => a.getTime() - b.getTime());
+  }, [contextActivePeriods, activeMonthIndices, alaConfig?.referenceYear]);
+
   if (monthsToShow.length === 0) return null;
 
   return (
@@ -176,16 +196,20 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
         <div className="flex flex-col gap-3 mb-6">
           {Object.entries(
              pendingMySignature.reduce((acc, p) => {
-               const mInfo = new Date(p.date + 'T00:00:00').getMonth();
-               acc[mInfo] = (acc[mInfo] || 0) + 1;
+               const pDate = new Date(p.date + 'T00:00:00');
+               const key = `${pDate.getFullYear()}-${pDate.getMonth()}`;
+               acc[key] = (acc[key] || 0) + 1;
                return acc;
-             }, {} as Record<number, number>)
-          ).map(([monthStr, count]) => {
-             const mInfo = parseInt(monthStr, 10);
-             const monthName = format(new Date(2026, mInfo, 1), 'MMMM', { locale: ptBR });
+             }, {} as Record<string, number>)
+          ).map(([key, count]) => {
+             const [yStr, mStr] = key.split('-');
+             const y = parseInt(yStr, 10);
+             const mInfo = parseInt(mStr, 10);
+             const d = new Date(y, mInfo, 1);
+             const monthName = format(d, "MMMM 'de' yyyy", { locale: ptBR });
              return (
                <div 
-                 key={mInfo}
+                 key={key}
                  onClick={() => {
                    const element = document.getElementById('requests-board');
                    if (element) {
@@ -222,7 +246,7 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
           const ofertasInMonth = lookingForSubstitute.filter(p => new Date(p.date + 'T00:00:00').getMonth() === monthIndex);
           
           return (
-          <div key={month.getMonth()} className="flex flex-col gap-4">
+          <div key={`${month.getFullYear()}-${month.getMonth()}`} className="flex flex-col gap-4">
             {/* The clickable Month Banner */}
             <button 
               onClick={() => {
@@ -239,7 +263,10 @@ export function CalendarHighlights({ user, obmContext, onDateClick, onMonthSelec
               className="bg-[#1e293b] p-6 text-white text-left font-black uppercase tracking-[0.2em] text-sm rounded-lg shadow-md hover:bg-[#0f172a] hover:-translate-y-1 hover:shadow-xl transition-all cursor-pointer flex justify-between items-center group relative overflow-hidden"
             >
               <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-              <span>{format(month, 'MMMM', { locale: ptBR })}</span>
+              <div className="flex items-center gap-3">
+                <span>{format(month, 'MMMM', { locale: ptBR })}</span>
+                <span className="text-[10px] font-black text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded border border-amber-400/20">{month.getFullYear()}</span>
+              </div>
               <span className="text-[10px] opacity-40 group-hover:opacity-100 transition-opacity tracking-widest border border-white/20 px-3 py-1 rounded bg-white/5">Ver Permutas &rarr;</span>
             </button>
 

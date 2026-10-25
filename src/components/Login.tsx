@@ -74,6 +74,7 @@ export function Login({
   // First Access state
   const [isFirstAccess, setIsFirstAccess] = useState(false);
   const [firstAccessData, setFirstAccessData] = useState({
+    email: "",
     newPassword: "",
     confirmPassword: "",
   });
@@ -93,6 +94,13 @@ export function Login({
     e.preventDefault();
     if (!pendingFirstAccess) return;
     setError(null);
+
+    const cleanEmail = firstAccessData.email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+      setError("Por favor, informe um endereço de e-mail válido para recuperação de senha.");
+      return;
+    }
 
     const cleanNew = firstAccessData.newPassword.trim();
     if (cleanNew.length < 6) {
@@ -115,16 +123,18 @@ export function Login({
           rg: pendingFirstAccess.rg,
           currentPassword: pendingFirstAccess.currentPassword,
           newPassword: cleanNew,
+          email: cleanEmail,
         }),
       });
 
       const resData = await response.json();
       if (!response.ok || !resData.success) {
-        throw new Error(resData.error || "Erro ao cadastrar nova senha.");
+        throw new Error(resData.error || "Erro ao cadastrar nova senha e e-mail.");
       }
 
       const updatedProfile = {
         ...pendingFirstAccess.profile,
+        email: cleanEmail,
         hasCustomPassword: true,
         mustChangePassword: false,
       };
@@ -184,7 +194,12 @@ export function Login({
          setLoginError({
            message: data.error || "RG ou Senha incorretos.",
            code: data.code,
-           canRecover: Boolean(data.canRecover || data.code === 'INVALID_PASSWORD' || data.code === 'BIRTHDATE_BLOCKED'),
+           canRecover: Boolean(
+             data.canRecover ||
+             data.code === 'INVALID_PASSWORD' ||
+             data.code === 'DEFAULT_PASSWORD_BLOCKED' ||
+             data.code === 'BIRTHDATE_BLOCKED'
+           ),
          });
          setLoading(false);
          return;
@@ -203,6 +218,11 @@ export function Login({
           useClientAuth: data.useClientAuth,
           needsClientRegistration: data.needsClientRegistration,
           token: data.token,
+        });
+        setFirstAccessData({
+          email: profileData?.email || "",
+          newPassword: "",
+          confirmPassword: "",
         });
         setIsFirstAccess(true);
         setLoading(false);
@@ -645,11 +665,11 @@ export function Login({
                   <KeyRound className="w-6 h-6" />
                 </div>
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">
-                  Primeiro Acesso - Nova Senha
+                  Primeiro Acesso - Nova Senha e E-mail
                 </h3>
                 <p className="text-slate-500 font-bold text-[10px] leading-relaxed uppercase tracking-wider mt-1.5 px-2">
-                  Por segurança, cadastre sua <span className="text-slate-800">senha pessoal</span> (mínimo 6 dígitos). <br />
-                  A data de nascimento será <span className="text-rose-600 font-black">desativada</span> após este cadastro.
+                  Por segurança, cadastre seu <span className="text-slate-800">e-mail de contato</span> e sua <span className="text-slate-800">senha pessoal</span> (mínimo 6 dígitos). <br />
+                  A senha inicial padrão (00 + RG) será <span className="text-rose-600 font-black">desativada</span> após este cadastro.
                 </p>
               </div>
 
@@ -662,12 +682,35 @@ export function Login({
               <div className="space-y-4">
                 <div>
                   <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
+                    E-mail de Contato (Obrigatório)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      required
+                      placeholder="seu.email@exemplo.com"
+                      value={firstAccessData.email}
+                      onChange={(e) =>
+                        setFirstAccessData((prev) => ({
+                          ...prev,
+                          email: e.target.value,
+                        }))
+                      }
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded focus:border-[var(--color-brand-dark)] focus:ring-0 transition-all font-mono text-xs text-slate-700 placeholder:text-slate-300 lowercase"
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1 ml-1 leading-tight">
+                    Utilizado para recuperação de senha caso você a esqueça no futuro.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
                     Nova Senha Pessoal
                   </label>
                   <input
                     type="password"
                     required
-                    autoFocus
                     placeholder="MÍNIMO 6 CARACTERES"
                     value={firstAccessData.newPassword}
                     onChange={(e) =>
@@ -706,7 +749,7 @@ export function Login({
                 className="w-full flex items-center justify-center gap-3 bg-[var(--color-brand-dark)] text-white py-4 rounded font-black shadow-lg hover:shadow-xl hover:bg-black transition-all group disabled:opacity-50 uppercase text-xs tracking-widest"
               >
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                {firstAccessLoading ? "DEFININDO SENHA..." : "Salvar Senha e Acessar"}
+                {firstAccessLoading ? "CADASTRANDO SENHA E E-MAIL..." : "Cadastrar Senha, E-mail e Acessar"}
               </button>
 
               <div className="mt-4 text-center">
@@ -734,7 +777,10 @@ export function Login({
                   ) : (
                     <>
                       Acesso restrito a militares do Corpo de Bombeiros. <br />
-                      Utilize seu RG e Senha.
+                      Utilize seu RG e Senha. <br />
+                      <span className="inline-block mt-1 text-[10px] text-slate-400 font-normal lowercase tracking-normal">
+                        (primeiro acesso: senha padrão é <b>00</b> seguido do seu RG)
+                      </span>
                     </>
                   )}
                 </p>
@@ -800,7 +846,7 @@ export function Login({
                   <input
                     type="password"
                     required
-                    placeholder="MÍNIMO 6 CARACTERES"
+                    placeholder="MÍNIMO 6 CARACTERES (OU 00 + RG)"
                     value={formData.password}
                     onChange={(e) => {
                       setFormData((prev) => ({

@@ -333,12 +333,30 @@ async function startServer() {
             }
           };
 
-          const pollTimer = setInterval(syncMilitaryCache, 45000);
+          // Polling conservador (1 hora) para evitar estourar a cota diária gratuita do Spark Plan
+          const pollTimer = setInterval(syncMilitaryCache, 3600000);
           if (typeof pollTimer.unref === 'function') {
             pollTimer.unref();
           }
         } catch (clientErr: any) {
           console.error('[Cache] Failed to load cache with Client SDK:', clientErr.message);
+          const localCacheFile = path.join(process.cwd(), 'src/server/data/militaries_cache.json');
+          if (fs.existsSync(localCacheFile) && militaryCache.size === 0) {
+            try {
+              const data = JSON.parse(fs.readFileSync(localCacheFile, 'utf8'));
+              if (Array.isArray(data)) {
+                data.forEach(m => {
+                  const docRg = normalizeRg(m.rg);
+                  militaryCache.set(docRg, m);
+                  militaryCache.set(m.rg, m);
+                });
+                isCacheLoaded = true;
+                console.log(`[Cache] Loaded ${militaryCache.size} militaries from offline local snapshot.`);
+              }
+            } catch (snapErr: any) {
+              console.warn('[Cache] Could not read local cache snapshot:', snapErr.message);
+            }
+          }
         }
       }
 
