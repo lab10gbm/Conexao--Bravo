@@ -159,7 +159,6 @@ export function EstudoTecnicoGuarnicoesModule({
     if (militar.ativoChefeGua) {
       if (militar.chefeAbsl) allowed.add('CHEFE ABSL');
       if (militar.chefeAbt) allowed.add('CHEFE ABT');
-      allowed.add('AUXILIAR/CHEFE ARC');
     }
     
     if (militar.ativoAuxiliar) {
@@ -171,6 +170,7 @@ export function EstudoTecnicoGuarnicoesModule({
     
     if (militar.ativoEnfermeiro) {
       allowed.add('ENFERMEIRO');
+      allowed.add('AUXILIAR ASE');
     }
     
     if (militar.ativoMaritimo) {
@@ -184,7 +184,10 @@ export function EstudoTecnicoGuarnicoesModule({
       if (militar.gvAma) allowed.add('GV AMA');
     }
     
-    if (militar.ativoGraduado) {
+    const isGradActive =
+      militar.ativoAdministrativo !== false &&
+      (militar.ativoGraduado !== undefined ? Boolean(militar.ativoGraduado) : Boolean(militar.ativoAdministrativo));
+    if (isGradActive) {
       if (militar.adjunto) allowed.add('ADJUNTO');
       if (militar.sgtDia) allowed.add('SGT DIA');
       if (militar.cmtGuarda) allowed.add('CMT GUARDA');
@@ -192,7 +195,10 @@ export function EstudoTecnicoGuarnicoesModule({
       if (militar.disponivel2) allowed.add('DISPONIVEL 2');
     }
     
-    if (militar.ativoCbsSds) {
+    const isCbsActive =
+      militar.ativoAdministrativo !== false &&
+      (militar.ativoCbsSds !== undefined ? Boolean(militar.ativoCbsSds) : Boolean(militar.ativoAdministrativo));
+    if (isCbsActive) {
       if (militar.cbGuarda) allowed.add('CB GUARDA');
       if (militar.cbDia) allowed.add('CB DIA');
       if (militar.sentinela) allowed.add('SENTINELA');

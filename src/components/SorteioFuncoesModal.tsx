@@ -126,6 +126,8 @@ export function SorteioFuncoesModal({
   const [pickerSearch, setPickerSearch] = useState("");
   // Militar na aba "Por militar" com seletor de função aberto
   const [addFnForRg, setAddFnForRg] = useState<string | null>(null);
+  // Controle de exibição das configurações em telas pequenas (< md)
+  const [showMobileConfig, setShowMobileConfig] = useState(false);
 
   const scopeReqs = useMemo(() => getScopeRequirements(requirements, scope), [requirements, scope]);
   const scopeFnNormSet = useMemo(() => new Set(scopeReqs.map((r) => normalizeFnName(r.name))), [scopeReqs]);
@@ -214,6 +216,18 @@ export function SorteioFuncoesModal({
     buildSlotsFromEngine(initial.options, Math.floor(Math.random() * 1e9))
   );
   const prevSlotIdsRef = useRef<Set<string>>(new Set(allSlots.map((s) => s.slotId)));
+  const prevPredefJsonRef = useRef<string>(JSON.stringify(predefinicoes || {}));
+
+  // Quando o escalante edita as Pré-definições fixas ★ com o modal aberto, atualiza a prévia automaticamente
+  useEffect(() => {
+    const nextJson = JSON.stringify(predefinicoes || {});
+    if (nextJson === prevPredefJsonRef.current) return;
+    prevPredefJsonRef.current = nextJson;
+    if (options.respeitarPredefinicoes) {
+      setSlotAssignments(buildSlotsFromEngine(options, Math.floor(Math.random() * 1e9)));
+      setRetiradosInfo({});
+    }
+  }, [predefinicoes]);
 
   // Quando funções/viaturas são ativadas ou desativadas em tempo real, preenche apenas as vagas recém-ativadas sem bagunçar as existentes
   useEffect(() => {
@@ -448,7 +462,7 @@ export function SorteioFuncoesModal({
   // Preencher APENAS as vagas que estão VAGO no momento, sem mexer em quem já está nas outras vagas!
   const fillOnlyEmptySlots = () => {
     setRolling(true);
-    const res = computeSorteio({
+    let res = computeSorteio({
       scope,
       requirements,
       roster,
@@ -458,9 +472,24 @@ export function SorteioFuncoesModal({
       seed: Math.floor(Math.random() * 1e9),
     });
 
+    let allNovas = [...res.novas];
+    // Se ainda restaram vagas abertas porque todos os habilitados já tinham 1 função neste escopo, completa com acúmulo
+    if (res.vagasSemEfetivo.length > 0 && !options.permitirAcumulo) {
+      const resAcumulo = computeSorteio({
+        scope,
+        requirements,
+        roster,
+        selectedFunctions: res.newSelected,
+        predefinicoes,
+        options: { ...options, modo: "preencher", permitirAcumulo: true },
+        seed: Math.floor(Math.random() * 1e9),
+      });
+      allNovas = [...allNovas, ...resAcumulo.novas];
+    }
+
     // Descobre quais atribuições novas o motor sugeriu além do effectiveSelected
     const addedByNorm = new Map<string, string[]>();
-    res.novas.forEach((a) => {
+    allNovas.forEach((a) => {
       const norm = normalizeFnName(a.fn);
       addedByNorm.set(norm, [...(addedByNorm.get(norm) || []), a.rg]);
     });
@@ -940,10 +969,29 @@ export function SorteioFuncoesModal({
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
+        {/* Barra de controle de configurações para telas pequenas (< md) */}
+        <div className="md:hidden px-4 py-2 bg-slate-100 border-b border-slate-200 flex items-center justify-between shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowMobileConfig((v) => !v)}
+            className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-slate-700 cursor-pointer"
+          >
+            <Settings className="w-3.5 h-3.5 text-indigo-600" />
+            <span>{showMobileConfig ? "Ocultar Configurações do Sorteio" : "Configurações e Regras do Sorteio"}</span>
+            <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", showMobileConfig && "rotate-180")} />
+          </button>
+          <span className="text-[9.5px] font-bold text-slate-500 uppercase">{presetLabel}</span>
+        </div>
+
+        <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
           {/* ── COLUNA ESQUERDA: CONFIGURAÇÃO ── */}
-          <aside className="lg:w-[330px] shrink-0 border-b lg:border-b-0 lg:border-r border-slate-200 bg-slate-50/70 overflow-y-auto max-h-[34vh] lg:max-h-none">
-            <div className="p-4 space-y-5">
+          <aside
+            className={cn(
+              "md:w-[290px] lg:w-[325px] shrink-0 border-b md:border-b-0 md:border-r border-slate-200 bg-slate-50/70 overflow-y-auto",
+              showMobileConfig ? "block max-h-[38vh] md:max-h-none" : "hidden md:block"
+            )}
+          >
+            <div className="p-3.5 space-y-4">
               {/* Predefinição */}
               <section>
                 <div className="flex items-center justify-between mb-2">
@@ -1157,9 +1205,9 @@ export function SorteioFuncoesModal({
           </aside>
 
           {/* ── COLUNA DIREITA: CAMPO DE MILITARES + PRÉVIA INTERATIVA ── */}
-          <main className="flex-1 min-w-0 flex flex-col min-h-0">
-            {/* Topo: Indicadores + Campo de Militares */}
-            <div className="p-3.5 pb-2.5 border-b border-slate-200 shrink-0 space-y-2.5 bg-white">
+          <main className="flex-1 min-w-0 flex flex-col min-h-0 overflow-hidden">
+            {/* Topo fixo enxuto: Indicadores + Abas de visualização */}
+            <div className="px-3.5 py-2.5 border-b border-slate-200 shrink-0 space-y-2 bg-white">
               {/* Indicadores compactos */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {[
@@ -1168,18 +1216,60 @@ export function SorteioFuncoesModal({
                   { label: "Novas na prévia", value: totalNovas, cls: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200", sub: militaresEnvolvidos ? `${militaresEnvolvidos} militar(es)` : undefined },
                   { label: "Vagas em aberto", value: totalSemEfetivo, cls: totalSemEfetivo ? "text-amber-700" : "text-slate-400", bg: totalSemEfetivo ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-200" },
                 ].map((k) => (
-                  <div key={k.label} className={cn("rounded-xl border px-3 py-1.5", k.bg)}>
-                    <div className="text-[8.5px] font-black uppercase tracking-widest text-slate-500">{k.label}</div>
+                  <div key={k.label} className={cn("rounded-xl border px-2.5 py-1", k.bg)}>
+                    <div className="text-[8px] font-black uppercase tracking-widest text-slate-500">{k.label}</div>
                     <div className="flex items-baseline gap-1.5">
-                      <span className={cn("text-lg font-black tabular-nums", k.cls)}>{k.value}</span>
-                      {k.sub && <span className="text-[9px] font-bold text-emerald-600">{k.sub}</span>}
+                      <span className={cn("text-base font-black tabular-nums leading-tight", k.cls)}>{k.value}</span>
+                      {k.sub && <span className="text-[8.5px] font-bold text-emerald-600">{k.sub}</span>}
                     </div>
                   </div>
                 ))}
               </div>
 
+              {/* Abas de visualização + Legenda */}
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <div className="inline-flex p-0.5 bg-slate-100 rounded-lg">
+                    {([
+                      { id: "estrutura", label: isVtr ? "Por viatura" : "Por função", Icon: LayoutGrid },
+                      { id: "militar", label: "Por militar", Icon: Users },
+                    ] as const).map(({ id, label, Icon }) => (
+                      <button
+                        key={id}
+                        onClick={() => setView(id)}
+                        className={cn("flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-wide transition-all cursor-pointer", view === id ? "bg-white shadow-sm text-slate-900" : "text-slate-500 hover:text-slate-700")}
+                      >
+                        <Icon className="w-3 h-3" /> {label}
+                      </button>
+                    ))}
+                  </div>
+                  {totalSemEfetivo > 0 && !options.permitirAcumulo && (
+                    <button onClick={() => updateOption("permitirAcumulo", true)} className="text-[9.5px] font-black uppercase text-indigo-600 hover:underline cursor-pointer">
+                      Faltou efetivo? Tentar com acúmulo →
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 text-[9px] font-bold text-slate-500">
+                  <span className="flex items-center gap-1">
+                    <Star className="w-3 h-3 fill-amber-400 text-amber-500" /> Preferência
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-300" /> Novo
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-2.5 h-2.5 rounded-sm bg-slate-100 border border-slate-300" /> Mantido
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-2.5 h-2.5 rounded-sm bg-amber-50 border border-dashed border-amber-400" /> Vago (clique p/ escalar)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Conteúdo rolável da prévia (inclui o Campo de Militares + Cartões das Viaturas/Funções) */}
+            <div className={cn("flex-1 min-h-0 overflow-y-auto p-3.5 space-y-3 bg-slate-50/50 transition-opacity", rolling && "opacity-40")}>
               {/* ── CAMPO DE MILITARES (Retirados & Disponíveis para Escalação Voluntária) ── */}
-              <div className="rounded-xl border border-slate-200 bg-slate-50/90 p-2.5">
+              <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-2xs">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1">
@@ -1201,7 +1291,7 @@ export function SorteioFuncoesModal({
                             ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
                             : "highlight" in tab && tab.highlight
                             ? "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"
-                            : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                            : "bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300"
                         )}
                       >
                         {tab.label}
@@ -1216,7 +1306,7 @@ export function SorteioFuncoesModal({
                         value={poolSearch}
                         onChange={(e) => setPoolSearch(e.target.value)}
                         placeholder="Filtrar militar..."
-                        className="bg-white border border-slate-200 rounded-md pl-6 pr-2 py-0.5 text-[10px] font-bold text-slate-700 outline-none focus:border-indigo-400 w-36"
+                        className="bg-slate-50 border border-slate-200 rounded-md pl-6 pr-2 py-0.5 text-[10px] font-bold text-slate-700 outline-none focus:border-indigo-400 w-36"
                       />
                     </div>
                   </div>
@@ -1240,18 +1330,19 @@ export function SorteioFuncoesModal({
                   </div>
                 )}
 
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-h-20">
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
                   {poolMilitars.length === 0 ? (
                     <span className="text-[10px] font-bold text-slate-400 py-1 px-2">
                       {poolFilter === "retirados"
                         ? "Nenhum militar foi retirado de vaga ainda. Ao clicar no ✕ de uma vaga, o militar vem para cá sem bagunçar o restante."
-                        : "Todos os militares da Ala já estão alocados (mude para 'Todos da Ala' para ver todos)."}
+                        : "Todos os militares da Ala já estão alocados neste grupo (mude para 'Todos da Ala' para ver todos)."}
                     </span>
                   ) : (
                     poolMilitars.map((m) => {
                       const isSelected = selectedPoolRg === m.rg;
                       const removedFrom = retiradosInfo[m.rg];
                       const currentRoles = scopeRolesByRg.get(m.rg) || [];
+                      const otherRoles = (effectiveSelected[m.rg] || []).filter((f) => !scopeFnNormSet.has(normalizeFnName(f)));
                       const scopePrefs = getScopePrefsForMilitar(m.rg);
                       return (
                         <button
@@ -1289,9 +1380,22 @@ export function SorteioFuncoesModal({
                               Retirado
                             </span>
                           ) : currentRoles.length === 0 ? (
-                            <span className={cn("text-[8px] font-black uppercase px-1 py-0.2 rounded", isSelected ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-700")}>
-                              Livre
-                            </span>
+                            <>
+                              <span className={cn("text-[8px] font-black uppercase px-1 py-0.2 rounded", isSelected ? "bg-white/20 text-white" : "bg-emerald-100 text-emerald-700")}>
+                                Livre
+                              </span>
+                              {otherRoles.length > 0 && (
+                                <span
+                                  className={cn(
+                                    "text-[7.5px] font-bold uppercase px-1 py-0.2 rounded",
+                                    isSelected ? "bg-white/15 text-white" : "bg-slate-100 text-slate-500"
+                                  )}
+                                  title={`Funções no outro grupo: ${otherRoles.join(", ")}`}
+                                >
+                                  {otherRoles[0]}
+                                </span>
+                              )}
+                            </>
                           ) : (
                             <span className={cn("text-[8px] font-bold uppercase px-1 py-0.2 rounded", isSelected ? "bg-white/20 text-white" : "bg-slate-200 text-slate-600")}>
                               {currentRoles.length}x
@@ -1304,50 +1408,8 @@ export function SorteioFuncoesModal({
                 </div>
               </div>
 
-              {/* Abas de visualização + Legenda */}
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <div className="inline-flex p-0.5 bg-slate-100 rounded-lg">
-                    {([
-                      { id: "estrutura", label: isVtr ? "Por viatura" : "Por função", Icon: LayoutGrid },
-                      { id: "militar", label: "Por militar", Icon: Users },
-                    ] as const).map(({ id, label, Icon }) => (
-                      <button
-                        key={id}
-                        onClick={() => setView(id)}
-                        className={cn("flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-wide transition-all cursor-pointer", view === id ? "bg-white shadow-sm text-slate-900" : "text-slate-500 hover:text-slate-700")}
-                      >
-                        <Icon className="w-3 h-3" /> {label}
-                      </button>
-                    ))}
-                  </div>
-                  {totalSemEfetivo > 0 && !options.permitirAcumulo && (
-                    <button onClick={() => updateOption("permitirAcumulo", true)} className="text-[9.5px] font-black uppercase text-indigo-600 hover:underline cursor-pointer">
-                      Faltou efetivo? Tentar com acúmulo →
-                    </button>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 text-[9.5px] font-bold text-slate-500">
-                  <span className="flex items-center gap-1">
-                    <Star className="w-3 h-3 fill-amber-400 text-amber-500" /> Preferência
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-300" /> Novo
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2.5 h-2.5 rounded-sm bg-slate-100 border border-slate-300" /> Mantido
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2.5 h-2.5 rounded-sm bg-amber-50 border border-dashed border-amber-400" /> Vago (clique p/ escalar)
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Conteúdo da prévia */}
-            <div className={cn("flex-1 overflow-y-auto p-4 bg-slate-50/50 transition-opacity", rolling && "opacity-40")}>
               {view === "estrutura" && isVtr && (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                   {vehicleCards.map(({ id, vtrName, slots }) => (
                     <div key={id} className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-visible">
                       <div className="flex items-center justify-between px-3 py-2 bg-slate-800 text-white rounded-t-xl">

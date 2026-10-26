@@ -12,7 +12,7 @@
  * A função SENTINELA nunca participa de nenhum dos dois sorteios
  * (é gerida exclusivamente na Seção de Sentinelas).
  */
-import { sortAllBySeniority } from "./rankUtils";
+import { COLS_OFICIAIS, parseRank, sortAllBySeniority } from "./rankUtils";
 
 export type SorteioScope = "viaturas" | "administrativas";
 
@@ -101,6 +101,18 @@ const isEquivalentFn = (a: string, b: string) =>
   (a === "AUXILIAR ASE" && b === "ENFERMEIRO");
 
 /**
+ * Evita colisão entre funções de AR (Auto Rápido) e ARC (Auto Resgate…) em
+ * comparações por substring: "CONDUTOR ARC".includes("CONDUTOR AR") === true.
+ */
+const hasArArcConflict = (aNorm: string, sNorm: string, gNorm: string = sNorm) => {
+  const isAArc = /\bARC\b/.test(aNorm);
+  const isSArc = /\bARC\b/.test(sNorm) || /\bARC\b/.test(gNorm);
+  const isAAr = /\bAR\b/.test(aNorm) && !isAArc;
+  const isSAr = (/\bAR\b/.test(sNorm) || /\bAR\b/.test(gNorm)) && !isSArc;
+  return (isAArc && isSAr) || (isAAr && isSArc);
+};
+
+/**
  * Verifica se a função atribuída ao militar corresponde a uma preferência
  * fixa configurada pelo escalante (predefinicoes).
  */
@@ -115,15 +127,13 @@ export const isPreferredAssignment = (
   if (!prefs || prefs.length === 0) return false;
   const fNorm = normalizeFnName(fnName);
   const gNorm = genericName ? normalizeFnName(genericName) : "";
+  if (!fNorm) return false;
   return prefs.some((p) => {
     const pNorm = normalizeFnName(p);
-    return (
-      pNorm !== "" &&
-      (isEquivalentFn(pNorm, fNorm) ||
-        (gNorm !== "" && isEquivalentFn(pNorm, gNorm)) ||
-        fNorm.includes(pNorm) ||
-        pNorm.includes(fNorm))
-    );
+    if (pNorm === "") return false;
+    if (isEquivalentFn(pNorm, fNorm) || (gNorm !== "" && isEquivalentFn(pNorm, gNorm))) return true;
+    if (hasArArcConflict(pNorm, fNorm, gNorm || fNorm)) return false;
+    return fNorm.includes(pNorm) || pNorm.includes(fNorm);
   });
 };
 
@@ -162,6 +172,7 @@ export const isMilitarAllowedForFn = (
 /** Chefias & Comando: Adjunto, Chefe ABT/ABSL/ARC/GUA, CMT Guarda, SGT de Dia */
 export const isLeadershipRole = (name: string, generic: string, category: string) => {
   const n = (name + " " + generic).toUpperCase();
+  if (n.includes("AUXILIAR/CHEFE") || n.includes("AUXILIAR / CHEFE")) return false;
   return (
     category === "chefe" ||
     category === "chefe_maritimo" ||
@@ -190,6 +201,7 @@ export const isSpecialistRole = (name: string, generic: string) => {
   return (
     n.includes("COMUNICANTE") ||
     n.includes("ENFERMEIRO") ||
+    n.includes("AUXILIAR ASE") ||
     n.includes("OPERADOR AMA") ||
     n.includes("GV AMA") ||
     n.includes("ESCALANTE")
@@ -232,6 +244,24 @@ interface Slot {
   genericName: string;
   category: string;
 }
+
+interface FlowEdge {
+  to: number;
+  rev: number;
+  cap: number;
+  cost: number;
+}
+
+const GRADUADO_RANKS = new Set([...COLS_OFICIAIS, "SUBTEN", "1ºSGT", "2ºSGT", "3ºSGT"]);
+
+const getLeadershipWeight = (name: string, generic: string): number => {
+  const n = (name + " " + generic).toUpperCase();
+  if (n.includes("ADJUNTO")) return 16;
+  if (n.includes("CHEFE ABT")) return 15;
+  if (n.includes("SGT DIA") || n.includes("CHEFE ABSL")) return 14;
+  if (n.includes("CMT GUARDA")) return 13;
+  return 12;
+};
 
 export function computeSorteio(params: {
   scope: SorteioScope;
@@ -300,12 +330,25 @@ export function computeSorteio(params: {
   const isAllowed = (m: SorteioMilitar, slotName: string, genericName: string) =>
     isMilitarAllowedForFn(m.allowed, slotName, genericName);
 
-  // Sentinela é neutra: não bloqueia nem conta como função principal
-  const hasPrimaryRole = (rg: string) =>
-    (newSelected[rg] || []).some((r) => !isSecondaryChore(r) && !isSentinelaFn(r));
-  const getLoad = (rg: string) => (newSelected[rg] || []).length;
+  const countPrimaryInScope = (rg: string) =>
+    (newSelected[rg] || []).filter(
+      (r) => !isSecondaryChore(r) && !isSentinelaFn(r) && scopeFnSet.has(normalizeFnName(r))
+    ).length;
+
+  const countPrimaryOtherScope = (rg: string) =>
+    (newSelected[rg] || []).filter(
+      (r) => !isSecondaryChore(r) && !isSentinelaFn(r) && !scopeFnSet.has(normalizeFnName(r))
+    ).length;
+
+  const countChores = (rg: string) =>
+    (newSelected[rg] || []).filter((r) => isSecondaryChore(r)).length;
+
+  const isAdjuntoAssigned = (rg: string) =>
+    (newSelected[rg] || []).some((r) => normalizeFnName(r).includes("ADJUNTO"));
+
   const hasFn = (rg: string, fn: string) =>
     (newSelected[rg] || []).some((r) => normalizeFnName(r) === normalizeFnName(fn));
+
   const isVetado = (rg: string, fn: string) => vetos.has(`${rg}|${normalizeFnName(fn)}`);
 
   const assign = (rg: string, fn: string) => {
@@ -313,130 +356,365 @@ export function computeSorteio(params: {
     novas.push({ rg, fn });
   };
 
-  const unfilled: string[] = [];
+  // Ordenação de antiguidade para cálculo de escores hierárquicos
+  const sortedBySeniority = [...roster].sort((a, b) => sortAllBySeniority(a.militar || {}, b.militar || {}));
+  const seniorityIndexMap = new Map<string, number>();
+  sortedBySeniority.forEach((m, idx) => seniorityIndexMap.set(m.rg, idx));
+  const N = Math.max(1, roster.length);
 
-  // FASE 0: Pré-definições fixas
-  if (options.respeitarPredefinicoes) {
+  // Quantas funções distintas deste escopo cada militar pode exercer (mede versatilidade vs especialização)
+  const scopeUniqueReqs = scopeReqs.map((r) => ({ name: r.name, genericName: r.genericName }));
+  const versatilityMap = new Map<string, number>();
+  roster.forEach((m) => {
+    const cnt = scopeUniqueReqs.filter((r) => isAllowed(m, r.name, r.genericName)).length;
+    versatilityMap.set(m.rg, cnt);
+  });
+
+  // Pré-calcula ruído determinístico por (rg, fnNorm) para desempates estáveis
+  const tieNoiseMap = new Map<string, number>();
+  roster.forEach((m) => {
+    scopeReqs.forEach((r) => {
+      const key = `${m.rg}|${normalizeFnName(r.name)}`;
+      if (!tieNoiseMap.has(key)) {
+        tieNoiseMap.set(key, Math.floor(rng() * 900));
+      }
+    });
+  });
+
+  const scoreCandidateForSlot = (m: SorteioMilitar, slot: Slot, isChoreSlot: boolean): number => {
+    let score = 0;
+    const fNorm = normalizeFnName(slot.name);
+    const gNorm = normalizeFnName(slot.genericName);
+    const rank = parseRank(m.militar?.rank || m.militar?.postoGrad || "");
+    const isGrad = GRADUADO_RANKS.has(rank) || Boolean(m.militar?.ativoGraduado);
+    const isCb = rank === "CB";
+    const isSd = rank === "SD";
+
+    const senIdx = seniorityIndexMap.get(m.rg) ?? Math.floor(N / 2);
+    const seniorityScore = N - senIdx; // Maior = mais antigo
+    const modernityScore = senIdx + 1; // Maior = mais moderno
+
+    // 1. Pré-definição fixa ★ (respeitada com altíssima prioridade sem inviabilizar vagas exclusivas)
+    if (options.respeitarPredefinicoes && isPreferredAssignment(predefinicoes, m.rg, slot.name, slot.genericName)) {
+      score += 50_000_000;
+    }
+
+    // 2. Consciência entre escopos (evita sobrecarregar Adjunto ou quem já tem função no outro escopo quando há outro militar livre)
+    if (scope === "viaturas" && isAdjuntoAssigned(m.rg)) {
+      score -= 15_000_000;
+    }
+    const otherPrimary = countPrimaryOtherScope(m.rg);
+    const currentChores = countChores(m.rg);
+    score -= otherPrimary * 350_000;
+    score -= currentChores * 40_000;
+
+    if (isChoreSlot) {
+      // Encargos de rotina (Faxina, Rancho, Toque de Fogo, Depósito, Abastecedor, CB Guarda/Dia)
+      const inScopePrimary = countPrimaryInScope(m.rg);
+      if (inScopePrimary > 0) {
+        score -= inScopePrimary * 4_000_000;
+      }
+      if (fNorm.includes("CB GUARDA") || fNorm.includes("CB DIA") || gNorm.includes("CB GUARDA") || gNorm.includes("CB DIA")) {
+        if (isCb) score += 2_000_000;
+        else if (isSd) score += 800_000;
+        else if (isGrad) score -= 3_000_000;
+      } else {
+        if (isSd) score += 1_500_000;
+        else if (isCb) score += 900_000;
+        else if (isGrad) score -= 3_500_000;
+      }
+      if (options.hierarquia) {
+        score += modernityScore * 4_000;
+      }
+    } else {
+      const isLead = isLeadershipRole(slot.name, slot.genericName, slot.category);
+      const isDrv = isDriverRole(slot.name, slot.genericName, slot.category);
+      const isSpec = isSpecialistRole(slot.name, slot.genericName);
+
+      if (isLead) {
+        // Chefias e Comando: Graduados têm prioridade e respeitam antiguidade + relevância da chefia
+        if (isGrad) score += 5_000_000;
+        else if (isCb) score += 1_800_000;
+        else score -= 1_500_000;
+
+        if (options.hierarquia) {
+          const w = getLeadershipWeight(slot.name, slot.genericName);
+          score += w * seniorityScore * 10_000;
+        }
+      } else if (fNorm === "AUXILIAR ASE" || fNorm === "ENFERMEIRO" || gNorm === "ENFERMEIRO") {
+        // Socorrista / Enfermeiro de ambulância (ASE)
+        if (m.militar?.ativoEnfermeiro || m.militar?.auxAse) score += 4_500_000;
+        if (options.hierarquia) score += modernityScore * 2_000;
+      } else if (isDrv) {
+        // Condutores, Mestres de Embarcação e Encarregado de Motorista
+        const isMestreOrEnc = fNorm.includes("MESTRE") || fNorm.includes("ENCARREGADO DE MOTORISTA");
+        if (isMestreOrEnc) {
+          score += 2_000_000;
+          if (options.hierarquia) score += seniorityScore * 3_000;
+        } else {
+          // Condutores operacionais: praças condutores (CB/SD) liberam graduados para chefias quando possível
+          if (!isGrad) score += 1_200_000;
+          if (options.hierarquia) score += modernityScore * 2_500;
+        }
+      } else if (isSpec) {
+        score += 2_000_000;
+        if (!isGrad) score += 600_000;
+        if (options.hierarquia) score += modernityScore * 2_500;
+      } else {
+        // Auxiliares de guarnição (AUXILIAR ABT/ABSL/AR, AUXILIAR/CHEFE ARC) e Marinheiros
+        const isAuxArc = fNorm.includes("AUXILIAR/CHEFE") || gNorm.includes("AUXILIAR/CHEFE");
+        if (isAuxArc) {
+          if (isCb) score += 2_200_000;
+          else if (isSd) score += 1_600_000;
+          else if (isGrad) score -= 1_000_000;
+        } else {
+          if (isSd) score += 1_800_000;
+          else if (isCb) score += 1_400_000;
+          else if (isGrad) score -= 2_000_000;
+        }
+        if (options.hierarquia) {
+          score += modernityScore * 3_500;
+        }
+      }
+    }
+
+    // 3. Bônus de especialização (quem só faz 1 ou poucas funções entra primeiro nelas)
+    const vers = versatilityMap.get(m.rg) || 1;
+    score += Math.max(0, 20 - vers) * 1_200;
+
+    // 4. Desempate pseudo-aleatório com semente (permite variar no botão "Sortear novamente")
+    score += tieNoiseMap.get(`${m.rg}|${fNorm}`) || 0;
+
+    return score;
+  };
+
+  /**
+   * Resolve a alocação global de um grupo de vagas via Fluxo de Custo Mínimo e Cardinalidade Máxima
+   * (Successive Shortest Augmenting Path / SPFA).
+   * Garante matematicamente o maior número possível de vagas preenchidas sem desperdiçar especialistas,
+   * respeitando o limite de 1 instância de cada função por militar.
+   */
+  const solveSlotGroupMinCostMaxFlow = (
+    slots: Slot[],
+    isChoreSlot: boolean,
+    getCapacity: (m: SorteioMilitar) => number,
+    getStepPenalty: (m: SorteioMilitar, stepIdx: number) => number
+  ): { assigned: { rg: string; slot: Slot }[]; remaining: Slot[] } => {
+    if (slots.length === 0 || roster.length === 0) {
+      return { assigned: [], remaining: [...slots] };
+    }
+
+    // Agrupa as vagas por nome normalizado para impedir que o mesmo militar ocupe 2 vagas iguais
+    const uniqueFnNames: string[] = [];
+    const fnToSlotIndices = new Map<string, number[]>();
+    slots.forEach((s, sIdx) => {
+      const norm = normalizeFnName(s.name);
+      if (!fnToSlotIndices.has(norm)) {
+        fnToSlotIndices.set(norm, []);
+        uniqueFnNames.push(norm);
+      }
+      fnToSlotIndices.get(norm)!.push(sIdx);
+    });
+
+    const source = 0;
+    const sink = 1;
+    const mBase = 2;
+    const sBase = mBase + roster.length;
+    let nextNode = sBase + slots.length;
+
+    const adj: FlowEdge[][] = Array.from({ length: nextNode }, () => []);
+    const ensureNode = (id: number) => {
+      while (adj.length <= id) adj.push([]);
+    };
+
+    const addEdge = (from: number, to: number, cap: number, cost: number) => {
+      ensureNode(Math.max(from, to));
+      const fwd: FlowEdge = { to, rev: adj[to].length, cap, cost };
+      const bwd: FlowEdge = { to: from, rev: adj[from].length, cap: 0, cost: -cost };
+      adj[from].push(fwd);
+      adj[to].push(bwd);
+      return { from, edgeIdx: adj[from].length - 1 };
+    };
+
+    const BASE_COST_OFFSET = 100_000_000;
+    const midEdgeRecords: { mIdx: number; uNorm: string; midNode: number }[] = [];
+
+    // Arestas source -> militar (com custo marginal crescente para equilibrar carga)
+    roster.forEach((m, mIdx) => {
+      const cap = Math.min(getCapacity(m), uniqueFnNames.length);
+      if (cap <= 0) return;
+      const mNode = mBase + mIdx;
+      for (let step = 0; step < cap; step++) {
+        addEdge(source, mNode, 1, getStepPenalty(m, step));
+      }
+
+      uniqueFnNames.forEach((uNorm) => {
+        if (hasFn(m.rg, uNorm) || isVetado(m.rg, uNorm)) return;
+        const sIndices = fnToSlotIndices.get(uNorm)!;
+        const sampleSlot = slots[sIndices[0]];
+        if (!isAllowed(m, sampleSlot.name, sampleSlot.genericName)) return;
+
+        const midNode = nextNode++;
+        const score = scoreCandidateForSlot(m, sampleSlot, isChoreSlot);
+        const edgeCost = Math.max(1, BASE_COST_OFFSET - score);
+        addEdge(mNode, midNode, 1, edgeCost);
+        midEdgeRecords.push({ mIdx, uNorm, midNode });
+
+        sIndices.forEach((sIdx) => {
+          addEdge(midNode, sBase + sIdx, 1, 0);
+        });
+      });
+    });
+
+    // Arestas slot -> sink
+    slots.forEach((_, sIdx) => {
+      addEdge(sBase + sIdx, sink, 1, 0);
+    });
+
+    const totalNodes = adj.length;
+    const INF = Number.MAX_SAFE_INTEGER;
+
+    // SPFA - Caminho aumentante mais curto sucessivo
+    while (true) {
+      const dist = new Array<number>(totalNodes).fill(INF);
+      const parentNode = new Array<number>(totalNodes).fill(-1);
+      const parentEdge = new Array<number>(totalNodes).fill(-1);
+      const inQueue = new Array<boolean>(totalNodes).fill(false);
+      const queue: number[] = [source];
+
+      dist[source] = 0;
+      inQueue[source] = true;
+
+      let head = 0;
+      while (head < queue.length) {
+        const u = queue[head++];
+        inQueue[u] = false;
+        const edges = adj[u];
+        for (let i = 0; i < edges.length; i++) {
+          const e = edges[i];
+          if (e.cap > 0 && dist[u] + e.cost < dist[e.to]) {
+            dist[e.to] = dist[u] + e.cost;
+            parentNode[e.to] = u;
+            parentEdge[e.to] = i;
+            if (!inQueue[e.to]) {
+              inQueue[e.to] = true;
+              queue.push(e.to);
+            }
+          }
+        }
+      }
+
+      if (dist[sink] === INF) break;
+
+      // Empurra 1 unidade de fluxo pelo caminho mínimo
+      let cur = sink;
+      while (cur !== source) {
+        const p = parentNode[cur];
+        const idx = parentEdge[cur];
+        const edge = adj[p][idx];
+        edge.cap -= 1;
+        adj[cur][edge.rev].cap += 1;
+        cur = p;
+      }
+    }
+
+    // Extrai atribuições realizadas
+    const filledSlotIndices = new Set<number>();
+    const assigned: { rg: string; slot: Slot }[] = [];
+
+    midEdgeRecords.forEach(({ mIdx, midNode }) => {
+      const edges = adj[midNode];
+      for (const e of edges) {
+        if (e.to >= sBase && e.to < sBase + slots.length && e.cap === 0) {
+          const sIdx = e.to - sBase;
+          if (!filledSlotIndices.has(sIdx)) {
+            filledSlotIndices.add(sIdx);
+            assigned.push({ rg: roster[mIdx].rg, slot: slots[sIdx] });
+            break;
+          }
+        }
+      }
+    });
+
+    const remaining = slots.filter((_, idx) => !filledSlotIndices.has(idx));
+    return { assigned, remaining };
+  };
+
+  // Separa vagas principais das vagas de encargos de rotina (concomitantes)
+  const primarySlots = missingSlots.filter((s) => !isSecondaryChore(s.name, s.genericName));
+  const choreSlots = missingSlots.filter((s) => isSecondaryChore(s.name, s.genericName));
+
+  // PASSO 1: Funções principais do escopo — até 1 função principal por militar livre no escopo
+  const pass1 = solveSlotGroupMinCostMaxFlow(
+    primarySlots,
+    false,
+    (m) => (countPrimaryInScope(m.rg) === 0 ? 1 : 0),
+    () => 0
+  );
+  pass1.assigned.forEach(({ rg, slot }) => assign(rg, slot.name));
+  let remainingPrimary = pass1.remaining;
+
+  // PASSO 1B: Se o militar tiver mais de uma pré-definição fixa ★ no escopo e a vaga ainda estiver aberta, aplica
+  if (options.respeitarPredefinicoes && remainingPrimary.length > 0) {
     roster.forEach((m) => {
       const prefs = predefinicoes[m.rg] || [];
+      if (prefs.length <= 1) return;
       prefs.forEach((p) => {
         const pNorm = normalizeFnName(p);
-        if (isSentinelaFn(p)) return;
-        const idx = missingSlots.findIndex(
+        if (!pNorm || isSentinelaFn(p)) return;
+        const idx = remainingPrimary.findIndex(
           (s) =>
+            isPreferredAssignment(predefinicoes, m.rg, s.name, s.genericName) &&
             (isEquivalentFn(normalizeFnName(s.name), pNorm) ||
-              isEquivalentFn(normalizeFnName(s.genericName), pNorm)) &&
-            isAllowed(m, s.name, s.genericName)
+              isEquivalentFn(normalizeFnName(s.genericName), pNorm) ||
+              normalizeFnName(s.name).includes(pNorm) ||
+              pNorm.includes(normalizeFnName(s.name))) &&
+            !hasArArcConflict(pNorm, normalizeFnName(s.name), normalizeFnName(s.genericName)) &&
+            isAllowed(m, s.name, s.genericName) &&
+            !hasFn(m.rg, s.name) &&
+            !isVetado(m.rg, s.name)
         );
-        if (idx === -1) return;
-        const slot = missingSlots[idx];
-        if (hasFn(m.rg, slot.name) || isVetado(m.rg, slot.name)) return;
-        assign(m.rg, slot.name);
-        missingSlots.splice(idx, 1);
+        if (idx !== -1) {
+          const [slot] = remainingPrimary.splice(idx, 1);
+          assign(m.rg, slot.name);
+        }
       });
     });
   }
 
-  type Sorter = (a: SorteioMilitar, b: SorteioMilitar, slot: Slot) => number;
-
-  const fillSlotGroup = (
-    slots: Slot[],
-    filter: (m: SorteioMilitar, slot: Slot) => boolean,
-    sorter: Sorter
-  ) => {
-    for (const slot of slots) {
-      const eligible = roster.filter(
-        (m) =>
-          isAllowed(m, slot.name, slot.genericName) &&
-          !hasFn(m.rg, slot.name) &&
-          !isVetado(m.rg, slot.name) &&
-          filter(m, slot)
-      );
-      if (eligible.length === 0) {
-        unfilled.push(slot.name);
-        continue;
-      }
-      eligible.sort((a, b) => sorter(a, b, slot));
-      const best = eligible[0];
-      const tied = eligible.filter((c) => sorter(c, best, slot) === 0);
-      const chosen = tied[Math.floor(rng() * tied.length)];
-      assign(chosen.rg, slot.name);
-    }
-  };
-
-  const primaryFilter = (m: SorteioMilitar) => options.permitirAcumulo || !hasPrimaryRole(m.rg);
-
-  const leadershipSorter: Sorter = (a, b) => {
-    if (options.hierarquia) {
-      const s = sortAllBySeniority(a.militar, b.militar);
-      if (s !== 0) return s;
-    }
-    return getLoad(a.rg) - getLoad(b.rg);
-  };
-  const crewSorter: Sorter = (a, b) => {
-    const d = getLoad(a.rg) - getLoad(b.rg);
-    if (d !== 0) return d;
-    // Praças mais modernas compondo a guarnição (apenas no modo hierárquico)
-    return options.hierarquia ? sortAllBySeniority(b.militar, a.militar) : 0;
-  };
-  const scarcity = (s: Slot) =>
-    roster.filter((m) => isAllowed(m, s.name, s.genericName) && primaryFilter(m)).length;
-
-  if (scope === "viaturas") {
-    // FASE 1: Chefias de guarnição
-    const lead = missingSlots.filter((s) => isLeadershipRole(s.name, s.genericName, s.category));
-    fillSlotGroup(lead, primaryFilter, leadershipSorter);
-
-    // FASE 2: Condutores, mestres e especialistas (vagas mais escassas primeiro)
-    const drivers = missingSlots
-      .filter(
-        (s) =>
-          !isLeadershipRole(s.name, s.genericName, s.category) &&
-          (isDriverRole(s.name, s.genericName, s.category) || isSpecialistRole(s.name, s.genericName))
-      )
-      .sort((a, b) => scarcity(a) - scarcity(b));
-    fillSlotGroup(drivers, primaryFilter, crewSorter);
-
-    // FASE 3: Auxiliares / marinheiros
-    const aux = missingSlots.filter(
-      (s) =>
-        !isLeadershipRole(s.name, s.genericName, s.category) &&
-        !isDriverRole(s.name, s.genericName, s.category) &&
-        !isSpecialistRole(s.name, s.genericName)
+  // PASSO 2: Acúmulo de funções principais (quando permitirAcumulo está ativo e restaram vagas abertas)
+  if (options.permitirAcumulo && remainingPrimary.length > 0) {
+    const pass2 = solveSlotGroupMinCostMaxFlow(
+      remainingPrimary,
+      false,
+      () => remainingPrimary.length,
+      (m, step) => (countPrimaryInScope(m.rg) + step) * 2_500_000
     );
-    fillSlotGroup(aux, primaryFilter, crewSorter);
-  } else {
-    // FASE 1: Comando de quartel (Adjunto, SGT Dia, CMT Guarda)
-    const lead = missingSlots.filter(
-      (s) => !isSecondaryChore(s.name, s.genericName) && isLeadershipRole(s.name, s.genericName, s.category)
-    );
-    fillSlotGroup(lead, primaryFilter, leadershipSorter);
-
-    // FASE 2: Funções administrativas principais (Comunicante, Enc. Motorista, Escalante…)
-    const principais = missingSlots
-      .filter(
-        (s) => !isSecondaryChore(s.name, s.genericName) && !isLeadershipRole(s.name, s.genericName, s.category)
-      )
-      .sort((a, b) => scarcity(a) - scarcity(b));
-    fillSlotGroup(principais, primaryFilter, crewSorter);
-
-    // FASE 3: Encargos de rotina (Faxina, Rancho, Depósito, Toque de Fogo, CB Guarda/Dia…)
-    const encargos = missingSlots.filter((s) => isSecondaryChore(s.name, s.genericName));
-    fillSlotGroup(
-      encargos,
-      (m) => {
-        const roles = newSelected[m.rg] || [];
-        if (options.pouparAdjunto && roles.some((r) => normalizeFnName(r).includes("ADJUNTO"))) return false;
-        if (options.maxEncargos > 0) {
-          const chores = roles.filter((r) => isSecondaryChore(r)).length;
-          if (chores >= options.maxEncargos) return false;
-        }
-        return true;
-      },
-      crewSorter
-    );
+    pass2.assigned.forEach(({ rg, slot }) => assign(rg, slot.name));
+    remainingPrimary = pass2.remaining;
   }
 
+  // PASSO 3: Encargos secundários de rotina (Faxina, Rancho, Toque de Fogo, Depósito, Abastecedor, CB Guarda/Dia)
+  let remainingChores = choreSlots;
+  if (remainingChores.length > 0) {
+    const pass3 = solveSlotGroupMinCostMaxFlow(
+      remainingChores,
+      true,
+      (m) => {
+        if (options.pouparAdjunto && isAdjuntoAssigned(m.rg)) return 0;
+        const current = countChores(m.rg);
+        if (options.maxEncargos > 0) {
+          return Math.max(0, options.maxEncargos - current);
+        }
+        return remainingChores.length;
+      },
+      (m, step) => (countChores(m.rg) + step) * 2_500_000
+    );
+    pass3.assigned.forEach(({ rg, slot }) => assign(rg, slot.name));
+    remainingChores = pass3.remaining;
+  }
+
+  const unfilled = [...remainingPrimary, ...remainingChores].map((s) => s.name);
   const unfilledMap = new Map<string, number>();
   unfilled.forEach((fn) => unfilledMap.set(fn, (unfilledMap.get(fn) || 0) + 1));
 

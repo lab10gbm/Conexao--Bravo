@@ -33,7 +33,7 @@ import { SentinelaSlot } from "../lib/sentinelaUtils";
 import { EscalaPostosSection } from "../features/escala24h/components/EscalaPostosSection";
 import { PostoConfig, EscalaPostoData, DEFAULT_POSTOS } from "../features/postos/types";
 import { EscalanteDashboardCalendar } from "./EscalanteDashboardCalendar";
-import { CategoryConfig, DEFAULT_CATEGORIES, getAvailableControlFunctions } from "./ControleCategoriasModal";
+import { CategoryConfig, DEFAULT_CATEGORIES, getAvailableControlFunctions, migrateCategoryList } from "./ControleCategoriasModal";
 const SorteioFuncoesModal = lazyWithRetry(() => import("./SorteioFuncoesModal").then(m => ({ default: m.SorteioFuncoesModal })));
 import { SorteioScope, SorteioResult, SorteioMilitar, clearFunctionsByScope } from "../lib/sorteioFuncoes";
 import { OfficerSectionItem, getDefaultSectionsForObm } from "../types/officerSections";
@@ -860,21 +860,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
       if (data) {
         if (data.categorias_funcoes && Array.isArray(data.categorias_funcoes)) {
-          const migrated = data.categorias_funcoes.map((cat: any) => {
-            if (cat.activeProperty !== undefined) return cat;
-            let activeProp = `dynamicFunctions.ativo_${cat.id}`;
-            const newFunctions = [...(cat.functions || [])];
-            const ativoIndex = newFunctions.findIndex((f: any) => f.name.toLowerCase() === "ativo");
-            if (ativoIndex >= 0) {
-              activeProp = newFunctions[ativoIndex].id;
-              newFunctions.splice(ativoIndex, 1);
-            } else {
-              const defCat = DEFAULT_CATEGORIES.find(d => d.id === cat.id);
-              if (defCat) activeProp = defCat.activeProperty;
-            }
-            return { ...cat, activeProperty: activeProp, functions: newFunctions };
-          });
-          setCategories(migrated);
+          setCategories(migrateCategoryList(data.categorias_funcoes));
         } else {
           setCategories(DEFAULT_CATEGORIES);
         }
@@ -2019,7 +2005,18 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
             baseRoster={baseRoster}
             predefinicoes={predefinicoes}
             onUpdatePredefinicao={(rg, funcs) => {
-              setPredefinicoes(prev => ({ ...prev, [rg]: funcs }));
+              setPredefinicoes(prev => {
+                const next = { ...prev, [rg]: funcs };
+                const canonicalKey = getObmSettingsDocKey(obmContext);
+                const payload = cleanUndefined({ escala_preferencias: next });
+                fetch('/api/obm-settings/update', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ key: canonicalKey, data: payload }),
+                }).catch(() => {});
+                setDoc(doc(db, 'obm_settings', canonicalKey), payload, { merge: true }).catch(() => {});
+                return next;
+              });
             }}
             categories={categories}
             availableControlFunctions={availableControlFunctions}
@@ -2168,7 +2165,22 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         onToggleAdminRoleVisibility={handleToggleAdminRoleVisibility}
         onSetAllAdminRolesVisibility={handleSetAllAdminRolesVisibility}
         roleQtds={roleQtds}
-        setRoleQtds={setRoleQtds}
+        setRoleQtds={(updater) => {
+          setRoleQtds(prev => {
+            const next = typeof updater === 'function' ? updater(prev) : updater;
+            const canonicalKey = getObmSettingsDocKey(obmContext);
+            const payload = cleanUndefined({
+              escala_regras: { correlation, qtds: next },
+            });
+            fetch('/api/obm-settings/update', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ key: canonicalKey, data: payload }),
+            }).catch(() => {});
+            setDoc(doc(db, 'obm_settings', canonicalKey), payload, { merge: true }).catch(() => {});
+            return next;
+          });
+        }}
         postosEscalaEnabled={postosEscalaEnabled}
         setPostosEscalaEnabled={setPostosEscalaEnabled}
         sentinelaSlots={sentinelaSlots}

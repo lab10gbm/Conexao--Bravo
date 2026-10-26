@@ -1,5 +1,6 @@
 import { CategoryConfig, SelectableControlFunction } from '../../../components/ControleCategoriasModal';
 import { inferDefaultFnIdForSlot } from '../../viaturas/lib/viaturaUtils';
+import { checkConditions } from '../../funcoes/lib/funcoesUtils';
 
 export const normalizeFnName = (s: string): string => {
   if (!s) return "";
@@ -79,6 +80,10 @@ export const getSlotDisplayName = (v: any, slot: string, availableControlFunctio
 
 export const getMilitarProp = (militar: any, path: string): boolean => {
   if (!militar || !path) return false;
+  if (path === "ativoAdministrativo") {
+    if (militar.ativoAdministrativo !== undefined) return Boolean(militar.ativoAdministrativo);
+    return Boolean(militar.ativoGraduado || militar.ativoCbsSds);
+  }
   if (path.startsWith("viaturas.")) {
     const key = path.split(".")[1];
     return Boolean(militar.viaturas?.[key]);
@@ -88,6 +93,95 @@ export const getMilitarProp = (militar: any, path: string): boolean => {
     return Boolean(militar.dynamicFunctions?.[key]);
   }
   return Boolean(militar[path]);
+};
+
+const CONDUTOR_FN_IDS = new Set([
+  "viaturas.ABT",
+  "viaturas.ABSL",
+  "viaturas.ASE",
+  "viaturas.AR",
+  "viaturas.ARC",
+  "ativoEncarregado",
+  "ativoAbastecedor",
+  "ativoCondutor",
+]);
+
+const CHEFE_FN_IDS = new Set(["chefeAbt", "chefeAbsl", "ativoChefeGua"]);
+
+const AUXILIAR_FN_IDS = new Set(["auxAbt", "auxAbsl", "auxArc", "auxAse", "disponivelAux", "ativoAuxiliar"]);
+
+const MARITIMO_FN_IDS = new Set(["mestreAl", "mestreBia", "opAma", "gvAma", "marinheiros", "ativoMaritimo"]);
+
+const GRADUADO_ADMIN_FN_IDS = new Set(["adjunto", "sgtDia", "cmtGuarda", "disponivel1", "disponivel2"]);
+
+const CB_SD_ADMIN_FN_IDS = new Set([
+  "cbGuarda",
+  "cbDia",
+  "sentinela",
+  "auxRancho",
+  "toqueDeFogo",
+  "deposito",
+  "faxina",
+  "disponivelCbsSds",
+]);
+
+/**
+ * Verifica se uma função (`fnId`) está efetivamente habilitada para o militar,
+ * respeitando a chave mestre (`activeProperty`) da categoria correspondente e
+ * eventuais condições de posto/CNH configuradas no Controle de Funções.
+ */
+export const isFunctionEnabledForMilitar = (
+  militar: any,
+  fnId: string,
+  categories: CategoryConfig[] = []
+): boolean => {
+  if (!militar || !fnId) return false;
+
+  if (fnId.startsWith("viaturas.") || CONDUTOR_FN_IDS.has(fnId)) {
+    if (!militar.ativoCondutor) return false;
+  } else if (CHEFE_FN_IDS.has(fnId)) {
+    if (!militar.ativoChefeGua) return false;
+  } else if (AUXILIAR_FN_IDS.has(fnId)) {
+    if (!militar.ativoAuxiliar) return false;
+  } else if (MARITIMO_FN_IDS.has(fnId)) {
+    if (!militar.ativoMaritimo) return false;
+  } else if (fnId === "ativoEnfermeiro") {
+    if (!militar.ativoEnfermeiro) return false;
+  } else if (fnId === "ativoComunicante") {
+    if (!militar.ativoComunicante) return false;
+  } else if (GRADUADO_ADMIN_FN_IDS.has(fnId)) {
+    if (militar.ativoAdministrativo === false) return false;
+    const isGradActive =
+      militar.ativoGraduado !== undefined
+        ? Boolean(militar.ativoGraduado)
+        : Boolean(militar.ativoAdministrativo);
+    if (!isGradActive) return false;
+  } else if (CB_SD_ADMIN_FN_IDS.has(fnId)) {
+    if (militar.ativoAdministrativo === false) return false;
+    const isCbsActive =
+      militar.ativoCbsSds !== undefined
+        ? Boolean(militar.ativoCbsSds)
+        : Boolean(militar.ativoAdministrativo);
+    if (!isCbsActive) return false;
+  }
+
+  for (const cat of categories) {
+    if (!cat || cat.id === "mostruario") continue;
+    const fnCfg = (cat.functions || []).find((f) => f.id === fnId);
+    if (fnCfg) {
+      if (cat.activeProperty && !getMilitarProp(militar, cat.activeProperty)) {
+        return false;
+      }
+      if (fnCfg.conditions && fnCfg.conditions.length > 0) {
+        if (!checkConditions(militar, fnCfg.conditions).valid) {
+          return false;
+        }
+      }
+      break;
+    }
+  }
+
+  return getMilitarProp(militar, fnId);
 };
 
 export const getMostruario = (militar: any, availableControlFunctions: SelectableControlFunction[] = []): string => {
@@ -130,7 +224,10 @@ export const getMostruario = (militar: any, availableControlFunctions: Selectabl
     if (militar.gvAma) funcs.push("GV AMA");
   }
   
-  if (militar.ativoGraduado) {
+  const isGradActive =
+    militar.ativoAdministrativo !== false &&
+    (militar.ativoGraduado !== undefined ? Boolean(militar.ativoGraduado) : Boolean(militar.ativoAdministrativo));
+  if (isGradActive) {
     if (militar.adjunto) funcs.push("ADJUNTO");
     if (militar.sgtDia) funcs.push("SGT DIA");
     if (militar.cmtGuarda) funcs.push("CMT GUARDA");
@@ -138,7 +235,10 @@ export const getMostruario = (militar: any, availableControlFunctions: Selectabl
     if (militar.disponivel2) funcs.push("DISP 2");
   }
   
-  if (militar.ativoCbsSds) {
+  const isCbsActive =
+    militar.ativoAdministrativo !== false &&
+    (militar.ativoCbsSds !== undefined ? Boolean(militar.ativoCbsSds) : Boolean(militar.ativoAdministrativo));
+  if (isCbsActive) {
     if (militar.cbGuarda) funcs.push("CB GUARDA");
     if (militar.cbDia) funcs.push("CB DIA");
     if (militar.sentinela) funcs.push("SENTINELA");
@@ -187,7 +287,6 @@ export const getRawAllowedOptions = (
   if (militar.ativoChefeGua) {
     if (militar.chefeAbsl) allowed.add('CHEFE ABSL');
     if (militar.chefeAbt) allowed.add('CHEFE ABT');
-    allowed.add('AUXILIAR/CHEFE ARC');
   }
   
   if (militar.ativoAuxiliar) {
@@ -199,6 +298,7 @@ export const getRawAllowedOptions = (
   
   if (militar.ativoEnfermeiro) {
     allowed.add('ENFERMEIRO');
+    allowed.add('AUXILIAR ASE');
   }
   
   if (militar.ativoMaritimo) {
@@ -207,12 +307,16 @@ export const getRawAllowedOptions = (
     if (militar.marinheiros) {
       allowed.add('MARINHEIRO L');
       allowed.add('MARINHEIRO BIA');
+      allowed.add('MARINHEIRO');
     }
     if (militar.opAma) allowed.add('OPERADOR AMA');
     if (militar.gvAma) allowed.add('GV AMA');
   }
   
-  if (militar.ativoGraduado) {
+  const isGradActive =
+    militar.ativoAdministrativo !== false &&
+    (militar.ativoGraduado !== undefined ? Boolean(militar.ativoGraduado) : Boolean(militar.ativoAdministrativo));
+  if (isGradActive) {
     if (militar.adjunto) allowed.add('ADJUNTO');
     if (militar.sgtDia) allowed.add('SGT DIA');
     if (militar.cmtGuarda) allowed.add('CMT GUARDA');
@@ -220,7 +324,10 @@ export const getRawAllowedOptions = (
     if (militar.disponivel2) allowed.add('DISPONIVEL 2');
   }
   
-  if (militar.ativoCbsSds) {
+  const isCbsActive =
+    militar.ativoAdministrativo !== false &&
+    (militar.ativoCbsSds !== undefined ? Boolean(militar.ativoCbsSds) : Boolean(militar.ativoAdministrativo));
+  if (isCbsActive) {
     if (militar.cbGuarda) allowed.add('CB GUARDA');
     if (militar.cbDia) allowed.add('CB DIA');
     if (militar.sentinela) allowed.add('SENTINELA');
@@ -248,9 +355,13 @@ export const getRawAllowedOptions = (
     const isCatActive = cat.activeProperty ? getMilitarProp(militar, cat.activeProperty) : true;
     if (isCatActive) {
       (cat.functions || []).forEach(fn => {
-        if (getMilitarProp(militar, fn.id)) {
+        if (isFunctionEnabledForMilitar(militar, fn.id, categories)) {
           const mapped = availableControlFunctions.find(af => af.id === fn.id);
           const sName = mapped ? mapped.scaleName : fn.name.trim().toUpperCase();
+          if (sName === 'MARINHEIRO') {
+            allowed.add('MARINHEIRO L');
+            allowed.add('MARINHEIRO BIA');
+          }
           if (
             sName !== 'CONDUTOR' &&
             sName !== 'CHEFE GUA' &&
@@ -266,7 +377,7 @@ export const getRawAllowedOptions = (
     }
   });
 
-  // Mapeia as viaturas cadastradas e seus slots de função configurados
+  // Mapeia as viaturas cadastradas e seus slots de função configurados (respeitando a categoria ativa!)
   viaturasInfo.forEach(v => {
     if (v.ativa === false) return;
     (['condutor', 'g1', 'g2', 'g3', 'g4', 'cg'] as const).forEach(slot => {
@@ -277,7 +388,7 @@ export const getRawAllowedOptions = (
        const explicitFnId = v.customFunctions?.[slot];
 
        if (explicitFnId) {
-          if (getMilitarProp(militar, explicitFnId)) {
+          if (isFunctionEnabledForMilitar(militar, explicitFnId, categories)) {
              allowed.add(slotDisplayName);
           }
        } else if (v.customNames?.[slot]?.trim()) {
@@ -285,17 +396,17 @@ export const getRawAllowedOptions = (
           const matchedFn = availableControlFunctions.find(
             f => f.scaleName === customUpper || f.name.trim().toUpperCase() === customUpper
           );
-          if (matchedFn && getMilitarProp(militar, matchedFn.id)) {
+          if (matchedFn && isFunctionEnabledForMilitar(militar, matchedFn.id, categories)) {
              allowed.add(slotDisplayName);
           } else {
              const defaultFnId = inferDefaultFnIdForSlot(v, slotGroup);
-             if (defaultFnId && getMilitarProp(militar, defaultFnId)) {
+             if (defaultFnId && isFunctionEnabledForMilitar(militar, defaultFnId, categories)) {
                 allowed.add(slotDisplayName);
              }
           }
        } else {
           const defaultFnId = inferDefaultFnIdForSlot(v, slotGroup);
-          if (defaultFnId && getMilitarProp(militar, defaultFnId)) {
+          if (defaultFnId && isFunctionEnabledForMilitar(militar, defaultFnId, categories)) {
              allowed.add(slotDisplayName);
           }
        }
