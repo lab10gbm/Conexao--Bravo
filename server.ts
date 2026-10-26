@@ -300,6 +300,26 @@ async function startServer() {
           snap.forEach((d) => {
             militaryCache.set(d.id, d.data());
           });
+          const localCacheFile = path.join(process.cwd(), 'src/server/data/militaries_cache.json');
+          if (fs.existsSync(localCacheFile)) {
+            try {
+              const localData = JSON.parse(fs.readFileSync(localCacheFile, 'utf8'));
+              if (Array.isArray(localData)) {
+                localData.forEach((m: any) => {
+                  const docRg = normalizeRg(m.rg);
+                  if (docRg) {
+                    const existing = militaryCache.get(docRg) || militaryCache.get(m.rg) || {};
+                    const merged = { ...existing, ...m };
+                    militaryCache.set(docRg, merged);
+                    militaryCache.set(m.rg, merged);
+                  }
+                });
+                console.log(`[Cache] Reconciled ${localData.length} militaries from local snapshot into memory.`);
+              }
+            } catch (snapErr: any) {
+              console.warn('[Cache] Could not reconcile local snapshot:', snapErr.message);
+            }
+          }
           isCacheLoaded = true;
           console.log(`[Cache] Preloaded ${militaryCache.size} militaries into memory using Client SDK.`);
 

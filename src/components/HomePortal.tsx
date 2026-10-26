@@ -669,9 +669,6 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule, o
         </motion.div>
       )}
 
-      {/* Indicativo de Turno Operacional, Ala do Dia e Militares Online */}
-      <OperationalDutyWidget user={user} obmContext={obmContext} />
-
       <div className="mb-5 sm:mb-6 group">
         <button 
           onClick={() => setShowMural(!showMural)}
@@ -850,6 +847,11 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule, o
             </div>
          </div>
       )}
+
+      {/* Indicativo de Turno Operacional, Ala do Dia e Relação de Militares por OBM (Última Seção da Homepage) */}
+      <div className="mt-8 mb-6">
+        <OperationalDutyWidget user={user} obmContext={obmContext} />
+      </div>
 
          <div className="mt-8 p-4 sm:p-5 bg-slate-100/80 dark:bg-slate-900/60 rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6">
             <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 text-center sm:text-left">
