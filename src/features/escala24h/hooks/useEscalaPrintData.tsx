@@ -22,6 +22,7 @@ import { getStoredAlaNomenclatures } from '../../../lib/alaUtils';
 import { OfficerVisibility, UserProfile } from '../../../types';
 import { OfficerSectionItem, getDefaultSectionsForObm } from '../../../types/officerSections';
 import { generatePrintHtmlDocument } from '../lib/printHtmlGenerator';
+import { EscalaPostoData, PostoConfig } from '../../postos/types';
 
 export interface UseEscalaPrintDataProps {
   selectedDate: string;
@@ -50,6 +51,9 @@ export interface UseEscalaPrintDataProps {
   onClose?: () => void;
   sections?: OfficerSectionItem[];
   customOfficerValues?: Record<string, string>;
+  postosEscalaEnabled?: boolean;
+  postosData?: EscalaPostoData[];
+  availablePostosConfig?: PostoConfig[];
 }
 
 export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
@@ -75,7 +79,10 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
     obmContext,
     grdRgs: propGrdRgs,
     sentinelaRgs: propSentinelaRgs,
-    sentinelaSlots: propSentinelaSlots
+    sentinelaSlots: propSentinelaSlots,
+    postosEscalaEnabled: propPostosEscalaEnabled,
+    postosData: propPostosData,
+    availablePostosConfig: propAvailablePostosConfig
   } = props;
 
   const [showVisualMode, setShowVisualMode] = useState(false);
@@ -85,6 +92,16 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
   const [isRegistering, setIsRegistering] = useState(false);
   const [grdRgs, setGrdRgs] = useState<string[]>(() => propGrdRgs || []);
   const [printFallbackUrl, setPrintFallbackUrl] = useState<string | null>(null);
+
+  const [isPostosVisible, setIsPostosVisible] = useState<boolean>(() => {
+    return propPostosEscalaEnabled !== undefined ? Boolean(propPostosEscalaEnabled) : true;
+  });
+
+  useEffect(() => {
+    if (propPostosEscalaEnabled !== undefined) {
+      setIsPostosVisible(Boolean(propPostosEscalaEnabled));
+    }
+  }, [propPostosEscalaEnabled]);
 
   useEffect(() => {
     if (propGrdRgs !== undefined && Array.isArray(propGrdRgs)) {
@@ -1484,6 +1501,9 @@ export function useEscalaPrintData(props: UseEscalaPrintDataProps) {
     shortDateStr,
     activeMembersList,
     permutasAtivas,
-    handlePrintEscala
+    handlePrintEscala,
+    isPostosVisible,
+    setIsPostosVisible,
+    hasPostos: Boolean(propPostosEscalaEnabled)
   };
 }

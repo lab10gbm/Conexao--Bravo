@@ -52,6 +52,9 @@ export interface PrintToolbarProps {
   handlePrintEscala: () => void;
   printFallbackUrl: string | null;
   onClose?: () => void;
+  hasPostos?: boolean;
+  isPostosVisible?: boolean;
+  setIsPostosVisible?: (v: boolean) => void;
 }
 
 export function PrintToolbar({
@@ -88,7 +91,10 @@ export function PrintToolbar({
   onRegister,
   handlePrintEscala,
   printFallbackUrl,
-  onClose
+  onClose,
+  hasPostos,
+  isPostosVisible = true,
+  setIsPostosVisible
 }: PrintToolbarProps) {
   return (
     <div className="sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-700/80 px-4 py-2.5 flex items-center justify-between gap-3 print:hidden shadow-lg">
@@ -404,6 +410,31 @@ export function PrintToolbar({
             </div>
           )}
         </div>
+
+        {/* Seção Postos de Serviço (Praia / Salvamar) */}
+        {hasPostos && (
+          <button
+            type="button"
+            onClick={() => setIsPostosVisible && setIsPostosVisible(!isPostosVisible)}
+            className={cn(
+              "px-3 py-2 rounded-lg font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs text-xs border",
+              isPostosVisible
+                ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300"
+                : "bg-slate-100 hover:bg-slate-200 text-slate-500 border-slate-300 line-through opacity-75"
+            )}
+            title={isPostosVisible ? "Ocultar seção de Postos no Gerar Escala" : "Exibir seção de Postos no Gerar Escala"}
+          >
+            <span>Postos (Praia)</span>
+            <span
+              className={cn(
+                "text-[9px] px-1 py-0.2 rounded font-black",
+                isPostosVisible ? "bg-emerald-200/80 text-emerald-900" : "bg-slate-200 text-slate-600"
+              )}
+            >
+              {isPostosVisible ? "Ativo" : "Oculto"}
+            </span>
+          </button>
+        )}
 
         <button
           type="button"

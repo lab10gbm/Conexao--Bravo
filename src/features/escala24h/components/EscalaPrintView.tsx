@@ -5,6 +5,7 @@ import { useEscalaPrintData, UseEscalaPrintDataProps } from '../hooks/useEscalaP
 import { PrintToolbar } from './print/PrintToolbar';
 import { PrintHeaderOficiais } from './print/PrintHeaderOficiais';
 import { PrintViaturasTable } from './print/PrintViaturasTable';
+import { PrintPostosTable } from './print/PrintPostosTable';
 import { PrintAdminSentinelasPermutas } from './print/PrintAdminSentinelasPermutas';
 import { PrintChamadaExpedienteGrd } from './print/PrintChamadaExpedienteGrd';
 
@@ -97,6 +98,9 @@ export function EscalaPrintView(props: UseEscalaPrintDataProps) {
         handlePrintEscala={data.handlePrintEscala}
         printFallbackUrl={data.printFallbackUrl}
         onClose={props.onClose}
+        hasPostos={data.hasPostos}
+        isPostosVisible={data.isPostosVisible}
+        setIsPostosVisible={data.setIsPostosVisible}
       />
 
       {/* Folha de Impressão */}
@@ -230,6 +234,21 @@ export function EscalaPrintView(props: UseEscalaPrintDataProps) {
           shortDateStr={data.shortDateStr}
           viaturaTableLayout={data.viaturaTableLayout}
         />
+
+        {/* 2.1 Postos de Serviço (Praia / Salvamar / Fixos) */}
+        {data.isPostosVisible && (
+          <PrintPostosTable
+            postosEscalaEnabled={props.postosEscalaEnabled}
+            postosData={props.postosData}
+            availablePostosConfig={props.availablePostosConfig}
+            baseRoster={props.baseRoster}
+            militars={props.militars}
+            permutasOut={props.permutasOut}
+            headerColorClass={data.headerColorClass}
+            headerBgStyle={data.headerBgStyle}
+            renderMilitar={data.renderMilitar}
+          />
+        )}
 
         {/* 3. Funções Administrativas, Sentinelas e Permutas */}
         <PrintAdminSentinelasPermutas

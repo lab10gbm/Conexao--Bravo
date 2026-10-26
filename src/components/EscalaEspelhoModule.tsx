@@ -2046,6 +2046,9 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
             oficialDia={oficialDiaValue}
             oficialNautica={nauticoOficialValue}
             oficialMedico={medicoOficialValue}
+            postosEscalaEnabled={postosEscalaEnabled}
+            postosData={postosData}
+            availablePostosConfig={availablePostosConfig}
             officerVisibility={officerVisibility}
             onOfficerVisibilityChange={(updated: OfficerVisibility) => {
               setOfficerVisibility(updated);
