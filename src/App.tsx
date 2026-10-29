@@ -1488,7 +1488,7 @@ export default function App() {
       </footer>
 
       {/* Mobile Bottom Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-[#121927] border-t border-slate-200 dark:border-slate-800 flex items-center justify-around z-[100] pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-[#121927] border-t border-slate-200 dark:border-slate-800 flex items-center justify-around z-30 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
         {[
           { icon: Home, label: "INÍCIO", path: "/" },
           { icon: Calendar, label: "ESCALA", path: "/em-desenvolvimento" },

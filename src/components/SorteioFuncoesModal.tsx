@@ -931,7 +931,7 @@ export function SorteioFuncoesModal({
     : { grad: "from-indigo-600 via-violet-600 to-purple-700", Icon: ClipboardList, title: "Sortear Funções Administrativas", sub: "Quartel: adjunto, sgt dia, cmt guarda, comunicante e encargos de rotina" };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-slate-950/60 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-slate-950/60 backdrop-blur-sm" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <motion.div
         initial={{ opacity: 0, y: 24, scale: 0.97 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}

@@ -131,7 +131,7 @@ export function MainLayout({
           </div>
         )}
       <nav
-        className={`bg-[var(--color-brand-dark)] text-white p-4 sticky top-0 z-[100] border-b-4 border-[var(--color-brand-red)] shadow-lg transition-transform duration-300 ${isHeaderVisible ? "translate-y-0" : "-translate-y-full"}`}
+        className={`bg-[var(--color-brand-dark)] text-white p-4 sticky top-0 z-30 border-b-4 border-[var(--color-brand-red)] shadow-lg transition-transform duration-300 ${isHeaderVisible ? "translate-y-0" : "-translate-y-full"}`}
       >
         <div className="max-w-[1600px] mx-auto flex items-center justify-between">
           <div

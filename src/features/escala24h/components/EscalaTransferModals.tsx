@@ -40,7 +40,7 @@ export function EscalaTransferModals({
     <>
       {/* POPUP MODAL 1: Aviso de Militar em Outra Unidade (Transferência / Escalar) */}
       {pendingTransferMilitar && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-3 bg-amber-100 text-amber-800 rounded-2xl shrink-0">
@@ -120,7 +120,7 @@ export function EscalaTransferModals({
 
       {/* POPUP MODAL 2: Modal de Transferência Direta / Receber Militar para obmContext */}
       {showTransferSearchModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-200 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
