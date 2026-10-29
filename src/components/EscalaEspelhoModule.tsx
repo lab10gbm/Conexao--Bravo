@@ -613,7 +613,16 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   const handleToggleSectionVisibility = (sectionKey: string) => {
     setSectionsVisibility(prev => {
       const current = prev[sectionKey] !== false;
-      const next = { ...prev, [sectionKey]: !current };
+      const nextVal = !current;
+      const next = { ...prev, [sectionKey]: nextVal };
+      if (sectionKey === 'postos') {
+        setPostosEscalaEnabled(nextVal);
+        try {
+          const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+          const cleanObm = normalizeObm(rawObm);
+          localStorage.setItem(`postos_escala_enabled_${cleanObm}`, String(nextVal));
+        } catch {}
+      }
       try {
         const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
         const cleanObm = normalizeObm(rawObm);
@@ -629,9 +638,11 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
       ['oficiais', 'permutas', 'ras', 'baseRoster', 'postos', 'sentinelas', 'afastamentos', 'expediente', 'grd', 'adminRoles', 'operacional', 'viaturas'].forEach(k => {
         next[k] = visible;
       });
+      setPostosEscalaEnabled(visible);
       try {
         const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
         const cleanObm = normalizeObm(rawObm);
+        localStorage.setItem(`postos_escala_enabled_${cleanObm}`, String(visible));
         localStorage.setItem(`escala_sections_visibility_${cleanObm}`, JSON.stringify(next));
       } catch {}
       return next;
@@ -705,10 +716,42 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   const [grdDayRgs, setGrdDayRgs] = useState<string[]>([]);
   const [sentinelaRgs, setSentinelaRgs] = useState<(string | null)[]>(() => [null, null, null, null]);
   const [sentinelaSlots, setSentinelaSlots] = useState<SentinelaSlot[] | null>(null);
-  const [postosEscalaEnabled, setPostosEscalaEnabled] = useState<boolean>(false);
+  const [postosEscalaEnabled, setPostosEscalaEnabled] = useState<boolean>(() => {
+    try {
+      const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+      const cleanObm = normalizeObm(rawObm);
+      const saved = localStorage.getItem(`postos_escala_enabled_${cleanObm}`);
+      if (saved !== null) return saved === 'true';
+      const secSaved = localStorage.getItem(`escala_sections_visibility_${cleanObm}`);
+      if (secSaved) {
+        const parsed = JSON.parse(secSaved);
+        if (parsed.postos !== undefined) return Boolean(parsed.postos);
+      }
+    } catch {}
+    return true;
+  });
   const [postosData, setPostosData] = useState<EscalaPostoData[]>([]);
   const [availablePostosConfig, setAvailablePostosConfig] = useState<PostoConfig[]>(DEFAULT_POSTOS);
   const [postosAtivoObm, setPostosAtivoObm] = useState<boolean>(false);
+
+  const handleTogglePostosEnabled = (enabled: boolean) => {
+    setPostosEscalaEnabled(enabled);
+    try {
+      const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+      const cleanObm = normalizeObm(rawObm);
+      localStorage.setItem(`postos_escala_enabled_${cleanObm}`, String(enabled));
+    } catch {}
+    setSectionsVisibility(prev => {
+      if (prev.postos === enabled) return prev;
+      const next = { ...prev, postos: enabled };
+      try {
+        const rawObm = obmContext && obmContext !== 'GLOBAL' ? obmContext : (user?.obm || '10º GBM');
+        const cleanObm = normalizeObm(rawObm);
+        localStorage.setItem(`escala_sections_visibility_${cleanObm}`, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
 
   // Redefinição síncrona de estado na renderização quando a data muda
   const [prevSelectedDate, setPrevSelectedDate] = useState(selectedDate);
@@ -887,11 +930,15 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
         }
 
         if (data.postos_ativo_obm !== undefined) {
-          setPostosAtivoObm(Boolean(data.postos_ativo_obm));
+          const isAtivo = Boolean(data.postos_ativo_obm);
+          setPostosAtivoObm(isAtivo);
+          if (isAtivo) setPostosEscalaEnabled(true);
         } else {
           const cleanObm = normalizeObm(obmContext || '');
           const isDecimo = cleanObm === '10º GBM' || cleanObm.includes('10');
-          setPostosAtivoObm(!isDecimo && Boolean(data.postos_config?.length));
+          const isAtivo = !isDecimo && Boolean(data.postos_config?.length);
+          setPostosAtivoObm(isAtivo);
+          if (isAtivo) setPostosEscalaEnabled(true);
         }
       } else {
         setCategories(DEFAULT_CATEGORIES);
@@ -1865,26 +1912,6 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           />
         )}
 
-        {/* SEÇÃO 2.3: POSTOS DE SERVIÇO (POSTO DE PRAIA) */}
-        {sectionsVisibility.postos !== false && postosEscalaEnabled && (
-          <EscalaPostosSection
-            key={`postos_${selectedDate}_${identifiedAlaStr}`}
-            obmContext={obmContext}
-            selectedDate={selectedDate}
-            identifiedAlaStr={identifiedAlaStr}
-            baseRoster={baseRoster}
-            militars={militars}
-            permutasOut={permutasOut}
-            isSectionEnabled={postosEscalaEnabled}
-            onToggleSectionEnabled={setPostosEscalaEnabled}
-            postosData={postosData}
-            onChangePostosData={setPostosData}
-            availablePostosConfig={availablePostosConfig}
-            selectedFunctions={selectedFunctions}
-            onAssignSlot={handlePostoSlotAssign}
-          />
-        )}
-
         {/* SEÇÃO 2.4: SENTINELAS DA GUARDA */}
         {sectionsVisibility.sentinelas !== false && (
           <SentinelasSection
@@ -1966,6 +1993,26 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
             onAddViaturaExtra={handleAddViaturaExtra}
             patternAppliedMessage={patternAppliedMessage}
             isViaturasCustomizedForDateRef={isViaturasCustomizedForDate}
+          />
+        )}
+
+        {/* SECTION 5: POSTOS DE SERVIÇO / GUARDA-VIDAS (POSTO DE PRAIA - ABAIXO DA SEÇÃO DE VIATURAS) */}
+        {sectionsVisibility.postos !== false && (
+          <EscalaPostosSection
+            key={`postos_${selectedDate}_${identifiedAlaStr}`}
+            obmContext={obmContext}
+            selectedDate={selectedDate}
+            identifiedAlaStr={identifiedAlaStr}
+            baseRoster={baseRoster}
+            militars={militars}
+            permutasOut={permutasOut}
+            isSectionEnabled={postosEscalaEnabled}
+            onToggleSectionEnabled={handleTogglePostosEnabled}
+            postosData={postosData}
+            onChangePostosData={setPostosData}
+            availablePostosConfig={availablePostosConfig}
+            selectedFunctions={selectedFunctions}
+            onAssignSlot={handlePostoSlotAssign}
           />
         )}
       </div>
@@ -2186,7 +2233,17 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
           });
         }}
         postosEscalaEnabled={postosEscalaEnabled}
-        setPostosEscalaEnabled={setPostosEscalaEnabled}
+        setPostosEscalaEnabled={(val) => {
+          if (typeof val === 'function') {
+            setPostosEscalaEnabled(prev => {
+              const next = val(prev);
+              handleTogglePostosEnabled(next);
+              return next;
+            });
+          } else {
+            handleTogglePostosEnabled(val);
+          }
+        }}
         sentinelaSlots={sentinelaSlots}
         sectionsVisibility={sectionsVisibility}
         onToggleSectionVisibility={handleToggleSectionVisibility}
