@@ -1792,6 +1792,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
             onSaveMedicoOficial={handleSaveMedicoOficial}
             savingMedico={savingMedico}
             sections={officerSections}
+            militars={militars}
           />
         )}
 

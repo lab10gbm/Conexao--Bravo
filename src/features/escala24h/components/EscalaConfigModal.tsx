@@ -191,8 +191,8 @@ export function EscalaConfigModal({
   const SCALE_SECTIONS_LIST = [
     {
       id: 'oficiais',
-      title: 'Conexão de Escalas de Oficiais',
-      desc: 'Oficial de Dia (GRD), Núcleo Náutico, Gestão Médica e seções especiais de oficiais',
+      title: 'Seção de Cmt de Socorro & Oficiais',
+      desc: 'Comandante de Socorro, Oficial de Dia (GRD), Núcleo Náutico, Médicos e funções operacionais (Oficiais e Subtenentes)',
       icon: Shield,
       color: 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20',
     },
@@ -295,7 +295,7 @@ export function EscalaConfigModal({
                 </span>
               </div>
               <p className="text-[10px] sm:text-[11px] text-slate-300 font-semibold tracking-wide mt-0.5">
-                Personalize seções, oficiais de dia, funções operacionais e administrativas
+                Personalize seções, comandante de socorro, oficiais de dia, viaturas e funções operacionais
               </p>
             </div>
           </div>
@@ -321,7 +321,7 @@ export function EscalaConfigModal({
             )}
           >
             <Shield className="w-4 h-4 text-indigo-500" />
-            <span>Seções de Oficiais</span>
+            <span>Seção de Cmt de Socorro</span>
           </button>
 
           <button
@@ -371,7 +371,7 @@ export function EscalaConfigModal({
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100">
           
           {/* ======================================================== */}
-          {/* TAB 1: SEÇÕES DE OFICIAIS */}
+          {/* TAB 1: SEÇÃO DE CMT DE SOCORRO & OFICIAIS */}
           {/* ======================================================== */}
           {activeTab === 'oficiais' && (
             <div className="space-y-5 animate-in fade-in duration-150">
@@ -383,10 +383,10 @@ export function EscalaConfigModal({
                   </div>
                   <div>
                     <h3 className="text-xs sm:text-sm font-black uppercase tracking-tight text-indigo-950 dark:text-indigo-100">
-                      Exibir Seção de Oficiais na Escala 24h
+                      Exibir Seção de Cmt de Socorro na Escala 24h
                     </h3>
                     <p className="text-[10px] sm:text-xs text-indigo-700 dark:text-indigo-300">
-                      Liga ou desliga todo o bloco de conexão de escalas de oficiais no espelho de serviço
+                      Liga ou desliga todo o bloco de comando de socorro e escalas de oficiais no espelho de serviço (Oficiais e Subtenentes)
                     </p>
                   </div>
                 </div>
@@ -508,15 +508,15 @@ export function EscalaConfigModal({
                 </div>
               </div>
 
-              {/* Seções Personalizadas de Oficiais */}
+              {/* Funções Personalizadas / Cmt de Socorro */}
               <div className="pt-2">
                 <div className="flex items-center justify-between mb-3">
                   <div>
                     <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
-                      Seções Personalizadas de Oficiais
+                      Funções Personalizadas / Cmt de Socorro
                     </h4>
                     <p className="text-[10px] text-slate-400">
-                      Crie seções específicas para eventos, grandes operações ou destacamentos
+                      Crie funções operacionais específicas como Comandante de Socorro (com Oficiais ou Subtenentes), eventos ou destacamentos
                     </p>
                   </div>
                   <button
@@ -525,7 +525,7 @@ export function EscalaConfigModal({
                     className="h-7 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase text-[10px] tracking-wider flex items-center gap-1.5 shadow-2xs transition-all active:scale-95 cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Nova Seção</span>
+                    <span>Nova Função / Seção</span>
                   </button>
                 </div>
 
@@ -533,10 +533,10 @@ export function EscalaConfigModal({
                   <div className="p-6 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center">
                     <Sparkles className="w-8 h-8 text-indigo-400 mx-auto mb-2 opacity-60" />
                     <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                      Nenhuma seção personalizada cadastrada
+                      Nenhuma função personalizada cadastrada
                     </p>
                     <p className="text-[10px] text-slate-400 mt-1">
-                      Clique em &quot;Nova Seção&quot; para adicionar uma seção operacional customizada de oficiais.
+                      Clique em &quot;Nova Função / Seção&quot; para adicionar Comandante de Socorro ou outra função operacional.
                     </p>
                   </div>
                 ) : (
@@ -557,9 +557,15 @@ export function EscalaConfigModal({
                                 <span className="text-xs font-black uppercase text-slate-800 dark:text-white">
                                   {sec.name}
                                 </span>
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-400 uppercase">
-                                  {sec.badge || 'Oficiais'}
-                                </span>
+                                {sec.allowNonOfficers ? (
+                                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 uppercase">
+                                    Oficiais & Subtenentes
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-400 uppercase">
+                                    {sec.badge || 'Oficiais'}
+                                  </span>
+                                )}
                               </div>
                               <p className="text-[10px] text-slate-500 mt-0.5">{sec.description || sec.subtitle}</p>
                             </div>

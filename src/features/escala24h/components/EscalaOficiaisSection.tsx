@@ -6,7 +6,7 @@ import {
   type LucideIcon
 } from 'lucide-react';
 import { RankInsignia } from '../../../components/RankInsignia';
-import { parseRank } from '../../../lib/rankUtils';
+import { parseRank, isOfficer, isPraca, sortOfficersBySeniority } from '../../../lib/rankUtils';
 import { cn, cleanUndefined } from '../../../lib/utils';
 import { OfficerVisibility } from '../types';
 import { OfficerSectionItem, getDefaultSectionsForObm } from '../../../types/officerSections';
@@ -43,6 +43,7 @@ export interface EscalaOficiaisSectionProps {
   savingMedico: boolean;
   onNavigate?: (path: string) => void;
   sections?: OfficerSectionItem[];
+  militars?: any[];
 }
 
 const SECTION_ICONS: Record<string, LucideIcon> = {
@@ -165,6 +166,7 @@ export function EscalaOficiaisSection({
   savingMedico,
   onNavigate,
   sections: propSections,
+  militars = [],
 }: EscalaOficiaisSectionProps) {
   const handleNavigate = (path: string) => {
     if (onNavigate) {
@@ -313,6 +315,30 @@ export function EscalaOficiaisSection({
     }).join(' | ');
   }, [enabledSections, oficialDiaValue, nauticoOficialValue, medicoOficialValue, customOfficerValues]);
 
+  // Listas de militares organizadas para seleção em seções personalizadas / Comandante de Socorro
+  const customSectionMilitaries = useMemo(() => {
+    const allMils = (militars && militars.length > 0) ? militars : availableOfficers;
+
+    // 1. Oficiais
+    const officers = (availableOfficers && availableOfficers.length > 0)
+      ? availableOfficers
+      : allMils.filter(m => isOfficer(m.rank || m.postoGrad || '')).sort(sortOfficersBySeniority);
+
+    // 2. Subtenentes (aptos a Comandante de Socorro)
+    const subtenentes = allMils.filter(m => {
+      const parsed = parseRank(m.rank || m.postoGrad || '');
+      return parsed === 'SUBTEN';
+    }).sort((a, b) => (a.warName || a.name || '').localeCompare(b.warName || b.name || ''));
+
+    // 3. Demais Praças
+    const pracas = allMils.filter(m => {
+      const parsed = parseRank(m.rank || m.postoGrad || '');
+      return isPraca(m.rank || m.postoGrad || '') && parsed !== 'SUBTEN';
+    }).sort((a, b) => (a.warName || a.name || '').localeCompare(b.warName || b.name || ''));
+
+    return { officers, subtenentes, pracas };
+  }, [militars, availableOfficers]);
+
   return (
     <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden relative">
       {/* Header Compacto da Seção */}
@@ -323,7 +349,7 @@ export function EscalaOficiaisSection({
           </div>
           <div className="flex items-center gap-2 min-w-0">
             <h3 className="text-[11px] font-black uppercase tracking-wider text-white truncate">
-              Oficiais de Dia & Serviços Operacionais (24h)
+              Comandante de Socorro & Oficiais de Dia (24h)
             </h3>
             <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[7.5px] font-black uppercase px-1.5 py-0.5 rounded tracking-widest flex items-center gap-1 shrink-0">
               <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" />
@@ -1018,19 +1044,47 @@ export function EscalaOficiaisSection({
                             onChange={(e) => setCustomOfficerInput(e.target.value)}
                             className="w-full bg-white border border-slate-300 rounded p-1 text-[11px] font-bold uppercase text-slate-800 outline-none focus:border-indigo-500"
                           >
-                            <option value="">-- Selecione um Oficial --</option>
-                            {availableOfficers.map((mil) => {
-                              const optName = `${parseRank(mil.rank)} ${mil.warName || (mil.name || '').split(' ')[0]}`;
-                              return (
-                                <option key={mil.rg} value={optName}>
-                                  {optName} (RG: {mil.rg})
-                                </option>
-                              );
-                            })}
+                            <option value="">-- Selecione o Militar / Oficial --</option>
+                            {customSectionMilitaries.officers.length > 0 && (
+                              <optgroup label="Oficiais">
+                                {customSectionMilitaries.officers.map((mil: any) => {
+                                  const optName = `${parseRank(mil.rank)} ${mil.warName || (mil.name || '').split(' ')[0]}`;
+                                  return (
+                                    <option key={mil.rg} value={optName}>
+                                      {optName} (RG: {mil.rg})
+                                    </option>
+                                  );
+                                })}
+                              </optgroup>
+                            )}
+                            {sec.allowNonOfficers !== false && customSectionMilitaries.subtenentes.length > 0 && (
+                              <optgroup label="Subtenentes (Comandante de Socorro)">
+                                {customSectionMilitaries.subtenentes.map((mil: any) => {
+                                  const optName = `ST BM ${mil.warName || (mil.name || '').split(' ')[0]}`;
+                                  return (
+                                    <option key={mil.rg} value={optName}>
+                                      {optName} (RG: {mil.rg})
+                                    </option>
+                                  );
+                                })}
+                              </optgroup>
+                            )}
+                            {sec.allowNonOfficers !== false && customSectionMilitaries.pracas.length > 0 && (
+                              <optgroup label="Demais Praças">
+                                {customSectionMilitaries.pracas.map((mil: any) => {
+                                  const optName = `${parseRank(mil.rank)} ${mil.warName || (mil.name || '').split(' ')[0]}`;
+                                  return (
+                                    <option key={mil.rg} value={optName}>
+                                      {optName} (RG: {mil.rg})
+                                    </option>
+                                  );
+                                })}
+                              </optgroup>
+                            )}
                           </select>
                           <input
                             type="text"
-                            placeholder="Ou digite o nome..."
+                            placeholder="Ou digite o nome ou RG do militar..."
                             value={customOfficerInput}
                             onChange={(e) => setCustomOfficerInput(e.target.value)}
                             className="w-full bg-white border border-slate-300 rounded p-1 text-[11px] font-bold uppercase text-slate-800 outline-none focus:border-indigo-500"
@@ -1076,7 +1130,7 @@ export function EscalaOficiaisSection({
                                   {assignedVal}
                                 </h5>
                                 <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">
-                                  Oficial Escalado
+                                  {sec.badge ? `${sec.badge} Escalado` : 'Militar Escalado'}
                                 </span>
                               </div>
                             </div>

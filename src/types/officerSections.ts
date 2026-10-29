@@ -10,6 +10,7 @@ export interface OfficerSectionItem {
   isCustom?: boolean;
   col1Name?: string;
   col2Name?: string;
+  allowNonOfficers?: boolean; // Permite cadastrar militares não-oficiais (ex: Subtenente como Comandante de Socorro)
 }
 
 export function getDefaultSectionsForObm(obm: string): OfficerSectionItem[] {

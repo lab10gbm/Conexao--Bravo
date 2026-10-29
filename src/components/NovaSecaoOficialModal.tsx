@@ -62,9 +62,22 @@ export function NovaSecaoOficialModal({
   const [color, setColor] = useState('indigo');
   const [col1Name, setCol1Name] = useState('OFICIAL DE DIA / CMT OP / SOBREAVISO 1');
   const [col2Name, setCol2Name] = useState('SOBREAVISO 2 / GRD 2');
+  const [allowNonOfficers, setAllowNonOfficers] = useState(true);
   const [saving, setSaving] = useState(false);
 
   if (!isOpen) return null;
+
+  const handleApplyTemplateCmtSocorro = () => {
+    setName('Comandante de Socorro');
+    setSubtitle('Comando Operacional de Socorro');
+    setBadge('CMT SOCORRO');
+    setDescription('Escala e serviço de Comandante de Socorro da unidade (Oficiais e Subtenentes).');
+    setCol1Name('COMANDANTE DE SOCORRO');
+    setCol2Name('SOBREAVISO CMT SOCORRO');
+    setIcon('shield');
+    setColor('indigo');
+    setAllowNonOfficers(true);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,12 +98,13 @@ export function NovaSecaoOficialModal({
         id: `sec_${slug}_${Date.now()}`,
         name: name.trim(),
         subtitle: subtitle.trim() || 'Serviço Operacional',
-        description: description.trim() || `Escala e serviços de oficiais para ${name.trim()}.`,
+        description: description.trim() || `Escala e serviços para ${name.trim()}.`,
         badge: badge.trim() || name.trim(),
         icon,
         color,
         enabled: true,
         isCustom: true,
+        allowNonOfficers: Boolean(allowNonOfficers),
         col1Name: col1Name.trim() || 'OFICIAL DE DIA / CMT OP / SOBREAVISO 1',
         col2Name: col2Name.trim() || 'SOBREAVISO 2 / GRD 2'
       };
@@ -119,7 +133,7 @@ export function NovaSecaoOficialModal({
             </div>
             <div>
               <h3 className="font-black text-slate-800 dark:text-white uppercase tracking-tight text-base sm:text-lg">
-                Criar Nova Seção de Oficiais
+                Criar Nova Função / Seção Operacional
               </h3>
               <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">
                 Unidade: <span className="text-indigo-600 dark:text-indigo-400 font-black">{obmContext}</span>
@@ -136,18 +150,60 @@ export function NovaSecaoOficialModal({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+          {/* Sugestão / Modelo Rápido */}
+          <div className="p-3 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-900/60 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <span className="text-[10px] font-black uppercase text-indigo-900 dark:text-indigo-200 block truncate">
+                Modelo Pré-definido
+              </span>
+              <span className="text-[9px] font-semibold text-indigo-700 dark:text-indigo-300">
+                Preencha os campos para Comandante de Socorro com 1 clique
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleApplyTemplateCmtSocorro}
+              className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black text-[9px] uppercase tracking-wider rounded-lg shrink-0 shadow-2xs transition-all cursor-pointer"
+            >
+              + Cmt de Socorro
+            </button>
+          </div>
+
           <div>
             <label className="block text-[11px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 mb-1.5">
-              Nome da Seção *
+              Nome da Função / Seção *
             </label>
             <input
               type="text"
               required
-              placeholder="Ex: Oficial de Operações, Sobreaviso de Mergulho..."
+              placeholder="Ex: Comandante de Socorro, Oficial de Operações..."
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             />
+          </div>
+
+          {/* Opção para permitir Militares Não-Oficiais (Subtenentes, etc.) */}
+          <div className="p-3.5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/60 flex items-center justify-between gap-3">
+            <div>
+              <span className="text-xs font-black uppercase tracking-tight text-amber-950 dark:text-amber-200 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-amber-600" />
+                Permitir Militares Não-Oficiais (Subtenentes e Praças)
+              </span>
+              <p className="text-[10px] text-amber-800/90 dark:text-amber-300/80 mt-0.5">
+                Habilita a seleção de Subtenentes e outras praças além de oficiais (essencial para Comandante de Socorro)
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAllowNonOfficers(!allowNonOfficers)}
+              className={cn(
+                "w-11 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer shrink-0",
+                allowNonOfficers ? "bg-amber-600 justify-end" : "bg-slate-300 dark:bg-slate-700 justify-start"
+              )}
+            >
+              <span className="w-4 h-4 rounded-full bg-white shadow-md transform" />
+            </button>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -293,7 +349,7 @@ export function NovaSecaoOficialModal({
               className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-200 dark:shadow-none flex items-center gap-2 cursor-pointer disabled:opacity-50"
             >
               <Plus className="w-4 h-4" />
-              <span>{saving ? 'Criando Seção...' : 'Criar Seção'}</span>
+              <span>{saving ? 'Criando Função...' : 'Criar Função / Seção'}</span>
             </button>
           </div>
         </form>
