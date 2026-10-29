@@ -36,6 +36,8 @@ import {
   ChevronDown,
   AlertTriangle,
   RotateCcw,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -316,7 +318,7 @@ export default function App() {
 
   usePresence(effectiveProfile);
   useKeepAliveHeartbeat();
-  const { activeAlert, dismissAlert } = useViaturaAlerts(effectiveProfile);
+  const { activeAlert, dismissAlert, isMuted, toggleMute } = useViaturaAlerts(effectiveProfile);
 
   // Update profile with escalante and admin roles dynamically from legacy config
   useEffect(() => {
@@ -1406,42 +1408,54 @@ export default function App() {
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 1.1 }}
-            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-md p-6"
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 sm:p-6"
           >
-            <div className="bg-rose-600 rounded-[3rem] p-12 max-w-2xl w-full text-center shadow-[0_0_100px_rgba(225,29,72,0.8)] border-4 border-rose-400 relative overflow-visible">
+            <div className="bg-rose-600 rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-10 md:p-12 max-w-lg md:max-w-2xl w-full text-center shadow-[0_0_100px_rgba(225,29,72,0.8)] border-2 sm:border-4 border-rose-400 relative overflow-hidden">
               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 mix-blend-overlay pointer-events-none"></div>
+
+              {/* Botão de Silenciar/Ativar Sirene */}
+              <button
+                onClick={toggleMute}
+                className="absolute top-4 right-4 p-2.5 sm:p-3 rounded-2xl bg-black/30 hover:bg-black/50 text-white backdrop-blur-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer z-20 border border-white/20 shadow-md"
+                title={isMuted ? "Ativar som da sirene" : "Silenciar som da sirene"}
+              >
+                {isMuted ? <VolumeX className="w-4 h-4 sm:w-5 sm:h-5 text-amber-300" /> : <Volume2 className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-300" />}
+                <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider hidden xs:inline">
+                  {isMuted ? "Sirene Mudo" : "Sirene Ativa"}
+                </span>
+              </button>
 
               <motion.div
                 animate={{ rotate: [0, 10, -10, 10, 0] }}
                 transition={{ repeat: Infinity, duration: 0.5 }}
-                className="w-32 h-32 bg-white rounded-full mx-auto flex items-center justify-center mb-8 shadow-2xl"
+                className="w-20 h-20 sm:w-28 sm:h-28 bg-white rounded-full mx-auto flex items-center justify-center mb-5 sm:mb-6 shadow-2xl relative"
               >
-                <div className="w-24 h-24 bg-rose-500 rounded-full flex items-center justify-center animate-ping absolute" />
-                <BellRing className="w-16 h-16 text-rose-600 relative z-10" />
+                <div className="w-16 h-16 sm:w-22 sm:h-22 bg-rose-500 rounded-full flex items-center justify-center animate-ping absolute" />
+                <BellRing className="w-10 h-10 sm:w-14 sm:h-14 text-rose-600 relative z-10" />
               </motion.div>
 
-              <h1 className="text-5xl sm:text-7xl font-black uppercase tracking-tighter text-white mb-4 drop-shadow-md">
+              <h1 className="text-3xl sm:text-5xl md:text-6xl font-black uppercase tracking-tight text-white mb-2 drop-shadow-md">
                 Viatura Bradou
               </h1>
-              <h2 className="text-6xl sm:text-8xl font-black text-rose-200 mb-8 tracking-tight">
+              <h2 className="text-4xl sm:text-6xl md:text-7xl font-black text-rose-100 mb-6 tracking-tight break-words">
                 {activeAlert.viatura}
               </h2>
 
-              <div className="bg-black/20 rounded-2xl p-6 mb-10 w-max mx-auto border border-rose-500/50 backdrop-blur-sm">
-                <p className="text-rose-100 font-bold uppercase tracking-widest text-sm">
-                  Acionado por:{" "}
-                  <span className="text-white ml-2">
-                    {activeAlert.emittedBy}
-                  </span>
+              <div className="bg-black/25 rounded-2xl px-4 py-3 sm:px-6 sm:py-3.5 mb-6 max-w-full inline-block border border-rose-400/40 backdrop-blur-sm break-words">
+                <p className="text-rose-100 font-bold uppercase tracking-wider text-xs sm:text-sm break-words flex items-center justify-center flex-wrap gap-1.5">
+                  <span className="opacity-80">Acionado por:</span>
+                  <span className="text-white font-black">{activeAlert.emittedBy}</span>
                 </p>
               </div>
 
-              <button
-                onClick={dismissAlert}
-                className="bg-white text-rose-700 hover:bg-rose-50 px-12 py-6 rounded-full font-black uppercase tracking-[0.2em] text-sm sm:text-lg transition-transform active:scale-95 shadow-2xl"
-              >
-                Ciente da Ocorrência
-              </button>
+              <div>
+                <button
+                  onClick={dismissAlert}
+                  className="w-full sm:w-auto bg-white text-rose-700 hover:bg-rose-50 px-8 sm:px-12 py-4 sm:py-5 rounded-2xl sm:rounded-full font-black uppercase tracking-[0.15em] text-xs sm:text-base transition-transform active:scale-95 shadow-2xl cursor-pointer"
+                >
+                  Ciente da Ocorrência
+                </button>
+              </div>
             </div>
           </motion.div>
         )}
