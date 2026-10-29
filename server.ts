@@ -1,4 +1,5 @@
 import express from 'express';
+import http from 'http';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import fs from 'fs';
@@ -728,6 +729,8 @@ async function startServer() {
     });
   });
 
+  const server = http.createServer(app);
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     console.log('[Server] Starting Vite in middleware mode...');
@@ -735,7 +738,9 @@ async function startServer() {
       const vite = await createViteServer({
         server: {
           middlewareMode: true,
-          hmr: false,
+          hmr: {
+            server,
+          },
         },
         appType: 'spa',
       });
@@ -752,7 +757,7 @@ async function startServer() {
     });
   }
 
-  const server = app.listen(PORT, HOST, () => {
+  server.listen(PORT, HOST, () => {
     console.log(`Server running on http://${HOST}:${PORT}`);
     startKeepAliveRobot(PORT);
   });

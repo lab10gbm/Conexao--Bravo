@@ -14,9 +14,6 @@ export default defineConfig(({mode}) => {
         '@': path.resolve(__dirname, '.'),
       },
     },
-    server: {
-      hmr: false,
-    },
     build: {
       chunkSizeWarningLimit: 2000
     }
