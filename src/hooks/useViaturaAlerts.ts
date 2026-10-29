@@ -11,6 +11,7 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import { UserProfile } from "../types";
+import { initPushNotifications, notifyViaturaBradou } from "../lib/pushNotifications";
 
 export function useViaturaAlerts(user: UserProfile | null) {
   const [activeAlert, setActiveAlert] = useState<{
@@ -19,6 +20,8 @@ export function useViaturaAlerts(user: UserProfile | null) {
     emittedBy: string;
     timestamp: number;
   } | null>(null);
+
+  const [isBubbleMinimized, setIsBubbleMinimized] = useState<boolean>(false);
   
   const [isMuted, setIsMuted] = useState<boolean>(() => {
     try {
@@ -29,6 +32,11 @@ export function useViaturaAlerts(user: UserProfile | null) {
   });
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Inicializa canais nativos do Android e permissões ao carregar
+  useEffect(() => {
+    initPushNotifications().catch(() => {});
+  }, []);
 
   // Synchronize mute across tabs or components
   useEffect(() => {
@@ -143,6 +151,13 @@ export function useViaturaAlerts(user: UserProfile | null) {
             emittedBy: docData.emittedBy,
             timestamp: time,
           });
+          setIsBubbleMinimized(false);
+
+          // Dispara notificação nativa com prioridade máxima e banner no celular
+          notifyViaturaBradou({
+            viatura,
+            emittedBy: docData.emittedBy || "Centro de Comunicações",
+          }).catch((err) => console.warn("[ViaturaAlerts] Erro ao disparar notificação nativa:", err));
 
           // Play sound only if not muted
           const currentlyMuted = localStorage.getItem("cbmerj_alert_sound_muted") === "true";
@@ -178,9 +193,17 @@ export function useViaturaAlerts(user: UserProfile | null) {
 
   const dismissAlert = () => {
     setActiveAlert(null);
+    setIsBubbleMinimized(false);
     audioRef.current?.pause();
     if (audioRef.current) audioRef.current.currentTime = 0;
   };
 
-  return { activeAlert, dismissAlert, isMuted, toggleMute };
+  return { 
+    activeAlert, 
+    dismissAlert, 
+    isMuted, 
+    toggleMute, 
+    isBubbleMinimized, 
+    setIsBubbleMinimized 
+  };
 }

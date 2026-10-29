@@ -38,6 +38,10 @@ import {
   RotateCcw,
   Volume2,
   VolumeX,
+  Minimize2,
+  Maximize2,
+  Flame,
+  CheckCircle2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -318,7 +322,14 @@ export default function App() {
 
   usePresence(effectiveProfile);
   useKeepAliveHeartbeat();
-  const { activeAlert, dismissAlert, isMuted, toggleMute } = useViaturaAlerts(effectiveProfile);
+  const { 
+    activeAlert, 
+    dismissAlert, 
+    isMuted, 
+    toggleMute, 
+    isBubbleMinimized, 
+    setIsBubbleMinimized 
+  } = useViaturaAlerts(effectiveProfile);
 
   // Update profile with escalante and admin roles dynamically from legacy config
   useEffect(() => {
@@ -1401,9 +1412,9 @@ export default function App() {
         }}
       />
 
-      {/* Active Alert Overlay */}
+      {/* Active Alert Overlay & Floating Bubble (Pop-up de Brado) */}
       <AnimatePresence>
-        {activeAlert && (
+        {activeAlert && !isBubbleMinimized && (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -1413,17 +1424,30 @@ export default function App() {
             <div className="bg-rose-600 rounded-3xl sm:rounded-[2.5rem] p-6 sm:p-10 md:p-12 max-w-lg md:max-w-2xl w-full text-center shadow-[0_0_100px_rgba(225,29,72,0.8)] border-2 sm:border-4 border-rose-400 relative overflow-hidden">
               <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20 mix-blend-overlay pointer-events-none"></div>
 
-              {/* Botão de Silenciar/Ativar Sirene */}
-              <button
-                onClick={toggleMute}
-                className="absolute top-4 right-4 p-2.5 sm:p-3 rounded-2xl bg-black/30 hover:bg-black/50 text-white backdrop-blur-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer z-20 border border-white/20 shadow-md"
-                title={isMuted ? "Ativar som da sirene" : "Silenciar som da sirene"}
-              >
-                {isMuted ? <VolumeX className="w-4 h-4 sm:w-5 sm:h-5 text-amber-300" /> : <Volume2 className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-300" />}
-                <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider hidden xs:inline">
-                  {isMuted ? "Sirene Mudo" : "Sirene Ativa"}
-                </span>
-              </button>
+              {/* Controles de Ação no Topo Direito (Minimizar para Bolha e Mudo) */}
+              <div className="absolute top-4 right-4 flex items-center gap-2 z-20">
+                <button
+                  onClick={() => setIsBubbleMinimized(true)}
+                  className="p-2.5 sm:p-3 rounded-2xl bg-black/30 hover:bg-black/50 text-white backdrop-blur-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer border border-white/20 shadow-md"
+                  title="Minimizar para bolha flutuante na tela"
+                >
+                  <Minimize2 className="w-4 h-4 sm:w-5 sm:h-5 text-sky-300" />
+                  <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider hidden xs:inline">
+                    Bolha
+                  </span>
+                </button>
+
+                <button
+                  onClick={toggleMute}
+                  className="p-2.5 sm:p-3 rounded-2xl bg-black/30 hover:bg-black/50 text-white backdrop-blur-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer border border-white/20 shadow-md"
+                  title={isMuted ? "Ativar som da sirene" : "Silenciar som da sirene"}
+                >
+                  {isMuted ? <VolumeX className="w-4 h-4 sm:w-5 sm:h-5 text-amber-300" /> : <Volume2 className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-300" />}
+                  <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider hidden xs:inline">
+                    {isMuted ? "Mudo" : "Sirene"}
+                  </span>
+                </button>
+              </div>
 
               <motion.div
                 animate={{ rotate: [0, 10, -10, 10, 0] }}
@@ -1448,12 +1472,79 @@ export default function App() {
                 </p>
               </div>
 
-              <div>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                 <button
                   onClick={dismissAlert}
                   className="w-full sm:w-auto bg-white text-rose-700 hover:bg-rose-50 px-8 sm:px-12 py-4 sm:py-5 rounded-2xl sm:rounded-full font-black uppercase tracking-[0.15em] text-xs sm:text-base transition-transform active:scale-95 shadow-2xl cursor-pointer"
                 >
                   Ciente da Ocorrência
+                </button>
+
+                <button
+                  onClick={() => setIsBubbleMinimized(true)}
+                  className="w-full sm:w-auto bg-black/20 hover:bg-black/35 text-white border border-white/20 px-6 py-4 sm:py-5 rounded-2xl sm:rounded-full font-bold uppercase tracking-wider text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Minimize2 className="w-4 h-4 text-sky-300" />
+                  <span>Minimizar para Bolha</span>
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Bolha Flutuante (Floating Bubble / Pop-up de Brado) */}
+      <AnimatePresence>
+        {activeAlert && isBubbleMinimized && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.8 }}
+            className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-[9999] max-w-[92vw] sm:max-w-md select-none"
+          >
+            <div 
+              className="bg-gradient-to-r from-red-600 via-rose-600 to-red-700 text-white rounded-3xl p-3.5 sm:p-4 shadow-[0_0_35px_rgba(225,29,72,0.9)] border-2 border-amber-300 flex items-center gap-3 backdrop-blur-md cursor-pointer hover:scale-[1.02] transition-transform active:scale-95"
+              onClick={() => setIsBubbleMinimized(false)}
+            >
+              {/* Sino pulsante na bolha */}
+              <div className="relative w-11 h-11 sm:w-12 sm:h-12 bg-white rounded-2xl flex items-center justify-center shrink-0 shadow-md">
+                <div className="w-full h-full bg-rose-500 rounded-2xl animate-ping absolute opacity-60 pointer-events-none" />
+                <BellRing className="w-6 h-6 text-rose-600 relative z-10 animate-bounce" />
+              </div>
+
+              {/* Informações da viatura */}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-200 flex items-center gap-1">
+                    <Flame className="w-3 h-3 text-amber-300 animate-pulse" />
+                    Brado Ativo
+                  </span>
+                </div>
+                <h4 className="text-sm sm:text-base font-black uppercase tracking-tight text-white truncate">
+                  {activeAlert.viatura}
+                </h4>
+                <p className="text-[10px] text-rose-100 font-semibold truncate">
+                  Toque para expandir
+                </p>
+              </div>
+
+              {/* Botões de Ação Rápida na Bolha */}
+              <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                <button
+                  onClick={toggleMute}
+                  className="p-2 rounded-xl bg-black/25 hover:bg-black/40 text-white border border-white/20 transition-all cursor-pointer"
+                  title={isMuted ? "Ativar som da sirene" : "Silenciar som da sirene"}
+                >
+                  {isMuted ? <VolumeX className="w-4 h-4 text-amber-300" /> : <Volume2 className="w-4 h-4 text-emerald-300" />}
+                </button>
+
+                <button
+                  onClick={dismissAlert}
+                  className="px-3 py-2 rounded-xl bg-white text-rose-700 hover:bg-rose-50 font-black text-xs uppercase tracking-wider shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-1"
+                  title="Confirmar ciente da ocorrência"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Ciente</span>
                 </button>
               </div>
             </div>

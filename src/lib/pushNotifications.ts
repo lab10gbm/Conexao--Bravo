@@ -6,6 +6,8 @@ export interface PushNotificationPayload {
   body: string;
   id?: number;
   data?: Record<string, any>;
+  channelId?: string;
+  requireInteraction?: boolean;
 }
 
 // Generates a pleasant two-tone audio notification chime via Web Audio API
@@ -61,6 +63,17 @@ export async function initPushNotifications(): Promise<boolean> {
         vibration: true,
       });
 
+      // Canal de emergência com prioridade máxima para o Brado de Viaturas
+      await LocalNotifications.createChannel({
+        id: 'conexao_bravo_brado',
+        name: '🚨 Brado Operacional de Viaturas',
+        description: 'Acionamento imediato da guarnição de socorro em tempo real',
+        importance: 5,
+        visibility: 1,
+        sound: 'default',
+        vibration: true,
+      });
+
       const perm = await LocalNotifications.requestPermissions();
       return perm.display === 'granted';
     }
@@ -90,6 +103,8 @@ export async function sendDeviceNotification({
   body,
   id = Date.now() % 100000,
   data = {},
+  channelId = 'conexao_bravo_alerts',
+  requireInteraction = false,
 }: PushNotificationPayload): Promise<boolean> {
   if (typeof window === 'undefined') return false;
 
@@ -104,7 +119,7 @@ export async function sendDeviceNotification({
             title,
             body,
             id,
-            channelId: 'conexao_bravo_alerts',
+            channelId,
             sound: 'default',
             smallIcon: 'ic_stat_icon_config_sample',
             extra: data,
@@ -121,6 +136,7 @@ export async function sendDeviceNotification({
         icon: '/favicon.ico',
         badge: '/favicon.ico',
         tag: `cbmerj-${id}`,
+        requireInteraction,
       });
 
       notif.onclick = () => {
@@ -134,6 +150,26 @@ export async function sendDeviceNotification({
   }
 
   return false;
+}
+
+/**
+ * Notificação de Emergência de Brado de Viatura
+ */
+export async function notifyViaturaBradou({
+  viatura,
+  emittedBy,
+}: {
+  viatura: string;
+  emittedBy: string;
+}) {
+  return sendDeviceNotification({
+    title: `🚨 VIATURA BRADOU: ${viatura}`,
+    body: `Acionado por: ${emittedBy}. Toque para abrir o Conexão Bravo e dar ciente!`,
+    id: 99999,
+    channelId: 'conexao_bravo_brado',
+    requireInteraction: true,
+    data: { viatura, emittedBy, type: 'brado' },
+  });
 }
 
 /**

@@ -4,9 +4,10 @@ import { db, auth } from '../lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { updatePassword } from 'firebase/auth';
 import { motion } from 'motion/react';
-import { Save, UserCircle2, Phone, MapPin, Building, Lock, Calendar, Shield, Briefcase, UserCheck, Settings2, Trash2, ArrowLeft } from 'lucide-react';
+import { Save, UserCircle2, Phone, MapPin, Building, Lock, Calendar, Shield, Briefcase, UserCheck, Settings2, Trash2, ArrowLeft, BellRing, Smartphone, CheckCircle2, Flame } from 'lucide-react';
 import { RankInsignia } from './RankInsignia';
 import { cleanUndefined } from "../lib/utils";
+import { notifyViaturaBradou, initPushNotifications } from "../lib/pushNotifications";
 
 interface ProfileUpdateProps {
   user: UserProfile;
@@ -84,6 +85,22 @@ export function ProfileUpdate({ user, onUpdate, onBack }: ProfileUpdateProps) {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [passwordError, setPasswordError] = useState('');
+  const [testNotificationStatus, setTestNotificationStatus] = useState<string | null>(null);
+
+  const handleTestNotification = async () => {
+    try {
+      setTestNotificationStatus('Solicitando permissões...');
+      await initPushNotifications();
+      await notifyViaturaBradou({
+        viatura: 'AR-600 (TESTE)',
+        emittedBy: 'Centro de Comunicações (Simulação)',
+      });
+      setTestNotificationStatus('Notificação disparada! Verifique o topo da tela.');
+      setTimeout(() => setTestNotificationStatus(null), 4000);
+    } catch (e: any) {
+      setTestNotificationStatus(`Erro ao enviar: ${e?.message || 'Permissão negada'}`);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -521,6 +538,50 @@ export function ProfileUpdate({ user, onUpdate, onBack }: ProfileUpdateProps) {
            </div>
 
 
+
+           {/* Card de Configurações de Notificação e Brado */}
+           <div className="mt-8 p-5 sm:p-6 rounded-3xl bg-slate-900 text-white border border-slate-800 relative overflow-hidden shadow-xl">
+             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+               <div className="flex items-start gap-3.5">
+                 <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+                   <BellRing className="w-6 h-6 animate-pulse" />
+                 </div>
+                 <div>
+                   <div className="flex items-center gap-2">
+                     <h4 className="text-sm font-black uppercase tracking-tight text-white flex items-center gap-1.5">
+                       <Flame className="w-4 h-4 text-amber-400" />
+                       Alerta de Brado & Pop-up no Celular
+                     </h4>
+                     <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                       Ativo
+                     </span>
+                   </div>
+                   <p className="text-xs text-slate-300 mt-1 max-w-xl">
+                     Quando sua viatura bradar, o sistema emite sirene sonora contínua e exibe o <strong>Pop-up / Bolha Flutuante</strong> na tela com botão imediato de "Ciente".
+                   </p>
+                   <p className="text-[11px] text-slate-400 mt-1">
+                     💡 <strong>Dica Android:</strong> Se o seu aparelho silenciar em segundo plano, acesse as Configurações do seu telefone &gt; Aplicativos &gt; Conexão Bravo e ative <em>"Permitir notificações prioritárias"</em> e <em>"Sem restrições de bateria"</em>.
+                   </p>
+                 </div>
+               </div>
+
+               <div className="shrink-0 w-full sm:w-auto">
+                 <button
+                   type="button"
+                   onClick={handleTestNotification}
+                   className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs uppercase tracking-wider transition-all active:scale-95 shadow-lg shadow-rose-600/30 flex items-center justify-center gap-2 cursor-pointer"
+                 >
+                   <Smartphone className="w-4 h-4" />
+                   <span>Testar Notificação</span>
+                 </button>
+                 {testNotificationStatus && (
+                   <p className="text-[10px] font-bold text-amber-300 mt-1.5 text-center sm:text-right">
+                     {testNotificationStatus}
+                   </p>
+                 )}
+               </div>
+             </div>
+           </div>
 
            <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-slate-100">
              <div className="w-full sm:w-auto text-left">
