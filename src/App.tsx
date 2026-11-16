@@ -223,17 +223,25 @@ export default function App() {
 
   // Initialize profile with immediate access to local storage
   const [profile, setProfile] = useState<UserProfile | null>(() => {
-    const stored = localStorage.getItem("militar_profile");
-    if (stored) {
-      try {
+    try {
+      const stored = localStorage.getItem("militar_profile");
+      if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed && (parsed.rg === "54444" || parsed.rg === 54444)) {
-          parsed.ala = "EXP";
+        if (parsed && typeof parsed === 'object') {
+          const rawRg = parsed.rg ? String(parsed.rg).trim() : '';
+          if (!rawRg) {
+            localStorage.removeItem("militar_profile");
+            return null;
+          }
+          if (parsed.rg === "54444" || parsed.rg === 54444) {
+            parsed.ala = "EXP";
+          }
+          return parsed;
         }
-        return parsed;
-      } catch (e) {
-        return null;
       }
+    } catch (e) {
+      try { localStorage.removeItem("militar_profile"); } catch {}
+      return null;
     }
     return null;
   });

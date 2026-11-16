@@ -45,12 +45,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const stored = localStorage.getItem("militar_profile");
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed && (parsed.rg === "54444" || parsed.rg === 54444)) {
-          parsed.ala = "EXP";
+        if (parsed && typeof parsed === 'object') {
+          const rawRg = parsed.rg ? String(parsed.rg).trim() : '';
+          if (!rawRg) {
+            localStorage.removeItem("militar_profile");
+            setProfile(null);
+          } else {
+            if (parsed.rg === "54444" || parsed.rg === 54444) {
+              parsed.ala = "EXP";
+            }
+            setProfile(parsed);
+          }
         }
-        setProfile(parsed);
       }
-    } catch {}
+    } catch {
+      try { localStorage.removeItem("militar_profile"); } catch {}
+    }
     setLoading(false);
   }, []);
 

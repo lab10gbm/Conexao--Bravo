@@ -97,27 +97,21 @@ export function OperationalDutyWidget({ user, obmContext }: OperationalDutyWidge
   // Ala de serviço e informações de turno (regra das 09:00 do CBMERJ)
   const dutyShift = useMemo(() => getCurrentDutyShift(currentTime), [currentTime]);
 
-  // Estados de visualização do widget
-  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+  // Estados de visualização do widget: inicia minimizado por padrão
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(true);
+
+  useEffect(() => {
     try {
-      return localStorage.getItem('op_duty_widget_collapsed') === 'true';
-    } catch {
-      return false;
-    }
-  });
+      localStorage.removeItem('op_duty_widget_collapsed');
+    } catch {}
+  }, []);
 
   const [activeTab, setActiveTab] = useState<'efetivo_dia' | 'online_obm'>('efetivo_dia');
   const [searchTerm, setSearchTerm] = useState('');
   const [efetivoFilter, setEfetivoFilter] = useState<'all' | 'online_only' | 'prontos_only'>('all');
 
   const toggleCollapsed = () => {
-    setIsCollapsed(prev => {
-      const next = !prev;
-      try {
-        localStorage.setItem('op_duty_widget_collapsed', String(next));
-      } catch {}
-      return next;
-    });
+    setIsCollapsed(prev => !prev);
   };
 
   const effectiveObm = obmContext || user.obm || '10º GBM';
@@ -323,15 +317,12 @@ export function OperationalDutyWidget({ user, obmContext }: OperationalDutyWidge
               <th className="py-2.5 px-3">RG</th>
               <th className="py-2.5 px-3">Quadro</th>
               {showObmColumn && <th className="py-2.5 px-3">Unidade / OBM</th>}
-              <th className="py-2.5 px-3">Situação Operacional</th>
               <th className="py-2.5 px-3 text-right">Conexão no Aplicativo</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-[#141c2e]">
             {militarsList.map((m) => {
               const online = isUserOnline(m.rg);
-              const sitUpper = (m.situacao || 'ATIVO').toUpperCase();
-              const isAway = sitUpper.includes('FERIAS') || sitUpper.includes('FÉRIAS') || sitUpper.includes('LTS') || sitUpper.includes('LICENÇA');
               const isSelf = normalizeRg(m.rg) === normalizeRg(user.rg);
               const militarObm = getCleanMilitaryObm(m.obm) || 'Sem OBM';
 
@@ -387,19 +378,6 @@ export function OperationalDutyWidget({ user, obmContext }: OperationalDutyWidge
                       </span>
                     </td>
                   )}
-
-                  {/* Situação */}
-                  <td className="py-2.5 px-3 whitespace-nowrap">
-                    {isAway ? (
-                      <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200 border border-amber-300">
-                        {m.situacao}
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-green-50 text-green-700 dark:bg-green-950/60 dark:text-green-300 border border-green-200 dark:border-green-800">
-                        PRONTO P/ SERVIÇO
-                      </span>
-                    )}
-                  </td>
 
                   {/* Conexão no Aplicativo */}
                   <td className="py-2.5 px-3 text-right whitespace-nowrap">

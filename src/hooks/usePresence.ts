@@ -47,23 +47,39 @@ export function usePresence(user: UserProfile | null) {
   useEffect(() => {
     if (!user || !user.rg) return;
     
-    const cleanRg = normalizeRg(user.rg);
-    const presenceRef = doc(db, 'presence', cleanRg);
+    // Obter RG limpo: prioritariamente dígitos normalizados, ou fallback alfanumérico seguro sem caracteres inválidos de path
+    const rawRg = String(user.rg || '').trim();
+    const cleanRg = normalizeRg(rawRg) || rawRg.replace(/[/\\#?]/g, '');
+    
+    if (!cleanRg) return;
+
+    let presenceRef: any;
+    try {
+      presenceRef = doc(db, 'presence', cleanRg);
+    } catch (err) {
+      console.warn('[usePresence] Não foi possível criar referência de presence para RG:', cleanRg, err);
+      return;
+    }
     
     const updatePresence = () => {
-      setDoc(presenceRef, cleanUndefined({
-        rg: cleanRg,
-        name: user.name || 'Militar',
-        warName: user.warName || user.name || '',
-        rank: user.rank || '',
-        obm: user.obm || '',
-        ala: user.ala ? String(user.ala) : '',
-        quadro: user.quadro || '',
-        clientTimestamp: Date.now(),
-        lastActive: serverTimestamp()
-      }), { merge: true }).catch(err => {
-        console.warn('Erro ao atualizar presence:', err);
-      });
+      if (!presenceRef) return;
+      try {
+        setDoc(presenceRef, cleanUndefined({
+          rg: cleanRg,
+          name: user.name || 'Militar',
+          warName: user.warName || user.name || '',
+          rank: user.rank || '',
+          obm: user.obm || '',
+          ala: user.ala ? String(user.ala) : '',
+          quadro: user.quadro || '',
+          clientTimestamp: Date.now(),
+          lastActive: serverTimestamp()
+        }), { merge: true }).catch(err => {
+          console.warn('[usePresence] Erro ao atualizar presence:', err);
+        });
+      } catch (err) {
+        console.warn('[usePresence] Erro ao invocar setDoc presence:', err);
+      }
     };
 
     // Update immediately and then every 2 minutes
@@ -112,7 +128,7 @@ export function useOnlinePresence(currentUser?: UserProfile | null) {
   }, []);
 
   const now = Date.now();
-  const currentRg = currentUser?.rg ? normalizeRg(currentUser.rg) : '';
+  const currentRg = currentUser?.rg ? (normalizeRg(currentUser.rg) || String(currentUser.rg).trim()) : '';
 
   // Process and filter active users
   const onlineUsers = useMemo<OnlineMilitaryUser[]>(() => {
@@ -120,7 +136,7 @@ export function useOnlinePresence(currentUser?: UserProfile | null) {
     const seenRgs = new Set<string>();
 
     Object.entries(presenceDocs).forEach(([rg, data]) => {
-      const cleanRg = normalizeRg(data.rg || rg);
+      const cleanRg = normalizeRg(data.rg || rg) || String(data.rg || rg || '').trim();
       if (!cleanRg) return;
 
       const millis = Math.max(
@@ -173,7 +189,8 @@ export function useOnlinePresence(currentUser?: UserProfile | null) {
 
   const isUserOnline = useCallback((rg: string | number | null | undefined): boolean => {
     if (!rg) return false;
-    const clean = normalizeRg(rg);
+    const clean = normalizeRg(rg) || String(rg).trim();
+    if (!clean) return false;
     return onlineUsers.some(u => u.rg === clean);
   }, [onlineUsers]);
 
