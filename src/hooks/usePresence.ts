@@ -53,33 +53,22 @@ export function usePresence(user: UserProfile | null) {
     
     if (!cleanRg) return;
 
-    let presenceRef: any;
-    try {
-      presenceRef = doc(db, 'presence', cleanRg);
-    } catch (err) {
-      console.warn('[usePresence] Não foi possível criar referência de presence para RG:', cleanRg, err);
-      return;
-    }
-    
     const updatePresence = () => {
-      if (!presenceRef) return;
       try {
-        setDoc(presenceRef, cleanUndefined({
-          rg: cleanRg,
-          name: user.name || 'Militar',
-          warName: user.warName || user.name || '',
-          rank: user.rank || '',
-          obm: user.obm || '',
-          ala: user.ala ? String(user.ala) : '',
-          quadro: user.quadro || '',
-          clientTimestamp: Date.now(),
-          lastActive: serverTimestamp()
-        }), { merge: true }).catch(err => {
-          console.warn('[usePresence] Erro ao atualizar presence:', err);
-        });
-      } catch (err) {
-        console.warn('[usePresence] Erro ao invocar setDoc presence:', err);
-      }
+        fetch('/api/presence', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cleanUndefined({
+            rg: cleanRg,
+            name: user.name || 'Militar',
+            warName: user.warName || user.name || '',
+            rank: user.rank || '',
+            obm: user.obm || '',
+            ala: user.ala ? String(user.ala) : '',
+            quadro: user.quadro || '',
+          })),
+        }).catch(() => {});
+      } catch {}
     };
 
     // Update immediately and then every 2 minutes
