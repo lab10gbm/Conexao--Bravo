@@ -1098,7 +1098,7 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
   });
 
   app.post('/api/outsourced', async (req, res) => {
-    const { db, clientDb, isDbHealthy, militaryCache, normalizeRg } = getDeps();
+    const { db, clientDb, isDbHealthy, hasServiceAccount, militaryCache, normalizeRg } = getDeps();
     const { login, data } = req.body;
     const safeLogin = normalizeRg(login || data?.login || data?.id);
     if (!safeLogin || !data) {
@@ -1124,6 +1124,17 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
       if (militaryCache) {
         const existing = militaryCache.get(safeLogin) || {};
         militaryCache.set(safeLogin, { ...existing, ...payload });
+      }
+      if (payload.customPassword && hasServiceAccount && isDbHealthy) {
+        try {
+          let effectiveAuthPassword = String(payload.customPassword).trim();
+          if (effectiveAuthPassword.length < 6) {
+            effectiveAuthPassword = effectiveAuthPassword.padEnd(6, '0');
+          }
+          await getAdminAuth().updateUser(safeLogin, {
+            password: effectiveAuthPassword,
+          });
+        } catch (e) {}
       }
       return res.json({ success: true, user: { id: safeLogin, ...payload } });
     } catch (err: any) {
