@@ -793,6 +793,9 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
   });
 
   const handlePostoSlotAssign = (postoId: string, slotId: string, rg: string | null, funcaoNome: string) => {
+    const cleanFn = (funcaoNome || '').trim();
+    if (!cleanFn) return;
+
     const previousPosto = postosData.find(p => p.postoId === postoId);
     const previousSlot = previousPosto?.slots.find(s => s.slotId === slotId);
     const oldRg = previousSlot?.rg ? normalizeRg(previousSlot.rg) : null;
@@ -803,7 +806,7 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
 
       // Se havia militar anterior e é diferente do novo, remove a funcaoNome dele
       if (oldRg && oldRg !== newRg && next[oldRg]) {
-        const filtered = next[oldRg].filter(f => normalizeFnName(f) !== normalizeFnName(funcaoNome));
+        const filtered = next[oldRg].filter(f => normalizeFnName(f) !== normalizeFnName(cleanFn));
         if (filtered.length === 0) {
           delete next[oldRg];
         } else {
@@ -814,8 +817,8 @@ export function EscalaEspelhoModule({ obmContext, user, initialDate }: EscalaEsp
       // Se há novo militar, adiciona a funcaoNome
       if (newRg) {
         const current = next[newRg] || [];
-        if (!current.some(f => normalizeFnName(f) === normalizeFnName(funcaoNome))) {
-          next[newRg] = [...current, funcaoNome];
+        if (!current.some(f => normalizeFnName(f) === normalizeFnName(cleanFn))) {
+          next[newRg] = [...current, cleanFn];
         }
       }
 

@@ -21,12 +21,26 @@ export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBac
 
   const [deleteData, setDeleteData] = useState<{ id: string; name: string } | null>(null);
 
+  const fetchTerceirizados = async () => {
+    try {
+      const res = await fetch('/api/outsourced', { cache: 'no-store' });
+      const data = await res.json();
+      if (data?.success && Array.isArray(data.items)) {
+        setTerceirizados(data.items);
+        setLoading(false);
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     setLoading(true);
+    fetchTerceirizados();
     const q = collection(db, 'outsourced_users');
     const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setTerceirizados(data);
+      if (data.length > 0) {
+        setTerceirizados(data);
+      }
       setLoading(false);
     }, (e) => {
       console.error(e);
@@ -35,30 +49,45 @@ export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBac
     return () => unsub();
   }, []);
 
-  const fetchTerceirizados = async () => {
-    // Deprecated in favor of the real-time effect above
-  };
-
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !login) return;
     
     setSaving(true);
     const safeLogin = login.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const existing = terceirizados.find(t => t.id === safeLogin || t.login === safeLogin);
+    const effectivePassword =
+      existing?.customPassword && existing.customPassword !== '000000'
+        ? existing.customPassword
+        : '000000';
     
+    const payload = cleanUndefined({
+      uid: safeLogin,
+      rg: safeLogin,
+      login: safeLogin,
+      name: name.toUpperCase(),
+      warName: name.toUpperCase(),
+      rank: 'CIVIL',
+      ala: 'EXP',
+      customPassword: effectivePassword,
+      isOutsourced: true,
+      obm: obm,
+      isRefeitorioAdmin: role === 'rancho',
+      isAdmin: role === 'expediente',
+      isEscalante: role === 'expediente',
+    });
+
     try {
-      await setDoc(doc(db, 'outsourced_users', safeLogin), cleanUndefined({
-              login: safeLogin,
-              name: name.toUpperCase(),
-              customPassword: '000000',
-              isOutsourced: true,
-              obm: obm,
-              // Configurações de acordo com o papel
-              isRefeitorioAdmin: role === 'rancho',
-              isAdmin: role === 'expediente',
-              isEscalante: role === 'expediente',
-              updatedAt: serverTimestamp()
-            }), { merge: true });
+      await fetch('/api/outsourced', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login: safeLogin, data: payload }),
+      }).catch(() => {});
+
+      await setDoc(doc(db, 'outsourced_users', safeLogin), {
+        ...payload,
+        updatedAt: serverTimestamp(),
+      }, { merge: true }).catch(() => {});
 
       setIsModalOpen(false);
       setName('');
@@ -72,11 +101,50 @@ export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBac
     }
   };
 
+  const handleToggleRole = async (t: any) => {
+    const nextIsExpediente = Boolean(t.isRefeitorioAdmin || !t.isAdmin);
+    const safeId = t.login || t.id;
+    const payload = cleanUndefined({
+      uid: safeId,
+      rg: safeId,
+      login: safeId,
+      name: t.name || safeId,
+      warName: t.warName || t.name || safeId,
+      rank: 'CIVIL',
+      ala: 'EXP',
+      isOutsourced: true,
+      isRefeitorioAdmin: !nextIsExpediente,
+      isAdmin: nextIsExpediente,
+      isEscalante: nextIsExpediente,
+    });
+    try {
+      await fetch('/api/outsourced', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login: safeId, data: payload }),
+      }).catch(() => {});
+
+      await setDoc(doc(db, 'outsourced_users', t.id), {
+        ...payload,
+        updatedAt: serverTimestamp(),
+      }, { merge: true }).catch(() => {});
+
+      fetchTerceirizados();
+    } catch (e) {
+      console.error('Erro ao atualizar papel do terceirizado:', e);
+      alert('Erro ao atualizar permissões do perfil.');
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteData) return;
     
     try {
-      await deleteDoc(doc(db, 'outsourced_users', deleteData.id));
+      await fetch(`/api/outsourced/${encodeURIComponent(deleteData.id)}`, {
+        method: 'DELETE',
+      }).catch(() => {});
+
+      await deleteDoc(doc(db, 'outsourced_users', deleteData.id)).catch(() => {});
       setDeleteData(null);
       fetchTerceirizados();
     } catch (e) {
@@ -139,8 +207,8 @@ export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBac
                    </div>
                  </div>
                  
-                 <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-100">
-                   {t.isRefeitorioAdmin ? (
+                 <div className="flex items-center justify-between gap-2 mt-4 pt-4 border-t border-slate-100">
+                   {t.isRefeitorioAdmin && !t.isAdmin ? (
                      <span className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-orange-600 bg-orange-50 px-2 py-1 rounded-md">
                        <UtensilsCrossed className="w-3 h-3" /> Rancho / Aprovisionamento
                      </span>
@@ -149,6 +217,14 @@ export function TerceirizadosModule({ user, onBack }: { user: UserProfile, onBac
                        <Briefcase className="w-3 h-3" /> Expediente / Admin
                      </span>
                    )}
+                   <button
+                     type="button"
+                     onClick={() => handleToggleRole(t)}
+                     className="text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-fuchsia-600 px-2 py-1 rounded-md hover:bg-fuchsia-50 transition-colors cursor-pointer"
+                     title="Alternar papel entre Rancho e Expediente/Admin"
+                   >
+                     Alternar Papel
+                   </button>
                  </div>
               </div>
             ))}

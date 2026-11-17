@@ -6,6 +6,7 @@ import {
   doc,
   getDoc,
   setDoc,
+  deleteDoc,
   getDocs,
   collection,
   query,
@@ -68,8 +69,10 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
       } catch (e: any) {}
     }
 
-    // Try outsourced_users if not found in militaries
-    if (!userData) {
+    // Try outsourced_users if not found in militaries, or if safeRg is non-numeric / stub without rg
+    const isLikelyOutsourcedOrStub = !userData || !userData.rg || userData.isOutsourced || !/^\d+$/.test(safeRg);
+    if (isLikelyOutsourcedOrStub) {
+      let outsourcedData: any = null;
       if (db && isDbHealthy) {
         try {
           const docSnap = await db
@@ -77,19 +80,37 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
             .doc(safeRg)
             .get();
           if (docSnap.exists) {
-            userData = { ...docSnap.data(), isOutsourced: true };
+            outsourcedData = docSnap.data();
           }
         } catch (e) {}
       }
-      if (!userData && clientDb) {
+      if (!outsourcedData && clientDb) {
         try {
           const docSnap = await getDoc(
             doc(clientDb, 'outsourced_users', safeRg),
           );
           if (docSnap.exists()) {
-            userData = { ...docSnap.data(), isOutsourced: true };
+            outsourcedData = docSnap.data();
           }
         } catch (e) {}
+      }
+      if (outsourcedData) {
+        const stubPass = userData?.customPassword;
+        const outPass = outsourcedData.customPassword;
+        const effectiveCustomPassword =
+          outPass && outPass !== '000000'
+            ? outPass
+            : stubPass || outPass || '000000';
+        userData = {
+          ...(userData || {}),
+          ...outsourcedData,
+          customPassword: effectiveCustomPassword,
+          previousPassword:
+            outPass === '000000' && stubPass && stubPass !== '000000'
+              ? '000000'
+              : outsourcedData.previousPassword,
+          isOutsourced: true,
+        };
       }
     }
 
@@ -193,7 +214,22 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
           : cleanAttempt;
       const dbPassPadded =
         dbPass.length < 6 ? dbPass.padEnd(6, '0') : dbPass;
-      return { valid: attemptPadded === dbPassPadded };
+      if (attemptPadded === dbPassPadded) {
+        return {
+          valid: true,
+          isFirstAccess: dbPassPadded === '000000' && !userData.hasCustomPassword,
+        };
+      }
+      if (userData.previousPassword) {
+        const prevPadded =
+          String(userData.previousPassword).trim().length < 6
+            ? String(userData.previousPassword).trim().padEnd(6, '0')
+            : String(userData.previousPassword).trim();
+        if (attemptPadded === prevPadded) {
+          return { valid: true, isFirstAccess: false };
+        }
+      }
+      return { valid: false, reason: 'INVALID_PASSWORD' };
     }
 
     if (isDateOnly) {
@@ -322,10 +358,11 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
     const profileData = {
       ...userData,
       uid: safeRg,
-      rg: userData.isOutsourced ? null : safeRg,
+      rg: safeRg,
       login: userData.isOutsourced ? safeRg : null,
       isOutsourced: !!userData.isOutsourced,
       name: userData.name || 'Usuário',
+      warName: userData.warName || userData.name || 'Usuário',
       rank: userData.isOutsourced ? 'CIVIL' : userData.rank || '',
       ala: safeRg === '54444' ? 'EXP' : userData.ala || 'EXP',
       isAdmin: !!claims.admin,
@@ -435,7 +472,9 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
     );
 
     let currentValid = false;
-    if (hasCustom && userData.customPassword) {
+    if (userData.isOutsourced) {
+      currentValid = verifyUserPasswordDetailed(userData, cleanCurrent).valid;
+    } else if (hasCustom && userData.customPassword) {
       currentValid = userData.customPassword === cleanCurrent;
     } else {
       currentValid = isDefaultInitialPassword(userData, cleanCurrent);
@@ -478,46 +517,69 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
         militaryUpdate.email = cleanEmail;
       }
 
-      if (db && isDbHealthy && hasServiceAccount) {
-        try {
-          await db
-            .collection('militaries')
-            .doc(safeRg)
-            .set(militaryUpdate, { merge: true });
-          await db
-            .collection('militaries')
-            .doc(safeRg)
-            .collection('private')
-            .doc('secrets')
-            .set(
+      if (userData.isOutsourced) {
+        const outsourcedUpdate = {
+          ...militaryUpdate,
+          customPassword: cleanNew,
+        };
+        if (db && isDbHealthy && hasServiceAccount) {
+          try {
+            await db
+              .collection('outsourced_users')
+              .doc(safeRg)
+              .set(outsourcedUpdate, { merge: true });
+          } catch (e) {}
+        }
+        if (clientDb) {
+          try {
+            await setDoc(doc(clientDb, 'outsourced_users', safeRg), outsourcedUpdate, {
+              merge: true,
+            });
+          } catch (e) {}
+        }
+      } else {
+        if (db && isDbHealthy && hasServiceAccount) {
+          try {
+            await db
+              .collection('militaries')
+              .doc(safeRg)
+              .set(militaryUpdate, { merge: true });
+            await db
+              .collection('militaries')
+              .doc(safeRg)
+              .collection('private')
+              .doc('secrets')
+              .set(
+                {
+                  customPassword: cleanNew,
+                  hasCustomPassword: true,
+                },
+                { merge: true },
+              );
+          } catch (e) {}
+        }
+
+        if (clientDb) {
+          await setDoc(doc(clientDb, 'militaries', safeRg), militaryUpdate, {
+            merge: true,
+          });
+          try {
+            await setDoc(
+              doc(clientDb, 'militaries', safeRg, 'private', 'secrets'),
               {
                 customPassword: cleanNew,
                 hasCustomPassword: true,
               },
               { merge: true },
             );
-        } catch (e) {}
-      }
-
-      if (clientDb) {
-        await setDoc(doc(clientDb, 'militaries', safeRg), militaryUpdate, {
-          merge: true,
-        });
-        try {
-          await setDoc(
-            doc(clientDb, 'militaries', safeRg, 'private', 'secrets'),
-            {
-              customPassword: cleanNew,
-              hasCustomPassword: true,
-            },
-            { merge: true },
-          );
-        } catch (e) {}
+          } catch (e) {}
+        }
       }
 
       const existing = militaryCache?.get(safeRg) || {};
       const updatedCacheEntry = {
         ...existing,
+        ...userData,
         ...militaryUpdate,
         customPassword: cleanNew,
       };
@@ -528,40 +590,42 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
         }
       }
 
-      // Sync to local cache JSON file if it exists
-      try {
-        const localCacheFile = path.join(
-          process.cwd(),
-          'src/server/data/militaries_cache.json',
-        );
-        if (fs.existsSync(localCacheFile)) {
-          const raw = fs.readFileSync(localCacheFile, 'utf8');
-          const list = JSON.parse(raw);
-          if (Array.isArray(list)) {
-            const idx = list.findIndex(
-              (m: any) => normalizeRg(m.rg || m.id) === safeRg,
-            );
-            if (idx >= 0) {
-              list[idx] = {
-                ...list[idx],
-                ...militaryUpdate,
-                customPassword: cleanNew,
-              };
-            } else {
-              list.push(updatedCacheEntry);
+      // Sync to local cache JSON file if it exists (only for military accounts)
+      if (!userData.isOutsourced) {
+        try {
+          const localCacheFile = path.join(
+            process.cwd(),
+            'src/server/data/militaries_cache.json',
+          );
+          if (fs.existsSync(localCacheFile)) {
+            const raw = fs.readFileSync(localCacheFile, 'utf8');
+            const list = JSON.parse(raw);
+            if (Array.isArray(list)) {
+              const idx = list.findIndex(
+                (m: any) => normalizeRg(m.rg || m.id) === safeRg,
+              );
+              if (idx >= 0) {
+                list[idx] = {
+                  ...list[idx],
+                  ...militaryUpdate,
+                  customPassword: cleanNew,
+                };
+              } else {
+                list.push(updatedCacheEntry);
+              }
+              fs.writeFileSync(
+                localCacheFile,
+                JSON.stringify(list, null, 2),
+                'utf8',
+              );
             }
-            fs.writeFileSync(
-              localCacheFile,
-              JSON.stringify(list, null, 2),
-              'utf8',
-            );
           }
+        } catch (fsErr: any) {
+          console.warn(
+            '[Cache] Could not sync change-password to local cache file:',
+            fsErr.message,
+          );
         }
-      } catch (fsErr: any) {
-        console.warn(
-          '[Cache] Could not sync change-password to local cache file:',
-          fsErr.message,
-        );
       }
 
       if (hasServiceAccount && isDbHealthy) {
@@ -853,43 +917,63 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
         customPassword: cleanNew,
       };
 
-      if (db && isDbHealthy && hasServiceAccount) {
-        try {
-          await db
-            .collection('militaries')
-            .doc(safeRg)
-            .set(militaryUpdate, { merge: true });
-          await db
-            .collection('militaries')
-            .doc(safeRg)
-            .collection('private')
-            .doc('secrets')
-            .set(
+      if (userData.isOutsourced) {
+        if (db && isDbHealthy && hasServiceAccount) {
+          try {
+            await db
+              .collection('outsourced_users')
+              .doc(safeRg)
+              .set(militaryUpdate, { merge: true });
+          } catch (e) {}
+        }
+        if (clientDb) {
+          try {
+            await setDoc(doc(clientDb, 'outsourced_users', safeRg), militaryUpdate, {
+              merge: true,
+            });
+          } catch (e) {}
+        }
+      } else {
+        if (db && isDbHealthy && hasServiceAccount) {
+          try {
+            await db
+              .collection('militaries')
+              .doc(safeRg)
+              .set(militaryUpdate, { merge: true });
+            await db
+              .collection('militaries')
+              .doc(safeRg)
+              .collection('private')
+              .doc('secrets')
+              .set(
+                {
+                  customPassword: cleanNew,
+                  hasCustomPassword: true,
+                },
+                { merge: true },
+              );
+          } catch (e) {}
+        }
+
+        if (clientDb) {
+          try {
+            await setDoc(doc(clientDb, 'militaries', safeRg), militaryUpdate, {
+              merge: true,
+            });
+          } catch (e) {}
+          try {
+            await setDoc(
+              doc(clientDb, 'militaries', safeRg, 'private', 'secrets'),
               {
                 customPassword: cleanNew,
                 hasCustomPassword: true,
               },
               { merge: true },
             );
-        } catch (e) {}
+          } catch (e) {}
+        }
       }
-
       if (clientDb) {
-        try {
-          await setDoc(doc(clientDb, 'militaries', safeRg), militaryUpdate, {
-            merge: true,
-          });
-        } catch (e) {}
-        try {
-          await setDoc(
-            doc(clientDb, 'militaries', safeRg, 'private', 'secrets'),
-            {
-              customPassword: cleanNew,
-              hasCustomPassword: true,
-            },
-            { merge: true },
-          );
-        } catch (e) {}
         try {
           await setDoc(
             doc(clientDb, 'militaries', safeRg, 'private', 'recovery'),
@@ -906,6 +990,7 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
       const existing = militaryCache?.get(safeRg) || {};
       const updatedCacheEntry = {
         ...existing,
+        ...userData,
         ...militaryUpdate,
         customPassword: cleanNew,
       };
@@ -916,33 +1001,35 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
         }
       }
 
-      try {
-        const localCacheFile = path.join(
-          process.cwd(),
-          'src/server/data/militaries_cache.json',
-        );
-        if (fs.existsSync(localCacheFile)) {
-          const raw = fs.readFileSync(localCacheFile, 'utf8');
-          const list = JSON.parse(raw);
-          if (Array.isArray(list)) {
-            const idx = list.findIndex(
-              (m: any) => normalizeRg(m.rg || m.id) === safeRg,
-            );
-            if (idx >= 0) {
-              list[idx] = {
-                ...list[idx],
-                ...militaryUpdate,
-                customPassword: cleanNew,
-              };
-              fs.writeFileSync(
-                localCacheFile,
-                JSON.stringify(list, null, 2),
-                'utf8',
+      if (!userData.isOutsourced) {
+        try {
+          const localCacheFile = path.join(
+            process.cwd(),
+            'src/server/data/militaries_cache.json',
+          );
+          if (fs.existsSync(localCacheFile)) {
+            const raw = fs.readFileSync(localCacheFile, 'utf8');
+            const list = JSON.parse(raw);
+            if (Array.isArray(list)) {
+              const idx = list.findIndex(
+                (m: any) => normalizeRg(m.rg || m.id) === safeRg,
               );
+              if (idx >= 0) {
+                list[idx] = {
+                  ...list[idx],
+                  ...militaryUpdate,
+                  customPassword: cleanNew,
+                };
+                fs.writeFileSync(
+                  localCacheFile,
+                  JSON.stringify(list, null, 2),
+                  'utf8',
+                );
+              }
             }
           }
-        }
-      } catch (fsErr: any) {}
+        } catch (fsErr: any) {}
+      }
 
       if (hasServiceAccount && isDbHealthy) {
         try {
@@ -972,6 +1059,99 @@ export function setupAccountRoutes(app: express.Express, getDeps: () => any) {
       return res
         .status(500)
         .json({ success: false, error: 'Erro ao salvar a nova senha.' });
+    }
+  });
+
+  app.get('/api/outsourced', async (req, res) => {
+    const { db, clientDb, isDbHealthy } = getDeps();
+    try {
+      const items: any[] = [];
+      if (db && isDbHealthy) {
+        const snap = await db.collection('outsourced_users').get();
+        snap.forEach((d: any) => items.push({ id: d.id, ...d.data() }));
+        return res.json({ success: true, items });
+      }
+      if (clientDb) {
+        const snap = await getDocs(collection(clientDb, 'outsourced_users'));
+        snap.forEach((d) => items.push({ id: d.id, ...d.data() }));
+        return res.json({ success: true, items });
+      }
+      return res.json({ success: true, items: [] });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.get('/api/outsourced/:id', async (req, res) => {
+    const { normalizeRg } = getDeps();
+    const safeId = normalizeRg(req.params.id);
+    if (!safeId) return res.status(400).json({ success: false });
+    try {
+      const data = await getFullUserData(safeId);
+      if (data && data.isOutsourced) {
+        return res.json({ success: true, user: { id: safeId, ...data } });
+      }
+      return res.status(404).json({ success: false });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/outsourced', async (req, res) => {
+    const { db, clientDb, isDbHealthy, militaryCache, normalizeRg } = getDeps();
+    const { login, data } = req.body;
+    const safeLogin = normalizeRg(login || data?.login || data?.id);
+    if (!safeLogin || !data) {
+      return res.status(400).json({ success: false, error: 'Login inválido' });
+    }
+    try {
+      const payload = {
+        ...data,
+        uid: safeLogin,
+        rg: safeLogin,
+        login: safeLogin,
+        isOutsourced: true,
+        updatedAt: new Date().toISOString(),
+      };
+      if (db && isDbHealthy) {
+        try {
+          await db.collection('outsourced_users').doc(safeLogin).set(payload, { merge: true });
+        } catch (e) {}
+      }
+      if (clientDb) {
+        await setDoc(doc(clientDb, 'outsourced_users', safeLogin), payload, { merge: true });
+      }
+      if (militaryCache) {
+        const existing = militaryCache.get(safeLogin) || {};
+        militaryCache.set(safeLogin, { ...existing, ...payload });
+      }
+      return res.json({ success: true, user: { id: safeLogin, ...payload } });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.delete('/api/outsourced/:id', async (req, res) => {
+    const { db, clientDb, isDbHealthy, militaryCache, normalizeRg } = getDeps();
+    const safeLogin = normalizeRg(req.params.id);
+    if (!safeLogin) {
+      return res.status(400).json({ success: false, error: 'ID inválido' });
+    }
+    try {
+      if (db && isDbHealthy) {
+        try {
+          await db.collection('outsourced_users').doc(safeLogin).delete();
+        } catch (e) {}
+      }
+      if (clientDb) {
+        await deleteDoc(doc(clientDb, 'outsourced_users', safeLogin));
+      }
+      if (militaryCache) {
+        militaryCache.delete(safeLogin);
+      }
+      return res.json({ success: true });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message });
     }
   });
 }

@@ -15,7 +15,7 @@ const app = initializeApp(firebaseConfig);
 function initFirestore() {
   const settings = {
     localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
-    experimentalForceLongPolling: true // Bypasses adblockers/VPNs blocking WebSockets (fixes ERR_BLOCKED_BY_CLIENT on Listen/channel)
+    experimentalAutoDetectLongPolling: true
   };
 
   const dbId = firebaseConfigData.firestoreDatabaseId;

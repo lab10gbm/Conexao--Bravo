@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { cn, normalizeRg } from '../../../../lib/utils';
-import { EscalaPostoData, PostoConfig, DEFAULT_POSTOS } from '../../../postos/types';
+import { EscalaPostoData, PostoConfig, DEFAULT_POSTOS, buildSlotsFromPostoConfig } from '../../../postos/types';
 
 export interface PrintPostosTableProps {
   postosEscalaEnabled?: boolean;
@@ -29,24 +29,40 @@ export function PrintPostosTable({
   const activePostos = useMemo(() => {
     if (!postosEscalaEnabled) return [];
 
+    const configsToUse = (availablePostosConfig && availablePostosConfig.length > 0
+      ? availablePostosConfig
+      : DEFAULT_POSTOS
+    ).filter(cfg => cfg.exibir !== false);
+
     let list: EscalaPostoData[] = [];
     if (postosData && postosData.length > 0) {
-      list = postosData;
+      list = postosData.map(p => {
+        const cfg = configsToUse.find(c => c.id === p.postoId);
+        const isSemFuncao = Boolean(
+          p.semFuncao ||
+          (cfg && (cfg.semFuncao || !cfg.funcoes || cfg.funcoes.length === 0))
+        );
+        let slots = p.slots || [];
+        if (slots.length === 0 && cfg) {
+          slots = buildSlotsFromPostoConfig(cfg);
+        } else if (isSemFuncao) {
+          slots = slots.map(s => ({ ...s, funcaoNome: '' }));
+        }
+        return {
+          ...p,
+          postoNome: cfg?.nome || p.postoNome,
+          semFuncao: isSemFuncao,
+          slots
+        };
+      });
     } else {
-      const configsToUse = availablePostosConfig && availablePostosConfig.length > 0
-        ? availablePostosConfig
-        : DEFAULT_POSTOS;
-
       list = configsToUse.map(cfg => ({
         postoId: cfg.id,
         postoNome: cfg.nome,
         tipo: cfg.tipo || 'praia',
         ativa: cfg.ativa !== undefined ? cfg.ativa : true,
-        slots: (cfg.funcoes || []).map(f => ({
-          slotId: f.id,
-          funcaoNome: f.nome,
-          rg: null
-        }))
+        semFuncao: Boolean(cfg.semFuncao || !cfg.funcoes || cfg.funcoes.length === 0),
+        slots: buildSlotsFromPostoConfig(cfg)
       }));
     }
 
@@ -108,6 +124,9 @@ export function PrintPostosTable({
       {activePostos.map((posto, idx) => {
         const slotsCount = Math.max(1, posto.slots.length);
         const colWidth = `${(100 / slotsCount).toFixed(2)}%`;
+        const hasAnyFunctionLabel =
+          !posto.semFuncao &&
+          posto.slots.some(s => Boolean(s.funcaoNome && s.funcaoNome.trim()));
 
         return (
           <div 
@@ -135,22 +154,24 @@ export function PrintPostosTable({
                     </div>
                   </th>
                 </tr>
-                <tr className="bg-[#dbe4ee]">
-                  {posto.slots.map((slot) => (
-                    <th
-                      key={slot.slotId}
-                      className="escala-vtr-func-header font-bold text-center text-[9px] sm:text-[9.5px] py-[2.5px] px-1 bg-[#dbe4ee] border-b border-r last:border-r-0 border-black"
-                      style={{
-                        width: colWidth,
-                        backgroundColor: '#dbe4ee',
-                        WebkitPrintColorAdjust: 'exact',
-                        printColorAdjust: 'exact'
-                      }}
-                    >
-                      {slot.funcaoNome}:
-                    </th>
-                  ))}
-                </tr>
+                {hasAnyFunctionLabel && (
+                  <tr className="bg-[#dbe4ee]">
+                    {posto.slots.map((slot) => (
+                      <th
+                        key={slot.slotId}
+                        className="escala-vtr-func-header font-bold text-center text-[9px] sm:text-[9.5px] py-[2.5px] px-1 bg-[#dbe4ee] border-b border-r last:border-r-0 border-black"
+                        style={{
+                          width: colWidth,
+                          backgroundColor: '#dbe4ee',
+                          WebkitPrintColorAdjust: 'exact',
+                          printColorAdjust: 'exact'
+                        }}
+                      >
+                        {slot.funcaoNome && slot.funcaoNome.trim() ? `${slot.funcaoNome}:` : 'MILITAR:'}
+                      </th>
+                    ))}
+                  </tr>
+                )}
               </thead>
               <tbody>
                 <tr>

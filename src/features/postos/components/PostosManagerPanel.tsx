@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Palmtree, Plus, Save, RotateCcw, Check, X, BookmarkCheck, 
-  Trash2, Edit2, ArrowUp, ArrowDown, Eye, EyeOff, Shield, Info, Sparkles 
+  Trash2, Edit2, ArrowUp, ArrowDown, Eye, EyeOff, Shield, Info, Sparkles, Users 
 } from 'lucide-react';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
@@ -132,24 +132,21 @@ export function PostosManagerPanel({ obmContext }: PostosManagerPanelProps) {
 
       const cleanObm = normalizeObm(obmContext);
       if (db) {
-        const docKeys = Array.from(new Set([
-          obmContext.replace(/\//g, '_').replace(/\s/g, '_'),
-          cleanObm.replace(/\//g, '_').replace(/\s/g, '_'),
-          cleanObm.replace(/º/g, '°').replace(/\//g, '_').replace(/\s/g, '_'),
-          cleanObm.replace(/°/g, 'º').replace(/\//g, '_').replace(/\s/g, '_'),
-          cleanObm.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase(),
-          '10º_GBM',
-          '10°_GBM'
-        ]));
-        // Persistência via Backend API com credenciais seguras de servidor
-        try {
-          await fetch('/api/obm-settings/update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ key: docKeys[0], data: payload })
-          });
-        } catch (err) {
-          console.warn('[PostosManagerPanel] Erro na API obm-settings:', err);
+        const docKeys = getObmSettingsFallbackKeys(obmContext);
+        // 1. Persistência via Backend API
+        fetch('/api/obm-settings/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: docKeys[0], data: payload })
+        }).catch(err => console.warn('[PostosManagerPanel] Erro na API obm-settings:', err));
+
+        // 2. Persistência direta no Firestore
+        for (const key of docKeys) {
+          try {
+            await setDoc(doc(db, "obm_settings", key), payload, { merge: true });
+          } catch (e) {
+            console.warn("Erro salvando postos em obm_settings:", key, e);
+          }
         }
       }
 
@@ -187,21 +184,21 @@ export function PostosManagerPanel({ obmContext }: PostosManagerPanelProps) {
 
       const cleanObm = normalizeObm(obmContext);
       if (db) {
-        const docKeys = Array.from(new Set([
-          obmContext.replace(/\//g, '_').replace(/\s/g, '_'),
-          cleanObm.replace(/\//g, '_').replace(/\s/g, '_'),
-          '10º_GBM',
-          '10°_GBM'
-        ]));
-        // Persistência via Backend API com credenciais seguras de servidor
-        try {
-          await fetch('/api/obm-settings/update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ key: docKeys[0], data: payload })
-          });
-        } catch (err) {
-          console.warn('[PostosManagerPanel] Erro na API obm-settings:', err);
+        const docKeys = getObmSettingsFallbackKeys(obmContext);
+        // 1. Persistência via Backend API
+        fetch('/api/obm-settings/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key: docKeys[0], data: payload })
+        }).catch(err => console.warn('[PostosManagerPanel] Erro na API obm-settings:', err));
+
+        // 2. Persistência direta no Firestore
+        for (const key of docKeys) {
+          try {
+            await setDoc(doc(db, "obm_settings", key), payload, { merge: true });
+          } catch (e) {
+            console.warn("Erro salvando padrão de postos em obm_settings:", key, e);
+          }
         }
       }
 
@@ -462,7 +459,9 @@ export function PostosManagerPanel({ obmContext }: PostosManagerPanelProps) {
                       </span>
                     </div>
                     <span className="text-[10px] text-slate-500 font-medium">
-                      Guarnição: {posto.funcoes?.length || 0} vagas configuradas
+                      {posto.semFuncao || !posto.funcoes || posto.funcoes.length === 0
+                        ? `Escalação sem função declarada (${posto.vagasSemFuncao || 4} vagas iniciais)`
+                        : `Guarnição: ${posto.funcoes.length} vagas configuradas`}
                     </span>
                   </div>
                 </div>
@@ -490,6 +489,59 @@ export function PostosManagerPanel({ obmContext }: PostosManagerPanelProps) {
                       <ArrowDown className="w-3.5 h-3.5" />
                     </button>
                   </div>
+
+                  {/* Toggle Sem Função / Com Funções */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPostos(prev =>
+                        prev.map(p => {
+                          if (p.id !== posto.id) return p;
+                          const isCurrentlySemFuncao = Boolean(p.semFuncao || !p.funcoes || p.funcoes.length === 0);
+                          if (isCurrentlySemFuncao) {
+                            return {
+                              ...p,
+                              semFuncao: false,
+                              funcoes:
+                                p.funcoes && p.funcoes.length > 0
+                                  ? p.funcoes
+                                  : [
+                                      { id: `fn-${Date.now()}-1`, nome: 'CHEFE DO POSTO', vagas: 1 },
+                                      { id: `fn-${Date.now()}-2`, nome: 'GUARDA-VIDAS 1', vagas: 1 },
+                                      { id: `fn-${Date.now()}-3`, nome: 'GUARDA-VIDAS 2', vagas: 1 },
+                                      { id: `fn-${Date.now()}-4`, nome: 'CONDUTOR', vagas: 1 }
+                                    ]
+                            };
+                          }
+                          return {
+                            ...p,
+                            semFuncao: true,
+                            vagasSemFuncao: p.vagasSemFuncao || 4,
+                            funcoes: []
+                          };
+                        })
+                      );
+                    }}
+                    className={cn(
+                      "px-2.5 py-1 rounded-lg text-[9.5px] font-black uppercase tracking-wider flex items-center gap-1 transition-all border cursor-pointer",
+                      posto.semFuncao || !posto.funcoes || posto.funcoes.length === 0
+                        ? "bg-indigo-50 text-indigo-800 border-indigo-300 hover:bg-indigo-100"
+                        : "bg-teal-50 text-teal-800 border-teal-200 hover:bg-teal-100"
+                    )}
+                    title="Alternar entre posto com funções definidas e posto sem função declarada"
+                  >
+                    {posto.semFuncao || !posto.funcoes || posto.funcoes.length === 0 ? (
+                      <>
+                        <Users className="w-3 h-3 text-indigo-600" />
+                        <span>Sem Função</span>
+                      </>
+                    ) : (
+                      <>
+                        <Shield className="w-3 h-3 text-teal-600" />
+                        <span>Com Funções</span>
+                      </>
+                    )}
+                  </button>
 
                   {/* Toggle Ativar / Desativar Posto */}
                   <button
@@ -573,28 +625,66 @@ export function PostosManagerPanel({ obmContext }: PostosManagerPanelProps) {
                 </div>
               </div>
 
-              {/* Corpo do Card: Funções da Guarnição */}
+              {/* Corpo do Card: Funções da Guarnição ou Modo Sem Função */}
               <div className="p-4 sm:p-5">
-                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2 block">
-                  Funções a Escalar no Posto:
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  {posto.funcoes && posto.funcoes.length > 0 ? (
-                    posto.funcoes.map((fn, fIdx) => (
-                      <span
-                        key={fn.id || fIdx}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-50 border border-teal-200/80 text-teal-900 text-[10.5px] font-black tracking-wide shadow-2xs"
-                      >
-                        <Shield className="w-3 h-3 text-teal-600" />
-                        {fn.nome}
+                {posto.semFuncao || !posto.funcoes || posto.funcoes.length === 0 ? (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-indigo-50/60 border border-indigo-200/80 rounded-xl p-3">
+                    <div className="flex items-center gap-2.5">
+                      <Users className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <div>
+                        <span className="text-[10.5px] font-black uppercase tracking-wide text-indigo-950 block">
+                          Escalação de Militares Sem Função Declarada
+                        </span>
+                        <span className="text-[10px] text-indigo-700 font-medium">
+                          Os militares são adicionados diretamente ao posto sem exigir declaração de função.
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[9.5px] font-black uppercase tracking-wider text-indigo-900">
+                        Vagas Iniciais:
                       </span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-slate-400 italic">
-                      Nenhuma função cadastrada. Clique em editar para adicionar funções.
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5, 6].map(num => (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => {
+                              setPostos(prev =>
+                                prev.map(p => (p.id === posto.id ? { ...p, semFuncao: true, vagasSemFuncao: num } : p))
+                              );
+                            }}
+                            className={cn(
+                              "w-6 h-6 rounded-md text-[10px] font-black transition-all border cursor-pointer",
+                              (posto.vagasSemFuncao || 4) === num
+                                ? "bg-indigo-600 text-white border-indigo-600"
+                                : "bg-white text-slate-700 border-slate-200 hover:border-indigo-300"
+                            )}
+                          >
+                            {num}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2 block">
+                      Funções a Escalar no Posto:
                     </span>
-                  )}
-                </div>
+                    <div className="flex flex-wrap gap-2">
+                      {posto.funcoes.map((fn, fIdx) => (
+                        <span
+                          key={fn.id || fIdx}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-50 border border-teal-200/80 text-teal-900 text-[10.5px] font-black tracking-wide shadow-2xs"
+                        >
+                          <Shield className="w-3 h-3 text-teal-600" />
+                          {fn.nome}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           ))

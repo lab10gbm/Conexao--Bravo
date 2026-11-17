@@ -228,10 +228,14 @@ export default function App() {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed && typeof parsed === 'object') {
-          const rawRg = parsed.rg ? String(parsed.rg).trim() : '';
+          const rawId = parsed.rg || parsed.login || parsed.uid;
+          const rawRg = rawId ? String(rawId).trim() : '';
           if (!rawRg) {
             localStorage.removeItem("militar_profile");
             return null;
+          }
+          if (!parsed.rg) {
+            parsed.rg = rawRg;
           }
           if (parsed.rg === "54444" || parsed.rg === 54444) {
             parsed.ala = "EXP";
@@ -301,7 +305,7 @@ export default function App() {
         isEscalante:
           (profile.isEscalante ||
             (profile.escalanteObms && profile.escalanteObms.length > 0)) &&
-          escalanteModeActive,
+          (escalanteModeActive || adminModeActive),
         ala:
           (profile.isAdmin ||
             (profile.adminObms && profile.adminObms.length > 0)) &&
@@ -412,8 +416,87 @@ export default function App() {
 
   // Proactive profile refresh to ensure data is never stale (Ala, rank, roles etc)
   useEffect(() => {
-    if (profile?.rg) {
-      const safeRg = normalizeRg(profile.rg);
+    const rawId = profile?.login || profile?.rg || profile?.uid;
+    if (rawId) {
+      const cleanAlphaId = String(rawId).trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const isOutsourcedUser = Boolean(
+        profile?.isOutsourced || (cleanAlphaId && !/^\d+$/.test(cleanAlphaId))
+      );
+
+      if (isOutsourcedUser) {
+        if (cleanAlphaId) {
+          fetch(`/api/outsourced/${encodeURIComponent(cleanAlphaId)}`)
+            .then(res => res.json())
+            .then(data => {
+              const outData = data?.user;
+              if (data?.success && outData) {
+                setProfile(prev => {
+                  if (!prev) return prev;
+                  const updatedProfile = {
+                    ...prev,
+                    ...outData,
+                    uid: cleanAlphaId,
+                    rg: cleanAlphaId,
+                    login: cleanAlphaId,
+                    isOutsourced: true,
+                    name: outData.name || prev.name || cleanAlphaId,
+                    warName: outData.warName || outData.name || prev.warName || prev.name || cleanAlphaId,
+                    rank: 'CIVIL',
+                    ala: outData.ala || prev.ala || 'EXP',
+                    isAdmin: Boolean(outData.isAdmin),
+                    isEscalante: Boolean(outData.isEscalante),
+                    isRefeitorioAdmin: Boolean(outData.isRefeitorioAdmin),
+                    obm: outData.obm || prev.obm || '10º GBM',
+                  };
+                  if (JSON.stringify(updatedProfile) !== JSON.stringify(prev)) {
+                    localStorage.setItem("militar_profile", JSON.stringify(updatedProfile));
+                    return updatedProfile;
+                  }
+                  return prev;
+                });
+              }
+            })
+            .catch(() => {});
+        }
+
+        if (!loading && authReady && db && cleanAlphaId) {
+          const unsub = onSnapshot(doc(db, 'outsourced_users', cleanAlphaId), (pDoc) => {
+            if (pDoc.exists()) {
+              const outData = pDoc.data();
+              setProfile(prev => {
+                if (!prev) return prev;
+                const updatedProfile = {
+                  ...prev,
+                  ...outData,
+                  uid: cleanAlphaId,
+                  rg: cleanAlphaId,
+                  login: cleanAlphaId,
+                  isOutsourced: true,
+                  name: outData.name || prev.name || cleanAlphaId,
+                  warName: outData.warName || outData.name || prev.warName || prev.name || cleanAlphaId,
+                  rank: 'CIVIL',
+                  ala: outData.ala || prev.ala || 'EXP',
+                  isAdmin: Boolean(outData.isAdmin),
+                  isEscalante: Boolean(outData.isEscalante),
+                  isRefeitorioAdmin: Boolean(outData.isRefeitorioAdmin),
+                  obm: outData.obm || prev.obm || '10º GBM',
+                };
+                if (JSON.stringify(updatedProfile) !== JSON.stringify(prev)) {
+                  localStorage.setItem("militar_profile", JSON.stringify(updatedProfile));
+                  return updatedProfile;
+                }
+                return prev;
+              });
+            }
+          }, (err) => {
+            console.warn("[Auth] Failed to subscribe to outsourced profile updates:", err.message);
+          });
+          return () => unsub();
+        }
+        return;
+      }
+
+      const safeRg = normalizeRg(profile?.rg);
       if (!safeRg) return;
 
       // Immediate fetch from backend API to guarantee role sync

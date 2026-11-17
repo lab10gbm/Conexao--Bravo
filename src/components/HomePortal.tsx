@@ -296,7 +296,7 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule, o
   }, [user?.rg]);
 
   const userRgStr = user.rg?.toString().trim().toUpperCase() || '';
-  const isAdmin = (isAdminRaw || isEscalanteRaw) && !user.isOutsourced;
+  const isAdmin = Boolean(isAdminRaw || isEscalanteRaw);
   const alaCheck = (user.ala?.toString() || '').toUpperCase();
   const isExp = alaCheck.includes('EXP') || alaCheck === 'E' || alaCheck === 'EXPEDIENTE';
   const isOfficerUser = isOfficer(user.rank || '');
@@ -314,11 +314,8 @@ export function HomePortal({ user, isAdminRaw, isEscalanteRaw, onLaunchModule, o
   }
 
   const isVisible = (moduleId: string, defaultVisibilityGroups: string[] = ['TODOS']) => {
-    if (user.isOutsourced && !user.isAdmin) {
-      if (user.isRefeitorioAdmin) {
-        return moduleId === 'refeitorio';
-      }
-      return false;
+    if (user.isOutsourced && user.isRefeitorioAdmin && !user.isAdmin) {
+      return moduleId === 'refeitorio';
     }
     
     if (isOfficerUser && moduleId === 'grd') return false;

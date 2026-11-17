@@ -46,11 +46,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed && typeof parsed === 'object') {
-          const rawRg = parsed.rg ? String(parsed.rg).trim() : '';
+          const rawId = parsed.rg || parsed.login || parsed.uid;
+          const rawRg = rawId ? String(rawId).trim() : '';
           if (!rawRg) {
             localStorage.removeItem("militar_profile");
             setProfile(null);
           } else {
+            if (!parsed.rg) {
+              parsed.rg = rawRg;
+            }
             if (parsed.rg === "54444" || parsed.rg === 54444) {
               parsed.ala = "EXP";
             }
@@ -78,7 +82,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         adminModeActive,
       isEscalante:
         (profile.isEscalante || (profile.escalanteObms && profile.escalanteObms.length > 0)) &&
-        escalanteModeActive,
+        (escalanteModeActive || adminModeActive),
       ala:
         (profile.isAdmin || (profile.adminObms && profile.adminObms.length > 0)) && simulatedAla
           ? simulatedAla
@@ -173,8 +177,55 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   // Listen to profile updates in Firestore
   useEffect(() => {
-    if (profile?.rg && !loading && authReady) {
-      const safeRg = normalizeRg(profile.rg);
+    const rawId = profile?.login || profile?.rg || profile?.uid;
+    if (rawId && !loading && authReady) {
+      const cleanAlphaId = String(rawId).trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const isOutsourcedUser = Boolean(
+        profile?.isOutsourced || (cleanAlphaId && !/^\d+$/.test(cleanAlphaId))
+      );
+
+      if (isOutsourcedUser && cleanAlphaId) {
+        const unsub = onSnapshot(
+          doc(db, "outsourced_users", cleanAlphaId),
+          (snap) => {
+            if (snap.exists()) {
+              const outData = snap.data();
+              setProfile((prev) => {
+                if (!prev) return null;
+                const updated: UserProfile = {
+                  ...prev,
+                  ...outData,
+                  uid: cleanAlphaId,
+                  rg: cleanAlphaId,
+                  login: cleanAlphaId,
+                  isOutsourced: true,
+                  name: outData.name || prev.name || cleanAlphaId,
+                  warName: outData.warName || outData.name || prev.warName || prev.name || cleanAlphaId,
+                  rank: "CIVIL",
+                  ala: outData.ala || prev.ala || "EXP",
+                  isAdmin: Boolean(outData.isAdmin),
+                  isEscalante: Boolean(outData.isEscalante),
+                  isRefeitorioAdmin: Boolean(outData.isRefeitorioAdmin),
+                  obm: outData.obm || prev.obm || "10º GBM",
+                };
+                if (JSON.stringify(updated) !== JSON.stringify(prev)) {
+                  try {
+                    localStorage.setItem("militar_profile", JSON.stringify(updated));
+                  } catch {}
+                  return updated;
+                }
+                return prev;
+              });
+            }
+          },
+          (err) => {
+            console.warn("[Auth] Failed to subscribe to outsourced profile updates:", err.message);
+          }
+        );
+        return () => unsub();
+      }
+
+      const safeRg = normalizeRg(profile?.rg);
       if (!safeRg) return;
 
       const profileDocRef = doc(db, "users", safeRg);

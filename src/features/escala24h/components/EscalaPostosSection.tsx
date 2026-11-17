@@ -19,7 +19,7 @@ import {
 import { RankInsignia } from '../../../components/RankInsignia';
 import { parseRank, formatRankAbbr } from '../../../lib/rankUtils';
 import { cn, normalizeRg, formatMilitaryName } from '../../../lib/utils';
-import { PostoConfig, EscalaPostoData, EscalaPostoSlot, DEFAULT_POSTOS } from '../../postos/types';
+import { PostoConfig, EscalaPostoData, EscalaPostoSlot, DEFAULT_POSTOS, buildSlotsFromPostoConfig } from '../../postos/types';
 
 export interface EscalaPostosSectionProps {
   obmContext: string;
@@ -57,25 +57,58 @@ export function EscalaPostosSection({
   const [rosterFilter, setRosterFilter] = useState<'todos' | 'disponiveis' | 'gv' | 'condutor'>('todos');
   const [isRosterOpen, setIsRosterOpen] = useState(false);
 
-  // Inicializa postosData a partir da configuração da OBM se ainda estiver vazio
+  // Inicializa e reconcilia postosData a partir da configuração da OBM
   const currentPostos = useMemo(() => {
-    if (postosData && postosData.length > 0) {
-      return postosData;
-    }
-    const configsToUse = availablePostosConfig && availablePostosConfig.length > 0
+    const configsToUse = (availablePostosConfig && availablePostosConfig.length > 0
       ? availablePostosConfig
-      : DEFAULT_POSTOS;
+      : DEFAULT_POSTOS
+    ).filter(cfg => cfg.exibir !== false);
+
+    if (postosData && postosData.length > 0) {
+      const reconciled = postosData.map(p => {
+        const cfg = configsToUse.find(c => c.id === p.postoId);
+        const isSemFuncao = Boolean(
+          p.semFuncao ||
+          (cfg && (cfg.semFuncao || !cfg.funcoes || cfg.funcoes.length === 0))
+        );
+        let slots = p.slots || [];
+        if (slots.length === 0 && cfg) {
+          slots = buildSlotsFromPostoConfig(cfg);
+        } else if (isSemFuncao) {
+          slots = slots.map(s => ({ ...s, funcaoNome: '' }));
+        }
+        return {
+          ...p,
+          postoNome: cfg?.nome || p.postoNome,
+          semFuncao: isSemFuncao,
+          slots
+        };
+      });
+
+      // Inclui novos postos cadastrados na OBM que ainda não estavam salvos na data
+      configsToUse.forEach(cfg => {
+        if (!reconciled.some(p => p.postoId === cfg.id)) {
+          reconciled.push({
+            postoId: cfg.id,
+            postoNome: cfg.nome,
+            tipo: cfg.tipo || 'praia',
+            ativa: cfg.ativa !== undefined ? cfg.ativa : true,
+            semFuncao: Boolean(cfg.semFuncao || !cfg.funcoes || cfg.funcoes.length === 0),
+            slots: buildSlotsFromPostoConfig(cfg)
+          });
+        }
+      });
+
+      return reconciled;
+    }
 
     return configsToUse.map(cfg => ({
       postoId: cfg.id,
       postoNome: cfg.nome,
       tipo: cfg.tipo || 'praia',
       ativa: cfg.ativa !== undefined ? cfg.ativa : true,
-      slots: (cfg.funcoes || []).map(f => ({
-        slotId: f.id,
-        funcaoNome: f.nome,
-        rg: null
-      }))
+      semFuncao: Boolean(cfg.semFuncao || !cfg.funcoes || cfg.funcoes.length === 0),
+      slots: buildSlotsFromPostoConfig(cfg)
     }));
   }, [postosData, availablePostosConfig]);
 
@@ -115,7 +148,7 @@ export function EscalaPostosSection({
       currentPostos.forEach(p => {
         p.slots.forEach(s => {
           if (s.rg && normalizeRg(s.rg) === cleanRg) {
-            assignedInPostoSlot = `${p.postoNome} - ${s.funcaoNome}`;
+            assignedInPostoSlot = s.funcaoNome ? `${p.postoNome} - ${s.funcaoNome}` : p.postoNome;
           }
         });
       });
@@ -189,13 +222,23 @@ export function EscalaPostosSection({
     onChangePostosData(updated);
   };
 
-  const handleAddExtraSlot = (postoId: string) => {
-    const fnName = window.prompt("Informe o nome da função para a vaga extra no posto:", "GUARDA-VIDAS EXTRA");
-    if (!fnName || !fnName.trim()) return;
+  const handleAddExtraSlot = (postoId: string, withoutFunction = false) => {
+    const targetPosto = currentPostos.find(p => p.postoId === postoId);
+    const isSemFuncao = Boolean(targetPosto?.semFuncao || withoutFunction);
+
+    let fnName = '';
+    if (!isSemFuncao) {
+      const prompted = window.prompt(
+        "Informe o nome da função para a vaga extra (ou deixe em branco para vaga sem função):",
+        ""
+      );
+      if (prompted === null) return;
+      fnName = prompted.trim().toUpperCase();
+    }
 
     const newSlot: EscalaPostoSlot = {
-      slotId: `slot-extra-${Date.now()}`,
-      funcaoNome: fnName.trim().toUpperCase(),
+      slotId: `slot-extra-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      funcaoNome: fnName,
       rg: null
     };
 
@@ -209,6 +252,8 @@ export function EscalaPostosSection({
       return p;
     });
     onChangePostosData(updated);
+    setActiveSlotSearch(`${postoId}_${newSlot.slotId}`);
+    setSearchTerm('');
   };
 
   const handleRemoveSlot = (postoId: string, slotId: string) => {
@@ -367,13 +412,18 @@ export function EscalaPostosSection({
                         <Palmtree className="w-3.5 h-3.5 text-teal-100" />
                       </div>
                       <div>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <h4 className="text-[11.5px] font-black uppercase text-slate-800 tracking-wide">
                             {posto.postoNome}
                           </h4>
                           <span className="text-[8px] font-black uppercase px-1.5 py-0.2 rounded bg-teal-100 text-teal-800 border border-teal-200">
                             {posto.tipo === 'praia' ? 'Praia' : (posto.tipo?.toUpperCase() || 'POSTO')}
                           </span>
+                          {posto.semFuncao && (
+                            <span className="text-[8px] font-black uppercase px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800 border border-indigo-200">
+                              Sem Função
+                            </span>
+                          )}
                         </div>
                         <span className="text-[9.5px] font-bold text-slate-500">
                           {filledInPosto}/{totalInPosto} Vagas Preenchidas
@@ -381,15 +431,26 @@ export function EscalaPostosSection({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                      {!posto.semFuncao && (
+                        <button
+                          type="button"
+                          onClick={() => handleAddExtraSlot(posto.postoId, true)}
+                          className="px-2 py-0.8 bg-white border border-indigo-200 hover:bg-indigo-50 text-indigo-800 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                          title="Adicionar militar ao posto sem declarar função"
+                        >
+                          <Plus className="w-2.5 h-2.5" />
+                          <span>Sem Função</span>
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleAddExtraSlot(posto.postoId)}
                         className="px-2 py-0.8 bg-white border border-teal-200 hover:bg-teal-50 text-teal-800 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                        title="Adicionar vaga extra neste posto para esta data"
+                        title={posto.semFuncao ? "Adicionar vaga de militar neste posto" : "Adicionar vaga extra neste posto para esta data"}
                       >
                         <Plus className="w-2.5 h-2.5" />
-                        <span>Vaga Extra</span>
+                        <span>{posto.semFuncao ? "Adicionar Militar" : "Vaga Extra"}</span>
                       </button>
 
                       <button
@@ -425,17 +486,20 @@ export function EscalaPostosSection({
                               : "bg-slate-50/70 border-slate-200 hover:border-slate-300"
                           )}
                         >
-                          {/* Identificação da Função */}
+                          {/* Identificação da Função ou Vaga Sem Função */}
                           <div className="flex items-center gap-2 shrink-0">
-                            <span className="w-5 h-5 rounded-md bg-teal-600 text-white text-[10px] font-black flex items-center justify-center shrink-0">
+                            <span className={cn(
+                              "w-5 h-5 rounded-md text-white text-[10px] font-black flex items-center justify-center shrink-0",
+                              slot.funcaoNome ? "bg-teal-600" : "bg-indigo-600"
+                            )}>
                               {sIdx + 1}
                             </span>
                             <div className="flex flex-col">
                               <span className="text-[10px] font-black uppercase tracking-wider text-slate-800">
-                                {slot.funcaoNome}
+                                {slot.funcaoNome || `Militar ${sIdx + 1}`}
                               </span>
                               <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">
-                                Função de Posto
+                                {slot.funcaoNome ? "Função de Posto" : "Sem Função Declarada"}
                               </span>
                             </div>
                           </div>
@@ -559,13 +623,13 @@ export function EscalaPostosSection({
                               </div>
                             )}
 
-                            {/* Botão de Excluir Vaga Extra */}
-                            {slot.slotId.startsWith('slot-extra') && (
+                            {/* Botão de Excluir Vaga Extra ou Vaga Sem Função */}
+                            {(slot.slotId.startsWith('slot-extra') || (posto.semFuncao && posto.slots.length > 1)) && (
                               <button
                                 type="button"
                                 onClick={() => handleRemoveSlot(posto.postoId, slot.slotId)}
                                 className="ml-1 p-1 text-slate-300 hover:text-rose-500 rounded cursor-pointer"
-                                title="Excluir esta vaga extra"
+                                title="Excluir esta vaga do posto"
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>

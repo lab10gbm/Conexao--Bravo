@@ -11,6 +11,8 @@ export interface PostoConfig {
   obm?: string;
   ativa: boolean;
   exibir?: boolean;
+  semFuncao?: boolean;
+  vagasSemFuncao?: number;
   funcoes: PostoFuncaoConfig[];
 }
 
@@ -25,7 +27,25 @@ export interface EscalaPostoData {
   postoNome: string;
   tipo?: string;
   ativa: boolean;
+  semFuncao?: boolean;
   slots: EscalaPostoSlot[];
+}
+
+export function buildSlotsFromPostoConfig(cfg: PostoConfig): EscalaPostoSlot[] {
+  const isSemFuncao = Boolean(cfg.semFuncao || !cfg.funcoes || cfg.funcoes.length === 0);
+  if (isSemFuncao) {
+    const count = Math.max(1, Number(cfg.vagasSemFuncao) || 4);
+    return Array.from({ length: count }, (_, idx) => ({
+      slotId: `${cfg.id}-vaga-${idx + 1}`,
+      funcaoNome: '',
+      rg: null,
+    }));
+  }
+  return (cfg.funcoes || []).map(f => ({
+    slotId: f.id,
+    funcaoNome: f.nome,
+    rg: null,
+  }));
 }
 
 export const DEFAULT_POSTOS: PostoConfig[] = [

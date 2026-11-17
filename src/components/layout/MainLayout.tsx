@@ -93,7 +93,7 @@ export function MainLayout({
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-main)] text-[#1D1D1D] font-sans selection:bg-red-100 selection:text-red-900 flex flex-col pb-20 md:pb-6">
-      {hasAdminAccess && moderatorMode && (
+      {hasAdminAccess && (moderatorMode || adminModeActive) && (
           <div className="bg-indigo-600 text-white px-3 py-2 border-b border-indigo-500 animate-in slide-in-from-top duration-300">
             <div className="max-w-[1600px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -213,16 +213,16 @@ export function MainLayout({
                 {hasAdminAccess && (
                   <button
                     onClick={() => {
-                      const nextMode = !moderatorMode;
+                      const nextMode = !(moderatorMode || adminModeActive);
                       setModeratorMode(nextMode);
                       setAdminModeActive(nextMode);
                     }}
                     className={`w-9 h-9 sm:w-10 sm:h-10 transition-all rounded-xl flex items-center justify-center shrink-0 active:scale-95 cursor-pointer ${
-                      moderatorMode
+                      moderatorMode || adminModeActive
                         ? "bg-indigo-600 text-white border border-indigo-400/50 shadow-md shadow-indigo-900/40 hover:bg-indigo-500"
                         : "text-white/60 hover:text-indigo-300 hover:bg-white/10 border border-white/10 hover:border-indigo-400/30"
                     }`}
-                    title={moderatorMode ? "Modo Moderador Ativo (clique para desativar)" : "Ativar Modo Moderador"}
+                    title={moderatorMode || adminModeActive ? "Modo Moderador Ativo (clique para desativar)" : "Ativar Modo Moderador"}
                     aria-label="Modo Moderador"
                   >
                     <ShieldCheck className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
@@ -242,11 +242,11 @@ export function MainLayout({
                     {effectiveProfile?.rank || "SD"}
                   </span>
                   <span className="text-sm sm:text-lg font-black text-slate-200 uppercase tracking-wider leading-none mb-1 sm:mb-1.5">
-                    {effectiveProfile?.warName || "USUÁRIO"}
+                    {effectiveProfile?.warName || effectiveProfile?.name || "USUÁRIO"}
                   </span>
                   <div className="text-[9px] sm:text-[11px] font-mono font-bold flex items-center leading-none">
                     <span className="text-slate-500 tracking-[0.1em]">RG:&nbsp;&nbsp;</span>
-                    <span className="text-slate-400 tracking-[0.1em]">{effectiveProfile?.rg}</span>
+                    <span className="text-slate-400 tracking-[0.1em]">{effectiveProfile?.rg || effectiveProfile?.login}</span>
                     <span className="text-slate-300 tracking-[0.1em] ml-2">{effectiveProfile?.ala || "EXP"}</span>
                   </div>
                 </div>
